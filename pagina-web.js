@@ -929,14 +929,26 @@
     } catch (err) { console.error('[web/ptsRegalo]', err); S.web.ptsRegalo = []; }
 
     try {
+      /* LAS YA APLICADAS TAMBIEN SE TRAEN (21-ago, pedido de Sergio): "las que
+         ya se abonaron deben aparecer como que ya se aprobó, en verde, porque
+         si yo la confirmo se abonaría doble". Esconderlas dejaba al dueño sin
+         saber si esa plata entró. Las descartadas si se quedan fuera: esas ya
+         las decidió él. */
       var q = await s.from('pos_recargas_solicitudes')
-        .select('id, creado, monto_dicho, monto_leido, referencia, comprobante_url, estado, cliente_id, pos_clientes(nombre, telefono)')
-        /* Solo las que siguen abiertas. Con `neq('aplicada')` las descartadas
-           volvían a la lista y no había forma de sacarlas de la pantalla. */
-        .eq('tenant_id', tid).not('estado', 'in', '("aplicada","descartada")')
+        .select('id, creado, monto_dicho, monto_leido, referencia, comprobante_url, comprobante_huella, estado, aplicado_at, aplicado_monto, aplicado_bono, nota_revision, cliente_id, pos_clientes(nombre, telefono)')
+        .eq('tenant_id', tid).neq('estado', 'descartada')
         .order('creado', { ascending: false }).limit(200);
       S.web.solicitudes = q.data || [];
     } catch (err) { console.error('[web/solicitudes]', err); S.web.solicitudes = []; }
+
+    /* El libro de comprobantes ya pagados. Sirve para avisarle al dueño, ANTES
+       de que toque Aprobar, que esa foto ya se abonó — con otra solicitud. */
+    try {
+      var pg = await s.from('pos_recargas_pagadas')
+        .select('comprobante_huella, solicitud_id, monto, bono, aplicado_at')
+        .eq('tenant_id', tid);
+      S.web.pagadas = pg.data || [];
+    } catch (err) { console.error('[web/pagadas]', err); S.web.pagadas = []; }
   }
 
   // ── Ayudas de esta pestaña ─────────────────────────────────────────
@@ -1040,7 +1052,9 @@
       personas: (S.web.usuarios || []).length,
       recargas: recargasDe().length,
       regalos:  regalosDe().length,
-      revisar:  (S.web.solicitudes || []).length,
+      /* Solo cuenta lo que ESPERA una decision. Las ya abonadas se ven en la
+       lista, pero no son trabajo pendiente y no deben inflar el numero. */
+      revisar:  pendientesDe().length,
     };
     var nav = '<div class="pw-snav">' + SUBS.map(function (x) {
       var n = cuenta[x.k];
@@ -1275,9 +1289,21 @@
       cuerpo + avisoTope(((S.web && S.web.ptsRegalo) || []).length, TOPE_PTS, 'regalos de puntos') + '</section>';
   }
 
+  function pendientesDe() {
+    return ((S.web && S.web.solicitudes) || []).filter(function (p) { return p.estado !== 'aplicada'; });
+  }
+  /* ¿Esta foto ya se abonó, con otra solicitud? Devuelve el renglón del libro. */
+  function yaPagada(p) {
+    if (!p.comprobante_huella) return null;
+    return ((S.web && S.web.pagadas) || []).filter(function (x) {
+      return x.comprobante_huella === p.comprobante_huella && String(x.solicitud_id) !== String(p.id);
+    })[0] || null;
+  }
+
   // ── POR REVISAR: lo unico que pide una decision tuya ────────────────
   function webRevisar() {
     var ps = (S.web && S.web.solicitudes) || [];
+    var nPend = pendientesDe().length;
     if (!ps.length) {
       return '<section class="mw-card">' +
         '<div class="mw-card-head"><div><h2 class="mw-h">Recargas por revisar</h2>' +
@@ -1289,14 +1315,34 @@
     return '<section class="mw-card">' +
       '<div class="mw-card-head"><div><h2 class="mw-h">Recargas por revisar</h2>' +
         '<p class="mw-sub">El sistema no pudo confirmarlas solo. Mira el comprobante y decide.</p></div>' +
-        '<span class="mw-badge warn">' + num(ps.length) + ' pendiente' + (ps.length === 1 ? '' : 's') + '</span></div>' +
+        '<span class="mw-badge ' + (nPend ? 'warn' : 'ok') + '">' +
+          (nPend ? num(nPend) + ' pendiente' + (nPend === 1 ? '' : 's') : 'nada pendiente') + '</span></div>' +
       pag.map(function (p) {
         var cli = p.pos_clientes || {};
-        return '<div class="pw-sol">' +
+        var lista = p.estado === 'aplicada';
+        var otra  = lista ? null : yaPagada(p);
+        return '<div class="pw-sol' + (lista ? ' hecha' : '') + '">' +
           '<div class="pw-sol-izq"><b>' + esc(cli.nombre || 'Cliente') + '</b>' +
             '<small>' + esc(cli.telefono || '') + ' · ' + esc(fechaPw(p.creado)) + '</small>' +
             '<small>Dijo ' + COP(p.monto_dicho) + ' · el comprobante decía ' + COP(p.monto_leido) +
-              (p.referencia ? ' · Ref ' + esc(p.referencia) : '') + '</small></div>' +
+              (p.referencia ? ' · Ref ' + esc(p.referencia) : '') + '</small>' +
+            /* Ya abonada: en verde, con lo que entró y cuándo. Sin botones —
+               ofrecer "Aprobar" encima de plata ya abonada es la trampa que
+               puso a Sergio a un clic de cobrarle doble a un cliente. */
+            (lista
+              ? '<div class="pw-sol-ok"><span class="mw-badge ok">✓ Ya aprobada</span> ' +
+                '<small>Se le abonaron ' + COP(p.aplicado_monto) +
+                (Number(p.aplicado_bono) > 0 ? ' + ' + COP(p.aplicado_bono) + ' de bono' : '') +
+                (p.aplicado_at ? ' · ' + esc(fechaPw(p.aplicado_at)) : '') + '</small></div>' : '') +
+            (lista && p.nota_revision
+              ? '<div class="pw-sol-nota">' + esc(p.nota_revision) + '</div>' : '') +
+            /* Todavía sin abonar, pero su foto YA se pagó con otra solicitud:
+               se le dice antes de decidir, no después de intentarlo. */
+            (otra
+              ? '<div class="pw-sol-nota">Este mismo comprobante ya se abonó' +
+                (otra.aplicado_at ? ' el ' + esc(fechaPw(otra.aplicado_at)) : '') +
+                ' (' + COP(otra.monto) + '). Abonarlo otra vez sería cobrar dos veces la misma transferencia.</div>' : '') +
+          '</div>' +
           /* La miniatura de 72px no deja LEER el comprobante, que es justo lo
              que hay que hacer antes de aprobar plata. Abre una ventana propia
              con la foto grande; el enlace a otra pestana no servia en el .exe. */
@@ -1304,10 +1350,14 @@
             ? '<button class="pw-sol-img" data-ver-comp="' + esc(p.id) + '" title="Ver el comprobante grande">' +
               '<img src="' + esc(p.comprobante_url) + '" alt="Comprobante">' +
               '<span class="pw-lupa">Ampliar</span></button>' : '') +
-          '<div class="pw-sol-der">' +
-            '<button class="lm-btn-primary" data-sol-ok="' + esc(p.id) + '">Aprobar</button>' +
-            '<button class="lm-btn-ghost" data-sol-no="' + esc(p.id) + '">Descartar</button>' +
-          '</div></div>';
+          (lista ? '' :
+            '<div class="pw-sol-der">' +
+              /* Si la foto ya se pagó, Descartar pasa a ser el botón fuerte:
+                 sigue pudiendo aprobar si él sabe algo que el sistema no, pero
+                 lo que la pantalla sugiere es lo correcto. */
+              '<button class="' + (otra ? 'lm-btn-ghost' : 'lm-btn-primary') + '" data-sol-ok="' + esc(p.id) + '">Aprobar</button>' +
+              '<button class="' + (otra ? 'lm-btn-primary' : 'lm-btn-ghost') + '" data-sol-no="' + esc(p.id) + '">Descartar</button>' +
+            '</div>') + '</div>';
       }).join('') +
       (ps.length > pag.length
         ? '<div class="pw-mas"><small>Mostrando ' + num(pag.length) + ' de ' + num(ps.length) +
@@ -1610,14 +1660,24 @@
         p_tenant: S.t.id, p_cliente: p.cliente_id, p_monto: monto,
         p_ref: p.referencia || ('manual:' + p.id),
         p_branch: (window._pos.state.branchId || null), p_como: 'a mano',
+        /* Con la solicitud en la mano, la funcion puede negarse si esa foto ya
+           se pago — y cierra la solicitud ella misma, en la misma transaccion. */
+        p_solicitud: p.id,
       });
       var f = (r.data || [])[0];
       if (!f || f.ok !== true) {
         btn.disabled = false; btn.textContent = 'Acreditar ' + COP(monto);
-        toast((f && f.motivo) || 'No se pudo acreditar');
+        /* 'comprobante_usado' es una clave del sistema, no algo que se le diga
+           a una persona: se traduce a lo que de verdad pasó. */
+        toast((f && f.motivo) === 'comprobante_usado'
+          ? 'Ese comprobante ya se abonó antes. No se cobra dos veces.'
+          : ((f && f.motivo) || 'No se pudo acreditar'));
         return;
       }
-      await sb().from('pos_recargas_solicitudes').update({ estado: 'aplicada' }).eq('id', p.id);
+      /* La solicitud ya la cerró la propia función, en la misma transacción
+         que el abono. Hacerlo aquí desde el navegador era el punto flojo: si
+         se caía la conexión justo aquí, la plata quedaba abonada y la
+         solicitud seguía ofreciendo el botón Aprobar. */
 
       /* EL AVISO AL CELULAR DEL CLIENTE (19-ago). Acreditar a mano tiene que
          sentirse igual que la verificación automática: si por un lado le llega

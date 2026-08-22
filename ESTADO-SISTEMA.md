@@ -3,6 +3,81 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 Un comprobante ya no se puede cobrar dos veces — 21-ago-2026
+
+Revisando con Sergio las 8 solicitudes pendientes (ver
+`PLAN-RECARGAS-APROBADAS.md`) apareció que **el cobro doble no era un riesgo:
+ya había ocurrido**.
+
+### Lo que se encontró
+
+Las 8 son del propio número de Sergio y hay **solo DOS comprobantes reales** —
+la misma foto subida varias veces (comparadas por huella md5 de la imagen, no
+por monto ni hora, que con tres solicitudes de $210.000 sería adivinar):
+
+- foto `d249edcd` ($55.000) → solicitudes 12, 15, 16
+- foto `74a603f2` ($210.000) → solicitudes 13, 14, 17, 18, 19
+
+Y hubo tres abonos: 19-ago 1:26 pm ($55.000, sol. 12), 19-ago 4:07 pm
+($210.000, sol. 13) y **21-ago 1:06 am ($210.000, sol. 14) — la misma foto de
+la 13, cobrada de nuevo.** $230.000 de más contando el bono.
+
+### Por qué se coló
+
+El candado comparaba la **referencia bancaria**, y solo cuando existía:
+`ux_saldo_mov_ref` es `unique … where referencia is not null` y
+`fn_recarga_aplicar` preguntaba `if p_ref is not null and exists`. Esa
+madrugada el sistema no leyó la referencia, quedó nula, y el candado no aplicó.
+**Un candado que se abre solo cuando falta un dato no es un candado.**
+
+Además, el abono automático dejaba la solicitud en `leida`, así que la pantalla
+seguía ofreciendo "Aprobar" encima de plata ya abonada.
+
+### El arreglo
+
+`supabase/sql/2026-08-21-recargas-candado-comprobante.sql` (aplicada):
+
+- `pos_recargas_solicitudes` += `comprobante_huella` (md5 de la imagen, la
+  llena un disparador — no depende de que cada camino se acuerde),
+  `aplicado_at/monto/bono` y `nota_revision`.
+- **`pos_recargas_pagadas`**: un renglón por comprobante pagado, con
+  `primary key (tenant_id, comprobante_huella)`. **Esa llave ES el candado.**
+  `fn_recarga_aplicar` escribe ahí ANTES de mover un peso, así que si la foto
+  ya estaba, no se abona nada. Se confía en la foto, que siempre está, no en la
+  referencia, que a veces no se lee.
+- `fn_recarga_aplicar` gana `p_solicitud` y **cierra la solicitud en la misma
+  transacción que el abono** (antes lo hacía el navegador después: si se caía
+  la conexión ahí, quedaba plata abonada con el botón Aprobar activo).
+  ⚠️ Se hizo `drop function` de la versión de 7 parámetros antes de crear la de
+  8: agregar un parámetro crea una función NUEVA y las llamadas quedan
+  ambiguas ("la función no es única").
+- `web-recarga` (v19) pasa `p_solicitud`.
+
+### La pantalla (pedido de Sergio: "no descartes ninguna")
+
+Tres estados en Clientes de la app › Por revisar:
+- **Ya abonada** → verde "✓ Ya aprobada" con lo que entró y cuándo, **sin
+  botones**.
+- **Ya abonada pero no debía** (la 14) → verde + nota naranja explicando que
+  fue un cobro doble.
+- **Pendiente cuya foto ya se pagó** → aviso naranja antes de decidir, y
+  Descartar pasa a ser el botón fuerte. El botón Aprobar sigue ahí, pero si lo
+  toca, el candado responde "Ese comprobante ya se abonó antes".
+
+El contador de la sub-pestaña cuenta **solo lo pendiente**: lo ya abonado se ve
+pero no es trabajo por hacer.
+
+### Probado (21-ago, Restaurante de Prueba)
+
+Dos solicitudes con la misma foto: la primera abona $50.000 + $5.000 y queda
+`aplicada`; la segunda devuelve `comprobante_usado` y **el saldo no se mueve**
+($55.000 antes y después) — la única prueba que vale. Filas de prueba borradas.
+
+### ⚠️ Queda por decidir (de Sergio)
+
+Los **$230.000** de más en el saldo de su propia cuenta de pruebas. No se toca
+sin su confirmación de que no hizo dos transferencias de $210.000 de verdad.
+
 ## 🟢 "Clientes de la app" en sub-pestañas — 21-ago-2026
 
 Sergio: *"esta sección se está volviendo infinita… entre más clientes se

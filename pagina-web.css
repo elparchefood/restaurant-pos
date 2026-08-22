@@ -717,6 +717,14 @@ body{margin:0;background:var(--bg);font-family:'DM Sans',system-ui,-apple-system
   border:1px solid var(--border);display:block;}
 .pw-sol-der{display:flex;gap:7px;}
 
+/* Lo ya abonado se ve distinto de lo que espera decision (21-ago) */
+.pw-sol.hecha{background:#F6FDF9;border-color:#BBF7D0;}
+.pw-sol-ok{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:5px;}
+.pw-sol-ok small{color:var(--ink-3);font-size:11.5px;}
+.pw-sol-nota{margin-top:6px;font-size:11.5px;line-height:1.45;color:var(--amber-ink);
+  background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:7px 9px;max-width:62ch;}
+
+
 /* El comprobante, para verlo de verdad (21-ago) */
 .pw-sol-img{position:relative;border:none;background:none;padding:0;cursor:zoom-in;display:block;flex:none;}
 .pw-lupa{position:absolute;left:0;right:0;bottom:0;font-size:9px;font-weight:700;color:#fff;

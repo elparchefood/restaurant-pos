@@ -258,9 +258,15 @@ Deno.serve(async (req) => {
         mensaje: (banco as Record<string, unknown>).mensaje as string || mensajes[String(banco.razon)] || mensajes.banco_error });
     }
 
+    /* LA SOLICITUD VIAJA CON EL ABONO (21-ago). Dos cosas dependian de esto y
+       ninguna funcionaba: el candado por comprobante —que impide cobrar dos
+       veces la misma foto— y que la solicitud quede CERRADA al abonar. Antes
+       el abono automatico la dejaba en "leida", como si nadie la hubiera
+       atendido, y la pantalla seguia ofreciendo el boton Aprobar encima de
+       plata ya abonada. */
     const res = await rpc("fn_recarga_aplicar", {
       p_tenant: tenantId, p_cliente: clienteId, p_monto: monto,
-      p_ref: banco.referencia, p_branch: branchId,
+      p_ref: banco.referencia, p_branch: branchId, p_solicitud: solId,
       p_como: "automatico+correo" + ((banco as Record<string, unknown>).pagador ? " · " + (banco as Record<string, unknown>).pagador : ""),
     }) as Array<Record<string, unknown>> | null;
     const r0 = res?.[0];
