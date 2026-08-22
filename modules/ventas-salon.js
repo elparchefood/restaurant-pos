@@ -1167,6 +1167,17 @@
     else if (state.floor === '__rapidas__' && state.selectedQuickId) showSheet();
   }
 
+  /* EL NOMBRE DEL NEGOCIO, debajo de "Cobra POS".
+     `branch.name` llega vacio en algunos arranques (la sede aun no responde) y
+     entonces salia "Mi negocio", que no es de nadie. pos-brand.js ya guarda el
+     nombre bueno en el equipo: se usa ese antes de rendirse. Se escribe solo el
+     nombre —sin "Caja 01"— porque es lo que muestran las demas pantallas. */
+  function _negocio(branch) {
+    var n = (branch && branch.name) || "";
+    if (!n) { try { n = localStorage.getItem("pos.brand.restaurante") || ""; } catch (e) {} }
+    return _esc(n) || "Mi negocio";
+  }
+
   // ─── Render: Sidebar ─────────────────────────────────
   function renderSidebar(user, branch) {
     const initials = user.initials || (user.name ? user.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() : 'SA');
@@ -1175,11 +1186,19 @@
         <button class="vs-sidebar-toggle" id="vs-sidebar-toggle" title="${sidebarExpanded ? 'Cerrar menú' : 'Abrir menú'}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
+        <!-- EL LOGO VA ESCRITO AQUI, NO SE PINTA DESPUES (22-ago-2026).
+             Antes decia la letra "L" y pos-brand.js la reemplazaba por el logo.
+             Pero esta barra se REDIBUJA en cada accion (abrir una mesa, avanzar
+             un domicilio: render() se llama 15 veces), y cada vez volvia la "L".
+             El vigilante que la repintaba se apaga a los 20 segundos a proposito,
+             para no gastar procesador — asi que cualquier redibujado despues de
+             ese rato dejaba la "L" para siempre. De ahi que Sergio la viera
+             "a veces si, a veces no". Escrito de una, no depende de nadie. -->
         <div class="vs-brand-mark">
-          <div class="vs-brand-logo">L</div>
+          <div class="vs-brand-logo" data-brand-done="1" style="background:transparent;box-shadow:none;color:transparent;padding:0;overflow:hidden;max-width:40px;max-height:40px"><img src="assets/brand/cobra-logo.png?v=2" alt="Cobra POS" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit"></div>
           <div>
             <div class="vs-brand-name">Cobra POS</div>
-            <div class="vs-brand-sub">${branch.name || 'Mi negocio'} · Caja 01</div>
+            <div class="vs-brand-sub">${_negocio(branch)}</div>
           </div>
         </div>
 
