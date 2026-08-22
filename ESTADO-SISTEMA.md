@@ -3,6 +3,35 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 "Pagos por confirmar" se quedaba encendido para siempre — 22-ago-2026
+
+Sergio: dos chats del 17-ago llevaban días en *Pagos por confirmar*. El cliente
+había pagado **a otra cuenta**, Sergio lo verificó y creó el pedido a mano —
+pero el chat seguía marcado, **ofreciendo un botón que habría creado el pedido
+OTRA VEZ**.
+
+**Causa:** `chat_conversations.pago_pendiente` solo se apagaba por dos caminos
+— el propio Paco (`delay-reply`) y el botón dentro del chat. Cobrar por fuera
+(caja, pantalla de pagos) no apagaba nada.
+
+Es **el mismo patrón de las recargas del 21-ago**: una marca que sobrevive al
+trabajo ya hecho y un botón que duplica. Y la misma lección: **el candado va en
+la BASE, no en cada pantalla que cobra.**
+
+**Arreglo** (`supabase/sql/2026-08-22-pago-pendiente-se-apaga-solo.sql`,
+aplicada): disparador sobre `pos_orders` — en cuanto un pedido queda `paid`,
+`cancelled` o con `closed_at`, apaga `pago_pendiente` y `recordar_at` de SU
+conversación. Cubre todos los caminos (caja, pagos, verificación automática,
+chat) y los que se agreguen mañana, sin que nadie tenga que acordarse.
+
+Los dos casos colgados quedaron reparados con la misma condición: solo se
+tocaron conversaciones cuyo pedido está REALMENTE cobrado.
+
+**Probado** (Restaurante de Prueba): pedido esperando comprobante + chat
+marcado → se cobra POR FUERA del chat → la marca y el recordatorio se apagan
+solos. Y un chat que SÍ espera comprobante **no se toca**. Filas de prueba
+borradas.
+
 ## 🔴→🟢 Adición en OTRO tamaño: se cobra aparte (motor v351) — 22-ago-2026
 
 Caso real de Yubeli (21-ago, 10:27 pm): pidió una Maicitos Especial Carne
