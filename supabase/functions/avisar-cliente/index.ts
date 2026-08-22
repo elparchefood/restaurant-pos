@@ -65,6 +65,10 @@ const DE_FABRICA: Record<string, { titulo: string; cuerpo: string }> = {
   /* SALDO REGALADO (20-ago, Sergio: que el regalo de saldo avise igual que el
      de puntos). Distinto de la recarga: esto no lo pago el cliente. */
   saldo_regalo:     { titulo: "Te regalamos {monto} 🎁", cuerpo: "Ya tienes {saldo} en tu billetera de {negocio}. Un detalle de parte nuestra." },
+  /* BONO POR INSTALAR LA APP (21-ago). Dice POR QUE llego la plata: un
+     regalo sin motivo confunde; un "gracias por instalar" refuerza justo lo
+     que se quiere que la gente haga. */
+  bono_instalacion: { titulo: "¡Gracias por instalar nuestra app! 🎁", cuerpo: "Te regalamos {monto} de bienvenida. Ya tienes {saldo} en tu billetera de {negocio} para tu próximo pedido." },
 };
 
 function rellenar(txt: string, datos: Record<string, string>) {
@@ -211,6 +215,27 @@ Deno.serve(async (req: Request) => {
       if (soloVer) return json({ ok: true, previsualizacion: t });
       /* Misma etiqueta que la recarga: en la billetera manda el ultimo saldo. */
       const r = await enviar(clienteS, t.titulo, t.cuerpo, "recarga");
+      return json({ ok: true, ...r });
+    }
+
+    // ── BONO POR INSTALAR LA APP ────────────────────────────────────────
+    if (tipo === "bono_instalacion") {
+      const clienteB = String(b.cliente_id || "");
+      if (!clienteB && !soloVer) return json({ error: "cliente_id requerido" }, 400);
+      let tenantB = String(b.tenant_id || "");
+      if (!tenantB && clienteB) {
+        const c = await sbGet(`/pos_clientes?id=eq.${clienteB}&select=tenant_id&limit=1`) as Array<Record<string, unknown>> | null;
+        tenantB = String(c?.[0]?.tenant_id || "");
+      }
+      const propiosB = tenantB ? await avisosDe(tenantB) : null;
+      const t = textoDe("bono_instalacion", propiosB, {
+        monto: cop(Number(b.monto || 0)),
+        saldo: cop(Number(b.saldo || 0)),
+        negocio: tenantB ? await nombreNegocio(tenantB) : "tu restaurante",
+      })!;
+      if (soloVer) return json({ ok: true, previsualizacion: t });
+      /* Misma etiqueta que la recarga: en la billetera manda el ultimo saldo. */
+      const r = await enviar(clienteB, t.titulo, t.cuerpo, "recarga");
       return json({ ok: true, ...r });
     }
 

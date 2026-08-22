@@ -3,6 +3,39 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Bono de $5.000 por instalar la app — 21-ago-2026
+
+Pedido de Sergio: cuando alguien se registra y entra desde la app **instalada en su
+pantalla de inicio** (no desde el navegador), se le acredita un bono de bienvenida.
+
+**Cómo funciona:**
+- El monto es por restaurante: `tenants.web_bono_instalacion` (0 = apagado).
+  El Parche está en **$5.000**; los demás tenants en 0.
+- Lo otorga `web-acceso` (v45) la **primera** vez que una sesión reporta
+  `instalada: true` — es el mismo reporte de aparato que ya hace la app en cada
+  entrada, incluida la del primer registro.
+- Se acredita con `fn_saldo_mover` motivo `bono_instalacion` (hubo que ampliar
+  el check `pos_saldo_mov_motivo_check` para aceptarlo) y llega un push propio
+  vía `avisar-cliente` (v13): *"¡Gracias por instalar nuestra app! 🎁 — Te
+  regalamos $5.000 de bienvenida…"*.
+- **Una sola vez por cliente, garantizado por la base**: índice único parcial
+  `ux_bono_instalacion_una_vez` sobre `pos_saldo_mov(tenant_id, cliente_id)
+  where motivo='bono_instalacion'`. Como `fn_saldo_mover` es una sola
+  transacción, el choque revierte también el saldo — el doble abono es imposible.
+- Los que **ya tenían** la app instalada antes de la promoción (huella de push
+  de Apple anterior al 22-ago 00:30 UTC) NO lo reciben: el bono es por
+  instalarla, no por tenerla. En Android no hay forma de saber quién la tenía
+  de antes; se acepta.
+- El bono aparece en la lista de regalos de la pantalla del dueño
+  (`pagina-web.js`, motivo `bono_instalacion` agregado al listado).
+
+**Migración:** `supabase/sql/2026-08-21-bono-instalacion.sql` (aplicada).
+
+**Probado en Restaurante de Prueba** (21-ago): primera entrada instalada →
+saldo $5.000 y un solo movimiento; segunda entrada → sin doble abono; ataque
+directo a `fn_saldo_mover` → lo frena el índice y el saldo no cambia. Filas
+PRUEBA borradas y bono del tenant de prueba devuelto a 0.
+
 ## 🟢 Paco: contexto del pedido en curso — 21-ago-2026 (motor v341)
 
 Cuatro errores de una sola conversación real (Anyi, 573217521976), corregidos

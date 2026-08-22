@@ -376,6 +376,77 @@ async function abrirSesion(tenantId: string, clienteId: string, telefono: string
   return { token, expira };
 }
 
+/* ══ BONO DE BIENVENIDA POR INSTALAR LA APP (21-ago, pedido de Sergio) ══
+
+   La primera vez que un cliente entra desde la app INSTALADA en su
+   pantalla de inicio —no desde el navegador— se le regala el saldo que el
+   restaurante tenga configurado (tenants.web_bono_instalacion; 0 = nada).
+
+   Tres cuidados, porque esto es plata:
+
+   1. UNA sola vez por cliente. El chequeo de aqui puede correr dos veces a
+      la vez (dos pestañas, un reintento); la garantia real es el indice
+      unico ux_bono_instalacion_una_vez: si el insert choca, fn_saldo_mover
+      revierte entero y el saldo no se toca.
+   2. Los que YA tenian la app instalada de antes no reciben el bono: sus
+      avisos por el servidor de Apple existen desde antes de esta promocion,
+      y el bono es por INSTALARLA, no por tenerla. (En Android no se puede
+      saber quien la tenia de antes; se acepta.)
+   3. El dato lo reporta el telefono del cliente y un tramposo con su token
+      podria fingirlo. Vale un bono de bienvenida por numero de celular
+      verificado por WhatsApp: riesgo chico y acotado, se acepta.        */
+const BONO_DESDE = "2026-08-22T00:30:00Z";   // cuando se encendio la promocion
+
+async function otorgarBonoInstalacion(tenantId: string, clienteId: string): Promise<void> {
+  try {
+    const tRow = await sbGet(`/tenants?id=eq.${tenantId}&select=web_bono_instalacion&limit=1`) as Array<Record<string, unknown>> | null;
+    const monto = Number(tRow?.[0]?.web_bono_instalacion || 0);
+    if (monto <= 0) return;
+
+    //  ¿Ya lo recibio? (el indice unico es la garantia; esto evita el ruido)
+    const ya = await sbGet(
+      `/pos_saldo_mov?tenant_id=eq.${tenantId}&cliente_id=eq.${clienteId}` +
+      `&motivo=eq.bono_instalacion&select=id&limit=1`
+    ) as Array<Record<string, unknown>> | null;
+    if (ya && ya.length) return;
+
+    //  ¿La tenia instalada desde antes de la promocion? (prueba de Apple)
+    const previo = await sbGet(
+      `/pos_web_push?tenant_id=eq.${tenantId}&cliente_id=eq.${clienteId}` +
+      `&endpoint=like.*push.apple.com*&creado=lt.${encodeURIComponent(BONO_DESDE)}&select=id&limit=1`
+    ) as Array<Record<string, unknown>> | null;
+    if (previo && previo.length) return;
+
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/fn_saldo_mover`, {
+      method: "POST",
+      headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        p_tenant: tenantId, p_cliente: clienteId,
+        p_motivo: "bono_instalacion", p_monto: monto,
+        p_detalle: "Bono de bienvenida por instalar la app",
+      }),
+    });
+    if (!r.ok) {
+      //  El choque con el indice unico es el caso esperado de la carrera:
+      //  otro proceso lo abono primero. Todo lo demas si es un error.
+      const txt = await r.text();
+      if (!txt.includes("ux_bono_instalacion_una_vez")) console.error("[bono instalacion]", txt);
+      return;
+    }
+    const saldoNuevo = Number(await r.json().catch(() => 0)) || 0;
+    console.log(`[bono instalacion] $${monto} para ${clienteId} (saldo ${saldoNuevo})`);
+
+    //  El aviso en su celular. Best-effort: el saldo ya quedo.
+    fetch(`${SUPABASE_URL}/functions/v1/avisar-cliente`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tipo: "bono_instalacion", cliente_id: clienteId, tenant_id: tenantId,
+        monto, saldo: saldoNuevo,
+      }),
+    }).catch(() => {});
+  } catch (e) { console.error("[bono instalacion]", e); }
+}
+
 async function sesionDe(token: string) {
   if (!token) return null;
   const rows = await sbGet(
@@ -1067,6 +1138,12 @@ Deno.serve(async (req) => {
       const plat = String(b.plataforma || "");
       if (plat === "ios" || plat === "android" || plat === "escritorio") parche.plataforma = plat;
       await sbPatch(`/pos_web_sesiones?id=eq.${s.id}`, parche);
+
+      /* La primera entrada desde la app instalada dispara el bono de
+         bienvenida (si el restaurante lo tiene configurado). */
+      if (parche.instalada === true) {
+        await otorgarBonoInstalacion(String(s.tenant_id), String(s.cliente_id));
+      }
 
       const ficha = await fichaCliente(String(s.tenant_id), String(s.cliente_id));
       return json({ ok: true, cliente: ficha });

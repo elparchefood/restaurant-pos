@@ -906,7 +906,7 @@
       var m = await s.from('pos_saldo_mov')
         .select('id, created_at, monto, motivo, referencia, detalle, cliente_id, pos_clientes(nombre, telefono)')
         .eq('tenant_id', tid)
-        .in('motivo', ['recarga', 'bono_recarga', 'regalo'])
+        .in('motivo', ['recarga', 'bono_recarga', 'regalo', 'bono_instalacion'])
         .order('created_at', { ascending: false }).limit(300);
       S.web.movs = m.data || [];
     } catch (err) { console.error('[web/movs]', err); S.web.movs = []; }
