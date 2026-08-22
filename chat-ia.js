@@ -1038,6 +1038,41 @@ function renderThread() {
 
   $('thread').innerHTML = html;
   $('thread').scrollTop = $('thread').scrollHeight;
+  pintarMapasDelHilo();
+}
+
+/* EL MAPA DE VERDAD EN LAS BURBUJAS DE UBICACION.
+   Se pide UNA sola imagen por coordenada aunque la ubicacion aparezca en
+   varias burbujas: cada mapa es una llamada que el restaurante paga, y la
+   del local es siempre la misma. El servidor ademas la deja guardada un dia
+   en el navegador, asi que en la practica es una llamada diaria. */
+const _MAPAS_PINTADOS = new Set();
+function pintarMapasDelHilo() {
+  if (!window.posMapa) return;
+  const cajas = document.querySelectorAll('#thread .ci-loc-map[data-mapa-lat]');
+  cajas.forEach(function (caja) {
+    const lat = parseFloat(caja.dataset.mapaLat), lng = parseFloat(caja.dataset.mapaLng);
+    if (!isFinite(lat) || !isFinite(lng) || (!lat && !lng)) return;
+    if (caja.dataset.mapaListo === "1") return;
+    caja.dataset.mapaListo = "1";
+    const clave = lat.toFixed(5) + "," + lng.toFixed(5);
+    _MAPAS_PINTADOS.add(clave);
+    /* Se pinta en una capa aparte y solo se deja ver SI salio una imagen.
+       posMapa escribe avisos de texto dentro del recuadro cuando algo falla
+       ("tu sesion se vencio", "no hay llave conectada"), y eso dentro de una
+       burbuja de chat se veria como un mensaje que nadie mando. Si no hay
+       mapa, se queda el dibujo de respaldo y ya. */
+    const capa = document.createElement('div');
+    capa.style.cssText = 'position:absolute;inset:0;opacity:0;z-index:3';
+    capa.style.width = (caja.clientWidth || 340) + 'px';
+    caja.appendChild(capa);
+    Promise.resolve(posMapa.pintar(capa, { puntos: [{ lat: lat, lng: lng, tipo: 'negocio' }], alto: 150, zoom: 16 }))
+      .catch(function () { /* sin mapa: el dibujo de respaldo se queda */ })
+      .then(function () {
+        if (capa.querySelector('img')) capa.style.opacity = '1';
+        else capa.remove();
+      });
+  });
 }
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢','🙏'];
@@ -1158,6 +1193,33 @@ function voiceSpeed(el){
   if(btn && btn._audio) btn._audio.playbackRate=next;
 }
 
+/* LOS ENLACES SE PUEDEN ABRIR (22-ago-2026).
+   En WhatsApp y en Instagram un enlace llega subrayado y tocable. Aqui se
+   escapaba el texto entero y quedaba muerto, asi que un mensaje con enlace
+   se veia distinto a como lo recibio la persona. Se escapa PRIMERO (que es
+   lo que evita que alguien nos meta HTML por un mensaje) y solo despues se
+   marcan los enlaces sobre el texto ya seguro. */
+function enlazarTexto(txt) {
+  var seguro = escHtml(String(txt == null ? "" : txt));
+  return seguro.replace(/(https?:\/\/[^\s<]+)/g, function (u) {
+    /* Un punto o una coma finales casi nunca son del enlace: son del texto. */
+    var cola = "";
+    while (/[.,;:!?)]$/.test(u)) { cola = u.slice(-1) + cola; u = u.slice(0, -1); }
+    return '<a href="' + u + '" target="_blank" rel="noopener" class="ci-link">' + u + '</a>' + cola;
+  });
+}
+
+/* LO QUE EL CLIENTE RECIBIO DE VERDAD.
+   El motor lo guarda en chat_messages.payload, YA traducido al canal: en
+   Instagram un boton no es un boton, es texto con el enlace, y aqui se dibuja
+   como texto a proposito. La bandeja tiene que mostrar la verdad. */
+function payloadDe(m) {
+  var p = m && m.payload;
+  if (!p) return null;
+  if (typeof p === "string") { try { p = JSON.parse(p); } catch (e) { return null; } }
+  return (p && typeof p === "object") ? p : null;
+}
+
 // Una reacción no es un mensaje: es un emoji que va PEGADO a la burbuja del
 // mensaje al que reaccionaron (como en WhatsApp). messageHTML envuelve el
 // dibujo normal de la burbuja y le engancha el emoji si lo tiene.
@@ -1217,7 +1279,11 @@ function messageBubbleHTML(m) {
     const addrLine = (locName && locAddr) ? locAddr : '';
     const copyTxt  = (loc.name ? loc.name + ' ' : '') + (loc.addr || coords);
     const locCard = `<div class="ci-loc-card">
-      <div class="ci-loc-map${dir==='in'?' live':''}">
+      <!-- El recuadro nace con el dibujo de siempre (pin sobre un fondo) y
+           pintarMapasDelHilo() le mete encima el mapa real de Google en cuanto
+           el hilo esta en pantalla. Si no hay llave de mapas conectada o se
+           cae la llamada, se queda el dibujo: nunca un hueco vacio. -->
+      <div class="ci-loc-map${dir==='in'?' live':''}" data-mapa-lat="${lat}" data-mapa-lng="${lng}">
         <div class="ci-loc-pin">${dir==='in'?'<span class="ci-loc-ring"></span>':''}<span class="ci-loc-dot"></span></div>
         <span class="ci-loc-tag">mapa · ${lat.toFixed(3)} / ${lng.toFixed(3)}</span>
       </div>
@@ -1248,6 +1314,35 @@ function messageBubbleHTML(m) {
     </div>`;
   }
 
+  /* BOTONES Y ATAJOS TOCABLES (22-ago-2026, pedido de Sergio).
+     Antes esto llegaba a la base aplanado a texto —"[Ver la carta] https://…"—
+     y en la bandeja se veia un enlace pelado mientras el cliente veia un
+     boton. Ahora el motor guarda la forma y aqui se dibuja igual. */
+  const _pay = payloadDe(m);
+  if (_pay && (_pay.tipo === "botones" || _pay.tipo === "respuestas_rapidas")) {
+    const txt = enlazarTexto(_pay.texto || m.body || "");
+    let extra = "";
+    if (_pay.tipo === "botones") {
+      extra = (_pay.botones || []).map(function (b) {
+        return '<a class="ci-wa-btn" href="' + escHtml(b.url || "#") + '" target="_blank" rel="noopener">'
+          + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'
+          + escHtml(b.titulo || "Abrir") + '</a>';
+      }).join("");
+    } else {
+      /* Los atajos de Instagram/Messenger van FUERA de la burbuja, como los
+         ve la persona en su telefono. */
+      extra = '<div class="ci-qr-row">' + (_pay.opciones || []).map(function (o) {
+        return '<span class="ci-qr-chip">' + escHtml(o) + '</span>';
+      }).join("") + '</div>';
+    }
+    const cuerpoBtn = '<div>' + txt + '</div>'
+      + (_pay.tipo === "botones" ? '<div class="ci-wa-btns">' + extra + '</div>' : "");
+    return `<div class="ci-row ${dir}" data-msg-id="${m.id}">
+      <div class="ci-bubble ${dir}">${menu}${cuerpoBtn}<div class="ci-meta">${time}${check}</div></div>
+      ${_pay.tipo === "respuestas_rapidas" ? extra : ""}
+    </div>`;
+  }
+
   let mediaHtml = '';
   if (m.media_url) {
     if (m.media_type === 'image') {
@@ -1269,7 +1364,7 @@ function messageBubbleHTML(m) {
   }
 
   const _isPlaceholder = m.body && /^\s*\[\s*(image|imagen|foto|photo|audio|voice|voz|nota de voz|video|v[ií]deo|sticker|documento?|document|file|archivo|ubicaci[oó]n|location|gif)\s*\]\s*$/i.test(m.body);
-  const textHtml = (m.body && m.media_type !== 'document' && !_isPlaceholder) ? `<div>${escHtml(m.body)}</div>` : '';
+  const textHtml = (m.body && m.media_type !== 'document' && !_isPlaceholder) ? `<div>${enlazarTexto(m.body)}</div>` : '';
 
   // Build quote bubble — outgoing replies use _replyTo (session snapshot),
   // incoming replies from WhatsApp use reply_to_body / reply_to_external_id (from DB)

@@ -406,7 +406,10 @@
   <script src="pos-vars-ui.js?v=1790530000"></script>
   <script src="pos-metodos.js?v=1790540000"></script>
 <script src="pos-saldo.js?v=1790470001"></script>
-<script src="chat-ia.js?v=1791820003"></script>
+<!-- pos-mapa dibuja el mapa de las burbujas de ubicacion. Va ANTES de
+     chat-ia.js para que window.posMapa ya exista al pintar el hilo. -->
+<script src="pos-mapa.js?v=1791830000"></script>
+<script src="chat-ia.js?v=1791830000"></script>
 <script src="pos-impuestos.js?v=1"></script>
 <script src="pos-print.js?v=1791745000"></script>
 <script src="pos-brand.js?v=1790530000"></script>

@@ -1715,9 +1715,37 @@ INTENCION, no las palabras exactas.` },
           await enviarAMeta(convId, phoneId, accessToken, { messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "text", text: { body: dirTxt } });
           await sleep(500);
         }
-        await enviarAMeta(convId, phoneId, accessToken, { messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "location", location: { latitude: ubiLoc.latitude, longitude: ubiLoc.longitude, name: String(ubiLoc.name || ""), address: String(ubiLoc.address || "") } });
-        const savedMsg = dirTxt ? (dirTxt + " 📍") : "📍 Ubicación enviada";
-        await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot", body: savedMsg, delivery_status: "sent", sent_at: new Date().toISOString() });
+        const cuerpoUbi = { messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "location", location: { latitude: ubiLoc.latitude, longitude: ubiLoc.longitude, name: String(ubiLoc.name || ""), address: String(ubiLoc.address || "") } };
+        await enviarAMeta(convId, phoneId, accessToken, cuerpoUbi);
+
+        /* SALIERON DOS MENSAJES: el texto con la direccion y la ubicacion.
+           Antes se guardaba UNA sola fila de texto con los dos pegados y un
+           📍 al final, asi que la bandeja no tenia con que dibujar el mapa y
+           Sergio veia como si la ubicacion nunca se hubiera enviado. Se
+           guardan los dos, cada uno con su forma. */
+        const canalUbi = await canalDe(convId);
+        if (dirTxt) {
+          await sbPost(`/rest/v1/chat_messages`, {
+            conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot",
+            body: dirTxt, delivery_status: "sent", sent_at: new Date().toISOString(),
+            payload: { tipo: "texto", texto: dirTxt },
+          });
+        }
+        const recUbi = loQueRecibio(canalUbi, cuerpoUbi);
+        const filaUbi: Record<string, unknown> = {
+          conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot",
+          delivery_status: "sent", sent_at: new Date().toISOString(), payload: recUbi,
+        };
+        if (String(recUbi.tipo) === "ubicacion") {
+          /* El dibujo del mapa lee el body como JSON — mismo formato que usa
+             el envio manual desde la bandeja. Se respeta ese formato. */
+          filaUbi.media_type = "location";
+          filaUbi.body = JSON.stringify({ lat: recUbi.lat, lng: recUbi.lng, name: recUbi.nombre, addr: recUbi.direccion });
+        } else {
+          /* Instagram/Messenger: al cliente le llego texto con el enlace. */
+          filaUbi.body = String(recUbi.texto || "📍 Ubicación");
+        }
+        await sbPost(`/rest/v1/chat_messages`, filaUbi);
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: "📍 Ubicación", last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
         extraRespondido = true;
       }
@@ -2887,11 +2915,15 @@ INTENCION, no las palabras exactas.` },
           if (qrRes.ok) {
             const qrSent = await qrRes.json() as Record<string, unknown>;
             const qrMsgId = ((qrSent.messages as Array<Record<string,unknown>>)?.[0]?.id as string) || "";
-            await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot", body: `[imagen] ${qrUrl}`, delivery_status: "sent", external_id: qrMsgId || null, sent_at: new Date().toISOString() });
+            /* El QR es una FOTO. Se guardaba como el texto "[imagen] url", asi
+               que en la bandeja aparecia el enlace pelado mientras el cliente
+               veia el codigo. Justo el pago, que es donde mas importa ver lo
+               mismo que la persona. */
+            await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot", body: qrTxt || "", media_url: qrUrl, media_type: "image", delivery_status: "sent", external_id: qrMsgId || null, sent_at: new Date().toISOString(), payload: { tipo: "imagen", url: qrUrl, pie: qrTxt || "" } });
           } else {
             console.error("QR send error:", await qrRes.text());
             // Guardar igual (fallido) para que el operador vea que el QR no salió
-            await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot", body: `[imagen] ${qrUrl}`, delivery_status: "failed", external_id: null, sent_at: new Date().toISOString() });
+            await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot", body: qrTxt || "", media_url: qrUrl, media_type: "image", delivery_status: "failed", external_id: null, sent_at: new Date().toISOString(), payload: { tipo: "imagen", url: qrUrl, pie: qrTxt || "" } });
           }
         }
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: compMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
@@ -8573,6 +8605,61 @@ function celularValido(txt: string): string | null {
 
 const CANAL_CONV = new Map<string, string>();
 
+/* ══ QUE FUE LO QUE LE LLEGO AL CLIENTE (22-ago-2026) ═══════════════════
+   Pedido de Sergio: "todo en el chat en el Front debe verse tal cual lo
+   recibe la persona".
+
+   Un mismo mensaje llega distinto segun el canal: en WhatsApp la ubicacion
+   es un mapa tocable y el boton es un boton; en Instagram y Messenger no
+   existe ninguno de los dos y llegan como texto con el enlace pegado.
+
+   Esta funcion describe el RESULTADO ya traducido, y es lo que se guarda en
+   chat_messages.payload para que la bandeja dibuje exactamente eso. Ojo con
+   la tentacion de "mejorarlo": en un chat de Instagram NO se pinta un mapa
+   bonito, porque el cliente no vio un mapa. La bandeja tiene que mostrar la
+   verdad, no lo que nos habria gustado mandar.
+
+   La usan las DOS partes —el envio de aqui abajo y el guardado— justamente
+   para que no puedan discrepar: el dia que cambie la traduccion, cambia en
+   un solo sitio y el chat sigue contando lo que paso.                     */
+function loQueRecibio(canal: string, cuerpoWa: Record<string, unknown>): Record<string, unknown> {
+  const esRed = canal === "instagram" || canal === "facebook";
+  const tipo = String(cuerpoWa.type || "text");
+
+  if (tipo === "image") {
+    const img = (cuerpoWa.image as Record<string, unknown>) || {};
+    return { tipo: "imagen", url: String(img.link || ""), pie: String(img.caption || "") };
+  }
+
+  if (tipo === "location") {
+    const loc = (cuerpoWa.location as Record<string, unknown>) || {};
+    const nombre = String(loc.name || "").trim();
+    const direccion = String(loc.address || "").trim();
+    const lat = loc.latitude, lng = loc.longitude;
+    const mapa = (lat !== undefined && lng !== undefined)
+      ? `https://maps.google.com/?q=${lat},${lng}` : "";
+    if (esRed) {
+      return { tipo: "texto", texto: [nombre, direccion, mapa].filter(Boolean).join("\n") || "Nuestra ubicación" };
+    }
+    return { tipo: "ubicacion", lat: lat ?? null, lng: lng ?? null, nombre, direccion, mapa };
+  }
+
+  if (tipo === "interactive") {
+    const it = (cuerpoWa.interactive as Record<string, unknown>) || {};
+    const cpo = (it.body as Record<string, unknown>) || {};
+    const acc = (it.action as Record<string, unknown>) || {};
+    const par = (acc.parameters as Record<string, unknown>) || {};
+    const texto = String(cpo.text || "");
+    const url = String(par.url || "");
+    const titulo = String(par.display_text || "Abrir");
+    if (esRed) return { tipo: "texto", texto: [texto, url].filter(Boolean).join("\n") };
+    return { tipo: "botones", texto, botones: [{ titulo, url }] };
+  }
+
+  const t = (cuerpoWa.text as Record<string, unknown>) || {};
+  return { tipo: "texto", texto: String(t.body || "") };
+}
+
 /* ══ LA UNICA PUERTA DE SALIDA HACIA META (22-ago-2026) ═══════════════
    Paco manda cartas, fotos de QR, ubicaciones y botones por NUEVE sitios
    distintos, todos escritos contra la API de WhatsApp. En Instagram y
@@ -8604,15 +8691,15 @@ async function enviarAMeta(
 
   const para = String(cuerpoWa.to || "");
   const tipo = String(cuerpoWa.type || "text");
+  /* La traduccion vive en loQueRecibio: ahi se decide en que se convierte
+     una ubicacion o un boton en estos canales. Aqui solo se manda eso. */
+  const recibido = loQueRecibio(canal, cuerpoWa);
   let mensaje: Record<string, unknown> | null = null;
   let pie = "";
 
-  if (tipo === "text") {
-    mensaje = { text: String(((cuerpoWa.text as Record<string, unknown>) || {}).body || "") };
-  } else if (tipo === "image") {
-    const img = (cuerpoWa.image as Record<string, unknown>) || {};
-    const url = String(img.link || "");
-    pie = String(img.caption || "");
+  if (tipo === "image") {
+    const url = String(recibido.url || "");
+    pie = String(recibido.pie || "");
     /* Un id de imagen subido a WhatsApp NO sirve aqui: son almacenes
        distintos. Sin enlace publico no hay foto que mandar. */
     if (!url) {
@@ -8620,27 +8707,10 @@ async function enviarAMeta(
       return new Response(JSON.stringify({ error: "sin_enlace" }), { status: 400 });
     }
     mensaje = { attachment: { type: "image", payload: { url, is_reusable: true } } };
-  } else if (tipo === "location") {
-    /* Estos canales no mandan ubicaciones. Se manda el enlace del mapa, que
-       hace lo mismo para el cliente: le abre como llegar. */
-    const loc = (cuerpoWa.location as Record<string, unknown>) || {};
-    const nom = String(loc.name || "").trim();
-    const dir = String(loc.address || "").trim();
-    const lat = loc.latitude, lng = loc.longitude;
-    const mapa = (lat !== undefined && lng !== undefined)
-      ? `https://maps.google.com/?q=${lat},${lng}` : "";
-    mensaje = { text: [nom, dir, mapa].filter(Boolean).join("\n") || "Nuestra ubicación" };
-  } else if (tipo === "interactive") {
-    /* Los botones de WhatsApp no existen aqui. Se manda el texto con el
-       enlace a la vista: perder el boton es aceptable, perder el enlace no. */
-    const it = (cuerpoWa.interactive as Record<string, unknown>) || {};
-    const cpo = (it.body as Record<string, unknown>) || {};
-    const acc = (it.action as Record<string, unknown>) || {};
-    const par = (acc.parameters as Record<string, unknown>) || {};
-    const url = String(par.url || "");
-    mensaje = { text: [String(cpo.text || ""), url].filter(Boolean).join("\n") };
   } else {
-    mensaje = { text: "" };
+    /* Texto, ubicacion y botones: los tres terminan siendo texto aqui, y
+       loQueRecibio ya dejo escrito EXACTAMENTE el que va a llegar. */
+    mensaje = { text: String(recibido.texto || "") };
   }
 
   /* Tambien `fetch` pelado: este es el envio de verdad a Instagram/Messenger. */
@@ -8707,6 +8777,8 @@ async function enviarPidiendoTelefono(
       conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot",
       body: texto, delivery_status: "sent",
       external_id: String(d.message_id || "") || null, sent_at: new Date().toISOString(),
+      /* Al cliente le aparecio un atajo tocable debajo del texto. */
+      payload: { tipo: "respuestas_rapidas", texto, opciones: ["Compartir mi número"] },
     });
     return true;
   } catch (e) {
@@ -9602,19 +9674,24 @@ async function sendWaBotonApp(
   fromPhone: string, phoneId: string, accessToken: string,
 ): Promise<void> {
   const cuerpo = conEtiqueta(texto);
-  const r = await enviarAMeta(convId, phoneId, accessToken, {
-      messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual",
-      type: "interactive",
-      interactive: {
-        type: "cta_url",
-        body: { text: cuerpo },
-        action: { name: "cta_url", parameters: { display_text: botonTexto.slice(0, 20), url } },
-      },
-    });
+  const cuerpoBoton = {
+    messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual",
+    type: "interactive",
+    interactive: {
+      type: "cta_url",
+      body: { text: cuerpo },
+      action: { name: "cta_url", parameters: { display_text: botonTexto.slice(0, 20), url } },
+    },
+  };
+  const r = await enviarAMeta(convId, phoneId, accessToken, cuerpoBoton);
   if (r.ok) {
     const d = await r.json() as Record<string, unknown>;
     const sentId = ((d.messages as Array<Record<string, unknown>>)?.[0]?.id as string) || "";
-    await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot", body: cuerpo + "\n\n[" + botonTexto + "] " + url, delivery_status: "sent", external_id: sentId || null, sent_at: new Date().toISOString() });
+    /* Se guarda el BOTON, no su transcripcion. Antes quedaba el texto
+       "[Ver la carta] https://…" y en la bandeja se veia un enlace pelado
+       mientras el cliente veia un boton de verdad. */
+    const recBtn = loQueRecibio(await canalDe(convId), cuerpoBoton);
+    await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot", body: String(recBtn.tipo) === "botones" ? cuerpo : String(recBtn.texto || cuerpo), payload: recBtn, delivery_status: "sent", external_id: sentId || null, sent_at: new Date().toISOString() });
   } else {
     console.error("[boton app] Meta:", (await r.text()).slice(0, 200));
     await sendWaAndSave(convId, tenantId, texto + "\n\n👉 " + url, fromPhone, phoneId, accessToken);

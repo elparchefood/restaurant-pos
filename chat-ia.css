@@ -2081,3 +2081,34 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
    despues de escribir un mensaje que no iba a salir. */
 .ci-canal-tab.cerrado{opacity:.62;border-style:dashed;}
 .ci-canal-lock{font-style:normal;color:#B45309;font-weight:800;}
+
+/* ══ LO QUE EL CLIENTE VE DE VERDAD (22-ago-2026) ══════════════════════
+   Sergio: "todo en el chat en el Front debe verse tal cual lo recibe la
+   persona". Estas piezas copian la forma que tienen en WhatsApp y en
+   Instagram: el boton pegado abajo de la burbuja separado por una linea, y
+   los atajos como pastillas sueltas debajo. */
+
+.ci-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.ci-bubble.in .ci-link { color: #9B85FF; }
+
+/* El boton de WhatsApp: ancho completo, centrado, separado por una linea. */
+.ci-wa-btns { margin: 7px -12px -8px; }
+.ci-wa-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 12px; border-top: 1px solid rgba(255,255,255,.16);
+  font-size: 13px; font-weight: 600; color: #9B85FF; text-decoration: none;
+}
+.ci-wa-btn:hover { background: rgba(255,255,255,.06); }
+.ci-bubble.in .ci-wa-btns { border-color: #262935; }
+.ci-bubble.in .ci-wa-btn { border-top-color: #262935; }
+
+/* Los atajos de Instagram/Messenger: pastillas FUERA de la burbuja. */
+.ci-qr-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; justify-content: flex-end; }
+.ci-qr-chip {
+  padding: 6px 13px; border-radius: 999px; border: 1px solid rgba(155,133,255,.55);
+  color: #9B85FF; font-size: 12.5px; font-weight: 600; background: transparent;
+}
+
+/* El mapa real entra dentro del recuadro y tapa el dibujo de respaldo. */
+.ci-loc-map > img, .ci-loc-map > canvas, .ci-loc-map > svg { position: relative; z-index: 2; }
+
