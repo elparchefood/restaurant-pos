@@ -3,6 +3,87 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 El chat mostraba una cosa y el cliente recibía otra — 22-ago-2026
+
+Sergio, después de probar desde su cuenta de Instagram: *"cuando Paco envía la
+ubicación sí la envía, el cliente sí la recibe, pero en el front la vemos como
+si no la hubiéramos enviado."* Y de ahí la regla general: **"todo en el chat en
+el Front debe verse tal cual lo recibe la persona."**
+
+**Por qué pasaba.** Paco le manda a Meta un mensaje **con forma** —una
+ubicación, un botón, una foto— pero al guardarlo en la base lo **aplanaba a
+texto**:
+
+| Lo que recibió el cliente | Lo que quedaba guardado |
+|---|---|
+| Mapa tocable | `"Estamos ubicados en Cra 9B # 63 n58 📍"` |
+| Botón "Abrir la app" | `"…\n\n[Abrir la app] https://…"` |
+| El QR del pago | `"[imagen] https://…"` |
+
+No era un problema de pintado: **el dato nunca se guardó**, así que la bandeja
+no tenía con qué dibujar nada. Además, en el caso de la ubicación salían **dos**
+mensajes (el texto y el mapa) y se guardaba **uno solo**, con los dos pegados.
+
+**El arreglo.** Columna nueva `chat_messages.payload` (jsonb) = *qué recibió la
+persona*, **ya traducido al canal**. Eso último importa y es fácil de estropear:
+en Instagram y Messenger un mapa llega como enlace y un botón llega como texto,
+así que ahí el payload dice `texto`. **Pintar un mapa bonito en un chat de
+Instagram sería mentirle a Sergio sobre lo que vio el cliente** — justo lo que
+pidió arreglar.
+
+La traducción vive en **una sola función**, `loQueRecibio(canal, cuerpo)`, que
+usan **las dos partes**: el envío a Meta y el guardado. No pueden discrepar. El
+día que cambie cómo se traduce, cambia en un sitio y el chat sigue contando lo
+que pasó.
+
+De paso, y por la misma regla:
+
+- **Los enlaces se pueden abrir.** Antes se escapaba el texto entero y quedaban
+  muertos. Se escapa primero (eso es lo que impide que alguien nos cuele HTML
+  por un mensaje) y los enlaces se marcan después, sobre el texto ya seguro.
+- **Las burbujas de ubicación muestran el mapa real de Google**, por el proxy
+  que ya existía (`pos-mapa.js`, la llave nunca baja al navegador). Una llamada
+  por coordenada, y el servidor la deja cacheada un día. Si no hay mapa —sin
+  cupo, sin sesión— se queda el dibujo de respaldo: **nunca** el aviso de texto
+  de `posMapa` dentro de una burbuja, que parecería un mensaje que nadie mandó.
+
+Motor **v352**. Comprobado con las funciones reales sacadas del archivo y
+dibujadas en una pantalla de prueba: tarjeta de ubicación con su enlace a Maps,
+botón con su dirección, atajo de Instagram, QR como foto y ningún HTML colado.
+
+## 🔴→🟢 Los emojis: cuadro incompleto y buscador que no buscaba — 22-ago-2026
+
+Sergio: *"a veces quiero buscar un emoji y no lo encuentro."* Eran **tres**
+problemas encima del mismo síntoma:
+
+1. **`filterEmojis` recibía lo que uno escribía y no lo usaba.** Mostraba los
+   944 emojis igual, escribieras lo que escribieras. Buscar no servía de nada.
+2. **La lista estaba escrita a mano y le faltaban emojis de todos los días.**
+   No estaban 🍟, 🍔 ni 🔥. Esa era la causa de fondo: no los encontraba porque
+   **no estaban**.
+3. Windows los dibuja con su propia fuente (Segoe UI Emoji), que no se parece a
+   la del teléfono.
+
+**El arreglo.** El cuadro se regeneró desde la lista oficial de Unicode
+(`emoji-test.txt`), en su mismo orden: **944 → 1.902**, sin tonos de piel (que
+multiplican el cuadro por seis y no aportan nada para escribirle a un cliente).
+Los nombres salen de las anotaciones oficiales de Unicode en español (CLDR),
+más un puñado de palabras **como se dicen acá**: Unicode dice *"patatas
+fritas"*, en Popayán se escribe *"papas"*. Se busca sin tildes y también por el
+nombre de la categoría.
+
+Los dos archivos —`EMOJI_DATA` en `chat-ia.js` y `pos-emoji-nombres.js`— salen
+del **mismo generador** (`scratchpad/gen-cuadro.py`) y de la misma versión de
+Unicode. **No editarlos a mano: se regeneran juntos o no se regeneran.**
+
+> ⚠️ **Sobre los emojis de iPhone.** Sergio pidió que se vieran exactamente como
+> en iPhone. No se puede: ese dibujo es de Apple y repartirlo en un repositorio
+> **público** de un producto que se vende es exponer el negocio. Se cargó **Noto
+> Color Emoji** (de Google, libre), que va **al final** de la pila de fuentes —
+> el navegador solo llega ahí para los caracteres que DM Sans no tiene, o sea
+> los emojis, y las letras no cambian. Con eso el cuadro y los mensajes se ven
+> **iguales entre sí**, que es lo que hacía falta para reconocerlos.
+
 ## 🔴→🟢 La letra "L" en vez del logo, a ratos — 22-ago-2026
 
 Sergio: *"en la parte superior izquierda aparece una letra L, pero a veces sí
