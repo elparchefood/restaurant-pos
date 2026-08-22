@@ -530,3 +530,13 @@ body.d-gate .d-root{filter:blur(5px);opacity:.45;pointer-events:none;user-select
 .d-adddir:hover{background:var(--brand,#4F46E5);color:#fff}
 .d-cli-dirsel{max-width:100%;font:inherit;font-size:12.5px;font-weight:600;color:var(--ink,#0F172A);background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;padding:3px 6px;cursor:pointer}
 @media(max-width:640px){.d-dirrow{grid-template-columns:1fr 34px;grid-auto-flow:row}.d-dirrow .d-dir-barrio{grid-column:1/2}.d-dirrow .d-dir-del{grid-row:1/3;grid-column:2/3;height:auto}.d-dirrow .d-dir-dir{grid-column:1/2}}
+
+/* Sabor agotado dentro del selector (21-ago). Se ve, pero no se esconde: con
+   "vender sin inventario" encendido el dueno PUEDE venderlo, solo tiene que
+   enterarse antes de elegirlo. */
+.pm-choice.sin-stock{border-color:#FECACA;background:#FEF2F2;}
+.pm-choice.sin-stock .pm-choice-name{color:#B91C1C;}
+.pm-agotado{display:inline-block;margin-left:7px;font-size:9.5px;font-weight:800;
+  letter-spacing:.03em;color:#fff;background:#DC2626;border-radius:999px;padding:2px 7px;
+  vertical-align:1px;}
+

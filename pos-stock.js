@@ -45,6 +45,21 @@
     return null;
   }
 
+  /* CUANTO LLEVA UNA LINEA EN UNA PRESENTACION.
+     El formato guardado es {presentacion: {q: 2}} —un objeto con la cantidad
+     adentro—, no el numero suelto. Leerlo como numero daba NaN, que aqui se
+     entendia como "esta presentacion no lleva este insumo", y la linea se
+     descartaba EN SILENCIO: con una presentacion elegida no se detectaba
+     NUNCA un agotado. El HIT Litro de Mango se dejaba vender sin un solo
+     aviso. Nada fallaba a la vista; simplemente no avisaba.
+     Devuelve null cuando esta presentacion no aparece en la receta. */
+  function cantDe(mapa, presId) {
+    if (!mapa || typeof mapa !== 'object' || !Object.keys(mapa).length) return null;
+    var v = (mapa[presId] != null) ? mapa[presId] : (mapa['_'] != null ? mapa['_'] : null);
+    if (v == null) return null;
+    return num(v && typeof v === 'object' ? v.q : v);   // recetas viejas: numero suelto
+  }
+
   // Nombres de insumos agotados que aplican a una combinacion (opcion + presentacion).
   // Si varOptId es undefined/null → SOLO lineas base (el producto "entero").
   function faltForCombo(pid, varOptId, presId) {
@@ -52,10 +67,12 @@
     var soloBase = (varOptId === undefined || varOptId === null || varOptId === '');
     lines.forEach(function (l) {
       if (l.varOpt) { if (soloBase || l.varOpt !== varOptId) return; }   // linea de variante: solo si coincide la opcion
-      // Si se pasa presentacion y la linea tiene mapa de cantidades, exigir qty>0 para esa presentacion.
+      /* Con una presentacion elegida, la linea solo cuenta si esa presentacion
+         la lleva. Si la receta va por presentacion y esta no esta listada, no
+         lleva ese insumo: contarla marcaria agotado un producto que si hay. */
       if (presId !== undefined && presId !== null && l.qty) {
-        var q = (l.qty[presId] != null) ? l.qty[presId] : (l.qty['_'] != null ? l.qty['_'] : null);
-        if (q != null && !(num(q) > 0)) return;
+        var q = cantDe(l.qty, presId);
+        if (!(num(q) > 0)) return;
       }
       if (insAgotado(l.ins)) {
         var nm = (S._ins[l.ins] || {}).nombre || 'insumo';
@@ -149,6 +166,24 @@
 
     // ── Combinacion concreta (sabor/variante + presentacion) ──
     faltantesVariante: function (pid, varOptId, presId) { return faltForCombo(pid, varOptId, presId); },
+    /* PARA MARCAR LA OPCION EN EL SELECTOR DE SABORES (21-ago, pedido de
+       Sergio): "aqui tambien deberia aparecerme una marca que me diga que
+       esta agotado". Avisar al final, al agregar, llega tarde: ya eligio.
+       Ninguna de las dos tira error jamas: si el modulo no alcanzo a cargar,
+       devuelven vacio y la pantalla se pinta igual. Esto no puede frenar una
+       venta ni dejar un modal a medio dibujar. */
+    optChip: function (pid, varOptId, presId) {
+      try {
+        if (!S.ready) return '';
+        return faltForCombo(pid, varOptId, presId).length
+          ? '<span class="pm-agotado">Agotado</span>' : '';
+      } catch (e) { return ''; }
+    },
+    optClase: function (pid, varOptId, presId) {
+      try {
+        return (S.ready && faltForCombo(pid, varOptId, presId).length) ? ' sin-stock' : '';
+      } catch (e) { return ''; }
+    },
     agotadoVariante: function (pid, varOptId, presId) { return faltForCombo(pid, varOptId, presId).length > 0; },
 
     // Avisos de "vendiendo de bodega" de los insumos que aplican a la combinacion

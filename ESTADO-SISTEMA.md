@@ -3,6 +3,61 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 El aviso de agotado por sabor no salía NUNCA — 21-ago-2026
+
+Sergio: *"el HIT litro de mango está agotado pero si me meto a hacer un pedido
+lo puedo seleccionar común y corriente… ese modal ya lo habíamos diseñado, no
+sé por qué no está apareciendo"*. Y luego: *"estoy agregando el producto
+completo y en ningún momento me sale el modal"*.
+
+### La causa
+
+Las recetas guardan la cantidad por presentación como **`{presentación: {q: 1}}`
+— un objeto**. `pos-stock.js` lo leía como si fuera un número suelto:
+
+```js
+var q = (l.qty[presId] != null) ? l.qty[presId] : …;
+if (q != null && !(num(q) > 0)) return;      // num({q:1}) → NaN → 0 → descarta
+```
+
+`Number({q:1})` es `NaN`, que aquí significaba *"esta presentación no lleva ese
+insumo"*, así que **la línea se descartaba en silencio**. Con una presentación
+elegida no se detectaba jamás un agotado. Nada fallaba a la vista: simplemente
+no avisaba. El modal, el aviso y los tres caminos de venta estaban bien
+conectados desde siempre — no tenían nada que reportar.
+
+Fallaba en los **dos** sentidos: el Litro de Mango (agotado) pasaba sin aviso, y
+el Personal de Mango (sí hay) se marcaba agotado, porque cuando la presentación
+no estaba listada la línea sí se evaluaba.
+
+El formato correcto ya estaba documentado en `informes-datos.js`
+(`cantidadDe()`, `parseFloat(cs[presId].q)`): dos módulos leyendo el mismo dato
+de formas distintas.
+
+### El arreglo
+
+- `pos-stock.js`: nueva `cantDe(mapa, presId)` que entiende `{q: n}` y también
+  el número suelto de las recetas viejas. Si la receta va por presentación y
+  esta no está listada, la línea no cuenta (misma regla que el costeo).
+- **La marca en el selector de sabores** (lo otro que pidió): `optChip()` y
+  `optClase()` pintan la opción agotada en rojo con la etiqueta "Agotado",
+  usando la presentación YA elegida — el mismo sabor puede estar agotado en
+  Litro y haber en Personal. Aplicado en las tres pantallas de venta
+  (`tomar-pedido`, `domicilios`, `venta-rapida`), que comparten el mismo panel.
+  Se ve pero no se bloquea: con "vender sin inventario" encendido él puede
+  venderlo, solo tiene que enterarse antes de elegir.
+- Las dos ayudas nunca tiran error: si el módulo no cargó, devuelven vacío y la
+  pantalla se pinta igual. Esto no puede frenar una venta.
+
+### Probado (21-ago)
+
+Banco de 12 pruebas con los datos REALES del HIT de El Parche
+(`scratchpad/banco-stock.js`, carga el módulo de verdad):
+Litro+Mango → agotado; Personal+Mango → disponible; Personal+Mora → agotado;
+la tarjeta del HIT no se marca agotada (solo faltan sabores sueltos) pero
+`algunasAgotadas` sí lo sabe. **El mismo banco contra la versión anterior
+devolvía lista vacía** — la prueba de que ese era el fallo.
+
 ## 🔴→🟢 Un comprobante ya no se puede cobrar dos veces — 21-ago-2026
 
 Revisando con Sergio las 8 solicitudes pendientes (ver

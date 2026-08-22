@@ -1345,15 +1345,24 @@ async function loadCatalog() {
     if (!v) return '';
     const isMatrix = p.price_mode === 'matrix';
     const presIdx = (p.presentations||[]).findIndex(pr => pr.id === VR_WIP.pres?.id);
+    /* AVISO DE AGOTADO EN CADA SABOR (21-ago). Se resuelve con la
+       presentacion YA elegida: el mismo sabor puede estar agotado en
+       Litro y haber en Personal, asi que marcar el sabor "a secas"
+       estaria mintiendo la mitad de las veces. */
+    const _presAgo=(VR_WIP.pres&&VR_WIP.pres.id&&VR_WIP.pres.id!=='_base')?VR_WIP.pres.id:null;
+    const _ago={
+      chip:function(oid){ return (window.posStock&&posStock.optChip)?posStock.optChip(p.id,oid,_presAgo):''; },
+      clase:function(oid){ return (window.posStock&&posStock.optClase)?posStock.optClase(p.id,oid,_presAgo):''; },
+    };
     return '<div style="display:flex;flex-direction:column;gap:20px"><div>'
       +'<div style="font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">'+vrEsc(v.name)+'</div>'
       +'<div class="pm-choice-grid">' + (v.options||[]).map(o => {
           const sel = VR_WIP.vars[v.id] && VR_WIP.vars[v.id].id === o.id;
           const optPrice = isMatrix && Array.isArray(o.prices) && presIdx >= 0 ? (o.prices[presIdx]||0) : (o.price||0);
           const priceLabel = optPrice ? (isMatrix ? vrFmt(optPrice) : '+'+vrFmt(optPrice)) : 'Incluido';
-          return '<button class="pm-choice compact'+(sel?' on':'')+'" data-var-id="'+vrAttr(v.id)+'" data-opt-id="'+vrAttr(o.id)+'" data-opt-name="'+vrAttr(o.name)+'" data-opt-price="'+optPrice+'">'
+          return '<button class="pm-choice compact'+(sel?' on':'')+_ago.clase(o.id)+'" data-var-id="'+vrAttr(v.id)+'" data-opt-id="'+vrAttr(o.id)+'" data-opt-name="'+vrAttr(o.name)+'" data-opt-price="'+optPrice+'">'
             +'<div class="pm-choice-body"><div class="pm-choice-name">'+vrEsc(o.name)+'</div>'
-            +'<div class="pm-choice-price">'+priceLabel+'</div></div>'
+            +'<div class="pm-choice-price">'+priceLabel+_ago.chip(o.id)+'</div></div>'
             +'<span class="pm-radio">'+(sel?VR_SVG.check:'')+'</span>'
             +'</button>';
         }).join('') + '</div></div></div>';
