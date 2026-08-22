@@ -3,6 +3,76 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Paco atiende Instagram y Messenger (motor v347, webhook v73) — 22-ago-2026
+
+Meta aprobó los 6 permisos que faltaban (ver [[cobra-pos-meta-permisos]]), así
+que los canales ya sirven con las cuentas de CUALQUIER restaurante, no solo con
+las de Sergio.
+
+### Lo que ya existía (verificado, no reconstruido)
+
+Conectar cuentas (`meta-oauth-callback`, elegir página, vincular IG, suscribir
+a avisos) y ENVIAR (`meta-send`, que ya sabe la lección de que Instagram se
+envía con el id de la PÁGINA, no el de la cuenta). El Parche tiene conectados
+`@elparchefood_` y su página desde las pruebas de los videos.
+
+⚠️ **`meta-oauth-callback` y `meta-send` vivían SOLO desplegadas** — 728 líneas
+sin copia ni historial. Rescatadas al repo (commit 138542e) antes de tocar nada.
+
+### El hueco real: RECIBIR
+
+`meta-webhook` solo atendía `whatsapp_business_account`. Los mensajes de
+Instagram y Messenger llegaban a la puerta y se caían al piso. Nueva función
+`recibirMeta(canal, entries)`: encuentra el restaurante por `page_id` o `ig_id`,
+crea la conversación, guarda el mensaje y lo encola para Paco — el mismo camino
+de WhatsApp, para que todo lo que Paco ya sabe sirva igual.
+- **El eco se ignora** (`message.is_echo`): sin eso Paco se leería a sí mismo
+  en bucle infinito.
+- Adjuntos: se nombran de verdad (`[te mencionó en una historia]`,
+  `[compartió una publicación]`) en vez de un `[image]` mudo.
+
+### Una sola puerta de salida: `enviarAMeta`
+
+Paco enviaba por **9 sitios distintos** escritos contra la API de WhatsApp
+(cartas, QR de pago, ubicación, botones). En vez de repetir el "si es
+Instagram…" nueve veces, se traduce en UN sitio: cada llamada sigue escribiendo
+el mensaje como WhatsApp y `enviarAMeta` lo convierte según el canal de esa
+conversación. **En WhatsApp el fetch es idéntico byte por byte.**
+- Ubicación → enlace de mapa (esos canales no mandan ubicaciones).
+- Botones → texto con el enlace (perder el botón se acepta, el enlace no).
+- Imagen → adjunto por URL pública (un id subido a WhatsApp NO sirve allá).
+
+⚠️ **Trampa encontrada al aplicarlo**: el reemplazo automático alcanzó a los
+`fetch` de dentro del propio traductor → se llamaba a sí mismo infinitamente.
+esbuild compila igual: **compilar no es funcionar**. Se verificó llamada por
+llamada con su función contenedora.
+
+### Otros dos arreglos del camino
+
+- **La lista negra ya no aplica en IG/Messenger**: ahí `from_phone` es el id de
+  la persona en la red, no un teléfono. Un id que se pareciera a un número
+  bloqueado habría dejado mudo a un cliente inocente.
+- **La frase de la carta ya no miente**: guardaba `delivery_status: "sent"`
+  hubiera salido o no. Ahora dice `failed` cuando falla (afectaba también a
+  WhatsApp).
+
+### Probado
+
+- Simulando los avisos de Meta con la forma real: entra el texto de IG y de
+  Messenger, crea conversación, **ignora el eco**, **no duplica** el reintento.
+- Regresión de WhatsApp en el banco: idéntica a antes, notas incluidas.
+- Filas de prueba borradas; 0 pedidos PRUEBA en ventas.
+
+**Falta probar con una persona real** (un DM de verdad): con destinatario
+inventado Meta rechaza todo y las imágenes no se pueden validar.
+
+### Lo que sigue (puntos 3 y 4 de Sergio)
+
+Pedir el teléfono en IG/FB y vincularlo al cliente (`pos_clientes` necesita
+columnas `instagram`/`facebook`), y el chat unificado con selector de canal.
+⚠️ Meta solo deja escribir libremente **24 h** desde el último mensaje del
+cliente: el selector debe mostrar cuándo un canal está cerrado.
+
 ## 🔴→🟢 La caja no dejaba cerrar por pedidos ya entregados y pagados — 21-ago-2026
 
 Sergio (tercera vez): el cierre de caja listaba 3 domicilios de Paco (Mónica,

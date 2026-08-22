@@ -905,7 +905,12 @@ async function processConversation(convId: string, relectura = false): Promise<v
 
   // ── LISTA NEGRA: si el remitente está bloqueado, Paco NO responde (silencio total) ──
   try {
-    const telBL = String(fromPhone || "").replace(/\D/g, "");
+    /* SOLO EN WHATSAPP. En Instagram y Messenger `fromPhone` no es un
+       telefono: es el id de la persona en esa red, y es un numero largo.
+       Pasarlo por la lista negra de telefonos podia dejar mudo a un cliente
+       inocente porque su id se parecia a un numero bloqueado. */
+    const canalBL = await canalDe(convId);
+    const telBL = canalBL === "whatsapp" ? String(fromPhone || "").replace(/\D/g, "") : "";
     if (telBL) {
       const blRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/lista_negra_match`, {
         method: "POST",
@@ -1574,11 +1579,7 @@ INTENCION, no las palabras exactas.` },
           // Si la subida fallo se intenta por link, como antes: peor, pero es
           // mejor que no mandar nada.
           const foto = mediaId ? { id: mediaId } : { link: imgUrl };
-          const rImg = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "image", image: foto }),
-          });
+          const rImg = await enviarAMeta(convId, phoneId, accessToken, { messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "image", image: foto });
           const rj = await rImg.json().catch(() => ({})) as Record<string, unknown>;
           if (rImg.ok) {
             imgsOk++;
@@ -1617,14 +1618,14 @@ INTENCION, no las palabras exactas.` },
       /* Con pedido en el lote, la frase "¿Que deseas ordenar?" sobra: el flujo
          sigue y la siguiente pregunta sale del pedido mismo. */
       if (!traePedidoEnLote) {
-      const waText = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "text", text: { body: followUp } }),
-      });
-      const waSentData = await waText.json() as Record<string, unknown>;
+      const waText = await enviarAMeta(convId, phoneId, accessToken, { messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "text", text: { body: followUp } });
+      const waSentData = await waText.json().catch(() => ({})) as Record<string, unknown>;
       const sentId = ((waSentData.messages as Array<Record<string,unknown>>)?.[0]?.id as string) || "";
-      await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot", body: followUp, delivery_status: "sent", external_id: sentId || null, sent_at: new Date().toISOString() });
+      /* SE DICE LA VERDAD DE SI SALIO. Antes esto ponia "sent" siempre, hubiera
+         salido o no: en el panel Sergio veia un mensaje entregado que el
+         cliente nunca recibio, y no habia forma de notarlo. */
+      if (!waText.ok) console.error("[carta] la frase no salio:", JSON.stringify(waSentData).slice(0, 300));
+      await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot", body: followUp, delivery_status: waText.ok ? "sent" : "failed", external_id: sentId || null, sent_at: new Date().toISOString() });
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: followUp, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
       }
       extraRespondido = true;   // NO salir: puede que también pida ubicación en el mismo mensaje
@@ -1691,18 +1692,10 @@ INTENCION, no las palabras exactas.` },
         const cerr = (cfg as Record<string, unknown>)._cerradoInfo as { frase?: string } | null;
         if (cerr && cerr.frase && dirTxt) dirTxt = dirTxt + "\n\n" + cerr.frase;
         if (dirTxt) {
-          await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "text", text: { body: dirTxt } }),
-          });
+          await enviarAMeta(convId, phoneId, accessToken, { messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "text", text: { body: dirTxt } });
           await sleep(500);
         }
-        await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "location", location: { latitude: ubiLoc.latitude, longitude: ubiLoc.longitude, name: String(ubiLoc.name || ""), address: String(ubiLoc.address || "") } }),
-        });
+        await enviarAMeta(convId, phoneId, accessToken, { messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "location", location: { latitude: ubiLoc.latitude, longitude: ubiLoc.longitude, name: String(ubiLoc.name || ""), address: String(ubiLoc.address || "") } });
         const savedMsg = dirTxt ? (dirTxt + " 📍") : "📍 Ubicación enviada";
         await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot", body: savedMsg, delivery_status: "sent", sent_at: new Date().toISOString() });
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: "📍 Ubicación", last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
@@ -2862,11 +2855,7 @@ INTENCION, no las palabras exactas.` },
         const qrTxt = (pagosCfg?.qr_texto as string) || "";
         if (qrUrl) {
           await sleep(600);
-          const qrRes = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "image", image: { link: qrUrl, caption: qrTxt || undefined } }),
-          });
+          const qrRes = await enviarAMeta(convId, phoneId, accessToken, { messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "image", image: { link: qrUrl, caption: qrTxt || undefined } });
           if (qrRes.ok) {
             const qrSent = await qrRes.json() as Record<string, unknown>;
             const qrMsgId = ((qrSent.messages as Array<Record<string,unknown>>)?.[0]?.id as string) || "";
@@ -3842,11 +3831,7 @@ INTENCION, no las palabras exactas.` },
         : null;
       const fraseProd = rellenarVariables(fraseNoExisteRaw || fraseProdRaw, state, cfg).texto;
       for (const imgUrl of menuImagenes) {
-        await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "image", image: { link: imgUrl } }),
-        });
+        await enviarAMeta(convId, phoneId, accessToken, { messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "image", image: { link: imgUrl } });
         await sleep(600);
       }
       await sendWaAndSave(convId, tenantId, fraseProd, fromPhone, phoneId, accessToken);
@@ -8346,6 +8331,116 @@ function conEtiqueta(msg: string): string {
   return `${ETIQUETA_IA} ${t}`;
 }
 
+/* POR DONDE SE CONTESTA (22-ago-2026). Paco atiende WhatsApp, Instagram y
+   Messenger, y cada uno se habla con una API distinta. La decision se toma
+   por el CANAL DE LA CONVERSACION, no por las credenciales que traiga la
+   cola: son datos que se pueden confundir, y el canal es un hecho.
+
+   Se recuerda por conversacion (no en una variable suelta) porque en el
+   servidor pueden estar corriendo dos conversaciones a la vez: una variable
+   compartida haria que a un cliente le llegara la respuesta del otro. */
+const CANAL_CONV = new Map<string, string>();
+
+/* ══ LA UNICA PUERTA DE SALIDA HACIA META (22-ago-2026) ═══════════════
+   Paco manda cartas, fotos de QR, ubicaciones y botones por NUEVE sitios
+   distintos, todos escritos contra la API de WhatsApp. En Instagram y
+   Messenger esa API no sirve: es otra direccion y otra forma de mensaje.
+
+   En vez de repetir el "si es Instagram..." nueve veces —donde el dia que se
+   agregue un canal habria que acordarse de los nueve—, se traduce en un solo
+   sitio: cada llamada sigue escribiendo el mensaje como si fuera WhatsApp y
+   aqui se convierte a lo que entienda el canal de esa conversacion.
+
+   En WhatsApp no cambia NADA: es el mismo fetch de siempre, byte por byte.
+   Para Instagram/Messenger las credenciales que llegan YA son las de la
+   pagina (asi las encola el webhook), asi que solo cambia el camino y la
+   forma.                                                                 */
+async function enviarAMeta(
+  convId: string, phoneId: string, accessToken: string,
+  cuerpoWa: Record<string, unknown>,
+): Promise<Response> {
+  const canal = await canalDe(convId);
+  /* WhatsApp: el mismo envio de siempre, sin tocar nada. Aqui va `fetch`
+     PELADO a proposito — llamar a enviarAMeta seria llamarse a si misma. */
+  if (canal !== "instagram" && canal !== "facebook") {
+    return await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(cuerpoWa),
+    });
+  }
+
+  const para = String(cuerpoWa.to || "");
+  const tipo = String(cuerpoWa.type || "text");
+  let mensaje: Record<string, unknown> | null = null;
+  let pie = "";
+
+  if (tipo === "text") {
+    mensaje = { text: String(((cuerpoWa.text as Record<string, unknown>) || {}).body || "") };
+  } else if (tipo === "image") {
+    const img = (cuerpoWa.image as Record<string, unknown>) || {};
+    const url = String(img.link || "");
+    pie = String(img.caption || "");
+    /* Un id de imagen subido a WhatsApp NO sirve aqui: son almacenes
+       distintos. Sin enlace publico no hay foto que mandar. */
+    if (!url) {
+      console.error(`[${canal}] la imagen no tiene enlace publico: no se puede enviar`);
+      return new Response(JSON.stringify({ error: "sin_enlace" }), { status: 400 });
+    }
+    mensaje = { attachment: { type: "image", payload: { url, is_reusable: true } } };
+  } else if (tipo === "location") {
+    /* Estos canales no mandan ubicaciones. Se manda el enlace del mapa, que
+       hace lo mismo para el cliente: le abre como llegar. */
+    const loc = (cuerpoWa.location as Record<string, unknown>) || {};
+    const nom = String(loc.name || "").trim();
+    const dir = String(loc.address || "").trim();
+    const lat = loc.latitude, lng = loc.longitude;
+    const mapa = (lat !== undefined && lng !== undefined)
+      ? `https://maps.google.com/?q=${lat},${lng}` : "";
+    mensaje = { text: [nom, dir, mapa].filter(Boolean).join("\n") || "Nuestra ubicación" };
+  } else if (tipo === "interactive") {
+    /* Los botones de WhatsApp no existen aqui. Se manda el texto con el
+       enlace a la vista: perder el boton es aceptable, perder el enlace no. */
+    const it = (cuerpoWa.interactive as Record<string, unknown>) || {};
+    const cpo = (it.body as Record<string, unknown>) || {};
+    const acc = (it.action as Record<string, unknown>) || {};
+    const par = (acc.parameters as Record<string, unknown>) || {};
+    const url = String(par.url || "");
+    mensaje = { text: [String(cpo.text || ""), url].filter(Boolean).join("\n") };
+  } else {
+    mensaje = { text: "" };
+  }
+
+  /* Tambien `fetch` pelado: este es el envio de verdad a Instagram/Messenger. */
+  const r = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ recipient: { id: para }, message: mensaje, messaging_type: "RESPONSE" }),
+  });
+  /* El pie de una foto va en mensaje aparte: esta API manda una cosa por vez. */
+  if (r.ok && pie) {
+    try {
+      await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ recipient: { id: para }, message: { text: pie }, messaging_type: "RESPONSE" }),
+      });
+    } catch { /* la foto ya salio; el pie es un extra */ }
+  }
+  return r;
+}
+async function canalDe(convId: string): Promise<string> {
+  const y = CANAL_CONV.get(convId);
+  if (y) return y;
+  let canal = "whatsapp";
+  try {
+    const r = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=channel&limit=1`) as Array<Record<string, unknown>> | null;
+    canal = String(r?.[0]?.channel || "whatsapp");
+  } catch (_e) { /* si no se puede leer, se asume WhatsApp, que es el 99% */ }
+  CANAL_CONV.set(convId, canal);
+  return canal;
+}
+
 async function sendWaAndSave(
   convId: string, tenantId: string, msg: string,
   fromPhone: string, phoneId: string, accessToken: string,
@@ -8353,11 +8448,48 @@ async function sendWaAndSave(
   sinEtiqueta = false,
 ): Promise<void> {
   msg = sinEtiqueta ? msg : conEtiqueta(msg);
-  const waRes = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
-    method: "POST",
-    headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "text", text: { body: msg } }),
-  });
+
+  /* Instagram y Messenger: se guarda el mensaje PRIMERO y luego meta-send lo
+     manda y marca si salio. Se reutiliza esa funcion en vez de repetir aqui
+     como se habla con Meta: ahi esta aprendido, por ejemplo, que Instagram
+     tambien se envia con el id de la PAGINA y no con el de la cuenta. */
+  const canal = await canalDe(convId);
+  if (canal === "instagram" || canal === "facebook") {
+    /* Se inserta a mano y no con sbPost porque hace falta el ID de la fila
+       creada para que meta-send marque despues si el mensaje salio o no
+       — y sbPost esta hecho para no devolver nada. */
+    let msgId = "";
+    try {
+      const ins = await fetch(`${SUPABASE_URL}/rest/v1/chat_messages`, {
+        method: "POST",
+        headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`,
+                   "Content-Type": "application/json", "Prefer": "return=representation" },
+        body: JSON.stringify({
+          conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot",
+          body: msg, delivery_status: "sending", sent_at: new Date().toISOString(),
+        }),
+      });
+      if (ins.ok) {
+        const filas = await ins.json() as Array<Record<string, unknown>>;
+        msgId = String(filas?.[0]?.id || "");
+      } else {
+        console.error(`[${canal}] no se pudo guardar el mensaje:`, (await ins.text()).slice(0, 200));
+      }
+    } catch (e) { console.error(`[${canal}] no se pudo guardar el mensaje:`, String(e).slice(0, 200)); }
+    try {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/meta-send`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ conversation_id: convId, text: msg, message_id: msgId || undefined }),
+      });
+      if (!r.ok) console.error(`[${canal}] no salio:`, (await r.text()).slice(0, 300));
+    } catch (e) {
+      console.error(`[${canal}] no salio:`, String(e).slice(0, 200));
+      if (msgId) await sbPatch(`/rest/v1/chat_messages?id=eq.${msgId}`, { delivery_status: "failed" });
+    }
+    return;
+  }
+  const waRes = await enviarAMeta(convId, phoneId, accessToken, { messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "text", text: { body: msg } });
   if (waRes.ok) {
     const waSent = await waRes.json() as Record<string, unknown>;
     const sentId = ((waSent.messages as Array<Record<string,unknown>>)?.[0]?.id as string) || "";
@@ -9196,10 +9328,7 @@ async function sendWaBotonApp(
   fromPhone: string, phoneId: string, accessToken: string,
 ): Promise<void> {
   const cuerpo = conEtiqueta(texto);
-  const r = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
-    method: "POST",
-    headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const r = await enviarAMeta(convId, phoneId, accessToken, {
       messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual",
       type: "interactive",
       interactive: {
@@ -9207,8 +9336,7 @@ async function sendWaBotonApp(
         body: { text: cuerpo },
         action: { name: "cta_url", parameters: { display_text: botonTexto.slice(0, 20), url } },
       },
-    }),
-  });
+    });
   if (r.ok) {
     const d = await r.json() as Record<string, unknown>;
     const sentId = ((d.messages as Array<Record<string, unknown>>)?.[0]?.id as string) || "";

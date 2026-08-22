@@ -34,6 +34,19 @@ Deno.serve(async (req) => {
   try {
     const object = body.object as string;
 
+    /* INSTAGRAM Y MESSENGER (22-ago-2026). Meta aprobo los 6 permisos que
+       faltaban, asi que ya se puede con las cuentas de cualquier restaurante
+       —no solo las de Sergio—. Enviar YA se sabia (meta-send); lo que faltaba
+       era RECIBIR: los mensajes llegaban a esta puerta y se caian al piso,
+       porque aqui solo se atendia "whatsapp_business_account".
+       Los dos canales mandan la misma forma (entry[].messaging[]), solo
+       cambia como se encuentra el canal, asi que se atienden juntos. */
+    if (object === "instagram" || object === "page") {
+      await recibirMeta(object === "instagram" ? "instagram" : "facebook",
+                        (body.entry as Array<Record<string, unknown>>) || []);
+      return new Response("OK", { status: 200 });
+    }
+
     if (object === "whatsapp_business_account") {
       const entries = (body.entry as Array<Record<string, unknown>>) || [];
 
@@ -341,6 +354,143 @@ Deno.serve(async (req) => {
 
   return new Response("OK", { status: 200 });
 });
+
+/* ══ INSTAGRAM Y MESSENGER ═══════════════════════════════════════════════
+   Un mensaje directo de Instagram o de Messenger. Recorre el mismo camino
+   que uno de WhatsApp —conversacion, mensaje guardado, cola de Paco— para
+   que todo lo que Paco ya sabe hacer sirva igual aqui. Lo que cambia es
+   solo la puerta de entrada.                                              */
+async function recibirMeta(canal: string, entries: Array<Record<string, unknown>>): Promise<void> {
+  for (const entry of entries) {
+    const cuentaId = String(entry.id || "");
+    const msgs = (entry.messaging as Array<Record<string, unknown>>) || [];
+    if (!msgs.length) continue;
+
+    /* De que restaurante es esta cuenta. Para Instagram la cuenta puede
+       identificarse por su propio id o por el de la pagina sobre la que va
+       montada: Meta manda uno u otro segun el tipo de aviso, asi que se
+       aceptan los dos en vez de apostar por uno. */
+    const chRes = await sbGet(`/rest/v1/chat_channels?channel=eq.${canal}&connected=eq.true&select=id,tenant_id,branch_id,meta&limit=100`);
+    const canalRow = (chRes || []).find((c) => {
+      let m = c.meta as Record<string, unknown> | string || {};
+      if (typeof m === "string") { try { m = JSON.parse(m); } catch { m = {}; } }
+      const mm = m as Record<string, unknown>;
+      return String(mm.page_id || "") === cuentaId || String(mm.ig_id || "") === cuentaId;
+    });
+    if (!canalRow) { console.error(`[${canal}] llego un mensaje de la cuenta ${cuentaId} y ningun restaurante la tiene conectada`); continue; }
+
+    let cMeta: Record<string, string> = {};
+    const raw = canalRow.meta;
+    if (typeof raw === "string") { try { cMeta = JSON.parse(raw); } catch { /* */ } }
+    else if (raw && typeof raw === "object") { cMeta = raw as Record<string, string>; }
+    const pageToken = String(cMeta.page_token || cMeta.access_token || "");
+    const pageId    = String(cMeta.page_id || "");
+    const { tenant_id, branch_id, id: channel_id } = canalRow;
+
+    for (const m of msgs) {
+      const mensaje = (m.message as Record<string, unknown>) || {};
+      /* EL ECO ES NUESTRO PROPIO MENSAJE. Meta reenvia lo que la pagina
+         acaba de mandar; sin este filtro Paco se leeria a si mismo y se
+         contestaria en un bucle infinito. */
+      if (mensaje.is_echo === true) continue;
+      const de = String((m.sender as Record<string, unknown>)?.id || "");
+      if (!de || de === pageId || de === String(cMeta.ig_id || "")) continue;
+
+      const externalId = String(mensaje.mid || "");
+      let texto = String(mensaje.text || "").trim();
+      let mediaUrl: string | null = null;
+      let mediaType: string | null = null;
+
+      /* Fotos, audios y demas vienen como adjuntos. Se guarda el enlace tal
+         cual lo da Meta: aqui no se descarga nada. */
+      const adjuntos = (mensaje.attachments as Array<Record<string, unknown>>) || [];
+      if (!texto && adjuntos.length) {
+        const a0 = adjuntos[0];
+        const tipo = String(a0.type || "");
+        const url = String(((a0.payload as Record<string, unknown>) || {}).url || "");
+        if (url) { mediaUrl = url; mediaType = tipo === "image" ? "image" : tipo; }
+        /* Una historia respondida o compartida llega como adjunto sin texto:
+           decir "[image]" a secas dejaria al operador sin saber que paso. */
+        texto = tipo === "image" ? "[imagen]"
+              : tipo === "audio" ? "[audio]"
+              : tipo === "video" ? "[video]"
+              : tipo === "story_mention" ? "[te mencionó en una historia]"
+              : tipo === "share" ? "[compartió una publicación]"
+              : "[" + (tipo || "adjunto") + "]";
+      }
+      if (!texto && !mediaUrl) continue;
+
+      /* El nombre de quien escribe. Meta no lo manda en el aviso: hay que
+         preguntarlo. Si no se puede, se sigue con un nombre generico — no
+         tener el nombre no puede costar el mensaje. */
+      let nombre = canal === "instagram" ? "Cliente de Instagram" : "Cliente de Messenger";
+      let usuario = "";
+      try {
+        const pr = await fetch(`https://graph.facebook.com/v22.0/${de}?fields=name,username&access_token=${encodeURIComponent(pageToken)}`);
+        if (pr.ok) {
+          const pd = await pr.json() as Record<string, unknown>;
+          usuario = String(pd.username || "");
+          nombre = String(pd.name || "") || (usuario ? "@" + usuario : nombre);
+        }
+      } catch (_e) { /* sin nombre se sigue igual */ }
+
+      // ── Conversacion (una por persona y canal) ──
+      const convRes = await sbGet(
+        `/rest/v1/chat_conversations?branch_id=eq.${branch_id}&contact_handle=eq.${encodeURIComponent(de)}&channel=eq.${canal}&select=id,unread_count&limit=1`
+      );
+      let convId = "";
+      let unread = 0;
+      if (convRes?.length) {
+        convId = String(convRes[0].id);
+        unread = Number(convRes[0].unread_count) || 0;
+      } else {
+        const nueva = await sbPost(`/rest/v1/chat_conversations`, {
+          tenant_id, branch_id, channel: canal, channel_id,
+          contact_name: nombre, contact_handle: de,
+          contact_avatar_tint: Math.floor(Math.random() * 8) + 1,
+          status: "open", unread_count: 0,
+          last_message: texto, last_message_at: new Date().toISOString(),
+          last_sender: "contact", last_read: false,
+        }, "return=representation");
+        convId = String(nueva?.[0]?.id || "");
+      }
+      if (!convId) continue;
+
+      // El mismo mensaje puede llegar dos veces: Meta reintenta.
+      if (externalId) {
+        const dup = await sbGet(`/rest/v1/chat_messages?external_id=eq.${encodeURIComponent(externalId)}&limit=1`);
+        if (dup?.length) continue;
+      }
+
+      const cuando = m.timestamp ? new Date(Number(m.timestamp)).toISOString() : new Date().toISOString();
+      await sbPost(`/rest/v1/chat_messages`, {
+        conversation_id: convId, tenant_id,
+        direction: "in", origen: "cliente", body: texto,
+        media_url: mediaUrl, media_type: mediaType,
+        delivery_status: "delivered", external_id: externalId || null,
+        sent_at: cuando,
+      });
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+        last_message: texto, last_message_at: new Date().toISOString(),
+        last_sender: "contact", last_read: false,
+        unread_count: unread + 1, contact_name: nombre,
+      });
+
+      /* A la cola de Paco, igual que WhatsApp. En `from_phone` va el id de la
+         persona en esa red (no es un telefono: por eso el pedido pedira el
+         numero mas adelante) y en las credenciales va la PAGINA, que es la
+         que habla. Quien decide por donde contestar es el canal de la
+         conversacion, no estas credenciales. */
+      if (texto && !mediaUrl) {
+        await queueAiReply({
+          branchId: String(branch_id), tenantId: String(tenant_id), convId,
+          fromPhone: de, phoneId: pageId, accessToken: pageToken,
+          msgSentAt: cuando,
+        });
+      }
+    }
+  }
+}
 
 // ── Cola de respuesta IA ──────────────────────────────────────────────────────
 
