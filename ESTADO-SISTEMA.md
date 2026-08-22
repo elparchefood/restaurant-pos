@@ -3,6 +3,73 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 El teléfono en Instagram/Messenger y el cliente unificado (motor v350) — 22-ago-2026
+
+Punto 3 de Sergio: en las redes solo llega un id de Meta, no un teléfono — y
+sin teléfono no hay cliente al que pegarle el pedido, los puntos ni el saldo.
+
+### El botón, y por qué la pregunta va escrita igual
+
+Meta deja mostrar un `quick_reply` de tipo `user_phone_number`: el cliente toca
+y su número llega solo. **Pero si esa persona no tiene número en su perfil, el
+botón NO SE MUESTRA** — verificado en la documentación de Meta, no supuesto
+(vale para Instagram y Messenger). No sale vacío ni da error: no está.
+
+Por eso la pregunta va escrita SIEMPRE y el botón es solo un atajo. Una frase
+del tipo "toca el botón de abajo" habría dejado trabado a medio mundo sin que
+nos enteráramos. Si el envío con botón falla, se manda como texto normal.
+
+### La ficha del cliente y el puente entre canales
+
+`supabase/sql/2026-08-22-cliente-redes.sql` (aplicada):
+- `pos_clientes` += `instagram_id`, `instagram_usuario`, `facebook_id`,
+  `facebook_nombre`. Se guarda el ID (lo que llega en cada mensaje, no cambia)
+  Y el @usuario (lo que un humano entiende; ese sí cambia).
+- Índice único por red: un Instagram no puede quedar repartido entre dos fichas.
+- `chat_conversations` += `cliente_id` — **el puente del chat unificado**.
+- `fn_cliente_vincular_red(...)`: encuentra el cliente por TELÉFONO o lo crea,
+  le pega la red y **hermana todas sus conversaciones** (WhatsApp incluida), en
+  una sola operación. El teléfono es la llave de todo Cobra; las redes cuelgan
+  de él y no al revés.
+- Backfill: **135 conversaciones de WhatsApp** quedaron enlazadas a su cliente,
+  así que el chat unificado sirve desde el primer día.
+
+### Dos bugs que solo aparecieron probando el flujo completo
+
+1. **Paco nunca pedía el número.** El flujo de El Parche sale del canvas, y el
+   canvas no tiene caja de teléfono — ni debe tenerla: es un dato que solo
+   aplica a dos canales y el dueño no tiene por qué saber eso. El paso ahora
+   **se inyecta** (`inyectarPasoTelefono`), venga el flujo del canvas o del
+   motor, justo ANTES del nombre.
+2. **"Mi numero es 3155551234" quedó guardado como el NOMBRE del cliente.**
+   Paco preguntaba el nombre primero y el cliente contestaba con su celular.
+   Guarda nueva en los caminos que capturan nombres: si la frase es
+   básicamente un teléfono, no es un nombre. (Otra vez el patrón "cuatro
+   caminos capturan nombres, la regla va en todos".)
+
+`celularValido()` exige 10 dígitos que empiecen por 3; acepta el 57, espacios,
+guiones y el número dentro de una frase. Banco de 12 casos, incluida la trampa
+de que una dirección no se confunda con un teléfono.
+
+### Probado
+
+- **Banco por Instagram** (horario abierto fingido): pide el número después de
+  la dirección → lo captura → crea el cliente con su `instagram_id` → la
+  conversación queda enlazada → sigue pidiendo el nombre. Todo correcto.
+- **Regresión de WhatsApp**: idéntica, y el paso del teléfono NO aparece —
+  ahí el número ES la conversación.
+- Filas de prueba borradas; 0 pedidos PRUEBA en ventas.
+
+⚠️ Durante el día la prueba en producción no avanza: Paco no toma pedidos
+fuera del horario (6:30pm). Para probar flujos de día, el banco.
+
+### Falta (punto 4)
+
+El chat unificado: selector de canal en la barra del chat usando
+`chat_conversations.cliente_id`. Recordar que Meta solo deja escribir
+libremente **24 h** desde el último mensaje del cliente — el selector debe
+mostrar cuándo un canal está cerrado.
+
 ## 🟢 Paco atiende Instagram y Messenger (motor v347, webhook v73) — 22-ago-2026
 
 Meta aprobó los 6 permisos que faltaban (ver [[cobra-pos-meta-permisos]]), así

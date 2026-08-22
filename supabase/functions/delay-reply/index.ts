@@ -53,6 +53,14 @@ interface PacoState {
   barrio:             string | null;
   pago:               string | null;
   nombre:             string | null;
+  /* EL TELEFONO, SOLO EN INSTAGRAM Y MESSENGER (22-ago-2026). En WhatsApp el
+     numero ES la conversacion y nunca hace falta pedirlo; en las redes lo
+     unico que llega es un id de Meta, y sin telefono no hay cliente al que
+     pegarle el pedido, los puntos ni el saldo. null = sin preguntar. */
+  telefono:           string | null;
+  /* Por donde llego esta conversacion. Lo pone el motor al arrancar; sirve
+     para que los pasos sepan si estan en WhatsApp o en una red. */
+  canal?:             string;
   /* Datos de facturacion. null = no se ha preguntado; {} = dijo que no quiere. */
   factura:            Record<string, string> | null;
   /* Para cuando lo quiere. "" = lo antes posible. null = sin preguntar.
@@ -126,7 +134,7 @@ type TipoDireccion = "residencial" | "publico" | "rechazado" | "incompleta" | "p
 function newPacoState(): PacoState {
   return {
     producto: null, producto_categoria: null, tamano: null, tipo: null, cantidad: 1,
-    adiciones: null, upsell: null, preferencias: null, direccion: null, barrio: null, pago: null, nombre: null, tipos: {},
+    adiciones: null, upsell: null, preferencias: null, direccion: null, barrio: null, pago: null, nombre: null, telefono: null, tipos: {},
     factura: null, programado: null, reserva: null,
     items: [], cola: [], resumen_enviado: false, direccion_heredada: false, complemento_dir_pendiente: null,
     last_activity: new Date(Date.now() - 30 * 60_000).toISOString(), // 30min atrás → sesionExpirada=true
@@ -2093,6 +2101,14 @@ INTENCION, no las palabras exactas.` },
     }
   }
 
+  /* POR DONDE LLEGO ESTA CONVERSACION. Se pone en el estado para que los
+     pasos puedan decidir: el del telefono solo existe en Instagram y
+     Messenger, porque en WhatsApp el numero ES la conversacion. */
+  state.canal = await canalDe(convId);
+  /* Tambien en cfg: por ahi lo leen las funciones que arman los pasos, que
+     ya reciben cfg y no un parametro mas (misma maNa que _operacion). */
+  if (cfg) (cfg as Record<string, unknown>)._canal = state.canal;
+
   /* Foto de los datos ANTES de procesar este mensaje. El contador anti-bucle
      la compara al final: si algo de esto cambió, el cliente ESTÁ cooperando y
      no se le cuenta un "intento" — la trampa de Sergio del 15-ago: dio la
@@ -3409,6 +3425,37 @@ INTENCION, no las palabras exactas.` },
   const yaHabiaPreguntadoDireccion = !!state.complemento_dir_pendiente;
   if (Object.keys(extracted).length > 0) {
     state = mergeSlots(state, extracted);
+
+    /* ══ EL NUMERO ACABA DE LLEGAR POR UNA RED ══════════════════════════
+       Aqui es donde Instagram deja de ser un id suelto y se vuelve un
+       cliente de verdad: se busca su ficha por TELEFONO —o se crea— y se le
+       pega la cuenta. La funcion de la base hace las dos cosas juntas y de
+       paso hermana todas sus conversaciones (WhatsApp incluida), que es lo
+       que permite alternar entre canales sin salir del chat.
+
+       Best-effort a proposito: si esto falla, el pedido NO se cae — el
+       numero ya quedo en el estado y el pedido puede seguir. Se anota el
+       error para poder rastrearlo. */
+    if (extracted.telefono && (state.canal === "instagram" || state.canal === "facebook")) {
+      try {
+        /* `fromPhone` en estos canales ES el id de la persona en la red (asi
+           lo encola el webhook), y `convRow.contact_name` es su nombre de
+           perfil. No existe aqui ninguna variable `conv`. */
+        const usuarioRed = String(convRow?.contact_name || "");
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/fn_cliente_vincular_red`, {
+          method: "POST",
+          headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            p_tenant: tenantId, p_telefono: String(state.telefono || ""),
+            p_red: state.canal, p_red_id: String(fromPhone || ""),
+            p_usuario: usuarioRed, p_nombre: state.nombre || usuarioRed,
+            p_branch: branchId,
+          }),
+        });
+        if (r.ok) console.log(`[${state.canal}] ${fromPhone} vinculado al telefono ${state.telefono}`);
+        else console.error(`[${state.canal}] no se pudo vincular:`, (await r.text()).slice(0, 300));
+      } catch (e) { console.error(`[${state.canal}] no se pudo vincular:`, String(e).slice(0, 200)); }
+    }
     /* La reserva se crea en cuanto estan sus datos, no al final del flujo: una
        reserva no tiene resumen ni cobro que esperar. El `reserva_id` evita
        crearla dos veces si el cliente sigue escribiendo. */
@@ -4281,6 +4328,17 @@ INTENCION, no las palabras exactas.` },
       ? `Sobre la *${capFirst(state.producto)}* 👇\n${fijo}`
       : fijo;
     if (conProd.trim()) {
+      /* EL ATAJO DEL NUMERO. Solo en el paso del telefono y solo en redes:
+         la pregunta ya va escrita y se entiende sola, asi que si el boton no
+         aparece —porque esa persona no tiene numero en su perfil— no se
+         pierde nada. Si el envio con boton falla por cualquier motivo, se
+         manda como texto normal: nunca quedarse sin preguntar. */
+      if (nextStep.campo === "telefono"
+          && (state.canal === "instagram" || state.canal === "facebook")
+          && await enviarPidiendoTelefono(convId, tenantId, conProd, fromPhone, phoneId, accessToken)) {
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state, last_message: conProd, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+        return;
+      }
       await sendWaAndSave(convId, tenantId, conProd, fromPhone, phoneId, accessToken);
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state, last_message: conProd, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
       return;
@@ -5272,6 +5330,11 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
   }
   if (CALLE_REGEX.test(t) || LLEVAR_REGEX.test(t)) return null;
   if (/^\d+$/.test(t)) return null;
+  /* NI AUNQUE VENGA CON PALABRAS. "Mi numero es 3155551234" quedo como el
+     NOMBRE de un cliente en la prueba del banco: el cliente contestaba con su
+     celular a la pregunta del nombre. Si la frase es basicamente un telefono,
+     no es un nombre. */
+  if (celularValido(t) && t.replace(/[^0-9]/g, "").length >= 10 && t.length <= 40) return null;
   // Un lugar tampoco pasa por la via del marcador ("es para Ciudad Jardín").
   if (domCfg && (esConjunto(t, domCfg) || lookupDomiPrice(t, domCfg) !== null)) return null;
   return t;
@@ -5911,9 +5974,14 @@ function validarLeido(
        camino que captura nombres (el lector GPT llena la casilla), y fue por
        donde "Cuanto se demora" quedo como nombre de Francisco aunque los otros
        tres ya la tenian. Cuatro caminos, una sola regla. */
+    /* Y TAMPOCO UN TELEFONO. Este es el CUARTO camino que captura nombres (el
+       lector con IA), y la regla hay que ponerla en todos: en el banco, a la
+       pregunta del nombre el cliente contesto "Mi numero es 3155551234" y eso
+       quedo como su nombre. Misma leccion que las adiciones y las notas. */
     if (n.length >= 2 && !SOLO_CORTESIA_RE.test(n) && !NO_ES_NOMBRE_RE.test(n)
         && !PREGUNTA_NO_NOMBRE_RE.test(n) && !ETIQUETA_PLANTILLA_RE.test(n)
-        && !mencionaProductoCatalogo(n) && !esLugar) {
+        && !mencionaProductoCatalogo(n) && !esLugar
+        && !celularValido(n)) {
       out.nombre = n;
     }
   }
@@ -6021,6 +6089,15 @@ function runExtractors(
       });
       result.preferencias = unicas.join(", ");
     }
+  }
+
+  /* EL NUMERO, en redes. Llega de dos formas y las dos entran por aqui: el
+     boton lo manda como texto, y quien lo escribe tambien. Solo se toma si
+     de verdad parece un celular — si no, el paso sigue pendiente y Paco lo
+     vuelve a pedir en vez de guardar un numero inventado. */
+  if (!state.telefono && (state.canal === "instagram" || state.canal === "facebook")) {
+    const tel = celularValido(text);
+    if (tel) result.telefono = tel;
   }
 
   if (!state.tamano && !result.tamano && productData && productData.presentations.length > 1) {
@@ -6329,6 +6406,9 @@ function findNextStep(state: PacoState, pasos: PasoDefinicion[], incluirPostResu
     if (!paso.cuando) return true;
     if (paso.cuando === "recoger")   return esRecoger;
     if (paso.cuando === "domicilio") return !esRecoger;
+    /* "redes" = Instagram y Messenger. En WhatsApp el numero ya se sabe: es
+       la conversacion misma, y volver a pedirlo seria absurdo. */
+    if (paso.cuando === "redes")     return state.canal === "instagram" || state.canal === "facebook";
     return true;   // "nuevo" se evalúa donde se conoce al cliente
   };
 
@@ -6398,6 +6478,8 @@ function findNextStep(state: PacoState, pasos: PasoDefinicion[], incluirPostResu
       if (!state.pago) return paso;
     } else if (paso.id === "nombre") {
       if (!state.nombre) return paso;
+    } else if (paso.campo === "telefono") {
+      if (!state.telefono) return paso;
     } else if (paso.id === "reserva") {
       if (state.reserva === null) return paso;
     } else if (paso.id === "programado") {
@@ -6433,6 +6515,11 @@ function getFlowPasos(cfg: Record<string, unknown>, frasesCfg: Record<string, un
     { id: "upsell",        campo: "adiciones", modo: upsell.modo,  texto: upsell.texto  || "¿Deseas agregar algo más a tu pedido? 🤩", guia: upsell.guia },
     { id: "confirmar_dir", campo: "direccion", modo: "conversacional", guia: "Pregunta de forma amigable si el pedido va a la misma dirección que el pedido anterior" },
     { id: "direccion",     campo: "direccion", modo: destino.modo, texto: destino.texto || "Con gusto, ¿para dónde va tu pedido? ☺️", guia: destino.guia },
+    /* EL TELEFONO va aqui: despues de la direccion, cuando el cliente ya
+       esta enganchado. Pedir un dato personal apenas saluda espanta. Solo
+       aparece en Instagram y Messenger (ver `aplica`, mas abajo). */
+    { id: "telefono",      campo: "telefono",  modo: "fija", cuando: "redes",
+      texto: "¿Me confirmas tu número de celular para el pedido? 📱", guia: PEDIR_TEL_GUIA },
     { id: "nombre",        campo: "nombre",    modo: "conversacional", texto: nombreConfirmar ? undefined : (nombre.texto || `¿A nombre de quién se recibe el pedido?${emo()}`), guia: nombreGuia },
     { id: "pago",          campo: "pago",      modo: pago.modo,    texto: pago.texto    || "¿Cómo nos vas a pagar? ({{metodos_pago}}) ☺️", guia: pago.guia },
   ];
@@ -6447,6 +6534,34 @@ function comunes(paso: PasoDefinicion, p: Record<string, unknown>): void {
   if (p.si_falla && p.si_falla !== "insistir") paso.si_falla = String(p.si_falla);
 }
 
+/* EL PASO DEL TELEFONO SE INYECTA, NO SE CONFIGURA (22-ago-2026).
+
+   El flujo de El Parche sale del canvas, y el canvas NO tiene una caja de
+   telefono —ni tiene por que tenerla: es un dato que solo hace falta en
+   Instagram y Messenger, y el dueNo no deberia saber eso—. Probado en el
+   banco: sin inyectarlo, Paco nunca lo pedia, preguntaba el NOMBRE primero,
+   y el cliente contestaba con su numero... que quedaba guardado como nombre.
+
+   Va ANTES del nombre a proposito: el numero identifica al cliente, y con el
+   en la mano Paco puede confirmar el nombre que ya tiene guardado en vez de
+   preguntarlo de cero. */
+function inyectarPasoTelefono(pasos: PasoDefinicion[], cfg: Record<string, unknown>): PasoDefinicion[] {
+  const canal = String((cfg as Record<string, unknown>)._canal || "whatsapp");
+  if (canal !== "instagram" && canal !== "facebook") return pasos;
+  if (pasos.some(p => p.campo === "telefono")) return pasos;
+  const paso: PasoDefinicion = {
+    id: "telefono", campo: "telefono", modo: "fija", cuando: "redes",
+    texto: "¿Me confirmas tu número de celular para el pedido? 📱",
+    guia: PEDIR_TEL_GUIA,
+  };
+  /* Antes del nombre; si no hay paso de nombre, antes del pago; y si tampoco,
+     al final. Nunca se pierde. */
+  let i = pasos.findIndex(p => p.campo === "nombre");
+  if (i < 0) i = pasos.findIndex(p => p.campo === "pago");
+  if (i < 0) i = pasos.length;
+  return [...pasos.slice(0, i), paso, ...pasos.slice(i)];
+}
+
 function buildAllPasos(productData: ProductData | null, cfg: Record<string, unknown>, frasesCfg: Record<string, unknown>, nombreConfirmar: string | null = null, esRecurrente = false): PasoDefinicion[] {
   // Flujo configurado desde el canvas (ia_config.flujo_pasos) — respeta orden/modo/frase de cada paso,
   // pero inyecta las opciones dinámicas del producto (tamaño/tipo vienen del catálogo, no del canvas).
@@ -6454,14 +6569,14 @@ function buildAllPasos(productData: ProductData | null, cfg: Record<string, unkn
   if (Array.isArray(customRaw) && customRaw.length > 0) {
     try {
       const procesados = procesarFlujoCanvas(customRaw as Array<Record<string, unknown>>, productData, nombreConfirmar, esRecurrente, frasesCfg);
-      if (procesados.length > 0) return procesados;
+      if (procesados.length > 0) return inyectarPasoTelefono(procesados, cfg);
     } catch (err) {
       console.error("procesarFlujoCanvas falló, usando flujo por defecto:", err);
     }
   }
   // Flujo por defecto (hardcoded) — usado cuando no hay flujo del canvas o si éste falla
   const productPasos = productData ? buildProductPasos(productData, frasesCfg) : [];
-  return [...productPasos, ...getFlowPasos(cfg, frasesCfg, nombreConfirmar, esRecurrente)];
+  return inyectarPasoTelefono([...productPasos, ...getFlowPasos(cfg, frasesCfg, nombreConfirmar, esRecurrente)], cfg);
 }
 
 // Convierte el flujo exportado del canvas (array ordenado de pasos) al formato PasoDefinicion
@@ -6730,6 +6845,10 @@ function procesarFlujoCanvas(
           ? `Pregunta si necesita factura electrónica. Si dice que NO, sigue sin insistir. Si dice que sí, pide en UN solo mensaje: ${quiere.join(", ")}.`
           : `Pide en UN solo mensaje: ${quiere.join(", ")}.`),
       });
+    } else if (campo === "telefono") {
+      out.push({ id: "telefono", campo: "telefono", modo: "fija", cuando: "redes",
+                 texto: texto || "¿Me confirmas tu número de celular para el pedido? 📱",
+                 guia: guia || PEDIR_TEL_GUIA });
     } else if (campo === "pago") {
       out.push({ id: "pago", campo: "pago", modo, texto: texto || "¿Cómo nos vas a pagar? ({{metodos_pago}}) ☺️", guia,
                  despues_resumen: p.despues_resumen === true });
@@ -8348,6 +8467,31 @@ function conEtiqueta(msg: string): string {
    Se recuerda por conversacion (no en una variable suelta) porque en el
    servidor pueden estar corriendo dos conversaciones a la vez: una variable
    compartida haria que a un cliente le llegara la respuesta del otro. */
+/* ══ EL TELEFONO EN INSTAGRAM Y MESSENGER (22-ago-2026) ══════════════════
+   Meta deja mostrar un boton "Compartir mi número" que el cliente toca una
+   vez y su numero llega solo. PERO —comprobado en la documentacion de Meta,
+   no supuesto— si esa persona no tiene numero guardado en su perfil, el
+   boton NO SE MUESTRA: no sale vacio ni da error, sencillamente no esta.
+
+   Por eso la PREGUNTA va escrita siempre y el boton es solo un atajo: quien
+   lo tenga toca una vez, quien no, lee una pregunta normal y lo escribe.
+   Ninguno de los dos se traba. Una frase del tipo "toca el boton de abajo"
+   dejaria mudo y perdido a medio mundo sin que nos enteraramos.          */
+const PEDIR_TEL_GUIA = "Pide el numero de celular para poder registrar el pedido. " +
+  "Debe entenderse SIN ver ningun boton: nunca digas \"toca el boton\" ni \"usa el boton de abajo\". " +
+  "Si el cliente pregunta para que es, dile que es para avisarle del pedido y para sus puntos.";
+
+/* Un celular colombiano: 10 digitos que empiezan por 3. Se aceptan con el
+   57 delante, con espacios o guiones — la gente lo escribe de mil formas.
+   Devuelve los 10 digitos limpios, o null si eso no es un celular. */
+function celularValido(txt: string): string | null {
+  const d = String(txt || "").replace(/[^0-9]/g, "");
+  const diez = d.length > 10 ? d.slice(-10) : d;
+  if (diez.length !== 10) return null;
+  if (!diez.startsWith("3")) return null;   // fijos y numeros raros no sirven para WhatsApp
+  return diez;
+}
+
 const CANAL_CONV = new Map<string, string>();
 
 /* ══ LA UNICA PUERTA DE SALIDA HACIA META (22-ago-2026) ═══════════════
@@ -8448,6 +8592,48 @@ async function canalDe(convId: string): Promise<string> {
   } catch (_e) { /* si no se puede leer, se asume WhatsApp, que es el 99% */ }
   CANAL_CONV.set(convId, canal);
   return canal;
+}
+
+/* LA PREGUNTA DEL NUMERO, CON SU ATAJO (22-ago-2026).
+   Meta llama a esto "quick reply": un boton que al tocarlo manda el numero
+   que la persona tiene en su perfil. Comprobado en su documentacion: si no
+   tiene numero guardado, el boton NO SE MUESTRA — y por eso la pregunta ya
+   va escrita en el texto y se entiende sin ningun boton.
+   El titulo va cortito porque Meta corta en 20 caracteres.
+   Devuelve true si salio; false para que quien llama lo mande como texto. */
+async function enviarPidiendoTelefono(
+  convId: string, tenantId: string, msg: string,
+  paraId: string, pageId: string, pageToken: string,
+): Promise<boolean> {
+  const texto = conEtiqueta(msg);
+  try {
+    const r = await fetch(`https://graph.facebook.com/v22.0/${pageId}/messages`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${pageToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recipient: { id: paraId },
+        messaging_type: "RESPONSE",
+        message: {
+          text: texto,
+          quick_replies: [{ content_type: "user_phone_number", title: "Compartir mi número" }],
+        },
+      }),
+    });
+    if (!r.ok) {
+      console.error("[telefono] el boton no salio, se manda como texto:", (await r.text()).slice(0, 300));
+      return false;
+    }
+    const d = await r.json().catch(() => ({})) as Record<string, unknown>;
+    await sbPost(`/rest/v1/chat_messages`, {
+      conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot",
+      body: texto, delivery_status: "sent",
+      external_id: String(d.message_id || "") || null, sent_at: new Date().toISOString(),
+    });
+    return true;
+  } catch (e) {
+    console.error("[telefono] el boton no salio, se manda como texto:", String(e).slice(0, 200));
+    return false;
+  }
 }
 
 async function sendWaAndSave(
