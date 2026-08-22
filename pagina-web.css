@@ -642,7 +642,37 @@ body{margin:0;background:var(--bg);font-family:'DM Sans',system-ui,-apple-system
 .pw-emb-b i{display:block;height:100%;background:var(--violet,#8B5CF6);border-radius:999px;}
 
 /* Cifras chicas */
-.pw-mini3{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-bottom:14px;}
+
+/* ══ SUB-PESTANAS DE "CLIENTES DE LA APP" (21-ago) ═══════════════════════
+   Cinco listas apiladas hacian una pagina infinita. Ahora una a la vez, y
+   cada una con su buscador y su "ver mas". */
+.pw-snav{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px;}
+.pw-snav button{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);
+  background:#fff;font-family:inherit;font-size:12.5px;font-weight:600;color:var(--ink-2);
+  padding:8px 13px;border-radius:10px;cursor:pointer;}
+.pw-snav button:hover{background:var(--surface-2);color:var(--ink);}
+.pw-snav button.on{background:var(--brand-tint);border-color:var(--brand);color:var(--brand);font-weight:700;}
+.pw-snav .n{font-size:10.5px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;}
+.pw-snav button.on .n{color:var(--brand);}
+/* El pendiente se ve desde la barra: es lo unico aqui que pide una decision. */
+.pw-snav .n.warn{background:#FEF3C7;color:var(--amber-ink);padding:1px 7px;border-radius:999px;}
+.pw-bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:11px;}
+.pw-bar .cc-input{flex:1;min-width:190px;}
+.pw-fch{display:flex;gap:7px;flex-wrap:wrap;}
+.pw-fch button{border:1px solid var(--border);background:#fff;font-family:inherit;font-size:12px;
+  font-weight:600;color:var(--ink-2);padding:6px 11px;border-radius:999px;cursor:pointer;}
+.pw-fch button:hover{background:var(--surface-2);}
+.pw-fch button.on{background:var(--brand-tint);border-color:var(--brand);color:var(--brand);}
+/* El pie de cada lista: cuantas se ven de cuantas, y el boton de traer mas. */
+.pw-mas{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 14px;background:var(--surface-2);}
+.pw-mas small{font-size:11.5px;color:var(--muted);}
+.pw-mas button{border:none;background:none;font-family:inherit;font-size:11.5px;
+  font-weight:700;color:var(--brand);cursor:pointer;padding:0;}
+/* Cuando la consulta llego a su tope, se DICE. Callarlo hace creer que no hay mas. */
+.pw-tope{font-size:11.5px;color:var(--amber-ink);margin:9px 2px 0;}
+.pw-minis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px;margin-bottom:14px;}
+
 .pw-mk{border:1px solid var(--border);border-radius:12px;padding:12px 13px;}
 .pw-mk-v{font-size:19px;font-weight:800;margin-top:2px;letter-spacing:-.02em;
   font-variant-numeric:tabular-nums;}
@@ -704,6 +734,6 @@ body{margin:0;background:var(--bg);font-family:'DM Sans',system-ui,-apple-system
 .lm-btn-danger:hover{background:#B91C1C;}
 
 @media (max-width:900px){
-  .pw-emb,.pw-mini3{grid-template-columns:1fr;}
+  .pw-emb{grid-template-columns:1fr;}
   .pw-emb-c{border-right:none;border-bottom:1px solid var(--border-soft);}
 }

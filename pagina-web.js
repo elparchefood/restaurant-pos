@@ -40,8 +40,7 @@
     { k: 'prueba',  t: 'Probar y medir',   secs: ['probar', 'comova'] },
     /* La pestana de la app va de ultima y es ANCHA: son tablas, y la vista
        previa del celular al lado las dejaria en una columna ilegible. */
-    { k: 'clientes', t: 'Clientes de la app', ancha: true,
-      secs: ['wEmbudo', 'wUsuarios', 'wSaldos', 'wDados', 'wSolicitudes'] },
+    { k: 'clientes', t: 'Clientes de la app', ancha: true, secs: ['wApp'] },
   ];
 
   var S = {
@@ -59,6 +58,12 @@
     prev: 'movil',
     tab: 'pagina',
     web: null,        // lo de la app: embudo, usuarios, movimientos, solicitudes
+    /* Lo de las sub-pestanas de la app: cual esta abierta, que se busco, que
+       filtro esta puesto y cuantas filas se han pedido en cada lista. */
+    sub: 'resumen',
+    wq: '',
+    wf: 'todos',
+    tope: {},
     dar: null,        // que se esta regalando en el modal
     recarga: 0,       // sube cada vez que se guarda algo, para refrescar la vista previa
     tel: '',
@@ -243,9 +248,7 @@
       ve: seccionVe, destacados: seccionDestacados, fondo: seccionFondo, publicidad: seccionPublicidad,
       avisos: seccionAvisos,
       probar: seccionProbar, comova: seccionComoVa,
-      wEmbudo: seccionWebEmbudo, wUsuarios: seccionWebUsuarios,
-      wSaldos: seccionWebSaldos, wDados: seccionWebDados,
-      wSolicitudes: seccionWebSolicitudes,
+      wApp: seccionWebApp,
     };
     var tab = TABS.filter(function (x) { return x.k === S.tab; })[0] || TABS[0];
 
@@ -279,6 +282,9 @@
     if (k === 'horario' && (S.t.web_cerrado_manual || e.motivo === 'programado' || !S.horarios))
       return '<span class="pw-tab-pt"></span>';
     if (k === 've' && VE.some(function (v) { return !ve(v.k); })) return '<span class="pw-tab-pt gris"></span>';
+    /* Una recarga esperando decision se ve desde la pestana, este o no
+       abierta: es plata de un cliente que ya consigno. */
+    if (k === 'clientes' && S.web && (S.web.solicitudes || []).length) return '<span class="pw-tab-pt"></span>';
     return '';
   }
 
@@ -904,7 +910,10 @@
 
     try {
       var m = await s.from('pos_saldo_mov')
-        .select('id, created_at, monto, motivo, referencia, detalle, cliente_id, pos_clientes(nombre, telefono)')
+        /* saldo_post FALTABA: la columna "Le quedo" pedia un dato que la
+           consulta nunca traia, asi que mostraba $ 0 en TODAS las recargas.
+           Un cero de verdad y un cero por falta de dato se ven igual. */
+        .select('id, created_at, monto, motivo, referencia, detalle, saldo_post, cliente_id, pos_clientes(nombre, telefono)')
         .eq('tenant_id', tid)
         .in('motivo', ['recarga', 'bono_recarga', 'regalo', 'bono_instalacion'])
         .order('created_at', { ascending: false }).limit(300);
@@ -955,10 +964,104 @@
   }
   function cargandoPw(txt) { return '<div class="pw-cargando">' + esc(txt) + '</div>'; }
 
-  // ── 1 · QUIÉN ENTRA ────────────────────────────────────────────────
-  function seccionWebEmbudo() {
-    if (!S.web || !S.web.embudo) return '<section class="mw-card">' + cargandoPw('Cargando…') + '</section>';
-    var e = S.web.embudo;
+  /* ══ CLIENTES DE LA APP, EN SUB-PESTANAS (21-ago, pedido de Sergio) ═════
+     Antes eran cinco bloques uno debajo del otro, todos abiertos a la vez: el
+     embudo, la tabla de registrados, las recargas, los regalos y las
+     solicitudes. Con 31 registrados ya tocaba bajar hasta el fondo para ver
+     las recargas por revisar —lo unico que pide una decision—, y cada cliente
+     nuevo alargaba la pagina. Con 300 no se acaba nunca.
+
+     Ahora son cinco sub-pestanas y solo se pinta UNA lista a la vez, de a 25
+     filas con "ver mas". La pantalla ya no crece por muchos clientes que
+     entren.
+
+     RECARGAS Y REGALOS VAN SEPARADOS A PROPOSITO: una recarga es plata que
+     entro al banco, un regalo es plata que salio del bolsillo. Verlos en la
+     misma lista fue justo lo que hizo que la pantalla vieja no se entendiera.
+     Por eso son dos pestanas, no una con un filtro. */
+  var PASO = 25;
+
+  var SUBS = [
+    { k: 'resumen',  t: 'Resumen' },
+    { k: 'personas', t: 'Personas' },
+    { k: 'recargas', t: 'Recargas' },
+    { k: 'regalos',  t: 'Regalos' },
+    { k: 'revisar',  t: 'Por revisar' },
+  ];
+
+  /* Los topes de las consultas. Si una lista llega justo a su tope, hay que
+     DECIRLO: callarlo hace creer que no hay nada mas viejo. */
+  var TOPE_MOVS = 300, TOPE_PTS = 200, TOPE_SOL = 200;
+
+  function recargasDe() {
+    return ((S.web && S.web.movs) || []).filter(function (m) {
+      return m.motivo === 'recarga' || m.motivo === 'bono_recarga';
+    });
+  }
+  /* El bono por instalar la app tambien es un regalo tuyo: sale de tu bolsillo
+     igual que el saldo que das a mano. Se carga desde el 21-ago y hasta ahora
+     no se veia en ninguna parte. */
+  function regalosDe() {
+    return ((S.web && S.web.movs) || []).filter(function (m) {
+      return m.motivo === 'regalo' || m.motivo === 'bono_instalacion';
+    }).map(function (m) {
+      var cli = m.pos_clientes || {};
+      return { t: m.created_at, n: cli.nombre || 'Cliente', tel: cli.telefono || '',
+               tipo: 'saldo', auto: m.motivo === 'bono_instalacion',
+               v: m.monto, mot: m.detalle };
+    }).concat(((S.web && S.web.ptsRegalo) || []).map(function (p) {
+      return { t: p.created_at, n: nombrePorTel(p.telefono), tel: p.telefono,
+               tipo: 'puntos', auto: false, v: p.puntos, mot: p.detalle };
+    })).sort(function (a, b) { return new Date(b.t) - new Date(a.t); });
+  }
+
+  function tope(k) { return (S.tope && S.tope[k]) || PASO; }
+
+  /* El pie de una lista: cuantas se ven de cuantas y el boton de traer mas.
+     Si no sobra ninguna, no se dibuja nada: un pie que siempre dice lo mismo
+     es ruido. */
+  function pieLista(k, mostradas, total, palabra) {
+    if (total <= mostradas) return '';
+    return '<div class="pw-mas"><small>Mostrando ' + num(mostradas) + ' de ' +
+      num(total) + ' ' + esc(palabra) + '</small>' +
+      '<button data-mas="' + k + '">Ver mas</button></div>';
+  }
+  function avisoTope(cargadas, maximo, que) {
+    if (cargadas < maximo) return '';
+    return '<p class="pw-tope">Solo se cargaron ' + num(maximo) + ' ' + esc(que) +
+      '. Si necesitas ver mas atras, dime y lo ampliamos.</p>';
+  }
+
+  // ── La pestana entera: la barra de arriba y la lista que toque ──────
+  function seccionWebApp() {
+    if (!S.web || !S.web.usuarios) return '<section class="mw-card">' + cargandoPw('Cargando…') + '</section>';
+    var k = S.sub || 'resumen';
+    var cuenta = {
+      personas: (S.web.usuarios || []).length,
+      recargas: recargasDe().length,
+      regalos:  regalosDe().length,
+      revisar:  (S.web.solicitudes || []).length,
+    };
+    var nav = '<div class="pw-snav">' + SUBS.map(function (x) {
+      var n = cuenta[x.k];
+      var etq = '';
+      if (x.k === 'revisar') etq = n ? '<span class="n warn">' + num(n) + '</span>' : '';
+      else if (x.k !== 'resumen') etq = '<span class="n">' + num(n) + '</span>';
+      return '<button data-sub="' + x.k + '" class="' + (x.k === k ? 'on' : '') + '">' +
+        esc(x.t) + etq + '</button>';
+    }).join('') + '</div>';
+
+    var cuerpo = k === 'personas' ? webPersonas()
+               : k === 'recargas' ? webRecargas()
+               : k === 'regalos'  ? webRegalos()
+               : k === 'revisar'  ? webRevisar()
+               : webResumen();
+    return nav + cuerpo;
+  }
+
+  // ── RESUMEN: el embudo y los numeros de plata. No crece nunca ───────
+  function webResumen() {
+    var e = S.web.embudo || {};
     var base = Number(e.pidieron) || 0;
     var pasos = [
       ['Pidieron su código', e.pidieron, num(e.codigos) + ' códigos enviados'],
@@ -966,96 +1069,159 @@
       ['Activaron avisos',   e.con_avisos, 'reciben el estado del pedido'],
       ['Pidieron por la app', e.con_pedido, Number(e.con_pedido) ? 'personas distintas' : 'todavía ninguno'],
     ];
-    return '<section class="mw-card">' +
+    var embudo = '<section class="mw-card">' +
       '<div class="mw-card-head"><div><h2 class="mw-h">Quién entra a tu página</h2>' +
         '<p class="mw-sub">Dónde se cae la gente entre pedir el código y hacer el pedido.</p></div></div>' +
-      '<div class="pw-emb">' + pasos.map(function (p) {
-        var pct = base ? Math.round((Number(p[1]) || 0) / base * 100) : 0;
-        return '<div class="pw-emb-c"><div class="mw-eyebrow">' + esc(p[0]) + '</div>' +
-          '<div class="pw-emb-v">' + num(p[1]) + '</div>' +
-          '<div class="mw-sub">' + esc(p[2]) + '</div>' +
+      '<div class="pw-emb">' + pasos.map(function (x) {
+        var pct = base ? Math.round((Number(x[1]) || 0) / base * 100) : 0;
+        return '<div class="pw-emb-c"><div class="mw-eyebrow">' + esc(x[0]) + '</div>' +
+          '<div class="pw-emb-v">' + num(x[1]) + '</div>' +
+          '<div class="mw-sub">' + esc(x[2]) + '</div>' +
           '<div class="pw-emb-b"><i style="width:' + pct + '%"></i></div></div>';
       }).join('') + '</div></section>';
+
+    var recargado = 0, bonos = 0, nRec = 0;
+    recargasDe().forEach(function (m) {
+      var v = Number(m.monto) || 0;
+      if (m.motivo === 'recarga') { recargado += v; nRec++; }
+      else { bonos += v; }
+    });
+    /* El bono NO se suma al total recargado: la plata que entro de verdad son
+       las recargas. Sumarlos daria un total que no existe en el banco. */
+    var regalado = regalosDe().reduce(function (a, r) {
+      return a + (r.tipo === 'saldo' ? (Number(r.v) || 0) : 0);
+    }, 0);
+    var sinGastar = (S.web.usuarios || []).reduce(function (a, u) { return a + (Number(u.saldo) || 0); }, 0);
+
+    var plata = '<section class="mw-card">' +
+      '<div class="mw-card-head"><div><h2 class="mw-h">La plata de la app</h2>' +
+        '<p class="mw-sub">Lo que ya te pagaron, lo que regalaste y lo que todavía te pueden cobrar en comida.</p></div></div>' +
+      '<div class="pw-minis">' +
+        miniK('Recargado por clientes', COP(recargado), num(nRec) + (nRec === 1 ? ' recarga' : ' recargas')) +
+        miniK('Bonos de recarga', COP(bonos),
+              recargado ? (Math.round(bonos / recargado * 1000) / 10) + '% sobre lo recargado' : '—') +
+        miniK('Regalado a mano', COP(regalado), 'salió de tu bolsillo') +
+        miniK('Saldo sin gastar', COP(sinGastar), 'comida que aún les debes') +
+      '</div></section>';
+    return embudo + plata;
+  }
+  function miniK(l, v, s2) {
+    return '<div class="pw-mk"><div class="mw-eyebrow">' + esc(l) + '</div>' +
+      '<div class="pw-mk-v">' + esc(v) + '</div><div class="mw-sub">' + esc(s2) + '</div></div>';
   }
 
-  function seccionWebUsuarios() {
-    if (!S.web || !S.web.usuarios) return '<section class="mw-card">' + cargandoPw('Cargando…') + '</section>';
-    var us = S.web.usuarios;
-    var cuerpo;
-    if (!us.length) {
-      cuerpo = '<div class="pw-vacio"><b>Todavía nadie se ha registrado</b>' +
-        '<p>Cuando alguien pida su código y entre, aparece aquí con toda su actividad.</p></div>';
-    } else {
-      cuerpo = '<div class="pw-scr"><div class="pw-row pw-ru pw-cab">' +
-          '<div>Persona</div><div>Se registró</div><div>Última vez</div><div>Entradas</div>' +
-          '<div>En su celular</div><div>Avisos</div><div>Pedidos</div><div>Saldo</div><div></div></div>' +
-        us.map(function (u, i) {
-          return '<div class="pw-row pw-ru">' +
-            '<div class="pw-cn"><div class="pw-av">' + esc(inicialesPw(u.nombre)) + '</div>' +
-              '<div><b>' + esc(u.nombre || 'Sin nombre') + '</b>' +
-              '<small>' + esc(u.telefono || '') + '</small></div></div>' +
-            '<div class="pw-tenue">' + esc(fechaPw(u.alta)) + '</div>' +
-            '<div class="pw-tenue">' + esc(fechaPw(u.ultimo)) + '</div>' +
-            '<div class="pw-num">' + num(u.entradas) + '</div>' +
-            /* INSTALADA O NO. Los tres estados son distintos y hay que verlos:
-               instalada / entró por el navegador / todavía no sabemos.
-               "No sabemos" no es "no la tiene": es que no ha vuelto a entrar
-               desde que el sistema empezó a preguntarlo (21-ago). Y sobre esto
-               se decide a quién mandarle la campaña de "instálala" — mandársela
-               a quien ya la tiene es la forma más rápida de que dejen de leer. */
-            /* Nunca un guion pelado: 'sin dato' dice lo que pasa (esa persona
-               no ha vuelto a entrar desde que el sistema pregunta), y el
-               aparato se escribe como lo dice la gente: iPhone, Android, PC. */
-            '<div>' + (function () {
-              var ap = u.plataforma === 'ios' ? 'iPhone'
-                     : u.plataforma === 'android' ? 'Android'
-                     : u.plataforma === 'escritorio' ? 'PC' : '';
-              var chip = u.instalada === true
-                ? '<span class="mw-badge ok">Instalada</span>'
-                : u.instalada === false
-                  ? '<span class="mw-badge neutral">Navegador</span>'
-                  : '<span class="pw-tenue">sin dato</span>';
-              return chip + (ap ? ' <small class="pw-tenue">' + ap + '</small>' : '');
-            })() + '</div>' +
-            '<div>' + (Number(u.avisos)
-              ? '<span class="mw-badge ok">Activos</span>'
-              : '<span class="mw-badge neutral">Apagados</span>') + '</div>' +
-            '<div class="pw-num">' + num(u.pedidos_app) + '</div>' +
-            '<div class="pw-num">' + COP(u.saldo) + '</div>' +
-            '<div class="pw-acc2">' +
-              '<button class="lm-btn-ghost pw-mini" data-dar="saldo" data-u="' + i + '">Saldo</button>' +
-              '<button class="lm-btn-ghost pw-mini" data-dar="puntos" data-u="' + i + '">Puntos</button>' +
-            '</div></div>';
-        }).join('') + '</div>';
-    }
+  // ── PERSONAS: buscador, filtros y la tabla de a 25 ──────────────────
+  var FILTROS_P = [
+    { k: 'todos',     t: 'Todos' },
+    { k: 'instalada', t: 'Instalada' },
+    { k: 'navegador', t: 'Navegador' },
+    { k: 'sindato',   t: 'Sin dato' },
+    { k: 'saldo',     t: 'Con saldo' },
+  ];
+
+  /* Se conserva el PUESTO ORIGINAL de cada persona en la lista completa: los
+     botones de Saldo y Puntos identifican al cliente por ese numero, y
+     modalDar, si le llega uno que no existe, le da la plata al PRIMERO de la
+     lista sin decir nada. Filtrar sin arrastrar el puesto original seria
+     regalarle saldo a quien no era. */
+  function personasFiltradas() {
+    var q = (S.wq || '').toLowerCase().trim();
+    var qN = q.replace(/[^0-9]/g, '');
+    var f = S.wf || 'todos';
+    return (S.web.usuarios || []).map(function (u, i) { return { u: u, i: i }; })
+      .filter(function (x) {
+        var u = x.u;
+        if (f === 'instalada' && u.instalada !== true) return false;
+        if (f === 'navegador' && u.instalada !== false) return false;
+        if (f === 'sindato'   && u.instalada !== null && u.instalada !== undefined) return false;
+        if (f === 'saldo'     && !(Number(u.saldo) > 0)) return false;
+        if (!q) return true;
+        var nom = String(u.nombre || '').toLowerCase();
+        var tel = String(u.telefono || '').replace(/[^0-9]/g, '');
+        /* El numero solo se compara si lo que escribieron TIENE digitos: con la
+           busqueda vacia, indexOf('') da 0 y coincidiria con todo el mundo.
+           Basta un digito: escribir "31" y que la lista se vacie hasta el
+           tercero se siente como que el buscador esta roto. */
+        return nom.indexOf(q) >= 0 || (qN.length >= 1 && tel.indexOf(qN) >= 0);
+      });
+  }
+
+  function webPersonas() {
     return '<section class="mw-card">' +
       '<div class="mw-card-head"><div><h2 class="mw-h">Registrados en la app</h2>' +
         '<p class="mw-sub">Cada persona con su actividad. Desde aquí le das saldo o puntos.</p></div></div>' +
-      cuerpo + '</section>';
+      '<div class="pw-bar">' +
+        '<input class="cc-input" id="pw-wq" placeholder="Buscar por nombre o número…" value="' + esc(S.wq || '') + '">' +
+        '<div class="pw-fch">' + FILTROS_P.map(function (f) {
+          return '<button data-wf="' + f.k + '" class="' + ((S.wf || 'todos') === f.k ? 'on' : '') + '">' +
+            esc(f.t) + '</button>';
+        }).join('') + '</div>' +
+      '</div>' +
+      '<div id="pw-personas-lista">' + listaPersonas() + '</div></section>';
   }
 
-  // ── 2 · SALDOS Y RECARGAS ──────────────────────────────────────────
-  function seccionWebSaldos() {
-    if (!S.web || !S.web.movs) return '<section class="mw-card">' + cargandoPw('Cargando…') + '</section>';
-    var recargado = 0, bonos = 0, nRec = 0;
-    S.web.movs.forEach(function (m) {
-      var v = Number(m.monto) || 0;
-      if (m.motivo === 'recarga') { recargado += v; nRec++; }
-      else if (m.motivo === 'bono_recarga') { bonos += v; }
-    });
-    /* El bono NO se suma al total recargado: la plata que entró de verdad son
-       las recargas. Sumarlos daría un total que no existe en el banco. */
-    var sinGastar = (S.web.usuarios || []).reduce(function (a, u) { return a + (Number(u.saldo) || 0); }, 0);
+  function listaPersonas() {
+    var todas = personasFiltradas();
+    if (!todas.length) {
+      return (S.web.usuarios || []).length
+        ? '<div class="pw-vacio"><b>Nadie coincide</b><p>Prueba con otro nombre, con el número, o quita el filtro.</p></div>'
+        : '<div class="pw-vacio"><b>Todavía nadie se ha registrado</b>' +
+          '<p>Cuando alguien pida su código y entre, aparece aquí con toda su actividad.</p></div>';
+    }
+    var pag = todas.slice(0, tope('personas'));
+    return '<div class="pw-scr"><div class="pw-row pw-ru pw-cab">' +
+        '<div>Persona</div><div>Se registró</div><div>Última vez</div><div>Entradas</div>' +
+        '<div>En su celular</div><div>Avisos</div><div>Pedidos</div><div>Saldo</div><div></div></div>' +
+      pag.map(function (x) {
+        var u = x.u;
+        return '<div class="pw-row pw-ru">' +
+          '<div class="pw-cn"><div class="pw-av">' + esc(inicialesPw(u.nombre)) + '</div>' +
+            '<div><b>' + esc(u.nombre || 'Sin nombre') + '</b>' +
+            '<small>' + esc(u.telefono || '') + '</small></div></div>' +
+          '<div class="pw-tenue">' + esc(fechaPw(u.alta)) + '</div>' +
+          '<div class="pw-tenue">' + esc(fechaPw(u.ultimo)) + '</div>' +
+          '<div class="pw-num">' + num(u.entradas) + '</div>' +
+          /* INSTALADA O NO. Los tres estados son distintos y hay que verlos:
+             instalada / entro por el navegador / todavia no sabemos. "No
+             sabemos" no es "no la tiene": es que no ha vuelto a entrar desde
+             que el sistema empezo a preguntarlo (21-ago). Sobre esto se decide
+             a quien mandarle la campana de "instalala". */
+          '<div>' + (function () {
+            var ap = u.plataforma === 'ios' ? 'iPhone'
+                   : u.plataforma === 'android' ? 'Android'
+                   : u.plataforma === 'escritorio' ? 'PC' : '';
+            var chip = u.instalada === true
+              ? '<span class="mw-badge ok">Instalada</span>'
+              : u.instalada === false
+                ? '<span class="mw-badge neutral">Navegador</span>'
+                : '<span class="pw-tenue">sin dato</span>';
+            return chip + (ap ? ' <small class="pw-tenue">' + ap + '</small>' : '');
+          })() + '</div>' +
+          '<div>' + (Number(u.avisos)
+            ? '<span class="mw-badge ok">Activos</span>'
+            : '<span class="mw-badge neutral">Apagados</span>') + '</div>' +
+          '<div class="pw-num">' + num(u.pedidos_app) + '</div>' +
+          '<div class="pw-num">' + COP(u.saldo) + '</div>' +
+          '<div class="pw-acc2">' +
+            '<button class="lm-btn-ghost pw-mini" data-dar="saldo" data-u="' + x.i + '">Saldo</button>' +
+            '<button class="lm-btn-ghost pw-mini" data-dar="puntos" data-u="' + x.i + '">Puntos</button>' +
+          '</div></div>';
+      }).join('') +
+      pieLista('personas', pag.length, todas.length, 'personas') + '</div>';
+  }
 
-    var recargas = S.web.movs.filter(function (m) {
-      return m.motivo === 'recarga' || m.motivo === 'bono_recarga';
-    });
-    var tabla = !recargas.length
-      ? '<div class="pw-vacio"><b>Nadie ha recargado todavía</b>' +
-        '<p>Cuando alguien consigne y el sistema lea el comprobante, la recarga y su bono aparecen aquí.</p></div>'
-      : '<div class="pw-scr"><div class="pw-row pw-rr pw-cab">' +
+  // ── RECARGAS: plata que ENTRO ───────────────────────────────────────
+  function webRecargas() {
+    var todas = recargasDe();
+    var cuerpo;
+    if (!todas.length) {
+      cuerpo = '<div class="pw-vacio"><b>Nadie ha recargado todavía</b>' +
+        '<p>Cuando alguien consigne y el sistema lea el comprobante, la recarga y su bono aparecen aquí.</p></div>';
+    } else {
+      var pag = todas.slice(0, tope('recargas'));
+      cuerpo = '<div class="pw-scr"><div class="pw-row pw-rr pw-cab">' +
           '<div>Persona</div><div>Movimiento</div><div>Monto</div><div>Le quedó</div><div>Cuándo</div></div>' +
-        recargas.map(function (m) {
+        pag.map(function (m) {
           var cli = m.pos_clientes || {};
           var esBono = m.motivo === 'bono_recarga';
           return '<div class="pw-row pw-rr">' +
@@ -1068,74 +1234,63 @@
             '<div class="pw-num">' + COP(m.monto) + '</div>' +
             '<div class="pw-num">' + COP(m.saldo_post) + '</div>' +
             '<div class="pw-tenue">' + esc(fechaPw(m.created_at)) + '</div></div>';
-        }).join('') + '</div>';
-
+        }).join('') +
+        pieLista('recargas', pag.length, todas.length, 'movimientos') + '</div>';
+    }
     return '<section class="mw-card">' +
-      '<div class="mw-card-head"><div><h2 class="mw-h">Saldos y recargas</h2>' +
-        '<p class="mw-sub">La plata que ya te pagaron y todavía te pueden cobrar en comida.</p></div></div>' +
-      '<div class="pw-mini3">' +
-        miniK('Recargado por clientes', COP(recargado), num(nRec) + (nRec === 1 ? ' recarga' : ' recargas')) +
-        miniK('Bonos que regalaste', COP(bonos),
-              recargado ? (Math.round(bonos / recargado * 1000) / 10) + '% sobre lo recargado' : '—') +
-        miniK('Saldo sin gastar', COP(sinGastar), 'comida que aún les debes') +
-      '</div>' + tabla + '</section>';
-  }
-  function miniK(l, v, s) {
-    return '<div class="pw-mk"><div class="mw-eyebrow">' + esc(l) + '</div>' +
-      '<div class="pw-mk-v">' + esc(v) + '</div><div class="mw-sub">' + esc(s) + '</div></div>';
+      '<div class="mw-card-head"><div><h2 class="mw-h">Recargas</h2>' +
+        '<p class="mw-sub">Plata que tus clientes ya te pagaron y todavía te pueden cobrar en comida.</p></div>' +
+        '<button class="lm-btn-ghost" data-a="dar-recarga">Registrar una recarga</button></div>' +
+      cuerpo + avisoTope(((S.web && S.web.movs) || []).length, TOPE_MOVS, 'movimientos') + '</section>';
   }
 
-  // ── 3 · LO QUE HE DADO ─────────────────────────────────────────────
-  /* Los regalos van SEPARADOS de las recargas a propósito: una recarga es plata
-     que entró al banco, un regalo es plata que sale del bolsillo. Verlos en la
-     misma lista fue justo lo que hizo que la pantalla vieja no se entendiera. */
-  function seccionWebDados() {
-    if (!S.web || !S.web.movs) return '<section class="mw-card">' + cargandoPw('Cargando…') + '</section>';
-    var regalos = (S.web.movs || []).filter(function (m) { return m.motivo === 'regalo'; })
-      .map(function (m) {
-        var cli = m.pos_clientes || {};
-        return { t: m.created_at, n: cli.nombre || 'Cliente', tel: cli.telefono || '',
-                 tipo: 'saldo', v: m.monto, mot: m.detalle };
-      })
-      .concat((S.web.ptsRegalo || []).map(function (p) {
-        return { t: p.created_at, n: nombrePorTel(p.telefono), tel: p.telefono,
-                 tipo: 'puntos', v: p.puntos, mot: p.detalle };
-      }))
-      .sort(function (a, b) { return new Date(b.t) - new Date(a.t); });
-
-    var cuerpo = !regalos.length
-      ? '<div class="pw-vacio"><b>Todavía no le has regalado nada a nadie</b>' +
+  // ── REGALOS: plata que SALIO de tu bolsillo ─────────────────────────
+  function webRegalos() {
+    var todos = regalosDe();
+    var cuerpo;
+    if (!todos.length) {
+      cuerpo = '<div class="pw-vacio"><b>Todavía no le has regalado nada a nadie</b>' +
         '<p>Cuando des saldo o puntos a mano, cada regalo queda aquí con la persona, el monto, ' +
-        'el motivo que escribiste y la hora. Así nunca se confunde con lo que un cliente sí pagó.</p></div>'
-      : '<div class="pw-scr"><div class="pw-row pw-rr pw-cab">' +
+        'el motivo que escribiste y la hora. Así nunca se confunde con lo que un cliente sí pagó.</p></div>';
+    } else {
+      var pag = todos.slice(0, tope('regalos'));
+      cuerpo = '<div class="pw-scr"><div class="pw-row pw-rr pw-cab">' +
           '<div>Persona</div><div>Qué le diste</div><div>Cuánto</div><div>Motivo</div><div>Cuándo</div></div>' +
-        regalos.map(function (r) {
+        pag.map(function (r) {
           return '<div class="pw-row pw-rr">' +
             '<div class="pw-cn"><div class="pw-av">' + esc(inicialesPw(r.n)) + '</div>' +
               '<div><b>' + esc(r.n) + '</b><small>' + esc(r.tel) + '</small></div></div>' +
-            '<div><span class="mw-badge vio">' + (r.tipo === 'saldo' ? 'Saldo' : 'Puntos') + '</span></div>' +
+            '<div><span class="mw-badge vio">' + (r.auto ? 'Bono por instalar'
+                : r.tipo === 'saldo' ? 'Saldo' : 'Puntos') + '</span></div>' +
             '<div class="pw-num">' + (r.tipo === 'saldo' ? COP(r.v) : num(r.v) + ' pts') + '</div>' +
             '<div class="pw-tenue">' + esc(r.mot || 'sin motivo') + '</div>' +
             '<div class="pw-tenue">' + esc(fechaPw(r.t)) + '</div></div>';
-        }).join('') + '</div>';
-
+        }).join('') +
+        pieLista('regalos', pag.length, todos.length, 'regalos') + '</div>';
+    }
     return '<section class="mw-card">' +
       '<div class="mw-card-head"><div><h2 class="mw-h">Lo que yo he dado</h2>' +
-        '<p class="mw-sub">Regalos a mano. Nada de esto entró plata a la caja.</p></div>' +
+        '<p class="mw-sub">Regalos a mano y bonos automáticos. Nada de esto entró plata a la caja.</p></div>' +
         '<button class="cc-btn-ai" data-a="dar-regalo">Dar saldo o puntos</button></div>' +
-      cuerpo + '</section>';
+      cuerpo + avisoTope(((S.web && S.web.ptsRegalo) || []).length, TOPE_PTS, 'regalos de puntos') + '</section>';
   }
 
-  // ── 4 · POR REVISAR ────────────────────────────────────────────────
-  function seccionWebSolicitudes() {
-    if (!S.web || !S.web.solicitudes) return '';
-    var ps = S.web.solicitudes;
-    if (!ps.length) return '';    // sin nada pendiente, la tarjeta no estorba
+  // ── POR REVISAR: lo unico que pide una decision tuya ────────────────
+  function webRevisar() {
+    var ps = (S.web && S.web.solicitudes) || [];
+    if (!ps.length) {
+      return '<section class="mw-card">' +
+        '<div class="mw-card-head"><div><h2 class="mw-h">Recargas por revisar</h2>' +
+          '<p class="mw-sub">El sistema no pudo confirmarlas solo. Mira el comprobante y decide.</p></div></div>' +
+        '<div class="pw-vacio"><b>No hay nada esperando</b>' +
+        '<p>Cuando el sistema no pueda confirmar una recarga solo, te la deja aquí con su comprobante.</p></div></section>';
+    }
+    var pag = ps.slice(0, tope('revisar'));
     return '<section class="mw-card">' +
       '<div class="mw-card-head"><div><h2 class="mw-h">Recargas por revisar</h2>' +
         '<p class="mw-sub">El sistema no pudo confirmarlas solo. Mira el comprobante y decide.</p></div>' +
         '<span class="mw-badge warn">' + num(ps.length) + ' pendiente' + (ps.length === 1 ? '' : 's') + '</span></div>' +
-      ps.map(function (p) {
+      pag.map(function (p) {
         var cli = p.pos_clientes || {};
         return '<div class="pw-sol">' +
           '<div class="pw-sol-izq"><b>' + esc(cli.nombre || 'Cliente') + '</b>' +
@@ -1149,11 +1304,39 @@
             '<button class="lm-btn-primary" data-sol-ok="' + esc(p.id) + '">Aprobar</button>' +
             '<button class="lm-btn-ghost" data-sol-no="' + esc(p.id) + '">Descartar</button>' +
           '</div></div>';
-      }).join('') + '</section>';
+      }).join('') +
+      (ps.length > pag.length
+        ? '<div class="pw-mas"><small>Mostrando ' + num(pag.length) + ' de ' + num(ps.length) +
+          ' pendientes</small><button data-mas="revisar">Ver mas</button></div>' : '') +
+      avisoTope(ps.length, TOPE_SOL, 'solicitudes') + '</section>';
   }
 
   // ── Enganchar los botones de esta pestaña ──────────────────────────
   function engancharClientesApp() {
+    /* Cambiar de sub-pestana empieza de cero en la lista nueva: dejar el tope
+       de la anterior haria que una lista se abriera con 200 filas sin razon. */
+    document.querySelectorAll('[data-sub]').forEach(function (b) {
+      b.onclick = function () { S.sub = b.dataset.sub; S.tope = {}; pintar(); };
+    });
+    document.querySelectorAll('[data-mas]').forEach(function (b) {
+      b.onclick = function () {
+        var k = b.dataset.mas;
+        S.tope[k] = tope(k) + PASO;
+        pintar();
+      };
+    });
+    document.querySelectorAll('[data-wf]').forEach(function (b) {
+      b.onclick = function () { S.wf = b.dataset.wf; S.tope.personas = PASO; pintar(); };
+    });
+    /* El buscador repinta SOLO la lista, no la pestana entera: repintar todo
+       le quita el foco al campo y hay que volver a hacer clic tras cada letra. */
+    var q = $('pw-wq');
+    if (q) q.oninput = function () {
+      S.wq = this.value;
+      S.tope.personas = PASO;
+      var cont = $('pw-personas-lista');
+      if (cont) { cont.innerHTML = listaPersonas(); engancharClientesApp(); }
+    };
     document.querySelectorAll('[data-dar]').forEach(function (b) {
       b.onclick = function () { modalDar(b.dataset.dar, Number(b.dataset.u)); };
     });
@@ -1630,6 +1813,9 @@
     else if (a === 'bnr-imagen') { $('pw-bnr-file').click(); }
     else if (a === 'bnr-quitar-img') { guardarFondo({ tipo: 'imagen', imagen: null }, 'Quité la imagen'); }
     else if (a === 'dar-regalo') { modalDar('saldo', 0); }
+    /* Registrar a mano una recarga que el cliente pago en el local. El modo ya
+       existia dentro del modal; faltaba poder entrar directo desde su lista. */
+    else if (a === 'dar-recarga') { modalDar('recarga', 0); }
     else if (a === 'bnr-reset') { guardar({ web_banner: null }, 'El mensaje vuelve al fondo de siempre'); }
   }
 

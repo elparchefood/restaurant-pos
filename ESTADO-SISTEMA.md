@@ -3,6 +3,53 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 "Clientes de la app" en sub-pestañas — 21-ago-2026
+
+Sergio: *"esta sección se está volviendo infinita… entre más clientes se
+registran, entre más regalos hay, entre más gente recargue, se va a volver
+infinita la página"*. Cinco bloques apilados y todos abiertos: el embudo, los
+registrados, las recargas, los regalos y las solicitudes.
+
+**Cinco sub-pestañas, una lista a la vez** (`pw-snav`), opción B elegida por
+Sergio — Recargas y Regalos son pestañas SEPARADAS, no un filtro:
+
+| Sub-pestaña | Qué tiene |
+|---|---|
+| Resumen | El embudo + 4 números de plata. No crece nunca |
+| Personas | Buscador (nombre o teléfono), 5 filtros, tabla de a 25 |
+| Recargas | Plata que ENTRÓ + botón "Registrar una recarga" |
+| Regalos | Plata que SALIÓ del bolsillo, incluido el bono por instalar |
+| Por revisar | Solicitudes pendientes, con el número en la pestaña |
+
+- Todas las listas paginan de a `PASO` (25) con "Ver más" — la página ya no
+  crece con los clientes.
+- El conteo va en cada sub-pestaña; el de "Por revisar" en amarillo, y la
+  pestaña grande "Clientes de la app" marca punto cuando hay pendientes.
+- **Fin de los topes callados**: si una consulta llega a su tope (300 movs,
+  200 puntos, 200 solicitudes) la pantalla lo dice (`avisoTope`). Antes las
+  filas viejas iban a desaparecer sin aviso.
+
+**Tres errores viejos encontrados de paso y corregidos:**
+1. `saldo_post` no estaba en el `select` de `pos_saldo_mov`: la columna
+   "Le quedó" mostraba **$ 0 en todas las recargas**. Un cero de verdad y un
+   cero por falta de dato se veían igual.
+2. Los movimientos `bono_instalacion` se cargaban pero **no se mostraban en
+   ninguna parte** (el filtro de regalos solo tomaba `regalo`). Ahora salen en
+   Regalos con su propia etiqueta.
+3. El buscador exigía 3 dígitos para buscar por teléfono: escribir "31" vaciaba
+   la lista y parecía roto. Basta un dígito.
+
+**Cuidado conservado:** los botones de Saldo y Puntos identifican al cliente
+por su PUESTO en la lista completa, y `modalDar`, si le llega un puesto que no
+existe, **le da la plata al primero de la lista sin decir nada**. Por eso
+`personasFiltradas()` arrastra el puesto original al filtrar y paginar.
+
+**Probado** (21-ago): banco de 27 pruebas sobre las funciones reales
+(`scratchpad/banco-subpestanas.js`) — puestos que sobreviven a cada filtro y al
+buscador, recargas y regalos que nunca se mezclan, pies de lista y avisos de
+tope. Más un render completo de las cinco sub-pestañas verificado: etiquetas
+balanceadas y sin `undefined`/`NaN`.
+
 ## 🟢 Mapa en Ventas › Por salón + primer dibujo real comprobado — 21-ago-2026
 
 Sergio buscó el mapa en Por salón › Domicilios y no estaba: solo existía en

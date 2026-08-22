@@ -1,1 +1,1 @@
-{"query": "select count(*) n from pos_direcciones_geo"}
+{"query": "select (select count(*) from pos_web_credenciales) registrados,\n (select count(*) from pos_saldo_mov where motivo in ('recarga','bono_recarga')) recargas,\n (select count(*) from pos_saldo_mov where motivo in ('regalo','bono_instalacion')) regalos,\n (select count(*) from pos_recargas_solicitudes where estado not in ('aplicada','descartada')) por_revisar"}
