@@ -423,16 +423,43 @@ async function recibirMeta(canal: string, entries: Array<Record<string, unknown>
       /* El nombre de quien escribe. Meta no lo manda en el aviso: hay que
          preguntarlo. Si no se puede, se sigue con un nombre generico — no
          tener el nombre no puede costar el mensaje. */
-      let nombre = canal === "instagram" ? "Cliente de Instagram" : "Cliente de Messenger";
+      /* ══ EL NOMBRE Y LA FOTO DE QUIEN ESCRIBE ═══════════════════════════
+         CADA RED PIDE CAMPOS DISTINTOS, y pedirle a una los de la otra hace
+         fallar la consulta ENTERA — no ignora el campo raro, devuelve error y
+         no llega nada. Probado contra Meta el 22-ago:
+
+           Messenger  first_name,last_name,profile_pic
+                      pedirle `username` -> "(#12) username field is
+                      deprecated" y el nombre se perdia. Por eso a Sergio le
+                      salio "Cliente de Messenger" escribiendo desde su
+                      propio Facebook.
+           Instagram  name,username,profile_pic
+                      pedirle `first_name` -> "(#100) nonexisting field".
+
+         La FOTO solo la dan estas dos redes; WhatsApp no la entrega nunca.
+         Su enlace CADUCA (lleva fecha de expiracion), asi que se refresca en
+         cada mensaje: guardarlo una vez y confiarse deja fotos rotas.        */
+      const esIG = canal === "instagram";
+      let nombre = esIG ? "Cliente de Instagram" : "Cliente de Messenger";
       let usuario = "";
+      let fotoUrl = "";
       try {
-        const pr = await fetch(`https://graph.facebook.com/v22.0/${de}?fields=name,username&access_token=${encodeURIComponent(pageToken)}`);
-        if (pr.ok) {
-          const pd = await pr.json() as Record<string, unknown>;
-          usuario = String(pd.username || "");
-          nombre = String(pd.name || "") || (usuario ? "@" + usuario : nombre);
+        const campos = esIG ? "name,username,profile_pic" : "first_name,last_name,profile_pic";
+        const pr = await fetch(`https://graph.facebook.com/v22.0/${de}?fields=${campos}&access_token=${encodeURIComponent(pageToken)}`);
+        const pd = await pr.json().catch(() => ({})) as Record<string, unknown>;
+        if (!pr.ok || pd.error) {
+          console.error(`[${canal}] no se pudo leer el perfil de ${de}:`, JSON.stringify(pd).slice(0, 300));
+        } else {
+          fotoUrl = String(pd.profile_pic || "");
+          if (esIG) {
+            usuario = String(pd.username || "");
+            nombre = String(pd.name || "") || (usuario ? "@" + usuario : nombre);
+          } else {
+            const nom = [pd.first_name, pd.last_name].map(x => String(x || "").trim()).filter(Boolean).join(" ");
+            if (nom) nombre = nom;
+          }
         }
-      } catch (_e) { /* sin nombre se sigue igual */ }
+      } catch (e) { console.error(`[${canal}] no se pudo leer el perfil:`, String(e).slice(0, 200)); }
 
       // ── Conversacion (una por persona y canal) ──
       const convRes = await sbGet(
@@ -447,6 +474,7 @@ async function recibirMeta(canal: string, entries: Array<Record<string, unknown>
         const nueva = await sbPost(`/rest/v1/chat_conversations`, {
           tenant_id, branch_id, channel: canal, channel_id,
           contact_name: nombre, contact_handle: de,
+          contact_avatar_url: fotoUrl || null,
           contact_avatar_tint: Math.floor(Math.random() * 8) + 1,
           status: "open", unread_count: 0,
           last_message: texto, last_message_at: new Date().toISOString(),
@@ -470,11 +498,16 @@ async function recibirMeta(canal: string, entries: Array<Record<string, unknown>
         delivery_status: "delivered", external_id: externalId || null,
         sent_at: cuando,
       });
-      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+      const patchConv: Record<string, unknown> = {
         last_message: texto, last_message_at: new Date().toISOString(),
         last_sender: "contact", last_read: false,
         unread_count: unread + 1, contact_name: nombre,
-      });
+      };
+      /* La foto se refresca en cada mensaje porque su enlace caduca. Si esta
+         vez no se pudo leer el perfil, se deja la que hubiera: mejor una foto
+         vieja que ninguna. */
+      if (fotoUrl) patchConv.contact_avatar_url = fotoUrl;
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, patchConv);
 
       /* A la cola de Paco, igual que WhatsApp. En `from_phone` va el id de la
          persona en esa red (no es un telefono: por eso el pedido pedira el

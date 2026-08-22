@@ -1395,8 +1395,17 @@ function renderChatHeader(conv) {
   const label    = (_cli && _cli.nombre) || conv.contact_name || conv.contact_handle || '?';
   const initials = avatarInitials(label);
 
+  /* LA FOTO DE PERFIL (22-ago). Instagram y Messenger SI la entregan; WhatsApp
+     no la da nunca. La lista de chats ya la pintaba, el encabezado no.
+     Si el enlace falla —caducan— se cae a las iniciales de siempre en vez de
+     dejar un cuadro roto. */
+  const foto = conv.contact_avatar_url || '';
   $('chatAv').innerHTML = `
-    <span style="width:100%;height:100%;border-radius:13px;background:${tint[0]};color:${tint[1]};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">${initials}</span>
+    ${foto
+      ? `<img src="${escHtml(foto)}" alt="" style="width:100%;height:100%;border-radius:13px;object-fit:cover;display:block"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+         <span style="display:none;width:100%;height:100%;border-radius:13px;background:${tint[0]};color:${tint[1]};align-items:center;justify-content:center;font-size:13px;font-weight:700;position:absolute;inset:0">${initials}</span>`
+      : `<span style="width:100%;height:100%;border-radius:13px;background:${tint[0]};color:${tint[1]};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">${initials}</span>`}
     <span class="ci-av-badge chan-${meta.key}" style="position:absolute;right:-4px;bottom:-4px">${GLYPH[meta.key]||''}</span>`;
 
   $('chatName').innerHTML = escHtml(label)
