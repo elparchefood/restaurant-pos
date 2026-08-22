@@ -1,7 +1,18 @@
 # Plan — Las recargas ya confirmadas no deben pedir aprobación
 
-> Encontrado por Sergio el 21-ago-2026. **Para hacer mañana.** Toca plata:
-> no se empieza a las 5 de la tarde.
+> ✅ **HECHO el 21-ago-2026 por la noche**, revisando las 8 con Sergio. El
+> detalle de lo que se encontró y cómo quedó está en `ESTADO-SISTEMA.md`
+> ("Un comprobante ya no se puede cobrar dos veces"). Los puntos 1 a 5 de
+> abajo están todos resueltos.
+>
+> Lo que apareció al revisarlas y este plan no sabía: **el cobro doble ya
+> había ocurrido** — la solicitud 14 volvió a abonar el mismo comprobante de
+> la 13 ($230.000 con el bono), porque el candado dependía de la referencia
+> bancaria y esa vez no se leyó. El candado ahora es la FOTO, no la
+> referencia.
+>
+> ⚠️ **Lo único pendiente:** decidir con Sergio qué hacer con esos $230.000 de
+> más en el saldo de su propia cuenta de pruebas.
 
 ## El problema, en sus palabras
 
