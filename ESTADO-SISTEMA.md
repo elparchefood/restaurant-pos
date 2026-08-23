@@ -3,6 +3,65 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 Tres fallos hallados en el banco y corregidos (motor v368) — 23-ago-2026
+
+Sergio pidió repetir en el banco los errores de estos días. Los arreglos
+viejos aguantaron todos; salieron **tres fallos nuevos**, dos de ellos serios.
+
+### 1. El sabor del plato se cobraba TAMBIÉN como adición
+*"una salchipapa maicitos especial **con pollo** personal"* salía como
+"Maicitos Especial Pollo **+ Pollo**" y cobraba **$36.000 en vez de $27.000**.
+El pollo es el SABOR y además existe como adición de $9.000; el conector
+"con" lo hacía parecer lo segundo.
+
+El candado ya existía en `validarLeido`, pero no alcanzaba por DOS razones:
+- **Solo miraba el sabor YA ELEGIDO.** Si el lector devuelve el sabor solo en
+  `adiciones` (sin ponerlo en `variantes`), no había contra qué comparar.
+  Ahora: si todavía no hay sabor elegido y la palabra es una opción del grupo,
+  nombrarla una vez fue para **elegirla**.
+- **Había un SEGUNDO camino sin candado**: el respaldo por texto
+  (`extractAdiciones`). Ahí va el mismo candado, contando por palabras y **sin
+  expresiones regulares** — escapar nombres para una regex ya rompió el motor
+  dos veces.
+
+### 2. Una nota de cocina se guardaba como dirección → BUCLE SIN SALIDA
+*"las papas bien doraditas y la salsa aparte por favor"*, dicho cuando se
+pedía la dirección, se tragaba entero como dirección. Y de ahí **el pedido no
+salía más**: a cada respuesta se le pegaba otro pedazo ("…por favor, Marta") y
+Paco repetía "¿y la dirección exacta?" para siempre.
+
+Estar en el paso de la dirección dice que se ESPERA una, no que lo que llegó
+LO SEA. Si el mensaje se entendió como nota y no trae ninguna señal (calle,
+carrera, #, barrio, "casa 4"), no se fuerza. Con señal sí entra: *"para la
+calle 25 #1-84, y las papas doraditas"* es las dos cosas y no se pierde
+ninguna.
+
+### 3. Sin plato, Paco pedía la dirección igual
+A *"¿Hamburguesa o Salchipapa tradicional?"* el cliente contestó "personal" —
+que no responde— y Paco **avanzó a pedir la dirección con el pedido vacío**.
+Ahora repite la pregunta; al segundo intento suelta la ambigüedad y sigue el
+flujo normal, para no quedar dando vueltas.
+
+De paso: la repregunta salía en PLURAL ("Salchipapas tradicionales") y la
+primera en singular, porque había **dos copias** de la misma función. Queda
+una sola (`categoriaEnSingular`).
+
+### Lo que NO era un fallo
+- **El caso de Yubeli**: leí `producto = "Adición Ranchera"` y creí que el
+  plato principal se había perdido. Estaba archivado en `items` — el resumen
+  sale correcto y **$73.000**, igual a lo que Sergio facturó a mano.
+- **"No puedo enviarte la carta"** y **"¿cuánto se demora mi pedido?"**: los
+  dos son artefactos del banco (credenciales falsas → las imágenes no salen;
+  no crea pedidos → no hay pedido que reconocer).
+- **`direccion` con el texto del pedido** en un pedido "para recoger": es por
+  diseño; el resumen muestra "Para recoger en el local".
+
+### Regresión final (los 5, con el motor v368)
+`$27.000` el del cobro doble · `$38.000` la adición legítima (que NO se podía
+romper) · la nota queda de nota y el pedido llega al resumen · Yubeli
+`$73.000` · el ambiguo repregunta en vez de avanzar. **Cero pedidos creados**
+por el banco y cero conversaciones de prueba al terminar.
+
 ## 🧹 Barrido de los 79 pendientes anotados — 23-ago-2026
 
 Sergio: *"revisa absolutamente todo y si ya se hicieron los quitas de la

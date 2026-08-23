@@ -255,6 +255,28 @@ const CAT_SINONIMOS: Record<string, string[]> = {
    da igual como la escriba el dueño (tildes, mayusculas, plural). */
 let DYN_CAT_SINONIMOS: Record<string, string[]> = {};
 
+/* EL NOMBRE DE UNA CATEGORIA, EN SINGULAR Y EN ESPAÑOL (19-ago).
+   Quitarle la "s" a todo dejaba "Adicione" y "Salchipapa tradicionale" en un
+   mensaje que LEE el cliente. La regla del idioma: si antes de la "es" hay
+   consonante se va la "es" (adicionES -> adicion); si hay vocal, solo la "s"
+   (calientES -> caliente, bebidAS -> bebida).
+
+   Vive aqui —y no dentro de un bloque— porque la usan los DOS sitios que le
+   preguntan al cliente de que categoria lo quiere: la primera vez y la
+   repregunta (23-ago). Con una copia en cada uno, la repregunta salia en
+   plural y la primera en singular. */
+function categoriaEnSingular(s: string): string {
+  return s.split(/\s+/).map(w => {
+    if (w.length <= 3) return w;
+    const b = w.toLowerCase();
+    if (!b.endsWith("s")) return w;
+    const sinS  = w.slice(0, -1);
+    const sinES = b.endsWith("es") ? w.slice(0, -2) : null;
+    if (sinES && /[nlrdzjs]$/i.test(sinES)) return sinES;
+    return sinS;
+  }).join(" ");
+}
+
 function palabrasCategoria(cat: string): string[] {
   const catNorm = normalizarTexto(cat);
   const words = catNorm.split(/\s+/).map(w => w.replace(/s$/, "")).filter(w => w.length >= 4);
@@ -3330,7 +3352,33 @@ INTENCION, no las palabras exactas.` },
         delete stAmb.producto_ambiguo;
       } else {
         amb.intentos = (amb.intentos || 0) + 1;
-        if (amb.intentos >= 2) delete stAmb.producto_ambiguo;   // no insistir en bucle
+        if (amb.intentos >= 2) {
+          delete stAmb.producto_ambiguo;   // no insistir en bucle
+        } else {
+          /* SIN PLATO NO SE SIGUE (23-ago-2026, hallado en el banco).
+
+             A "¿Hamburguesa o Salchipapa tradicional?" el cliente contesto
+             "personal" —que no responde la pregunta— y Paco AVANZO igual: le
+             pidio la direccion con el pedido VACIO. Sin saber que va a comer,
+             lo unico sensato es volver a preguntarlo.
+
+             Se repite UNA sola vez: al segundo intento el contador de arriba
+             suelta la ambiguedad y el flujo normal decide, para no quedar
+             dando vueltas. */
+          const filas = DYN_PROD_MAP.filter(e => amb.cats.includes(e.cat)
+            && e.key === normalizarTexto(amb.nombre));
+          const ops = [...new Set(filas.map(f => f.cat))]
+            .map(cq => capFirst(categoriaEnSingular(String(cq)).toLowerCase())).join(", ")
+            .replace(/, ([^,]+)$/, " o $1");
+          const reFrase = (getFraseTexto(frasesCfg.elegir_categoria) ||
+            "Tenemos {{producto}} en varias categorías 😋 ¿De cuál lo deseas? {{opciones_categoria}}")
+            .replace(/\{\{?\s*producto\s*\}?\}/g, capFirst(String(amb.nombre).toLowerCase()))
+            .replace(/\{\{?\s*opciones_categoria\s*\}?\}/g, ops || amb.cats.join(" o "));
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+          await sendWaAndSave(convId, tenantId, reFrase, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: reFrase, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+          return;
+        }
       }
     }
   }
@@ -3364,19 +3412,7 @@ INTENCION, no las palabras exactas.` },
            cliente. La regla del idioma: si antes de la "es" hay consonante se
            va la "es" (adicionES -> adicion, tradicionalES -> tradicional); si
            hay vocal, solo la "s" (calientES -> caliente, bebidAS -> bebida). */
-        const singular = (s: string) => s.split(/\s+/).map(w => {
-          if (w.length <= 3) return w;
-          const b = w.toLowerCase();
-          if (!b.endsWith("s")) return w;
-          const sinS  = w.slice(0, -1);                    // calientes -> caliente
-          const sinES = b.endsWith("es") ? w.slice(0, -2) : null;  // adiciones -> adicion
-          /* Cual de las dos es: en espaNol una palabra puede terminar en n, l,
-             r, d, z, j o s, pero no en t ni en b. "adicion" vale, "calient"
-             no — asi sale "Adicion" y "Perro caliente" en vez de "Adicione" y
-             "Perro calient", que es lo que estaba leyendo el cliente. */
-          if (sinES && /[nlrdzjs]$/i.test(sinES)) return sinES;
-          return sinS;
-        }).join(" ");
+        const singular = categoriaEnSingular;
         const opciones = cats.map(cq => capFirst(singular(cq).toLowerCase())).join(", ").replace(/, ([^,]+)$/, " o $1");
         const fraseAmb = (getFraseTexto(frasesCfg.elegir_categoria) ||
           "Tenemos {{producto}} en varias categorías 😋 ¿De cuál lo deseas? {{opciones_categoria}}")
@@ -6740,7 +6776,30 @@ function runExtractors(
        economica de k precio es" pone el producto y el resto de la frase se
        colaba como direccion. Una direccion de verdad trae calle, carrera, # o
        barrio; una pregunta no. */
-    const puedeSerDireccion = !esPreguntaDir && (isDirStep || senalDireccion);
+    /* UNA NOTA DE COCINA NO ES UNA DIRECCION, NI SIQUIERA EN EL PASO DE LA
+       DIRECCION (23-ago-2026, hallado en el banco).
+
+       "las papas bien doraditas y la salsa aparte por favor" llego justo
+       cuando se pedia la direccion. Como `isDirStep` bastaba por si solo, el
+       extractor forzado se trago la frase entera: la direccion quedo siendo
+       la nota, y de ahi el pedido NO SALIA MAS — a cada respuesta del cliente
+       se le pegaba otro pedazo ("...por favor, Marta") y Paco seguia pidiendo
+       "la direccion exacta" en un bucle sin fin.
+
+       Estar en el paso de la direccion dice que se ESPERA una, no que lo que
+       llego LO SEA. Si el mensaje se entendio como nota de cocina y no trae
+       ninguna señal de direccion (calle, carrera, #, barrio, casa 4...), no
+       se fuerza: se vuelve a preguntar, que es lo que haria cualquiera.
+
+       Con señal SI entra: "para la calle 25 #1-84, y las papas doraditas" es
+       las dos cosas y no se pierde ninguna. */
+    const notaDeEste = String((leido as PedidoLeido).nota || "").trim()
+      || String(extractPreferencias(text, cfgGlobal) || "").trim();
+    const esSoloNota = !!notaDeEste && !senalDireccion;
+    if (esSoloNota && isDirStep) {
+      console.log("[direccion] el mensaje es una nota de cocina, no una direccion: " + text.slice(0, 80));
+    }
+    const puedeSerDireccion = !esPreguntaDir && !esSoloNota && (isDirStep || senalDireccion);
 
     /* Se extrae a la fuerza tambien cuando el mensaje trae señales claras
        (calle, carrera, #, barrio): el cliente que manda todo junto —"una
