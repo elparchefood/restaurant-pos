@@ -3,6 +3,32 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 URGENCIA 9pm: "Channel not found" — no se le podía escribir a un cliente — 22-ago-2026
+
+Sergio, con el pedido de Daniel enfriándose: *"no están saliendo los
+mensajes para este número"*. Error del front: **Channel not found**.
+
+**Causa:** 31 conversaciones viejas de WhatsApp tenían `channel_id` NULO, y
+`meta-send` busca el token del canal SOLO por ese id → 404 → sin envío. Y lo
+grave: el front guarda el mensaje ANTES de enviarlo, así que los mensajes de
+las 8:52pm quedaron como "enviados" **sin haber salido nunca** — el cliente
+preguntando "¿ya está?" y el chat mostrando chulos.
+
+**Arreglos (todos desplegados en caliente):**
+1. **SQL**: las 363 conversaciones quedaron enlazadas al canal de su
+   restaurante y su tipo (`2026-08-22-conversaciones-sin-canal.sql`).
+2. **meta-send v22**: si el canal no aparece por id, lo resuelve por
+   tenant+tipo y deja la conversación enlazada — se repara sola.
+3. **chat-ia**: un envío fallido queda `failed` también en la BASE (antes
+   solo en memoria: al recargar volvía a decir "enviado"), y la burbuja lo
+   muestra en rojo con "No salió" en vez de chulos.
+4. Los 3 mensajes que nunca salieron quedaron marcados `failed`; los que sí
+   salieron (con `external_id` de Meta) quedaron `sent`.
+
+Comprobado en vivo: los reintentos de Sergio de las 21:07/21:08 salieron con
+el arreglo puesto (Meta devolvió id). **El mismo patrón de siempre: el dato
+se daba por bueno antes de que el trabajo pasara.**
+
 ## 🔴→🟢 Paco contradecía al cliente con el precio SIN empaque (motor v358) — 22-ago-2026
 
 Cliente: *"una salchipapa tradicional de 26.000"* (el precio que VE en la
