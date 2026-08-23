@@ -81,15 +81,41 @@ de ellos le decía al dueño que *"el cambio de marca todavía se está
 construyendo"* — texto viejo: el switch está ahí mismo, en ese menú. Ahora usa
 una ventana con la cara del producto y el texto correcto.
 
-### Lo que queda, y es decisión de Sergio
-- **Dos interruptores que no hacen nada**: `caja.ver_todas` y
-  `reservas.gestionar` se pueden marcar en la pantalla de roles pero ninguna
-  pantalla los comprueba.
-- **Cuatro pantallas sin candado de entrada**: historial, pagos, reservas e
-  impresoras. Ponérselo es fácil, pero es la dirección que SÍ puede dejar a
-  alguien fuera en pleno servicio, así que no se toca sin que él lo diga.
-- **Inventario** exige `catalogo.editar`, así que el cocinero no lo ve. Nunca lo
-  vio (su `inventario.ver` estaba muerto), pero ahora es una decisión a la vista.
+### Las tres decisiones, resueltas el mismo día
+Sergio las decidió y quedaron aplicadas:
+
+- **"Ver todas las cajas" se quita.** *"Un cajero solo ve su caja, en la que
+  está trabajando."* Se comprobó en `caja.js/loadActiveSession`: por sede hay
+  UNA sola caja abierta a la vez, así que "las demás" no existen. La casilla se
+  borra en vez de hacerse funcionar, porque prometía algo que no hay.
+- **Candado en historial, pagos y reservas.** `historial.html` ni siquiera
+  cargaba `pos-perms.js`: se veía todo lo vendido con solo escribir la
+  dirección. Impresoras se deja libre a propósito: si se daña algo en pleno
+  servicio, que cualquiera pueda arreglarlo. Y el candado no echa a nadie — al
+  que no tenga el permiso le sale el PIN del administrador, que El Parche ya
+  tiene puesto.
+- **Nace el permiso "Ver inventario"** (mirar el stock sin poder tocarlo), e
+  `inventario.html` pasa a aceptar cualquiera de tres: editar catálogo, ver
+  inventario o registrar compras. Antes, para que el cocinero mirara el stock,
+  había que darle además la carta entera.
+
+### La regla de fondo que fijó Sergio, y su comprobación
+> *"Cualquier rol debería poder hacer todo, siempre y cuando tenga los permisos
+> necesarios. El que decide es el gerente. Si yo le doy todos los permisos a un
+> domiciliario, vería todo exactamente como yo lo veo."*
+
+Se comprobó de las dos direcciones, barriendo todas las llamadas a
+`posHasPerm` / `posHasAny` / `posGate` / `posGuard` / `posRequirePin` del
+proyecto contra el catálogo de la pantalla de roles:
+
+- **Ni una puerta que ningún permiso pueda abrir.** Si la hubiera, un rol con
+  las 23 casillas marcadas seguiría topándose con el PIN, y la regla sería
+  mentira.
+- **Ni una casilla que no abra nada.** Era el caso de `caja.ver_todas` y
+  `reservas.gestionar` hasta hoy.
+- Ninguna pantalla pregunta por `es_dueno()`: no hay nada reservado al dueño
+  por serlo. Lo único que sigue atado a él es **ver todas las sucursales**, que
+  es otra cosa —a quién se le asigna qué sede— y no un permiso.
 
 ---
 
