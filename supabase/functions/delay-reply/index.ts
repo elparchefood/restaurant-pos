@@ -3614,6 +3614,20 @@ INTENCION, no las palabras exactas.` },
     }
   }
 
+  /* CLIENTE SIN NOMENCLATURA: SU BARRIO ES SU DIRECCION (22-ago, caso de
+     Sandra — y ya le habia pasado el 16-ago). Sergio marca asi a los clientes
+     de barrios que literalmente no tienen calles con numero: con el nombre
+     del barrio basta. Pero el lector separa el barrio a su casilla y la
+     direccion quedaba NULA para siempre — y la validacion de aqui abajo
+     moria con ella (toLowerCase de null): el motor se caia DESPUES de
+     guardar el estado y ANTES de contestar. Paco enmudecia sin dejar rastro.
+     Corre en cada mensaje y es idempotente: en cuanto hay barrio, es la
+     direccion de este cliente. */
+  if (sinNomenclaturaCliente2 && !state.direccion && state.barrio) {
+    state.direccion = state.barrio;
+    state.direccion_heredada = false;
+  }
+
   // 14e-bis. Dirección recién capturada → validar barrio/complemento inmediatamente
   // (así la pregunta de barrio aparece justo después de la dirección, no al final del flujo)
   /* Tambien cuando el conjunto llega como BARRIO (18-ago). "Para el: conjunto
@@ -3667,7 +3681,12 @@ INTENCION, no las palabras exactas.` },
       }
     }
 
-    const clasifBis = clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2);
+    /* `|| ""`: a esta compuerta se entra TAMBIEN con solo el barrio (asi se
+       diseno el 18-ago para los conjuntos que llegan como barrio), y con la
+       direccion aun nula esto era toLowerCase(null): el crash silencioso de
+       Sandra. Con "" clasifica residencial y el flujo sigue normal — el paso
+       de la direccion la pide despues, como siempre. */
+    const clasifBis = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2);
     if (clasifBis.tipo === "rechazado") {
       state.direccion = null;
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });

@@ -3,6 +3,40 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 Paco enmudecía con los clientes "sin nomenclatura" (motor v356) — 22-ago-2026
+
+Sandra (San Bernardino, barrio marcado *sin nomenclatura*): pidió todo en un
+mensaje y Paco **no contestó nada**. Rastreado: le había pasado IGUAL el
+16-ago. No era decisión: era un **crash silencioso**.
+
+**La cadena completa:** el cliente sin nomenclatura da solo su barrio (no
+tiene calles con número). El lector guarda el barrio en su casilla y la
+dirección queda **nula**. La compuerta 14e-bis —que desde el 18-ago también
+se entra con solo el barrio, por los conjuntos— llamaba
+`clasificarDireccion(state.direccion)` sin guardia: `toLowerCase()` de nulo
+→ TypeError → el motor moría DESPUÉS de guardar el estado y ANTES de
+contestar. Sin mensaje, sin error visible, sin typing. El estado quedaba
+perfecto (producto, tamaño, barrio capturados), lo que hacía el silencio aún
+más desconcertante.
+
+**Afectaba a CUALQUIER cliente** que diera el barrio antes que la dirección
+con el producto ya dicho — no solo a los sin nomenclatura.
+
+**Arreglo doble:**
+1. Cliente sin nomenclatura: **su barrio ES su dirección** — se copia en
+   cuanto hay barrio (idempotente, cada mensaje). Con eso clasifica
+   "residencial" y el flujo sigue: precio conocido, nombre, resumen.
+2. Candado `|| ""` en la llamada de la compuerta: con vacío clasifica
+   residencial y el flujo continúa (el paso de la dirección la pide después,
+   como siempre). Las otras dos llamadas ya estaban guardadas con ternario.
+
+Probado con el clasificador real extraído: nulo revienta (la causa,
+demostrada), "san bernardino"+sin_nomenclatura→residencial, ""→no revienta,
+"calle 5"→incompleta intacto. **Motor v356.**
+
+Nota: el pedido "fantasma" de las 19:36 de esa noche que no aparecía en el
+chat entró por la **página web** (web-pedido en los logs) — no fue un bug.
+
 ## 🏗️ El conjunto se ENTIENDE, no se caza por palabras (motor v355) — 22-ago-2026
 
 Sergio, al ver el arreglo v354: *"¿nuevamente falló por comparar texto? ya
