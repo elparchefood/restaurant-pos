@@ -4509,6 +4509,38 @@ var _storedZonas = [];
         ch.checked = conex[ch.dataset.k] !== false;
       });
     })();
+    /* CÓMO LE DICE LA GENTE A CADA CATEGORÍA (23-ago-2026).
+       El motor ya sabe entender sinónimos propios de cada restaurante
+       (ia_config.sinonimos_categoria); esto es donde el dueño los escribe.
+       Mismo patrón que el bloque de abajo: las categorías REALES del
+       catálogo, una fila cada una. Vacío es válido — el nombre de la
+       categoría ya se entiende solo. */
+    (function () {
+      var box = $('catSinonBox');
+      if (!box) return;
+      var guardados = (m.sinonimos_categoria && typeof m.sinonimos_categoria === 'object'
+        && !Array.isArray(m.sinonimos_categoria)) ? m.sinonimos_categoria : {};
+      sb.from('pos_products').select('category_id(name)').eq('branch_id', _cfgBranchId).limit(300)
+        .then(function (r) {
+          var cats = {};
+          (r.data || []).forEach(function (p) {
+            var n = p.category_id && p.category_id.name;
+            if (n) cats[n] = true;
+          });
+          var lista = Object.keys(cats).sort();
+          if (!lista.length) { box.innerHTML = '<div class="cfg-conex-ds">Primero crea tus categorías en Productos.</div>'; return; }
+          box.innerHTML = lista.map(function (c) {
+            var val = guardados[c];
+            var txt = Array.isArray(val) ? val.join(', ') : '';
+            return '<div style="display:flex;align-items:center;gap:10px">'
+              + '<span style="min-width:170px;font-size:12.5px;font-weight:600;color:#475569">' + escHtml(c) + '</span>'
+              + '<input class="cf-input" data-sinon-cat="' + escHtml(c) + '" value="' + escHtml(txt) + '" '
+              + 'placeholder="otras formas de pedirlo, separadas por comas" style="flex:1">'
+              + '</div>';
+          }).join('');
+        });
+    })();
+
     /* Categorías que se responden en TEXTO (pedido de Sergio, 15-ago).
        Se pintan las categorías reales del catálogo como fichas con casilla;
        lo marcado se guarda en ia_config.categorias_texto (nombres
@@ -5305,6 +5337,21 @@ var _storedZonas = [];
       var lista = [];
       chks.forEach(function (ch) { if (ch.checked) lista.push(ch.dataset.cat); });
       model.categorias_texto = lista;
+    })();
+
+    /* Los sinónimos de cada categoría. Solo se guardan las que tienen algo
+       escrito: una categoría sin sinónimos no necesita ocupar espacio. */
+    (function () {
+      var ins = document.querySelectorAll('[data-sinon-cat]');
+      if (!ins.length) return;   // la pantalla no llegó a pintarse: no borrar lo guardado
+      var mapa = {};
+      ins.forEach(function (i) {
+        var palabras = String(i.value || '').split(',')
+          .map(function (x) { return x.trim(); })
+          .filter(function (x) { return x.length >= 3; });
+        if (palabras.length) mapa[i.dataset.sinonCat] = palabras;
+      });
+      model.sinonimos_categoria = mapa;
     })();
 
     var { error } = await sb.from('ia_config').upsert(model, { onConflict: 'branch_id' });
