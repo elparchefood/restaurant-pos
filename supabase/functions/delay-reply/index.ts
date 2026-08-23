@@ -2307,11 +2307,46 @@ INTENCION, no las palabras exactas.` },
      "demora|estado|donde va": pregunte como pregunte, contesta con datos. */
   if (!state.producto && (state.items || []).length === 0) try {
     const cPed = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=order_id&limit=1`) as Array<Record<string, unknown>> | null;
-    const oidPed = cPed?.[0]?.order_id;
+    let oidPed = cPed?.[0]?.order_id;
+
+    /* ══ VENGA POR DONDE VENGA (22-ago-2026, segundo pedido de Sergio) ══
+       "Si la persona hace un pedido de manera manual, por la pagina o
+       cualquier medio, Paco debe tener el contexto".
+
+       El enlace de arriba solo existe cuando el pedido NACIO en este chat:
+       web-pedido y la caja no tocan la conversacion. Le paso a una clienta
+       que pidio por la pagina y escribio desconfiada a ver si habia llegado.
+
+       Aqui se busca por el TELEFONO de quien escribe: su ficha de cliente y
+       el ultimo pedido suyo en esta sede. Con eso Paco reconoce igual el
+       pedido de la pagina, el que le tomo un cajero o el del domicilio
+       express. Solo se mira si no hay pedido en armado, asi que no estorba
+       a quien esta pidiendo ahora. */
+    if (!oidPed) {
+      const tel10Ped = telLocal(fromPhone.replace(/\D/g, ""));
+      const cliPed = await sbGet(
+        `/rest/v1/pos_clientes?tenant_id=eq.${tenantId}&telefono=in.(${encodeURIComponent(tel10Ped)},${encodeURIComponent(fromPhone.replace(/\D/g, ""))})&select=id&limit=1`
+      ) as Array<Record<string, unknown>> | null;
+      const cid = cliPed?.[0]?.id;
+      if (cid) {
+        const ult = await sbGet(
+          `/rest/v1/pos_orders?cliente_id=eq.${cid}&branch_id=eq.${branchId}&select=id&order=created_at.desc&limit=1`
+        ) as Array<Record<string, unknown>> | null;
+        if (ult?.[0]?.id) {
+          oidPed = ult[0].id;
+          console.log(`[pedido en curso] encontrado por telefono (no nacio en el chat): ${oidPed}`);
+        }
+      }
+    }
+
     if (oidPed) {
-      const pedR = await sbGet(`/rest/v1/pos_orders?id=eq.${oidPed}&select=status,estado,delivery_status,opened_at,total_final,total&limit=1`) as Array<Record<string, unknown>> | null;
+      const pedR = await sbGet(`/rest/v1/pos_orders?id=eq.${oidPed}&select=status,estado,delivery_status,opened_at,created_at,total_final,total,origen&limit=1`) as Array<Record<string, unknown>> | null;
       const p = pedR?.[0];
-      const minsPed = p?.opened_at ? Math.round((Date.now() - new Date(String(p.opened_at)).getTime()) / 60000) : 99999;
+      /* `opened_at` es de los pedidos de mesa; los de la pagina y la caja
+         traen created_at. Se usa el que exista o el pedido pareceria de hace
+         un siglo y el contexto no se encenderia nunca. */
+      const desdePed = p?.opened_at || p?.created_at;
+      const minsPed = desdePed ? Math.round((Date.now() - new Date(String(desdePed)).getTime()) / 60000) : 99999;
       const vivo = !!p && p.status !== "cancelled" && p.delivery_status !== "entregado"
         && String(p.estado || "") !== "entregado" && minsPed < 360;
       if (vivo) {
@@ -2332,7 +2367,7 @@ INTENCION, no las palabras exactas.` },
         } catch (_e) { /* sin promedio se contesta igual, sin prometer tiempo */ }
         const totPed = Number(p.total_final || p.total || 0);
         (cfg as Record<string, unknown>)._pedidoHecho =
-          `EL CLIENTE YA TIENE UN PEDIDO HECHO EN ESTA CONVERSACION: lo confirmo hace ${minsPed} minutos y ` +
+          `EL CLIENTE YA TIENE UN PEDIDO HECHO${String(p.origen || "") === "web" ? " (lo hizo por la PAGINA WEB)" : ""}: entro hace ${minsPed} minutos y ` +
           (enCamino ? "YA VA EN CAMINO" : "esta EN PREPARACION") +
           (listaPed ? ` (${listaPed})` : "") +
           (totPed > 0 ? `, total $${totPed.toLocaleString("es-CO")}` : "") + "." + demoraPed + "\n" +

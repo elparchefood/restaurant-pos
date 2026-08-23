@@ -3,6 +3,35 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Paco reconoce el pedido venga por donde venga (motor v360) — 22-ago-2026
+
+Sergio: *"Si la persona hace un pedido de manera manual, por la página o
+cualquier medio, Paco debe tener el contexto"*. Una clienta pidió por la
+página y escribió desconfiada a ver si el pedido había llegado.
+
+**Por qué faltaba.** El contexto de v357 se apoyaba en
+`chat_conversations.order_id`, que **solo existe cuando el pedido nació en el
+propio chat**. `web-pedido` y la caja nunca tocan la conversación.
+
+**El arreglo.** Si no hay enlace, se busca por el **teléfono de quien
+escribe**: su ficha de cliente → su último pedido en esa sede. Con eso Paco
+reconoce igual el de la página, el que le tomó un cajero y el del domicilio
+express. Solo se consulta cuando NO hay pedido en armado, así que no estorba
+a quien está pidiendo ahora.
+
+Dos detalles que habrían dejado el arreglo mudo:
+- **El reloj**: `opened_at` es de los pedidos de mesa; los de la página y la
+  caja traen `created_at`. Se usa el que exista, o el pedido parecería de
+  hace un siglo y el contexto no se encendería nunca.
+- **El origen**: `web-pedido` NO usa `channel: "web"` (guarda
+  domicilio/rapido, igual que la caja) — lo marca en **`origen: "web"`**. Es
+  el campo que hay que mirar para decir "lo hiciste por la página".
+
+Probado con los pedidos reales de la noche: desde el teléfono de José Manuel
+(pedido de CAJA) y de Katherin (domicilio) se encuentra su pedido con ítems,
+total y minutos; el ya entregado queda fuera por el filtro de vivo.
+**Motor v360.**
+
 ## 🟢 Número alterno del cliente, editable desde el chat — 22-ago-2026
 
 Sergio: una clienta pidió que la llamaran a **otro** número porque el suyo
