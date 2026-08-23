@@ -35,6 +35,33 @@ menos datos, con las letras igual de legibles (comprobado en un fotograma). Con
 `+faststart` arranca en 0,58 s. Medido en vivo: la caja queda en 283×503, misma
 proporción exacta que el video, sin una franja negra.
 
+### Segunda vuelta el mismo día, con Sergio mirándola
+
+- **Cabe entera, sin bajar.** *"Que a la persona no se le pierda ninguna
+  información ni ningún botón"* — quien no sabe instalar una app tampoco sabe
+  que hay algo más abajo. La pantalla es una columna de `100dvh` y el **único**
+  elemento elástico es el video: los pasos, el bono y el botón miden lo que
+  miden, y el video se queda con lo que sobre. Así cabe en **cualquier**
+  pantalla, no solo en la que se midió — que era el defecto del `62vh` del
+  primer intento. Probado en 375×812, 375×667 y 430×932, con 2 y con 3 pasos:
+  nunca hay scroll, y el video se encoge solo cuando entra un paso más.
+  El sitio salió de cambiar la cabecera grande de las demás pantallas (logo de
+  70 px, nombre a 27 px, la frase de la cuenta y la pastilla de abierto/cerrado,
+  unos 190 px que aquí no dicen nada) por una fila con el logo y el nombre.
+- **Bordes del reproductor a 26 px.**
+- **Fuera el botón "Ya la instalé, entrar"** — lo vio Sergio: abría la página en
+  el mismo navegador de donde la persona viene. Quien ya la instaló no necesita
+  un botón, la abre desde su pantalla de inicio, que es justo lo que acaba de
+  aprender. En iPhone no queda ningún botón, y está bien: los pasos SON la
+  acción.
+- **El regalo por instalar, recalcado** en dorado, encima de todo lo demás. El
+  monto sale de la BASE (`tenants.web_bono_instalacion`, el **mismo** número con
+  el que `web-acceso` lo entrega de verdad); se le añadió el campo a
+  `fn_web_publica`. Escribirlo en la pantalla lo habría dejado en dos sitios, y
+  el día que Sergio lo cambiara la página seguiría prometiendo el viejo — y esto
+  es plata. Si un restaurante no da bono, no se promete nada. Es lo único que NO
+  se esconde en pantallas bajas.
+
 **Falta el de Android.** Mientras esté vacío, a quien entre desde un Android no
 le sale ningún video: solo los pasos escritos, que para Android son otros.
 
