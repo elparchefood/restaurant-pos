@@ -1136,12 +1136,20 @@ var UR_PERMS = [
     { id: 'caja.abrir',       label: 'Aperturar caja',        desc: 'Abrir el turno y la base de efectivo' },
     { id: 'caja.cerrar',      label: 'Cerrar caja',           desc: 'Cerrar el turno e imprimir el cierre Z' },
     { id: 'caja.movimientos', label: 'Ingresos y egresos',    desc: 'Registrar entradas y salidas de efectivo' },
-    { id: 'pagos.anular',     label: 'Anular pagos',          desc: 'Anular un pago o venta ya registrada' },
-    { id: 'caja.ver_todas',   label: 'Ver todas las cajas',   desc: 'Ver las demás cajas del turno (no solo la propia)' }
+    { id: 'pagos.anular',     label: 'Anular pagos',          desc: 'Anular un pago o venta ya registrada' }
+    /* AQUI HABIA UNA CASILLA QUE NO HACIA NADA: 'Ver todas las cajas'.
+       Se podia marcar, decia 'Guardado', y ninguna pantalla la comprobaba
+       —igual que aquel Nequi que se guardaba y al otro dia no estaba—.
+       Se quita en vez de hacerla funcionar porque la cosa que prometia no
+       existe: por sede hay UNA sola caja abierta a la vez (ver
+       loadActiveSession en caja.js), asi que el cajero solo ve la caja en la
+       que esta trabajando y no hay 'las demas' que mostrar.
+       Decision de Sergio, 23-ago-2026. */
   ]},
   { group: 'Catálogo e inventario', items: [
     { id: 'catalogo.ver',      label: 'Ver catálogo',        desc: 'Consultar el menú y precios' },
     { id: 'catalogo.editar',   label: 'Gestionar productos', desc: 'Crear y editar el menú y precios' },
+    { id: 'inventario.ver',    label: 'Ver inventario',      desc: 'Consultar el stock sin poder modificarlo' },
     { id: 'inventario.compras',label: 'Registrar compras',   desc: 'Registrar compras y ajustar el stock' }
   ]},
   { group: 'Ventas e IA', items: [

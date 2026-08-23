@@ -305,6 +305,9 @@
 <script src="pos-cache.js?v=1790260000"></script>
   <script src="pos-plan.js?v=1790500000"></script>
 <script src="pos-perms.js?v=1791745000"></script>
+<!-- Candado de entrada (23-ago-2026). Vale cualquiera de los dos: quien
+     cobra necesita entrar, y quien anula pagos tambien. -->
+<script>if(window.posRequirePin) posRequirePin(['pedidos.cobrar','pagos.anular']);</script>
 <script src="pos-brand.js?v=1790530000"></script>
 <script src="pos-print.js?v=1791745000"></script>
 <script src="pos-print-listener.js?v=4"></script>

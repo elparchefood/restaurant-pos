@@ -151,6 +151,11 @@
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <script src="pos-core.js?v=1791745000"></script>
 <script src="pos-cache.js?v=1790500000"></script>
+<script src="pos-perms.js?v=1791745000"></script>
+<!-- Candado de entrada (23-ago-2026). Esta pantalla no tenia ninguno: se
+     veia todo lo vendido con solo escribir la direccion. No echa a nadie —
+     al que no tenga el permiso le sale el PIN del administrador. -->
+<script>if(window.posRequirePin) posRequirePin('ventas.ver');</script>
   <script src="pos-plan.js?v=1790500000"></script>
 <script src="pos-brand.js?v=1790530000"></script>
 <script src="pos-impuestos.js?v=1"></script>
