@@ -3635,7 +3635,7 @@ INTENCION, no las palabras exactas.` },
            va despues del ultimo "para": sin este corte se proponia el
            mensaje entero como nombre del conjunto (paso el 15-ago). */
         .replace(/^[\s\S]*\bpara\s+/i, "")
-        .replace(/^\s*(seria|sería|es|en|el|la)\s+/i, "")
+        .replace(/^\s*(seria|sería|es|en|el|la|a|al)\s+/i, "")
         .split(/\b(torre|bloque|bl|interior|int|apto|apartamento|apart|casa|piso)\b/i)[0]
         .replace(/[,.\-\s]+$/, "")
         .trim();
@@ -9469,7 +9469,11 @@ function extraerBarrio(
    Estas palabras NO sirven para decidir un precio —por eso no se usan para
    aceptar la direccion— pero si para saber que hay que preguntarle a un
    humano en vez de exigirle una calle que no existe. */
-const CONJUNTO_PALABRAS = /\b(conjunto|urbanizacion|urbanización|condominio|torres?|edificio|multifamiliar|agrupacion|agrupación|ciudadela|bloque|apto|apartamento)\b/i;
+/* Se compara contra el texto YA NORMALIZADO (sin tildes): un cliente
+   escribio "condOminio" con tilde y el detector no lo vio (22-ago, caso
+   real). Y "condomi\w*" tolera ademas el typo del mismo cliente: escribio
+   "Condomio" comiendose letras. */
+const CONJUNTO_PALABRAS = /\b(conjunto|urbanizacion|condomi\w*|torres?|edificio|multifamiliar|agrupacion|ciudadela|bloque|apto|apartamento)\b/i;
 
 /* Deja el conjunto propuesto para que el dueño lo apruebe desde
    Configuracion -> Domicilios. Reusa `pos_domi_aprendidos`, que ya es el sitio
@@ -9515,7 +9519,23 @@ async function proponerConjunto(
 }
 
 function sueneAConjunto(text: string): boolean {
-  return CONJUNTO_PALABRAS.test(text || "");
+  /* SIEMPRE sobre el texto normalizado. "A condOminio camino viejo, casa 9
+     manzana g" (22-ago, caso real): la tilde de "condominio" dejaba ciego al
+     detector, el conjunto no se propuso y Paco pregunto "y en que barrio
+     queda esa direccion?" a quien acababa de decir conjunto, casa y manzana. */
+  const t = normalizarTexto(text || "");
+  if (!t) return false;
+  if (CONJUNTO_PALABRAS.test(t)) return true;
+  /* LA LOGICA DE SERGIO (22-ago, palabras suyas): "si el cliente dice un
+     nombre y dice un numero de casa es obvio que es conjunto". Un lugar SIN
+     calle ni carrera pero CON "casa 9" o "manzana g" no es un barrio ni una
+     direccion urbana: es un conjunto, este registrado o no, diga o no la
+     palabra. Con via en el texto no aplica: "calle 5 # 3-2 casa 9" es una
+     direccion normal donde "casa 9" es el detalle. */
+  const unidad = /\b(casa|manzana|mz)\s+[a-z0-9]{1,4}\b/.test(t);
+  if (!unidad) return false;
+  const conVia = /\b(calle|cll|carrera|cra|cr|kra|kr|avenida|av|transversal|tv|diagonal|dg|via)\b/.test(t);
+  return !conVia;
 }
 
 function esConjunto(

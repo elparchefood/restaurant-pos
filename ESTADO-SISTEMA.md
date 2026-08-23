@@ -3,6 +3,31 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 Paco preguntó el barrio a quien dijo "condóminio... casa 9 manzana g" (motor v354) — 22-ago-2026
+
+*"A condóminio camino viejo, casa 9 manzana g"*. Paco: *"¿Y en qué barrio
+queda esa dirección?"*. Sergio: **"si el cliente dice un nombre y dice un
+número de casa es obvio que es conjunto"**.
+
+**Por qué falló.** El camino del conjunto nuevo (proponerlo, callarse y avisar
+al humano) EXISTE y funciona — pero su detector, `sueneAConjunto`, comparaba
+el texto CRUDO contra la palabra "condominio" sin tilde. El cliente escribió
+"cond**ó**minio" (con tilde) y luego "Condomio" (typo): ninguna casó, el
+detector quedó ciego y el flujo cayó al paso del barrio.
+
+**El arreglo, en el único punto donde se decide:**
+1. `sueneAConjunto` normaliza ANTES de comparar (sin tildes), y
+   `condomi\w*` tolera el typo "Condomio".
+2. **La lógica de Sergio quedó escrita**: un lugar SIN calle/carrera pero CON
+   "casa 9" o "manzana g" es un conjunto, esté registrado o no, diga o no la
+   palabra. Con vía no aplica: "calle 5 # 3-2 casa 9" es dirección normal.
+3. El nombre propuesto ya no arrastra la "A" de "A condóminio..." al
+   aprobador de conjuntos.
+
+Probado con la función real: los 3 mensajes literales del cliente casan, y
+las direcciones normales con vía ("calle 28 #6c53 Galicia", "carrera 9b
+# 63-58") siguen sin dispararse. **Motor v354.**
+
 ## 🔴→🟢 Paco: dos conversaciones reales del 22-ago, cinco arreglos (motor v353)
 
 Dos clientas la misma tarde; a las dos les tocó terminarlas Sergio a mano.
