@@ -2384,7 +2384,6 @@
         </div>`;
     } else if (isPaid) {
       actionsHtml = `<div class="vs-actions">
-          <button class="lm-btn-ghost" data-action="quick-print" data-quick-id="${o.id}">Imprimir</button>
           <button class="lm-btn-ghost" data-action="quick-nueva" data-quick-id="${o.id}">Nueva venta</button>
           <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-entregar" data-quick-id="${o.id}">Ya entregué</button>
         </div>`;
@@ -2410,6 +2409,28 @@
           <button class="lm-btn-primary vs-cobrar-btn" data-action="quick-cobrar" data-quick-id="${o.id}">Cobrar</button>
         </div>`;
     }
+
+    /* IMPRIMIR VA SIEMPRE, EN TODAS LAS RAMAS (22-ago-2026).
+
+       Sergio: "si hay un pedido que recibió Paco para llevar no aparece el
+       botón de imprimir. Solo pasa si lo recibió Paco". Y era exacto: de las
+       CINCO ramas de botones de aquí arriba, Imprimir estaba escrito en UNA
+       sola — la de status igual a 'paid'.
+
+       Por qué justo los de Paco: un pedido que toma el asistente queda en
+       'open' con el pago YA registrado en paid_amount (no pasa por la caja),
+       así que cae en la rama de "pagado de verdad" y no en la de 'paid'.
+       Los del cajero sí quedan 'paid' y por eso a esos sí les salía.
+
+       En MESAS y en DOMICILIOS el botón está en TODAS las ramas: esa es la
+       regla del sistema —una comanda siempre se puede imprimir, sin importar
+       cómo se pagó— y aquí faltaba. Se pone en UN SOLO SITIO, igual que el
+       botón de avanzar estado, para que la próxima rama que alguien agregue
+       lo tenga sola y esto no se pueda volver a olvidar. */
+    actionsHtml = actionsHtml.replace(
+      '<div class="vs-actions">',
+      '<div class="vs-actions">' +
+      '<button class="lm-btn-ghost" data-action="quick-print" data-quick-id="' + o.id + '">Imprimir</button>');
 
     // El boton de avanzar estado va con los demas botones, no suelto arriba.
     const _avanzar = quickEstadoControl(o);
