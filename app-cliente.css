@@ -2399,43 +2399,113 @@ html.tema-claro .ep-menu-it.malo { color: #8f2242; }
 
 /* ══ TUTORIAL DE INSTALACION ═══════════════════════════════════════════════
    La pantalla a la que cae el boton de la plantilla de WhatsApp (#instalar).
-   Es una pantalla, no un aviso: la persona llego aqui a propOsito y se queda
-   el tiempo del video, asi que necesita respirar y poder desplazarse.
 
-   El video va en 9:16 porque se graba vertical. El tope de altura se pone en
-   el ANCHO (max-width) y no en `max-height`: probado en un celular de 375x812,
-   un `max-height` recortaba la caja a 339x471 —proporcion 0.72, no 9:16— y el
-   video habria salido con franjas negras a los lados dentro de su propio
-   recuadro. Capando el ancho, la caja SIEMPRE es 9:16.
+   REGLA DE ESTA PANTALLA: cabe entera, sin bajar. Pedido de Sergio el
+   23-ago-2026 — "que a la persona no se le pierda ninguna informacion ni
+   ningun boton". Alguien que no sabe instalar una app tampoco sabe que hay
+   algo mas abajo.
 
-   Y el tope es 62vh, no 70, porque Sergio pidio los pasos escritos JUNTO al
-   video. Medido en 375x812: con 70vh el titulo de los pasos caia en y=848,
-   36px por debajo del borde — invisible, y nadie baja a buscar lo que no sabe
-   que existe. Con 62vh cae en 783 y asoma. En pantallas muy pequeñas (un SE
-   de 375x667) sigue quedando abajo; ahi no cabe de otra forma.
+   Como se garantiza, y por que asi y no a punta de medidas: la pantalla es una
+   columna de alto `100dvh` y el UNICO elemento elastico es el video
+   (`flex: 1; min-height: 0`). Todo lo demas mide lo que mide, y el video se
+   queda con lo que sobre — en un celular grande sale grande, en uno pequeno
+   sale mas chico, pero NUNCA empuja nada fuera de la pantalla. Antes esto se
+   intento con `62vh` y funcionaba solo en el tamano en el que se midio.
 
-   Si algun dia se graba en horizontal por error, el `object-fit: contain` lo
-   encaja sin recortarle nada. */
+   `dvh` y no `vh` porque en el celular la barra del navegador aparece y
+   desaparece; con `vh` sobra un pedazo que se puede arrastrar (la misma razon
+   que ya estaba escrita en .ep-login).
+
+   Espacio ganado para que quepa: la cabecera de las demas pantallas (logo de
+   70px, nombre a 27px, la frase de la cuenta y la pastilla de abierto/cerrado)
+   se cambio por una fila con el logo y el nombre; y se quito el boton "Ya la
+   instale, entrar", que no llevaba a ninguna parte util. */
 .ep-tuto {
-  max-width: var(--maxw); margin: 0 auto; padding: 18px 18px 40px;
-  display: flex; flex-direction: column; gap: 0;
+  height: 100dvh; height: 100%;   /* el 100% queda de respaldo, va primero */
+  height: 100dvh;
+  max-width: var(--maxw); margin: 0 auto;
+  padding: 14px 18px calc(16px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; overflow: hidden;
 }
-.ep-tuto-cab { display: flex; align-items: center; gap: 13px; margin-bottom: 20px; }
+.ep-tuto-cab { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.ep-tuto-marca {
+  width: 34px; height: 34px; border-radius: 11px; overflow: hidden;
+  background: var(--surf2); border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent); flex-shrink: 0;
+}
+.ep-tuto-marca svg { width: 18px; height: 18px; }
+.ep-tuto-nom {
+  font-size: 14.5px; font-weight: 600; letter-spacing: -.02em; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .ep-tuto-h {
-  font-size: 21px; font-weight: 700; letter-spacing: -.025em; line-height: 1.2;
-  margin: 0 0 7px; color: var(--ink); text-wrap: balance;
+  font-size: 20px; font-weight: 700; letter-spacing: -.025em; line-height: 1.15;
+  margin: 14px 0 5px; color: var(--ink); flex-shrink: 0;
 }
-.ep-tuto-lead { font-size: 13.5px; color: var(--sub); line-height: 1.5; margin: 0 0 18px; }
+.ep-tuto-lead {
+  font-size: 13px; color: var(--sub); line-height: 1.4; margin: 0 0 12px;
+  flex-shrink: 0;
+}
+
+/* EL MARCO es el que manda sobre el tamano: se estira con lo que sobre y le
+   pasa la medida al video. El `min-height: 0` es lo que deja que ENCOJA — sin
+   el, un hijo en flex se niega a bajar de su tamano natural y volveria a
+   empujar los pasos fuera de la pantalla.
+   El ancho se cuadra solo con `aspect-ratio` sobre la altura ya resuelta, asi
+   que la caja es 9:16 exacta en cualquier pantalla y el video nunca sale con
+   franjas negras. */
+.ep-tuto-marco {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 14px;
+}
 .ep-tuto-video {
-  display: block; width: 100%; max-width: calc(62vh * 9 / 16);
-  aspect-ratio: 9 / 16; margin: 0 auto 22px;
-  object-fit: contain; background: #000;
-  border: 1px solid var(--line); border-radius: 16px;
+  height: 100%; width: auto; max-width: 100%;
+  aspect-ratio: 9 / 16; object-fit: contain;
+  background: #000; border: 1px solid var(--line);
+  /* Bien redondeado, como pidio Sergio. Va en los dos —marco y video— porque
+     algunos navegadores pintan el video por encima del borde del padre. */
+  border-radius: 26px;
+  display: block;
 }
+.ep-tuto-marco { border-radius: 26px; }
+
 .ep-tuto-pasos-t {
-  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .13em; color: var(--dim); margin-bottom: 13px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .13em; color: var(--dim); margin-bottom: 10px; flex-shrink: 0;
 }
-.ep-tuto .ep-inst-pasos { margin-bottom: 22px; }
-.ep-tuto .ep-btn { width: 100%; justify-content: center; }
-.ep-tuto .ep-btn--ghost { margin-top: 9px; }
+.ep-tuto .ep-inst-pasos { gap: 9px; margin-bottom: 0; flex-shrink: 0; }
+.ep-tuto .ep-inst-p-t { font-size: 13px; }
+.ep-tuto .ep-inst-p-s { font-size: 11.5px; }
+.ep-tuto .ep-btn { width: 100%; justify-content: center; margin-top: 14px; flex-shrink: 0; }
+
+/* En pantallas bajas (un iPhone SE, o el navegador con su barra abierta) el
+   video se quedaria en nada. Se sacrifica la frase del "para que sirve", que
+   es lo unico que NO son instrucciones. */
+@media (max-height: 700px) {
+  .ep-tuto-lead { display: none; }
+  .ep-tuto-h { font-size: 18px; margin-top: 10px; }
+}
+
+/* El regalo por instalar. Es la razon mas fuerte para hacerlo, asi que se
+   recalca (pedido de Sergio, 23-ago-2026) — dorado, que es el color con el que
+   esta app ya habla de plata y de puntos.
+   NO se esconde en pantallas bajas, a diferencia de la frase de arriba: si algo
+   tiene que sobrevivir cuando falta sitio, es esto. El monto lo pone la base,
+   nunca esta pantalla. */
+.ep-tuto-bono {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 9px 14px; margin: 0 0 12px; flex-shrink: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(227,176,75,.16), rgba(227,176,75,.06));
+  border: 1px solid rgba(227,176,75,.34);
+}
+.ep-tuto-bono-m {
+  font-size: 15.5px; font-weight: 700; letter-spacing: -.02em; color: var(--oro-tx);
+}
+.ep-tuto-bono-s { font-size: 11.5px; color: var(--sub); line-height: 1.3; }
+html.tema-claro .ep-tuto-bono {
+  background: linear-gradient(135deg, rgba(184,132,42,.14), rgba(184,132,42,.05));
+  border-color: rgba(138,95,20,.30);
+}

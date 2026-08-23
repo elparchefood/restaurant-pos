@@ -2269,15 +2269,43 @@
     var directo = !!instalador && !enAppAjena();
     var pasos = pasosInstalar();
 
+    /* CABECERA PROPIA, NO la de las demas pantallas (23-ago-2026).
+       `cabecera()` trae el logo de 70px, el nombre a 27px, la frase 'Tu cuenta,
+       tu saldo y tus puntos' y la pastilla de abierto/cerrado: unos 190px que
+       aqui no dicen nada sobre instalar y son justo los que hacian falta para
+       que todo cupiera sin bajar. Se deja el logo y el nombre en una sola fila. */
+    var marca = e.logo
+      ? '<img class="ep-marca-img" src="' + esc(e.logo) + '" alt="">'
+      : ICONO;
+
     pinta(
       '<div class="ep-tuto">' +
-        '<div class="ep-tuto-cab">' + cabecera() + '</div>' +
-        '<h2 class="ep-tuto-h">Instala ' + esc(e.nombre || 'la app') + ' en tu celular</h2>' +
-        '<p class="ep-tuto-lead">Te queda entre tus aplicaciones, se abre sola y ' +
-          'te avisamos cuando tu pedido va en camino.</p>' +
+        '<div class="ep-tuto-cab">' +
+          '<div class="ep-tuto-marca">' + marca + '</div>' +
+          '<span class="ep-tuto-nom">' + esc(e.nombre || '') + '</span>' +
+        '</div>' +
+        '<h2 class="ep-tuto-h">Instálala en tu celular</h2>' +
+        /* EL REGALO, RECALCADO (pedido de Sergio, 23-ago-2026). Es la razon
+           mas fuerte para hacerlo, asi que va antes que nada y con su propio
+           realce.
+           El monto sale de la BASE (tenants.web_bono_instalacion, via
+           fn_web_publica), que es el MISMO numero con el que web-acceso lo
+           entrega de verdad. Escribirlo aqui seria tenerlo en dos sitios: el
+           dia que Sergio lo cambiara, la pantalla seguiria prometiendo el
+           viejo — y esto es plata. Si el restaurante no da bono (0), no se
+           promete nada. */
+        (Number(e.bono_instalacion) > 0
+          ? '<div class="ep-tuto-bono">' +
+              '<span class="ep-tuto-bono-m">' + COP(e.bono_instalacion) + ' de regalo</span>' +
+              '<span class="ep-tuto-bono-s">Por dejarla en tu pantalla de inicio</span>' +
+            '</div>'
+          : '') +
+        '<p class="ep-tuto-lead">Se abre sola y te avisamos cuando tu pedido ' +
+          'va en camino.</p>' +
         (url
-          ? '<video class="ep-tuto-video" src="' + esc(url) + '" ' +
-            'controls playsinline preload="metadata"></video>'
+          ? '<div class="ep-tuto-marco">' +
+            '<video class="ep-tuto-video" src="' + esc(url) + '" ' +
+            'controls playsinline preload="metadata"></video></div>'
           : '') +
         '<div class="ep-tuto-pasos-t">' +
           (url ? 'Los mismos pasos, escritos'
@@ -2288,11 +2316,16 @@
             '<div><div class="ep-inst-p-t">' + p[1] + '</div>' +
             '<div class="ep-inst-p-s">' + esc(p[2]) + '</div></div></div>';
         }).join('') + '</div>' +
+        /* AQUI HABIA UN BOTON 'Ya la instalé, entrar' Y NO SERVIA PARA NADA
+           (lo vio Sergio, 23-ago): abria la pagina en el mismo navegador, que
+           es de donde la persona viene. Quien ya la instalo no necesita un
+           boton: la abre desde su pantalla de inicio, que es justo lo que
+           acaba de aprender a hacer.
+           En iPhone entonces no queda ningun boton, y esta bien: los pasos
+           SON la accion. En Android si queda el que instala de un toque. */
         (directo
           ? '<button class="ep-btn gold big ep-tuto-ya" type="button">Instalar ahora</button>'
           : '') +
-        '<button class="ep-btn ep-btn--ghost ep-tuto-seguir" type="button">' +
-          (directo ? 'Prefiero hacerlo yo' : 'Ya la instalé, entrar') + '</button>' +
       '</div>');
 
     /* Al salir se quita el #instalar: si la persona recarga o vuelve mañana
@@ -2301,9 +2334,6 @@
       try { history.replaceState(null, '', location.pathname + location.search); } catch (x) {}
       if (S.cliente) pantallaDentro(); else pantallaEntrar('', false);
     }
-    var bSeguir = document.querySelector('.ep-tuto-seguir');
-    if (bSeguir) bSeguir.onclick = seguir;
-
     var bYa = document.querySelector('.ep-tuto-ya');
     if (bYa) bYa.onclick = async function () {
       var ev = instalador;
