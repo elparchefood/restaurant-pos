@@ -2246,8 +2246,14 @@
      es peor que no tenerlo — la misma regla de los tutoriales. */
   function videoTutorial() {
     var c = window.COBRA_TUTORIAL || {};
+    /* CADA APARATO SOLO VE SU VIDEO. Aqui habia un respaldo —si faltaba el de
+       Android se ponia el de iPhone— y estaba mal pensado: los pasos escritos
+       de abajo SI salen bien (los da pasosInstalar segun el aparato), asi que
+       un usuario de Android habria visto un video diciendo "toca Compartir" y
+       debajo, en letras, "toca los tres puntos". Justo la contradiccion que
+       esta pantalla existe para evitar. Sin video propio no se pone ninguno:
+       los pasos escritos solos se entienden perfectamente. */
     var u = esIOS() ? c.ios : c.android;
-    if (!u) u = c.ios || c.android || '';
     u = String(u || '').trim();
     /* Solo direcciones de verdad: un `javascript:` metido en un src no se
        pinta. Viene del archivo del propio restaurante, pero el filtro es de

@@ -70,7 +70,15 @@
      Agregar a inicio, y en Android por los tres puntos -> Instalar. -->
 <script>
   window.COBRA_TUTORIAL = {
-    ios:     '',
+    /* Grabado por Sergio el 23-ago-2026. El original venia en 4K (2160x3840,
+       31 MB); se reencodo a 720x1280 y 4 MB, que es lo mismo de ver en un
+       celular y ocho veces menos datos. Los 79 segundos y las letras se
+       leen igual — se comprobo mirando un fotograma del medio. */
+    ios:     'https://tblujfduscslxjmrjbdr.supabase.co/storage/v1/object/public/chat-media/tutorial/instalar-iphone.mp4',
+    /* Falta grabar el de Android. Mientras este vacio, a quien entre desde
+       un Android no le sale ningun video: solo los pasos escritos, que para
+       Android son otros (tres puntos -> Instalar). Poner aqui el de iPhone
+       seria peor que no poner nada. */
     android: ''
   };
 </script>
@@ -94,7 +102,7 @@
        en realidad ya estaba corregido: paso con los avisos de Sergio.
        El sello se sube A MANO en cada cambio de la aplicacion; la hora sigue
        ahi detras como red, para que un olvido cueste una hora y no la eternidad. */
-    var SELLO = '0823a';
+    var SELLO = '0823b';
     var v = SELLO + new Date().toISOString().slice(0, 13).replace(/\D/g, '');   // sello + AAAAMMDDHH
     document.write('<link rel="stylesheet" href="../app-cliente.css?v=' + v + '">');
     document.write('<scr' + 'ipt src="../app-cliente.js?v=' + v + '"><\/scr' + 'ipt>');
