@@ -8199,6 +8199,18 @@ async function buildSummaryFromState(
           });
           continue;
         }
+        /* YA ESTABA EN EL PEDIDO — Y CON SU PRECIO (22-ago-2026, caso de
+           Isabela). Pidio "una salchipapa maicitos especial con pollo y una
+           botella de agua": el agua entro como PRODUCTO por el camino normal
+           y ADEMAS quedo colgando en las adiciones, donde ningun plato la
+           admite. Al caer abajo se le avisaba "por ahora no esta incluido en
+           el total" de algo que SI estaba en el resumen y SI estaba cobrado:
+           el total de $36.000 era correcto y el aviso lo desmentia.
+
+           Es la MISMA cosa nombrada dos veces, no algo que falte. Se ignora
+           la repetida y no se le dice nada al cliente. */
+        console.log(`[verificador] "${x}" ya esta en el pedido como producto — se ignora la repeticion`);
+        continue;
       }
       console.log(`[verificador] "${x}" no lo admite ningún plato del pedido`);
       if (!noSePudo.includes(x)) noSePudo.push(x);

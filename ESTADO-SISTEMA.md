@@ -3,6 +3,42 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 Paco avisaba que faltaba algo que SÍ estaba en el pedido (motor v361) — 22-ago-2026
+
+Isabela pidió *"una salchipapa maicitos especial con pollo personal"* y *"una
+botella de agua"*. El resumen salió **perfecto** —las dos líneas, $31.000 +
+$5.000 = $36.000— y justo debajo:
+
+> ⚠️ Sobre AGUA BOTELLA: cuéntame exactamente cuál quieres y te lo agrego al
+> pedido (por ahora no está incluido en el total).
+
+Sergio: *"no entiendo a qué se refiere si ya había entendido que era botella
+de agua"*. Y tenía razón dos veces: no había nada que elegir, y el agua **sí**
+estaba incluida en el total.
+
+**Por qué.** El extractor devuelve UN producto por mensaje, así que el agua
+entró como producto por el camino normal Y ADEMÁS quedó colgando en
+`adiciones`. El verificador vio que ninguna salchipapa admite un agua y la
+mandó a `imposibles`. Ahí, el arreglo del 17-ago (caso de Emily) intenta
+ponerla como plato aparte… pero **si ya estaba en el pedido (`yaEsta`), el
+código caía al `noSePudo`** de más abajo:
+
+```js
+if (comoProducto) {
+  const yaEsta = allItems.some(...);
+  if (!yaEsta) { ...agregar...; continue; }
+}                       // ← si YA ESTABA, sigue de largo
+noSePudo.push(x);       // ← y avisa que "no está incluido"
+```
+
+**El arreglo.** Es la MISMA cosa nombrada dos veces, no algo que falte: se
+ignora la repetición y no se le dice nada al cliente.
+
+Probado con el trozo real del archivo y 4 casos: el de Isabela ya no avisa;
+el de Emily (el agua NO estaba → se agrega como línea aparte) sigue igual;
+algo que de verdad no existe en la carta sigue avisando; y con una repetida +
+una inexistente juntas, avisa solo de la inexistente. **Motor v361.**
+
 ## 🔴→🟢 El total de los pedidos de la PÁGINA no incluía el domicilio — 22-ago-2026
 
 Hallado revisando el pedido de Angela. `web-pedido` guardaba
