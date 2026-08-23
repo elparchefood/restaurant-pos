@@ -28,9 +28,69 @@ function pintarSucursal(data) {
   const brand = data.brands?.name || data.name;
   // La marca del sidebar la gestiona pos-brand.js (siempre "Cobra POS").
   $('tb-branch').innerHTML = brand + (data.name !== brand ? ' &middot; <span style="color:#64748B;font-weight:500">' + data.name + '</span>' : '');
-  $('tb-mode').textContent = data.is_open ? 'En operacion' : 'Cerrado';
+  /* El estado se pinta aparte (pintarEstado): depende de la HORA, no de la
+     sucursal, asi que no puede salir de este objeto. */
+  pintarEstado();
   $('sb-status').textContent = '● en linea';
   $('sb-status').style.color = '#16A34A';
+}
+
+/* ══ ¿ESTÁ ABIERTO EL RESTAURANTE? (23-ago-2026) ═══════════════════════
+   Sergio: "en el dashboard arriba dice Cerrado siempre, incluso cuando
+   tengo la caja abierta; ayer durante el turno tambien decia Cerrado".
+
+   Y era literal: la etiqueta leia `branches.is_open`, una columna que solo
+   se escribe UNA vez —al crear el restaurante, en false— y que despues no
+   actualiza absolutamente nadie. Nunca iba a decir otra cosa, en ningun
+   restaurante de Cobra.
+
+   Ahora sale de `fn_web_estado`, que es la MISMA verdad que ve el cliente
+   en la pagina: el horario de hoy, los cierres programados y el cierre a
+   mano. Si la pagina dice abierto y el escritorio dice cerrado, uno de los
+   dos miente — asi no pueden discrepar.
+
+   Ojo: esto NO es la caja. La caja tiene su propio aviso en el saludo ("Tu
+   caja esta cerrada, aperturala"), y son dos cosas distintas: se puede
+   estar en horario con la caja sin abrir, y al reves. */
+let _estadoTimer = null;
+async function pintarEstado() {
+  const el = document.getElementById('tb-mode');
+  if (!el) return;
+  const dot = el.parentElement && el.parentElement.querySelector('.mode-dot');
+  const poner = (txt, color, titulo) => {
+    el.textContent = txt;
+    el.parentElement.title = titulo || '';
+    if (dot) dot.style.background = color;
+  };
+  const tid = (window._pos && window._pos.state && window._pos.state.tenantId)
+    || (S.branch && S.branch.tenant_id);
+  if (!tid) { poner('—', '#94A3B8'); return; }
+  try {
+    const r = await sb.rpc('fn_web_estado', { p_tenant: tid });
+    const e = (r.data && r.data[0]) || null;
+    if (!e) { poner('—', '#94A3B8', 'No se pudo leer el horario'); return; }
+    if (e.abierto) {
+      poner('En operacion', '#16A34A', e.cierra ? ('Cierra a las ' + h12(e.cierra)) : '');
+    } else if (e.motivo === 'programado') {
+      poner('Cerrado por temporada', '#F59E0B', String(e.detalle || ''));
+    } else {
+      /* El detalle dice CUANDO abre: es lo unico util cuando esta cerrado. */
+      poner(e.detalle ? ('Cerrado · ' + e.detalle) : 'Cerrado', '#94A3B8', 'Fuera de horario');
+    }
+  } catch (err) { poner('—', '#94A3B8'); }
+  /* Se repinta solo cada 5 minutos: a las 6:30 p.m. tiene que cambiar sin
+     que Sergio recargue la pantalla. */
+  if (!_estadoTimer) _estadoTimer = setInterval(pintarEstado, 300000);
+}
+
+/* 18:30 -> 6:30 p.m. La etiqueta se lee de un vistazo, no en 24 horas. */
+function h12(hhmm) {
+  const m = String(hhmm || '').match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return String(hhmm || '');
+  let h = parseInt(m[1], 10);
+  const suf = h >= 12 ? 'p.m.' : 'a.m.';
+  h = h % 12; if (h === 0) h = 12;
+  return h + ':' + m[2] + ' ' + suf;
 }
 
 async function loadBranch() {
