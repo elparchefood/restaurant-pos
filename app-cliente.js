@@ -2344,7 +2344,17 @@
                completo sin tener que buscar como repetirlo. */
             '<video class="ep-tuto-video" src="' + esc(url) + '" ' +
             'autoplay muted loop playsinline preload="auto" ' +
-            'disablepictureinpicture></video></div></div>'
+            'disablepictureinpicture></video>' +
+            /* Nace visible porque el video SIEMPRE empieza en silencio: no hay
+               navegador que deje otra cosa. Se va en cuanto lo tocan. */
+            '<button class="ep-tuto-sonido" type="button">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+                'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>' +
+                '<path d="M15.5 8.5a5 5 0 0 1 0 7"/>' +
+                '<path d="M19 5a9 9 0 0 1 0 14"/>' +
+              '</svg>Activar sonido</button>' +
+            '</div></div>'
           : '') +
         '<div class="ep-tuto-pasos-t">' +
           (url ? 'Los mismos pasos, escritos'
@@ -2448,6 +2458,26 @@
           loParoElla = true;
           vid.pause();
         }
+      });
+    }
+
+    /* ACTIVAR EL SONIDO Y VOLVER A EMPEZAR (pedido de Sergio, 23-ago).
+       Se rebobina a proposito: el video arranco callado, asi que lo que ya
+       corrio se lo perdio. Devolverlo es la unica forma de que lo vea entero
+       con sonido, que es justo para lo que toco el boton.
+       `stopPropagation` es imprescindible: el toque cae DENTRO de la caja, y
+       sin esto tambien dispararia el pausar/seguir y el video se quedaria
+       quieto justo al activarle el sonido. */
+    var bSon = document.querySelector('.ep-tuto-sonido');
+    if (bSon && vid) {
+      bSon.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        vid.muted = false;
+        vid.currentTime = 0;
+        loParoElla = false;
+        caja.classList.remove('pausado');
+        var p = vid.play(); if (p && p.catch) p.catch(function () {});
+        bSon.remove();   // ya no hay nada que activar
       });
     }
 

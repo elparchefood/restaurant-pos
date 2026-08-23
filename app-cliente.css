@@ -2627,3 +2627,21 @@ html.tema-claro .ep-tuto-bono {
   pointer-events: none;
 }
 .ep-tuto-caja { position: relative; }
+
+/* ── ACTIVAR SONIDO ────────────────────────────────────────────────────────
+   Va ENCIMA del video y no debajo: la pantalla no tiene un pixel de sobra —
+   cabe entera sin scroll y cualquier fila nueva se lo quitaria al video.
+   Abajo y centrado, que es donde no tapa nada (el video empieza con el
+   encuadre del celular arriba) y donde el pulgar llega solo. */
+.ep-tuto-sonido {
+  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 8px 14px; border-radius: 999px; border: none;
+  background: rgba(0,0,0,.62); color: #fff;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  font-family: inherit; font-size: 12.5px; font-weight: 600; letter-spacing: -.01em;
+  cursor: pointer; z-index: 2;
+  box-shadow: 0 4px 16px -4px rgba(0,0,0,.6);
+}
+.ep-tuto-sonido svg { width: 15px; height: 15px; flex-shrink: 0; }
+.ep-tuto-sonido:active { background: rgba(0,0,0,.78); }
