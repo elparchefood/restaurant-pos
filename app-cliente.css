@@ -2531,3 +2531,54 @@ html.tema-claro .ep-tuto-bono {
   background: linear-gradient(135deg, rgba(184,132,42,.14), rgba(184,132,42,.05));
   border-color: rgba(138,95,20,.30);
 }
+
+/* ══ LA FLECHA QUE SEÑALA DONDE TOCAR ═════════════════════════════════════
+   Pedido de Sergio: que se vea todo el tiempo y no deje duda de donde hay que
+   tocar. Va `fixed` a la orilla de la pantalla, que es donde esta la barra del
+   navegador — y por ir fuera del flujo no le quita espacio al video.
+
+   `.abajo` apunta a la derecha-abajo (los tres puntos de Safari en iPhone) y
+   `.arriba` a la derecha-arriba (los de Chrome en Android). Cual de las dos se
+   pone lo decide flechaInstalar(), no el diseno.
+
+   Se mueve hacia el rincon y vuelve: el movimiento es lo que hace que el ojo la
+   encuentre. Con `prefers-reduced-motion` se queda quieta pero visible — quien
+   pidio menos movimiento sigue necesitando saber donde tocar. */
+.ep-tuto-flecha {
+  position: fixed; right: 8px; z-index: 40;
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 10px 6px 12px; border-radius: 999px;
+  background: var(--accent); color: #17161a;
+  font-size: 12px; font-weight: 700; letter-spacing: -.01em;
+  box-shadow: 0 6px 20px -6px rgba(227,176,75,.75);
+  pointer-events: none;   /* nunca le roba un toque a la pagina */
+}
+.ep-tuto-flecha svg { width: 15px; height: 15px; }
+.ep-tuto-flecha span { order: -1; }   /* la palabra primero, la flecha apuntando */
+
+.ep-tuto-flecha.abajo {
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  animation: epFlechaAbajo 1.5s ease-in-out infinite;
+}
+.ep-tuto-flecha.abajo svg { transform: rotate(45deg); }   /* hacia la esquina */
+
+.ep-tuto-flecha.arriba {
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  animation: epFlechaArriba 1.5s ease-in-out infinite;
+}
+.ep-tuto-flecha.arriba svg { transform: rotate(-45deg); }
+
+@keyframes epFlechaAbajo {
+  0%, 100% { transform: translate(0, 0); }
+  50%      { transform: translate(5px, 7px); }
+}
+@keyframes epFlechaArriba {
+  0%, 100% { transform: translate(0, 0); }
+  50%      { transform: translate(5px, -7px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ep-tuto-flecha.abajo, .ep-tuto-flecha.arriba { animation: none; }
+}
+
+/* Que la flecha no se siente encima de la ultima linea de los pasos. */
+.ep-tuto .ep-inst-paso:last-child .ep-inst-p-s { padding-right: 72px; }

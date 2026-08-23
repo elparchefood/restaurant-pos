@@ -2121,9 +2121,18 @@
           ];
     }
     if (esIOS()) {
+      /* LOS TRES PUNTOS, NO EL CUADRITO DE COMPARTIR (23-ago-2026).
+         Aqui decia 'Toca Compartir — el cuadrito con la flecha, abajo en el
+         centro'. Sergio mando la captura de su iPhone y esa barra no tiene ese
+         icono: trae atras, lectura, la direccion, recargar y los tres puntos a
+         la derecha. Y ademas la flecha animada de esta pantalla apunta ahi, o
+         sea que el dibujo y las letras se estaban contradiciendo.
+         Los tres puntos sirven en todas las versiones —de ahi cuelga tanto
+         Compartir como Agregar a inicio—, asi que es ademas la instruccion mas
+         segura. */
       return [
-        ['compartir', 'Toca <b>Compartir</b>', 'El cuadrito con la flecha hacia arriba, abajo en el centro.'],
-        ['mas', 'Busca <b>Agregar a inicio</b>', 'Deslízate hacia abajo en la lista de opciones.'],
+        ['mas', 'Toca los <b>tres puntos</b>', 'Abajo a la derecha, en la barra del navegador. La flecha te los señala.'],
+        ['compartir', 'Busca <b>Agregar a inicio</b>', 'Deslízate hacia abajo en la lista de opciones.'],
         ['ok', 'Toca <b>Agregar</b>', 'Listo: te queda con el logo entre tus aplicaciones.'],
       ];
     }
@@ -2261,12 +2270,31 @@
     return /^https:\/\//i.test(u) ? u : '';
   }
 
+  /* LA FLECHA QUE SEÑALA DONDE TOCAR (pedido de Sergio, 23-ago-2026).
+
+     Donde va NO es un detalle de gusto: en iPhone el menu esta ABAJO a la
+     derecha (la barra de Safari) y en Android ARRIBA a la derecha (los tres
+     puntos de Chrome). Apuntar al sitio equivocado es peor que no apuntar.
+
+     Y no siempre hay que apuntar:
+       · Si el navegador nos dio el boton de instalar (Android), la persona no
+         tiene que buscar nada — la flecha la mandaria a dar un rodeo.
+       · Dentro de Instagram o Facebook no se puede instalar: primero hay que
+         salir, y para eso ya estan los pasos y el boton 'Abrir en Chrome'.
+       · Si ya la tiene instalada no hay nada que señalar.
+     Devuelve null en esos casos y no se pinta nada. */
+  function flechaInstalar(directo) {
+    if (directo || enAppAjena() || yaInstalada()) return null;
+    return esIOS() ? 'abajo' : 'arriba';
+  }
+
   function pantallaTutorial() {
     var e = S.negocio || {};
     var url = videoTutorial();
     /* En Android hay boton que instala de un toque; en iPhone no existe esa
        señal —Apple no la da— y los pasos SON la accion. */
     var directo = !!instalador && !enAppAjena();
+    var donde = flechaInstalar(directo);
     var pasos = pasosInstalar();
 
     /* CABECERA PROPIA, NO la de las demas pantallas (23-ago-2026).
@@ -2328,6 +2356,18 @@
            SON la accion. En Android si queda el que instala de un toque. */
         (directo
           ? '<button class="ep-btn gold big ep-tuto-ya" type="button">Instalar ahora</button>'
+          : '') +
+        /* Va FUERA del flujo (position:fixed), asi que no le quita ni un pixel
+           al video ni empuja nada fuera de la pantalla. */
+        (donde
+          ? '<div class="ep-tuto-flecha ' + donde + '" aria-hidden="true">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+                'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">' +
+                '<line x1="5" y1="12" x2="19" y2="12"/>' +
+                '<polyline points="13 6 19 12 13 18"/>' +
+              '</svg>' +
+              '<span>Aquí</span>' +
+            '</div>'
           : '') +
       '</div>');
 
