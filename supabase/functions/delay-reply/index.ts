@@ -51,6 +51,9 @@ interface PacoState {
   /* El barrio, aparte de la direccion: es lo que decide el precio del
      domicilio. Se comprueba contra las zonas configuradas, no se adivina. */
   barrio:             string | null;
+  /* El conjunto que el LECTOR entendio (intencion, no palabras). Cuando esta
+     lleno, manda sobre el regex sueneAConjunto en todas las decisiones. */
+  lugar_conjunto?:    string | null;
   pago:               string | null;
   nombre:             string | null;
   /* EL TELEFONO, SOLO EN INSTAGRAM Y MESSENGER (22-ago-2026). En WhatsApp el
@@ -2667,8 +2670,10 @@ INTENCION, no las palabras exactas.` },
           return;
         }
         if (dirDistinta) state.direccion = dirNueva;
-        /* El barrio y el domicilio cuelgan de la direccion: se recalculan. */
+        /* El barrio y el domicilio cuelgan de la direccion: se recalculan.
+           Y el conjunto entendido tambien: era de la direccion vieja. */
         state.barrio = barNuevo || null;
+        state.lugar_conjunto = null;
         /* `domi_mostrado` no es un campo del estado sino algo que escribe el
            resumen; se limpia por el mismo camino por el que se escribe. */
         (state as unknown as Record<string, unknown>).domi_mostrado = null;
@@ -3625,11 +3630,14 @@ INTENCION, no las palabras exactas.` },
     /* Se mira la ubicacion COMPLETA (barrio + direccion), no solo la
        direccion: el nombre del conjunto puede venir en cualquiera de las dos. */
     const ubic = ubicacionPedido(state);
-    if (sueneAConjunto(ubic)
+    if ((conjuntoSegunPaco(state) || sueneAConjunto(ubic))
         && !esConjunto(ubic, domiciliosCfg)
         && !LLEVAR_REGEX.test(ubic.toLowerCase())
         && lookupDomiPrice(ubic, domiciliosCfg) === null) {
-      const nombreConj = (sueneAConjunto(state.direccion || "") ? state.direccion : ubic)
+      /* El nombre que entendio el lector es el bueno: viene limpio ("camino
+         viejo"), sin la unidad ni el "A" del mensaje. El recorte por regex
+         queda para cuando solo el respaldo detecto. */
+      const nombreConj = conjuntoSegunPaco(state) || (sueneAConjunto(state.direccion || "") ? state.direccion : ubic)
         /* Si el pedido y la direccion vinieron en el MISMO mensaje ("me das
            una premium... para Villa Ernesto Torre 3"), el nombre es lo que
            va despues del ultimo "para": sin este corte se proponia el
@@ -3685,7 +3693,7 @@ INTENCION, no las palabras exactas.` },
          Si el mensaje DICE conjunto (o torre, edificio, apto...), se trata como
          conjunto aunque no este registrado. La lista sirve para saber el
          NOMBRE bonito; la palabra basta para saber que no tiene calle. */
-      const pareceConj = !!conjNom || sueneAConjunto(ubicacionPedido(state));
+      const pareceConj = !!conjNom || !!conjuntoSegunPaco(state) || sueneAConjunto(ubicacionPedido(state));
       const numCount = (state.direccion.match(/\d+/g) || []).length;
       /* NO SE PREGUNTA POR TORRE: se pregunta ABIERTO.
 
@@ -3733,6 +3741,7 @@ INTENCION, no las palabras exactas.` },
          (`esConjunto`) y no contra lo que el cliente dijo. */
       if (!tieneCalle && !tieneNumeroBis && domiPrecioBis !== null
           && !esConjunto(ubicacionPedido(state), domiciliosCfg)
+          && !conjuntoSegunPaco(state)
           && !sueneAConjunto(ubicacionPedido(state))) {
         // Solo dio el barrio sin calle ni número — pedir la dirección completa
         const pregCalle = getFraseTexto(frasesCfg.preguntar_calle_numero)
@@ -4154,7 +4163,7 @@ INTENCION, no las palabras exactas.` },
            conjunto/torre/edificio, se trata como conjunto aunque no este en la
            lista del restaurante. Esta es la rama que de verdad contesto en el
            caso de Sneider. */
-        const pareceConjH = !!conjNomH || sueneAConjunto(ubicacionPedido(state));
+        const pareceConjH = !!conjNomH || !!conjuntoSegunPaco(state) || sueneAConjunto(ubicacionPedido(state));
         const pregDetallada = pareceConjH
           ? (conjNomH
               ? `¡Listo, ${conjNomH}! 😊 ¿En qué casa o apartamento te lo dejamos?`
@@ -4182,6 +4191,7 @@ INTENCION, no las palabras exactas.` },
            pidio una carrera que no existe. */
         if (!tieneCalleH && !tieneNumH && domiPrecioH !== null
             && !esConjunto(ubicacionPedido(state), domiciliosCfg)
+            && !conjuntoSegunPaco(state)
             && !sueneAConjunto(ubicacionPedido(state))) {
           const pregCalle = getFraseTexto(frasesCfg.preguntar_calle_numero)
             || "Anotado el barrio 📍 ¿Y cuál es la dirección exacta? (calle o carrera y número)";
@@ -4274,7 +4284,7 @@ INTENCION, no las palabras exactas.` },
            El bot no lo acepta solo porque un conjunto sin zona no tiene precio
            de domicilio: aceptarlo a ciegas seria cobrar mal o no cobrar. */
         let motivo = `No hay precio de domicilio configurado para: ${state.direccion}`;
-        if (sueneAConjunto(state.direccion)) {
+        if (conjuntoSegunPaco(state) || sueneAConjunto(state.direccion)) {
           /* El nombre del conjunto es lo que va ANTES de la unidad: de
              "torres del bosque torre 3 apto 603" se propone "torres del
              bosque", no la direccion entera con el apartamento de un cliente.
@@ -5555,6 +5565,13 @@ type PedidoLeido = {
      diga las cosas de manera totalmente diferente, esto es lo que lo
      entiende; el capturador de palabras queda solo de respaldo. */
   nota?: string;
+  /* EL CONJUNTO ENTENDIDO, no cazado por palabras (22-ago, MISMO pedido de
+     Sergio). "A condOminio camino viejo, casa 9 manzana g": la tilde dejo
+     ciego al regex y Paco pregunto el barrio a quien acababa de nombrar su
+     conjunto. La palabra exacta no importa — importa la INTENCION de nombrar
+     una vivienda con unidad y sin calle. El lector la entiende; el regex
+     sueneAConjunto queda de respaldo para cuando el lector no llene esto. */
+  conjunto?: string | null;
   /* UNA ADICION EN OTRO TAMAÑO (22-ago-2026, caso real de Yubeli).
      Dentro de una salchipapa familiar solo caben adiciones familiares: asi
      esta armada la carta. Cuando el cliente pide una adicion de OTRO tamaño,
@@ -5638,6 +5655,7 @@ Devuelve SOLO este JSON con lo que ESTE mensaje aporta (omite lo que no diga):
 {"producto":string|null,"cantidad":number|null,"tamano":string|null,
  "variantes":[string],"adiciones":[string],"direccion":string|null,
  "barrio":string|null,"nombre":string|null,"pago":string|null,"quitar":[string],
+ "conjunto":string|null,
  "adicion_otro_tamano":{"nombre":string,"tamano":string}|null,
  "nota":string|null}
 
@@ -5653,6 +5671,13 @@ REGLAS:
 - "nombre" SOLO si de verdad está diciendo a nombre de quién va el pedido.
 - "direccion" es calle/carrera con números. Un barrio SOLO ("Bellavista") va en
   "barrio", NO en "direccion".
+- "conjunto": si la ubicación es un lugar residencial CON NOMBRE y con unidad
+  (casa, manzana, torre, apto, bloque) y SIN calle ni carrera, pon SOLO el
+  nombre del lugar. "condóminio camino viejo casa 9 manzana g" ->
+  {"conjunto":"camino viejo","direccion":"casa 9 manzana g"}. Da igual qué
+  palabra use o cómo la escriba (condominio, unidad, torres, mal escrito, o
+  sin decir ninguna): lo que importa es la INTENCIÓN de nombrar su vivienda.
+  Si hay calle o carrera con números, NO es conjunto y esto va null.
 - Si el mensaje trae dirección Y barrio juntos, sepáralos en sus dos campos.
 - "adiciones": lo que quiere que le PONGAN al plato. Un plato aparte va en "producto".
   SOLO es adición si el cliente la nombró como palabra propia. JAMÁS saques una
@@ -6065,6 +6090,19 @@ function validarLeido(
     }
   }
 
+  /* EL CONJUNTO QUE EL LECTOR ENTENDIO. Con rastro en el texto (el nombre
+     tiene que estar escrito ahi) para que un invento del modelo no cree
+     conjuntos fantasma; y sin nombres de productos ni calles. */
+  if (leido.conjunto) {
+    const c = String(leido.conjunto).trim().slice(0, 40);
+    const cNorm = normalizarTexto(c);
+    if (c.length >= 3 && cNorm && normalizarTexto(texto).includes(cNorm)
+        && !mencionaProductoCatalogo(c) && !CALLE_REGEX.test(c)) {
+      out.lugar_conjunto = c;
+      console.log('[lector] conjunto entendido: "' + c + '"');
+    }
+  }
+
   /* DIRECCION: tiene que traer via y numero. Un barrio suelto no es una
      direccion — es lo que fallo con "Bellavista".
      EXCEPCION (15-ago, trampa de Sergio): un CONJUNTO no tiene calle.
@@ -6075,7 +6113,7 @@ function validarLeido(
     const d = String(leido.direccion).trim();
     const domIns = (cfgGlobal.domicilios as Record<string, unknown>) || null;
     if (analizarDireccion(d).tieneVia) out.direccion = d;
-    else if (esConjunto(d, domIns) || (sueneAConjunto(d) && /\d/.test(d))) out.direccion = d;
+    else if (out.lugar_conjunto || esConjunto(d, domIns) || (sueneAConjunto(d) && /\d/.test(d))) out.direccion = d;
     else {
       /* El lector a veces SEPARA: barrio="Asturias", direccion="casa 3b".
          Si el barrio es un conjunto conocido y esto es su unidad, la
@@ -9516,6 +9554,15 @@ async function proponerConjunto(
   } catch (err) {
     console.error("proponerConjunto:", err);
   }
+}
+
+/* PRIMERO LO QUE EL LECTOR ENTENDIO, luego el regex de respaldo. Este es el
+   orden que pidio Sergio ("siempre debe entender intenciones"): el modelo
+   decide con contexto; el comparador de palabras solo ataja lo que el modelo
+   no alcanzo a llenar. */
+function conjuntoSegunPaco(state: PacoState): string | null {
+  const c = state.lugar_conjunto;
+  return (typeof c === "string" && c.trim().length >= 3) ? c.trim() : null;
 }
 
 function sueneAConjunto(text: string): boolean {

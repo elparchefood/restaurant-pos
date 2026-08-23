@@ -3,6 +3,34 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🏗️ El conjunto se ENTIENDE, no se caza por palabras (motor v355) — 22-ago-2026
+
+Sergio, al ver el arreglo v354: *"¿nuevamente falló por comparar texto? ya
+habíamos quedado en que Paco debía detectar intenciones, no texto exacto"*.
+Tiene razón: la tilde era el síntoma. La causa era que la decisión "esto es
+un conjunto" vivía SOLO en la capa de regex — al lector con IA nunca se le
+preguntó qué TIPO de lugar es.
+
+**El arreglo, con la misma arquitectura de la nota de cocina (21-ago):**
+
+- El lector devuelve un campo nuevo **`conjunto`**: el nombre del lugar
+  cuando el cliente nombra su vivienda con unidad (casa/manzana/torre) y sin
+  calle — *sin importar qué palabra use ni cómo la escriba*. La regla del
+  prompt lo dice explícito: "lo que importa es la INTENCIÓN de nombrar su
+  vivienda".
+- `validarLeido` lo acepta solo **con rastro en el texto** (anti-invento),
+  sin nombres de producto y sin calles → queda en `state.lugar_conjunto`.
+- **Los 7 sitios** que decidían con `sueneAConjunto` (proponer conjunto,
+  no pedir calle, preguntar casa/apto, el motivo del handoff) consultan
+  primero `conjuntoSegunPaco(state)`; el regex queda de **respaldo** para
+  cuando el lector no llene el campo.
+- El nombre que entendió el lector es el que se propone para aprobar (viene
+  limpio, sin la unidad ni el "A" del mensaje).
+- Si el cliente corrige la dirección, `lugar_conjunto` se limpia con ella.
+
+El regex mejorado de v354 (tildes, typo, "nombre + casa sin vía") **no se
+quitó**: ahora es la red de seguridad, no el decisor.
+
 ## 🔴→🟢 Paco preguntó el barrio a quien dijo "condóminio... casa 9 manzana g" (motor v354) — 22-ago-2026
 
 *"A condóminio camino viejo, casa 9 manzana g"*. Paco: *"¿Y en qué barrio
