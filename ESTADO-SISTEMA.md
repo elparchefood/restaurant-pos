@@ -3,6 +3,35 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 Después de crear el pedido, Paco olvidaba que existía (motor v357) — 22-ago-2026
+
+David confirmó su pedido y UN minuto después preguntó *"¿cuánto se demora mi
+pedido?"*. Paco: *"¿Qué se te antoja?"* — lo atendió como cliente nuevo. Y a
+su segundo intento (*"Nada muchas gracias solo quiero saber cuánto se
+demora"*) le contestó con la frase de despedida.
+
+**Tres causas, tres arreglos:**
+
+1. **El contexto se iba con el estado.** Al crear el pedido, el estado del
+   flujo se limpia (correcto: es para el próximo pedido) — pero con él se iba
+   todo el recuerdo. Ahora, cuando el cliente escribe sin pedido en curso, el
+   motor recupera el pedido ACTIVO de la conversación (order_id → estado,
+   contenido, total, minutos) y se lo entrega al MODELO como contexto: la
+   intención la decide el modelo, no un regex de "demora|estado". Incluye la
+   demora REAL: el promedio de cocina de los últimos pedidos medidos en
+   `pos_domi_tiempos` (hoy ~28 min) — nunca un número inventado; sin datos,
+   no se promete tiempo. Se apaga solo: pedido entregado, cancelado o de hace
+   más de 6 horas.
+2. **La palabra "pedido" disparaba la carta.** "mi pedido" casaba con la
+   rama de intención de pedir. Con pedido recién hecho, pedido nuevo solo si
+   nombra un producto de la carta o dice "otro/nuevo pedido".
+3. **Una pregunta no es una despedida.** "muchas gracias + pregunta" caía en
+   la rama de despedida (guardas: pedir/confirma/carta, pero no pregunta).
+   Se agregó `intenciones.pregunta !== true` — el "gracias" era adorno.
+
+En el prompt, el contexto del pedido hecho MANDA sobre las frases genéricas
+de saludo/agradecimiento ("¿Qué se te antoja?"). **Motor v357.**
+
 ## 🔴→🟢 Paco enmudecía con los clientes "sin nomenclatura" (motor v356) — 22-ago-2026
 
 Sandra (San Bernardino, barrio marcado *sin nomenclatura*): pidió todo en un

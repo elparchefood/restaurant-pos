@@ -1372,8 +1372,13 @@ INTENCION, no las palabras exactas.` },
      confirma algo, no es despedida; y con un PEDIDO EN CURSO el "no gracias"
      esta cerrando el upsell o un paso, no la conversacion — el flujo sigue
      (la regresion del banco lo probo: cortaba el pedido a mitad). */
+  /* Y UNA PREGUNTA TAMPOCO ES DESPEDIDA (22-ago, caso de David): "Nada
+     muchas gracias solo quiero saber cuanto se demora mi pedido" se despidio
+     con la frase de cortesia y la pregunta quedo sin contestar. Si el lote
+     pregunta algo, se atiende la pregunta; el "gracias" era adorno. */
   if (intenciones.despedida === true && !soloSaludoLote && intenciones.pedir !== true
       && intenciones.confirma !== true && intenciones.carta !== true
+      && intenciones.pregunta !== true
       && !(Array.isArray(intenciones.agregados) && (intenciones.agregados as unknown[]).length > 0)) {
     /* El estado del pedido aun no esta cargado a esta altura (se carga mas
        abajo), asi que se consulta SOLO cuando la intencion ya es despedida:
@@ -2248,6 +2253,54 @@ INTENCION, no las palabras exactas.` },
   const horariosText   = buildHorariosText(horariosCfg, fmtHora);
   const pagosText      = buildPagosText(pagosCfg);
   const domiciliosText = buildDomiciliosText(domiciliosCfg);
+
+  /* ══ EL PEDIDO YA HECHO ES CONTEXTO VIVO (22-ago-2026, pedido de Sergio) ══
+     David pregunto "¿cuanto se demora mi pedido?" UN minuto despues de
+     confirmar, y Paco le contesto "¿Que se te antoja?" como a un extrano.
+     Por que: al crear el pedido, el estado del flujo se limpia (correcto: es
+     para el proximo pedido) y con el se iba TODO el recuerdo; y la palabra
+     "pedido" de "mi pedido" encima disparaba la rama de cliente nuevo.
+
+     Aqui se recupera el pedido ACTIVO de la conversacion y se le entrega al
+     modelo como contexto. La intencion la decide el MODELO, no un regex de
+     "demora|estado|donde va": pregunte como pregunte, contesta con datos. */
+  if (!state.producto && (state.items || []).length === 0) try {
+    const cPed = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=order_id&limit=1`) as Array<Record<string, unknown>> | null;
+    const oidPed = cPed?.[0]?.order_id;
+    if (oidPed) {
+      const pedR = await sbGet(`/rest/v1/pos_orders?id=eq.${oidPed}&select=status,estado,delivery_status,opened_at,total_final,total&limit=1`) as Array<Record<string, unknown>> | null;
+      const p = pedR?.[0];
+      const minsPed = p?.opened_at ? Math.round((Date.now() - new Date(String(p.opened_at)).getTime()) / 60000) : 99999;
+      const vivo = !!p && p.status !== "cancelled" && p.delivery_status !== "entregado"
+        && String(p.estado || "") !== "entregado" && minsPed < 360;
+      if (vivo) {
+        const itsPed = await sbGet(`/rest/v1/pos_order_items?order_id=eq.${oidPed}&select=quantity,name,product_name&limit=12`) as Array<Record<string, unknown>> | null;
+        const listaPed = (itsPed || []).map(i => `${i.quantity}x ${String(i.name || i.product_name || "")}`.trim())
+          .filter(x => x.length > 3).join(", ");
+        const enCamino = String(p.estado || "") === "en_camino" || String(p.delivery_status || "") === "en_camino";
+        /* La demora que se dice es el promedio REAL de la cocina (lo que
+           midieron los ultimos pedidos en pos_domi_tiempos), no un numero
+           inventado. Sin datos suficientes, no se promete tiempo. */
+        let demoraPed = "";
+        try {
+          const tPed = await sbGet(`/rest/v1/pos_domi_tiempos?branch_id=eq.${branchId}&estado=eq.en_preparacion&select=segundos&order=created_at.desc&limit=30`) as Array<Record<string, unknown>> | null;
+          if (tPed && tPed.length >= 5) {
+            const promPed = Math.round(tPed.reduce((a, x) => a + Number(x.segundos || 0), 0) / tPed.length / 60);
+            if (promPed >= 5 && promPed <= 120) demoraPed = ` La cocina viene tardando unos ${promPed} minutos en promedio (dato real de los ultimos pedidos).`;
+          }
+        } catch (_e) { /* sin promedio se contesta igual, sin prometer tiempo */ }
+        const totPed = Number(p.total_final || p.total || 0);
+        (cfg as Record<string, unknown>)._pedidoHecho =
+          `EL CLIENTE YA TIENE UN PEDIDO HECHO EN ESTA CONVERSACION: lo confirmo hace ${minsPed} minutos y ` +
+          (enCamino ? "YA VA EN CAMINO" : "esta EN PREPARACION") +
+          (listaPed ? ` (${listaPed})` : "") +
+          (totPed > 0 ? `, total $${totPed.toLocaleString("es-CO")}` : "") + "." + demoraPed + "\n" +
+          "Si pregunta CUALQUIER cosa de su pedido (cuanto demora, en que va, que pidio, ya salio): contestale con ESTOS datos, calido y concreto" +
+          (enCamino ? "" : ", y dile que le avisamos apenas salga en camino") +
+          ". NUNCA lo atiendas como si fuera a pedir desde cero: no le ofrezcas la carta ni le preguntes que se le antoja — salvo que EL diga que quiere pedir algo mas (ahi si, tomale el pedido nuevo con normalidad).";
+      }
+    }
+  } catch (_e) { /* sin este contexto Paco contesta como antes; no bloquear */ }
 
   /* ── ESPERANDO EL CODIGO DE LA BILLETERA (20-ago-2026) ────────────────
      El pago quedo a un codigo de distancia: lo unico que puede pasar aqui es
@@ -3964,7 +4017,14 @@ INTENCION, no las palabras exactas.` },
     const INTENCION_PEDIDO_RE = /(quier[oe]|quisiera|me\s+das|me\s+regalas|me\s+haces|dame|deseo|se\s+me\s+antoja|antojo|ped(ir|ido)|ordenar|env[ií]ame|hazme|para\s+comer|d[ée]jame)/i;
     // También cuenta como intención: "una/un <producto o categoría del catálogo>" (dinámico por restaurante)
     const intencionPorCatalogo = /\b(una?|unos?|alg[uú]n[ao]?)\s/i.test(clienteTexto) && mencionaProductoCatalogo(clienteTexto);
-    if (mostrarMenuImg && menuImagenes.length > 0 && (INTENCION_PEDIDO_RE.test(clienteTexto) || intencionPorCatalogo)) {
+    /* Con un pedido recien hecho, "mi pedido" NO son ganas de pedir otra vez
+       — era justo la palabra que mandaba a David a la carta. Pedido nuevo
+       solo si nombra un producto de la carta o dice "otro/nuevo pedido";
+       todo lo demas lo contesta el modelo con el contexto del pedido hecho. */
+    const hablaDeSuPedido = !!(cfg as Record<string, unknown>)._pedidoHecho
+      && !mencionaProductoCatalogo(clienteTexto)
+      && !/\b(otro|nuevo|otra)\s+pedido\b/i.test(clienteTexto);
+    if (mostrarMenuImg && menuImagenes.length > 0 && !hablaDeSuPedido && (INTENCION_PEDIDO_RE.test(clienteTexto) || intencionPorCatalogo)) {
       const menuFraseCfg14f = (cfg.menu_frase as Record<string, string>) || {};
       const fraseProdRaw = (pasoProdMenu && (pasoProdMenu.texto || pasoProdMenu.frase))
         ? String(pasoProdMenu.texto || pasoProdMenu.frase)
@@ -7708,6 +7768,12 @@ async function buildConversationResponse(
     }
   } else if (state.producto) {
     nextStepLine = "Todos los datos del pedido están completos. Informa al cliente que en un momento le envías el resumen para confirmar.";
+  } else if ((cfg as Record<string, unknown>)._pedidoHecho) {
+    /* El cliente no esta pidiendo: ACABA de pedir. Esta instruccion manda
+       sobre las frases genericas de saludo/agradecimiento de mas abajo —
+       "gracias, ¿cuanto demora?" merece una respuesta sobre SU pedido, no
+       un "¿que se te antoja?". */
+    nextStepLine = String((cfg as Record<string, unknown>)._pedidoHecho);
   } else {
     // Cliente aún sin producto. La frase y el comportamiento salen del NODO PRODUCTO del
     // canvas (paso con campo="producto" en flujo_pasos); fallback: menu_frase / apertura.
