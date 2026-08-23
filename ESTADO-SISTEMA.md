@@ -3,6 +3,49 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 El conjunto se sabe por INTENCIÓN, y la nota ya no se repite (v372) — 23-ago-2026
+
+Sergio, sobre la pregunta "¿es casa o conjunto?": *"no es necesario así.*
+*Cualquier dirección que tenga número de casa o apartamento —casa 21, casa 8B,*
+*apartamento 28 torre tal— es obviamente conjunto. Si es nomenclatura normal,*
+*es barrio normal."* Y la condición: ***"¿qué es mejor que detecte la*
+*intención? No lo vayas a colocar un comparativo de palabras porque ahí sí se*
+*va a equivocar."***
+
+### Saber que es un conjunto no es saber CUÁL
+A "casa 21" o "apartamento 28 torre 5" Paco preguntaba *"¿y en qué barrio*
+*queda esa dirección?"* — **la pregunta equivocada**. Quien dice "casa 21"
+vive en un conjunto; lo que falta es el NOMBRE del lugar.
+
+Campo nuevo del lector **`es_conjunto`** (la INTENCIÓN, separada de
+`conjunto`, que es el nombre): *"true si describe su vivienda por UNIDAD —
+casa, apartamento, torre, bloque, manzana con su número— aunque NO diga el
+nombre. Nadie describe así una casa de barrio."* El regex queda de respaldo,
+nunca de decisor.
+
+Con eso: se acepta la unidad como dirección aunque el conjunto no esté
+registrado, y se pregunta **"¿Cómo se llama el conjunto o edificio? 🏢"**
+(configurable en el paso, `preg_conjunto`).
+
+> ⚠️ **Atrapado en el banco antes de que llegara a un cliente:** la primera
+> versión usaba `frasesCfg` dentro de `findNextStep`, donde **no existe** — es
+> parámetro de otra función. Compilaba sin quejarse y **mataba el turno en
+> silencio**: Paco dejaba de contestar. La frase salió del paso, como
+> `preg_barrio`. Es la tercera vez que esto muerde: *compilar no es funcionar.*
+
+### La nota ya no sale repetida en la comanda
+Salía *"papas bien doradas, salsas aparte, papas bien doraditas, salsa*
+*aparte"*: el lector normaliza y el respaldo de texto guarda lo literal, y como
+no son iguales letra por letra, las dos pasaban. Ahora se comparan por sus
+palabras largas y su raíz. Probado que **no se pisan** dos notas de verdad
+distintas ("sin cebolla" vs "sin cebolla en la de mi hijo").
+
+### Regresión final (6 casos, motor v372)
+cobro doble `$27.000` · adición legítima `$38.000` · nota sin repetir y
+`$28.000` · Yubeli `$73.000` · conjunto sin nombre pregunta cuál · flujo
+completo Premium Mixta Familiar `$70.000` y cierra con el pago. **Cero pedidos
+creados** y cero conversaciones de prueba al terminar.
+
 ## 🔴→🟢 Tres fallos hallados en el banco y corregidos (motor v368) — 23-ago-2026
 
 Sergio pidió repetir en el banco los errores de estos días. Los arreglos

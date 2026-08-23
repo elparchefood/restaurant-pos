@@ -54,6 +54,8 @@ interface PacoState {
   /* El conjunto que el LECTOR entendio (intencion, no palabras). Cuando esta
      lleno, manda sobre el regex sueneAConjunto en todas las decisiones. */
   lugar_conjunto?:    string | null;
+  /* Sabemos que vive en un conjunto pero todavia no cual. */
+  es_conjunto?:       boolean;
   pago:               string | null;
   nombre:             string | null;
   /* EL TELEFONO, SOLO EN INSTAGRAM Y MESSENGER (22-ago-2026). En WhatsApp el
@@ -133,6 +135,7 @@ interface PasoDefinicion {
   // Sub-preguntas del paso dirección (configurables desde el nodo del canvas)
   preg_incompleta?: string;  // qué preguntar si la dirección está incompleta
   preg_barrio?:     string;  // qué preguntar si falta el barrio
+  preg_conjunto?:   string;  // qué preguntar si falta el NOMBRE del conjunto
 }
 
 type TipoDireccion = "residencial" | "publico" | "rechazado" | "incompleta" | "para_llevar";
@@ -3941,7 +3944,7 @@ INTENCION, no las palabras exactas.` },
          Si el mensaje DICE conjunto (o torre, edificio, apto...), se trata como
          conjunto aunque no este registrado. La lista sirve para saber el
          NOMBRE bonito; la palabra basta para saber que no tiene calle. */
-      const pareceConj = !!conjNom || !!conjuntoSegunPaco(state) || sueneAConjunto(ubicacionPedido(state));
+      const pareceConj = !!conjNom || viveEnConjunto(state) || sueneAConjunto(ubicacionPedido(state));
       const numCount = (state.direccion.match(/\d+/g) || []).length;
       /* NO SE PREGUNTA POR TORRE: se pregunta ABIERTO.
 
@@ -3989,7 +3992,7 @@ INTENCION, no las palabras exactas.` },
          (`esConjunto`) y no contra lo que el cliente dijo. */
       if (!tieneCalle && !tieneNumeroBis && domiPrecioBis !== null
           && !esConjunto(ubicacionPedido(state), domiciliosCfg)
-          && !conjuntoSegunPaco(state)
+          && !viveEnConjunto(state)
           && !sueneAConjunto(ubicacionPedido(state))) {
         // Solo dio el barrio sin calle ni número — pedir la dirección completa
         const pregCalle = getFraseTexto(frasesCfg.preguntar_calle_numero)
@@ -4418,7 +4421,7 @@ INTENCION, no las palabras exactas.` },
            conjunto/torre/edificio, se trata como conjunto aunque no este en la
            lista del restaurante. Esta es la rama que de verdad contesto en el
            caso de Sneider. */
-        const pareceConjH = !!conjNomH || !!conjuntoSegunPaco(state) || sueneAConjunto(ubicacionPedido(state));
+        const pareceConjH = !!conjNomH || viveEnConjunto(state) || sueneAConjunto(ubicacionPedido(state));
         const pregDetallada = pareceConjH
           ? (conjNomH
               ? `¡Listo, ${conjNomH}! 😊 ¿En qué casa o apartamento te lo dejamos?`
@@ -4446,7 +4449,7 @@ INTENCION, no las palabras exactas.` },
            pidio una carrera que no existe. */
         if (!tieneCalleH && !tieneNumH && domiPrecioH !== null
             && !esConjunto(ubicacionPedido(state), domiciliosCfg)
-            && !conjuntoSegunPaco(state)
+            && !viveEnConjunto(state)
             && !sueneAConjunto(ubicacionPedido(state))) {
           const pregCalle = getFraseTexto(frasesCfg.preguntar_calle_numero)
             || "Anotado el barrio 📍 ¿Y cuál es la dirección exacta? (calle o carrera y número)";
@@ -5827,6 +5830,14 @@ type PedidoLeido = {
      una vivienda con unidad y sin calle. El lector la entiende; el regex
      sueneAConjunto queda de respaldo para cuando el lector no llene esto. */
   conjunto?: string | null;
+  /* SABER QUE ES UN CONJUNTO NO ES SABER CUAL (23-ago-2026, pedido de
+     Sergio). "casa 21" o "apartamento 28 torre 5" ya dicen que la persona
+     vive en un conjunto —nadie describe asi una casa de barrio— pero no
+     dicen su nombre. Antes eso caia en "preguntale el barrio", que es la
+     pregunta equivocada: lo que falta es el NOMBRE del conjunto.
+     Va aparte de `conjunto` justo por eso: uno es la intencion, el otro el
+     nombre, y pueden venir por separado. */
+  es_conjunto?: boolean;
   /* UNA ADICION EN OTRO TAMAÑO (22-ago-2026, caso real de Yubeli).
      Dentro de una salchipapa familiar solo caben adiciones familiares: asi
      esta armada la carta. Cuando el cliente pide una adicion de OTRO tamaño,
@@ -5910,7 +5921,7 @@ Devuelve SOLO este JSON con lo que ESTE mensaje aporta (omite lo que no diga):
 {"producto":string|null,"cantidad":number|null,"tamano":string|null,
  "variantes":[string],"adiciones":[string],"direccion":string|null,
  "barrio":string|null,"nombre":string|null,"pago":string|null,"quitar":[string],
- "conjunto":string|null,
+ "conjunto":string|null,"es_conjunto":bool,
  "adicion_otro_tamano":{"nombre":string,"tamano":string}|null,
  "nota":string|null}
 
@@ -5933,6 +5944,13 @@ REGLAS:
   palabra use o cómo la escriba (condominio, unidad, torres, mal escrito, o
   sin decir ninguna): lo que importa es la INTENCIÓN de nombrar su vivienda.
   Si hay calle o carrera con números, NO es conjunto y esto va null.
+- "es_conjunto": true si la persona está describiendo su vivienda por UNIDAD
+  —casa, apartamento, torre, bloque, manzana, interior con su número— aunque
+  NO diga el nombre del lugar. "casa 21", "apartamento 28 torre 5", "torre B
+  apto 402" -> true (y "conjunto" va null porque no dijo cuál). Nadie describe
+  así una casa de barrio: quien dice "casa 21" vive en un conjunto.
+  Si da calle o carrera con números, es nomenclatura normal -> false.
+  Si dice el nombre Y la unidad, es true y además llenas "conjunto".
 - Si el mensaje trae dirección Y barrio juntos, sepáralos en sus dos campos.
 - "adiciones": lo que quiere que le PONGAN al plato. Un plato aparte va en "producto".
   SOLO es adición si el cliente la nombró como palabra propia. JAMÁS saques una
@@ -6360,6 +6378,9 @@ function validarLeido(
   /* EL CONJUNTO QUE EL LECTOR ENTENDIO. Con rastro en el texto (el nombre
      tiene que estar escrito ahi) para que un invento del modelo no cree
      conjuntos fantasma; y sin nombres de productos ni calles. */
+  /* La INTENCION de estar en un conjunto, aunque no haya dicho cual. */
+  if (leido.es_conjunto === true) out.es_conjunto = true;
+
   if (leido.conjunto) {
     const c = String(leido.conjunto).trim().slice(0, 40);
     const cNorm = normalizarTexto(c);
@@ -6562,10 +6583,26 @@ function runExtractors(
       const previas = state.preferencias ? state.preferencias + ", " : "";
       const juntas = (previas + pref).split(", ");
       const vistas: Record<string, boolean> = {};
+      /* LA MISMA NOTA DICHA DE DOS FORMAS ES UNA SOLA (23-ago-2026, banco).
+         La comanda salia "papas bien doradas, salsas aparte, papas bien
+         doraditas, salsa aparte": el lector normaliza ("doradas") y el
+         respaldo de texto guarda lo literal ("doraditas"), y como no son
+         iguales letra por letra, las dos pasaban.
+
+         Se comparan por sus palabras LARGAS y por su raiz, no por el texto
+         exacto: "papas bien doradas" y "papas bien doraditas" comparten
+         papa+bien+dorad. Dos notas de verdad distintas ("sin cebolla" y "sin
+         cebolla en la de mi hijo") NO se pisan, porque la segunda trae
+         palabras que la primera no tiene. */
+      const raiz = (x: string): string => normalizarTexto(x).split(/\s+/)
+        .filter(w => w.length >= 4).map(w => w.slice(0, 5)).sort().join("-");
       const unicas = juntas.filter(x => {
         const k = normalizarTexto(x);
         if (!k || vistas[k]) return false;
+        const r = raiz(x);
+        if (r && vistas["r:" + r]) return false;
         vistas[k] = true;
+        if (r) vistas["r:" + r] = true;
         return true;
       });
       result.preferencias = unicas.join(", ");
@@ -6816,8 +6853,15 @@ function runExtractors(
        quedaba dando vueltas: se le preguntaba, contestaba bien, y su respuesta
        se tiraba a la basura. Con el conjunto ya sabido, la unidad es lo unico
        que falta y es suficiente. */
+    /* Y TAMBIEN CUANDO SABEMOS QUE VIVE EN UN CONJUNTO AUNQUE NO CUAL
+       (23-ago-2026). "casa 21" a secas no pasaba: el extractor busca una
+       direccion de verdad y la rama de abajo solo servia con el conjunto YA
+       registrado. Pero quien contesta "casa 21" esta dando su direccion —eso
+       lo entiende el lector (es_conjunto), no una lista de palabras— y el
+       nombre del conjunto se le pregunta despues. */
     if (!result.direccion && isDirStep && !state.direccion
-        && esConjunto(ubicacionPedido(state), (cfgGlobal.domicilios as Record<string, unknown> | null | undefined))) {
+        && (esConjunto(ubicacionPedido(state), (cfgGlobal.domicilios as Record<string, unknown> | null | undefined))
+            || result.es_conjunto === true || state.es_conjunto === true)) {
       const unidad = text.trim()
         .replace(/^(en\s+la\s+|en\s+el\s+|es\s+la\s+|es\s+el\s+|la\s+|el\s+|en\s+)+/i, "")
         .replace(/[.,;!?]+$/, "").trim();
@@ -7005,14 +7049,32 @@ function findNextStep(state: PacoState, pasos: PasoDefinicion[], incluirPostResu
          precio esta resuelto y preguntar seria hacerle perder el tiempo. */
       if (!state.barrio && !esRecoger && lookupDomiPrice(ubicacionPedido(state), domiciliosPaso) === null) {
         const modoBarrio = paso.modo === "fija" ? "fija" : "conversacional";
-        const fraseBarrio = paso.preg_barrio || "¿Y en qué barrio queda esa dirección? 📍";
+        /* SI YA SABEMOS QUE VIVE EN UN CONJUNTO, LA PREGUNTA ES CUAL
+           (23-ago-2026, pedido de Sergio). A "casa 21" o "apartamento 28
+           torre 5" se le preguntaba "¿y en que barrio queda esa direccion?",
+           y no es lo que falta: quien dice "casa 21" vive en un conjunto —eso
+           lo entiende el lector, no una lista de palabras— y lo que falta es
+           el NOMBRE del conjunto. Con el nombre se sabe la zona y el precio.
+           Si ya sabemos el nombre, esta rama no corre. */
+        const faltaNombreConj = viveEnConjunto(state) && !conjuntoSegunPaco(state)
+          && !esConjunto(ubicacionPedido(state), domiciliosPaso);
+        /* La frase sale del PASO (como preg_barrio), no de frasesCfg: aqui
+           dentro frasesCfg NO existe — es parametro de otra funcion, y
+           usarlo mataba el turno en silencio (23-ago, atrapado en el banco). */
+        const fraseBarrio = faltaNombreConj
+          ? (paso.preg_conjunto || "¿Cómo se llama el conjunto o edificio? 🏢")
+          : (paso.preg_barrio || "¿Y en qué barrio queda esa dirección? 📍");
         return modoBarrio === "fija"
           ? { id: "barrio", campo: "direccion", modo: "fija", texto: fraseBarrio }
           : { id: "barrio", campo: "direccion", modo: "conversacional", texto: fraseBarrio,
               guia: "PRIMERO responde a lo que el cliente acaba de decir. DESPUES, "
-                + "de forma natural, preguntale en que barrio queda — lo necesitas "
-                + "para saber cuanto cuesta el domicilio. Si ya se lo preguntaste, "
-                + "NO repitas la misma frase: dilo con otras palabras." };
+                + (faltaNombreConj
+                   ? "de forma natural, preguntale COMO SE LLAMA el conjunto o edificio "
+                     + "donde vive — ya te dijo la casa o el apartamento, lo que falta es "
+                     + "el nombre del lugar. JAMAS le preguntes en que barrio queda."
+                   : "de forma natural, preguntale en que barrio queda — lo necesitas "
+                     + "para saber cuanto cuesta el domicilio.")
+                + " Si ya se lo preguntaste, NO repitas la misma frase: dilo con otras palabras." };
       }
     } else if (paso.id === "preferencias") {
       if (!state.preferencias) return paso;
@@ -9954,6 +10016,14 @@ async function proponerConjunto(
 function conjuntoSegunPaco(state: PacoState): string | null {
   const c = state.lugar_conjunto;
   return (typeof c === "string" && c.trim().length >= 3) ? c.trim() : null;
+}
+
+/* ¿VIVE EN UN CONJUNTO? — sin importar si ya sabemos cual (23-ago-2026).
+   Manda lo que ENTENDIO el lector; el regex de abajo queda de respaldo, que
+   es el orden que pidio Sergio ("no lo vayas a colocar un comparativo de
+   palabras porque ahi si se va a equivocar"). */
+function viveEnConjunto(state: PacoState): boolean {
+  return state.es_conjunto === true || !!conjuntoSegunPaco(state);
 }
 
 function sueneAConjunto(text: string): boolean {
