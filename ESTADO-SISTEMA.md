@@ -3,6 +3,55 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 El tutorial de instalación: pantalla propia con el video — 23-ago-2026
+
+Es a donde cae el botón de la plantilla de WhatsApp que se le manda a quien se
+registró y **no** instaló la app. Se llega con `#instalar`:
+`https://cobrapos.app/elparchefood/#instalar`.
+
+**Por qué una pantalla nuestra y no un enlace a YouTube o a Drive.** El botón
+que instala de verdad solo funciona dentro del propio dominio — lo exige el
+navegador. Con el video en YouTube, la persona lo vería… y quedaría dentro de
+YouTube, teniendo que volver a WhatsApp y empezar otra vez. Aquí ve el video e
+instala en la misma pantalla. Drive es peor todavía: pide permisos y en iPhone
+insiste en abrir su propia app.
+
+**Los pasos escritos van debajo del video, y no se escriben dos veces.** Salen
+de `pasosInstalar()`, que ya existía y ya distingue iPhone, Android y estar
+dentro de Instagram. Así el video y las letras no se pueden contradecir, y el
+día que Apple mueva un menú se corrige en un solo sitio.
+
+Se pinta **antes** de pedir sesión: quien llega por ese enlace viene a aprender
+a instalar, no a entrar.
+
+**Dónde vive el video.** El archivo en Supabase Storage (`chat-media/tutorial/`),
+que ya era público. La *dirección* en el `index.html` de cada restaurante
+(`window.COBRA_TUTORIAL`), que es el único archivo propio de cada uno — la misma
+idea que `COBRA_SLUG`. Nada quemado en la aplicación: Cobra no es El Parche.
+
+**El video de iPhone ya está.** Sergio lo grabó en 4K (2160×3840, **31 MB**);
+reencodado a 720×1280 y **4 MB** — lo mismo de ver en un celular y ocho veces
+menos datos, con las letras igual de legibles (comprobado en un fotograma). Con
+`+faststart` arranca en 0,58 s. Medido en vivo: la caja queda en 283×503, misma
+proporción exacta que el video, sin una franja negra.
+
+**Falta el de Android.** Mientras esté vacío, a quien entre desde un Android no
+le sale ningún video: solo los pasos escritos, que para Android son otros.
+
+> Un fallo propio, corregido antes de publicar: `videoTutorial()` traía un
+> respaldo cruzado —si faltaba el de Android ponía el de iPhone—. Como los pasos
+> escritos sí salen bien por aparato, un usuario de Android habría visto un
+> video diciendo *"toca Compartir"* y justo debajo, en letras, *"toca los tres
+> puntos"*. Exactamente la contradicción que esta pantalla existe para evitar.
+
+La medida del recuadro también costó una corrección: con `max-height` la caja
+salía en 339×471 (proporción 0,72, no 9:16) y el video habría quedado con
+franjas a los lados. El tope se puso en el **ancho**, y en 62vh y no 70 para que
+el título de los pasos asome por debajo: con 70 caía 36 px fuera de la pantalla,
+y nadie baja a buscar lo que no sabe que existe.
+
+---
+
 ## 🔴→🟢 Auditoría de multimarca y permisos: cuatro fallos reales — 23-ago-2026
 
 Sergio pidió comprobar si **hoy** un restaurante que se registre puede crear su
