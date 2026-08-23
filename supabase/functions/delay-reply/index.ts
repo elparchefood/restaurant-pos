@@ -6197,6 +6197,18 @@ function validarLeido(
         const rn = normalizarTexto(r);
         // Ya es el sabor elegido: nombrarlo una vez fue para elegirlo.
         if (variantesElegidas.has(rn) && vecesQueLoDijo(r) < 2) return false;
+        /* NI SIQUIERA HACE FALTA QUE YA ESTE ELEGIDO (23-ago-2026, hallado en
+           el banco). "una salchipapa maicitos especial CON POLLO personal": el
+           lector devolvio el pollo SOLO en adiciones, sin ponerlo en variantes,
+           asi que no habia sabor elegido contra que compararlo y la regla de
+           arriba no podia actuar. Resultado: "Maicitos Especial Pollo + Pollo"
+           y $9.000 de mas.
+
+           Si TODAVIA no hay sabor elegido y la palabra es una opcion del grupo,
+           nombrarla una vez fue para ELEGIRLA — no para agregarla. En cuanto ya
+           hay uno elegido esto no aplica y manda la regla de arriba, que es la
+           que deja pasar "mixta con adicion de pollo". */
+        if (variantesElegidas.size === 0 && opcionesVar.has(rn) && vecesQueLoDijo(r) < 2) return false;
         // Es una opcion del grupo que el cliente nunca escribio: es la
         // explicacion del lector, no un pedido.
         if (opcionesVar.has(rn) && !conRastro(r)) return false;
@@ -6591,8 +6603,46 @@ function runExtractors(
     const esRespuestaVariante = !isUpsellStep && text.trim().length <= 25 &&
       (("tipo" in result) || ("tamano" in result));
     if (!esRespuestaVariante) {
-      const a = extractAdiciones(text, isUpsellStep, intenciones,
+      const a0 = extractAdiciones(text, isUpsellStep, intenciones,
         state.producto, (state.items || []).map(i => i.producto || ""));
+
+      /* EL SABOR DEL PLATO NO ES UNA ADICION (23-ago-2026, hallado en el
+         banco). "una salchipapa maicitos especial CON POLLO personal": el
+         conector "con" hace que el respaldo de texto lea "pollo" como
+         adicion, y el pollo existe ademas como adicion de $9.000. El pedido
+         salia "Maicitos Especial Pollo + Pollo" con $9.000 de mas.
+
+         El mismo candado que ya vive en validarLeido, aqui: si la palabra es
+         una OPCION del grupo de variantes de este plato y el cliente la dijo
+         UNA sola vez, fue para elegir el sabor. Dicha dos veces —"pollo con
+         adicion de pollo"— la segunda si es adicion. */
+      let a = a0;
+      if (a && productData?.variables?.length) {
+        const opts = new Set<string>();
+        for (const g of productData.variables) {
+          for (const o of (g.options || [])) if (o.name) opts.add(normalizarTexto(o.name));
+        }
+        const tNorm2 = normalizarTexto(text);
+        /* Se cuenta por PALABRAS, sin expresiones regulares: escapar un
+           nombre para meterlo en una regex ya nos ha roto el motor dos veces. */
+        const toks2 = tNorm2.split(/[^a-z0-9]+/).filter(Boolean);
+        const veces = (nom: string): number => {
+          const nn = normalizarTexto(nom).split(/\s+/).filter(Boolean);
+          if (!nn.length) return 0;
+          if (nn.length === 1) return toks2.filter(t => t === nn[0]).length;
+          /* Nombres de varias palabras ("super queso"): se cuenta por la
+             primera, que es la que el cliente repite. */
+          return toks2.filter(t => t === nn[0]).length;
+        };
+        const quedan = a.split(", ").filter(x => x && !(opts.has(normalizarTexto(x)) && veces(x) < 2));
+        if (quedan.length !== a.split(", ").filter(Boolean).length) {
+          console.log("[adiciones] descartada por ser el sabor del plato: "
+            + a.split(", ").filter(x => !quedan.includes(x)).join(", "));
+          /* Si se vacia, NO se deja "": eso diria que el cliente ya contesto
+             al ofrecimiento de adiciones, y no lo hizo. */
+          a = quedan.length ? quedan.join(", ") : null;
+        }
+      }
       if (a !== null) {
         /* UNA PALABRA QUE VIVE DENTRO DE LA NOTA NO ES UNA ADICION (banco,
            21-ago): "la salsa en un vasito aparte" agregaba una Salsa cobrada,
