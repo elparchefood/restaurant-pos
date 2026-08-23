@@ -241,12 +241,36 @@ const CAT_SINONIMOS: Record<string, string[]> = {
   pizza:       ["pizza", "pisa"],
   taco:        ["taco", "tacos"],
 };
+/* SINONIMOS QUE PONE EL PROPIO RESTAURANTE (23-ago-2026).
+
+   Los de arriba (hamburguesa, pizza, taco...) sirven para CUALQUIER negocio y
+   se quedan. Lo que faltaba era que un asadero pudiera enseñarle a Paco que a
+   su "Bandeja Paisa" la gente le dice "bandeja" o "paisa", o que un sushi
+   agregue "roll" y "maki" — sin tocar el codigo.
+
+   Vive en ia_config.sinonimos_categoria:
+     { "bandejas": ["bandeja","paisa","corrientazo"], "rollos": ["roll","maki"] }
+
+   La llave se compara NORMALIZADA contra el nombre de la categoria, asi que
+   da igual como la escriba el dueño (tildes, mayusculas, plural). */
+let DYN_CAT_SINONIMOS: Record<string, string[]> = {};
+
 function palabrasCategoria(cat: string): string[] {
-  const words = normalizarTexto(cat).split(/\s+/).map(w => w.replace(/s$/, "")).filter(w => w.length >= 4);
+  const catNorm = normalizarTexto(cat);
+  const words = catNorm.split(/\s+/).map(w => w.replace(/s$/, "")).filter(w => w.length >= 4);
   const out = new Set<string>(words);
   for (const w of words) {
     for (const [base, sins] of Object.entries(CAT_SINONIMOS)) {
       if (w.startsWith(base) || base.startsWith(w)) sins.forEach(s => out.add(normalizarTexto(s)));
+    }
+  }
+  /* Los del restaurante se suman a los universales, no los reemplazan: nadie
+     pierde lo que ya funcionaba por agregar una palabra suya. */
+  for (const [llave, sins] of Object.entries(DYN_CAT_SINONIMOS)) {
+    const k = normalizarTexto(llave);
+    if (!k) continue;
+    if (catNorm === k || catNorm.includes(k) || k.includes(catNorm)) {
+      for (const sx of sins) { const n2 = normalizarTexto(sx); if (n2.length >= 3) out.add(n2); }
     }
   }
   return [...out];
@@ -1064,6 +1088,13 @@ async function processConversation(convId: string, relectura = false): Promise<v
   /* Los grupos de modificadores, temprano: de ellos sale el vocabulario que
      necesita el clasificador para distinguir "una ranchera" de "con ranchera". */
   try { await cargarModificadores(branchId); } catch (e) { console.error("modificadores:", e); }
+  /* Los sinonimos que puso el dueño para SUS categorias. Van con los
+     modificadores porque los dos son vocabulario del restaurante. */
+  try {
+    const sc = (cfg as Record<string, unknown> | undefined)?.sinonimos_categoria;
+    DYN_CAT_SINONIMOS = (sc && typeof sc === "object" && !Array.isArray(sc))
+      ? sc as Record<string, string[]> : {};
+  } catch (_e) { DYN_CAT_SINONIMOS = {}; }
   try {
     const opRes = await sbGet(`/rest/v1/branches?id=eq.${branchId}&select=operacion_config&limit=1`);
     if (cfg) (cfg as Record<string, unknown>)._operacion = opRes?.[0]?.operacion_config ?? null;

@@ -646,7 +646,12 @@
     negocio: 'nombre del negocio', monto: 'lo que recargó',
     bono: 'el regalo', saldo: 'su saldo',
   };
-  var EJEMPLO = { negocio: 'El Parche Food', monto: '$50.000', bono: '$5.000', saldo: '$55.000' };
+  /* La vista previa se arma con el nombre del PROPIO restaurante: ver el de
+   otro negocio en el ejemplo de tus avisos es desconcertante (23-ago-2026). */
+  var EJEMPLO = {
+    negocio: (window.posBrandName ? posBrandName() : 'Tu restaurante'),
+    monto: '$50.000', bono: '$5.000', saldo: '$55.000',
+  };
 
   function avisosDelDueno() {
     var a = S.t.web_avisos;

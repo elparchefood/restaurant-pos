@@ -191,6 +191,65 @@ async function confirmarPorWhatsApp(orderId: string) {
   }
 }
 
+/* ══ EL DESGLOSE DEL PAGO (23-ago-2026) ═══════════════════════════════
+   La caja saca el reparto por metodo de `pos_payments` (caja.js →
+   loadPagosPorMetodo). La caja y el chat siempre escribian ahi; la PAGINA
+   no, y sus pedidos caian al camino de respaldo.
+
+   Con transferencia sola el respaldo acierta. Donde se rompe es en un pago
+   MIXTO: `conPuntos()` guarda "Puntos + Transferencia", que no es ningun
+   metodo configurado, y todo el monto —incluida la parte de puntos— se
+   sumaria a la casilla equivocada.
+
+   Los ids salen de la configuracion del PROPIO restaurante, nunca escritos
+   aqui: cada negocio nombra sus metodos como quiere.
+
+   Es best-effort: si falla, el respaldo de la caja sigue dando el total
+   correcto. Nunca tumbar un pago por el desglose. */
+async function idMetodo(branchId: string, buscar: string): Promise<string> {
+  try {
+    const r = await sbGet(`/ia_config?branch_id=eq.${branchId}&select=pagos&limit=1`) as Array<Record<string, unknown>> | null;
+    const ms = (((r?.[0]?.pagos as Record<string, unknown>) || {}).metodos as Array<Record<string, unknown>>) || [];
+    const norm = (x: unknown) => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const q = norm(buscar);
+    /* Por id exacto primero (asi llegan "__saldo" y "__puntos"), luego por
+       nombre, y por ultimo por si es digital (transferencia). */
+    const porId = ms.find(m => String(m.id || "") === buscar);
+    if (porId) return String(porId.id);
+    const porNom = ms.find(m => norm(m.nombre) === q);
+    if (porNom) return String(porNom.id);
+    if (q.includes("transfer")) {
+      const dig = ms.find(m => m.digital === true && String(m.id || "").indexOf("__") !== 0);
+      if (dig) return String(dig.id);
+    }
+  } catch (_e) { /* sin config, se guarda el texto tal cual */ }
+  return buscar;
+}
+
+async function desglosarPago(o: Record<string, unknown>, metodo: string, total: number) {
+  try {
+    const bid = String(o.branch_id || "");
+    const puntos = Math.round(Number(o.puntos_valor) || 0);
+    const filas: Array<Record<string, unknown>> = [];
+    /* Lo pagado con puntos va en SU propia fila: si se sumara al otro metodo,
+       el arqueo diria que entro plata que nunca entro. */
+    if (puntos > 0 && puntos <= total) {
+      filas.push({ method: await idMetodo(bid, "__puntos"), amount: puntos });
+    }
+    const resto = total - (puntos > 0 && puntos <= total ? puntos : 0);
+    if (resto > 0) filas.push({ method: await idMetodo(bid, metodo), amount: resto });
+    for (const f of filas) {
+      await fetch(`${SUPABASE_URL}/rest/v1/pos_payments`, {
+        method: "POST", headers: H,
+        body: JSON.stringify({ order_id: o.id, branch_id: bid, tenant_id: o.tenant_id,
+          method: f.method, amount: f.amount }),
+      });
+    }
+  } catch (e) {
+    console.error("[web-pagar] desglose:", String(e).slice(0, 200));
+  }
+}
+
 async function aCocina(orderId: string) {
   try {
     await sbPatch(`/pos_orders?id=eq.${orderId}`, { visible_cocina: true });
@@ -223,7 +282,7 @@ Deno.serve(async (req) => {
     /* El pedido tiene que ser SUYO y estar sin pagar. Sin esta comprobación,
        cualquiera podría pagar —o marcar como pagado— el pedido de otro. */
     const ords = await sbGet(
-      `/pos_orders?id=eq.${String(b.order_id || "")}&select=id,total,total_final,delivery_fee,status,cliente_id,branch_id,channel,puntos_redimidos&limit=1`
+      `/pos_orders?id=eq.${String(b.order_id || "")}&select=id,tenant_id,total,total_final,delivery_fee,status,cliente_id,branch_id,channel,puntos_redimidos,puntos_valor&limit=1`
     ) as Array<Record<string, unknown>> | null;
     const o = ords?.[0];
     if (!o || String(o.cliente_id) !== clienteId) {
@@ -268,6 +327,7 @@ Deno.serve(async (req) => {
         status: "paid", payment_method: conPuntos(o, "__saldo"), paid_amount: total,
         closed_at: new Date().toISOString(),
       });
+      await desglosarPago(o, "__saldo", total);
       await aCocina(String(o.id));
       await confirmarPorWhatsApp(String(o.id));
       const sal2 = await rpc("fn_saldo_cliente", { p_tenant: tenantId, p_cliente: clienteId }) as unknown;
@@ -314,6 +374,7 @@ Deno.serve(async (req) => {
       status: "paid", payment_method: conPuntos(o, "Transferencia"), paid_amount: total,
       closed_at: new Date().toISOString(),
     });
+    await desglosarPago(o, "Transferencia", total);
     await aCocina(String(o.id));
     await confirmarPorWhatsApp(String(o.id));
     return json({ ok: true, metodo: "transferencia", referencia: ver.referencia || null,

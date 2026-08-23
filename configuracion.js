@@ -6755,9 +6755,12 @@ async function wtpCargar(){
    revisar, 3) el numero {{n}} que la radicación necesita (sale del orden
    de aparición). Al radicar, el mapeo hueco→dato queda guardado SOLO en
    plantillas_vars: cuando Meta apruebe, la plantilla ya nace conectada. */
+/* El ejemplo del negocio es EL SUYO, no el de otro. Un restaurante nuevo
+   abria esta pantalla y veia "El Parche Food" como ejemplo de su propio
+   nombre (23-ago-2026). posBrandName() ya tiene el nombre bueno guardado. */
 var WTP_CHIPS = {
   nombre_cliente:    { n: '👤 Nombre del cliente',     ej: 'David' },
-  negocio:           { n: '🏪 Nombre del negocio',     ej: 'El Parche Food' },
+  negocio:           { n: '🏪 Nombre del negocio',     ej: (window.posBrandName ? posBrandName() : 'Tu restaurante') },
   direccion_negocio: { n: '📍 Dirección del negocio',  ej: 'Calle 5 # 10-23' },
   horario_hoy:       { n: '🕒 Horario de hoy',         ej: '6:30 pm a 10:30 pm' },
   tiempo_entrega:    { n: '⏱️ Tiempo de entrega',      ej: '30-40 minutos' },
