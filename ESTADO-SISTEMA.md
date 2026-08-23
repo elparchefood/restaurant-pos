@@ -3,6 +3,36 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 Sin botón Imprimir en los pedidos rápidos de Paco — 22-ago-2026
+
+Sergio: *"si hay un pedido que recibió Paco para llevar no aparece el botón
+de imprimir. Solo pasa si lo recibió Paco"*.
+
+**Por qué.** El riel de *Rápidas* arma sus botones con CINCO ramas distintas
+según el estado del pedido, e **Imprimir estaba escrito en UNA sola**: la de
+`status === "paid"`.
+
+Un pedido que toma el asistente queda en **`status: "open"` con el pago ya
+registrado en `paid_amount`** (no pasa por la caja, lo cobra el chat), así
+que cae en la rama de *"pagado de verdad"* — que no tenía el botón. Los del
+cajero sí quedan `paid`, y por eso a esos sí les salía. Exactamente el patrón
+que describió Sergio.
+
+**El arreglo.** En **mesas y domicilios el botón está en TODAS las ramas**:
+esa es la regla del sistema — una comanda siempre se puede imprimir, sin
+importar cómo se pagó. Aquí faltaba. Se quitó el botón suelto de la rama de
+`paid` y ahora **se inyecta en un solo sitio**, igual que el botón de avanzar
+estado, para que la próxima rama que alguien agregue lo tenga sola.
+
+> **La lección, repetida:** un botón escrito a mano en cada rama es un botón
+> que alguna rama va a olvidar. Igual que el logo de la barra de Ventas esta
+> misma mañana.
+
+Probado con el trozo REAL del archivo y los pedidos reales de la pantalla
+(José Manuel de Paco, Ferney y Anyela del cajero, más pendiente de pago, sin
+pagar, entregado con y sin pago): los 7 quedan con exactamente un Imprimir, y
+los que ya funcionaban conservan sus mismos botones. Commit `c7b0233`.
+
 ## 🔴→🟢 URGENCIA 9pm: "Channel not found" — no se le podía escribir a un cliente — 22-ago-2026
 
 Sergio, con el pedido de Daniel enfriándose: *"no están saliendo los
