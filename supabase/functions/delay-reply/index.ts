@@ -1402,10 +1402,43 @@ INTENCION, no las palabras exactas.` },
      conversacion, la clienta dijo "gracias" y Paco contesto igual. La
      compuerta de abajo se queda como respaldo. */
   try {
-    const tkRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=human_takeover&limit=1`);
+    const tkRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=human_takeover,order_id,handoff_at&limit=1`);
     if (tkRes?.[0]?.human_takeover === true) {
-      await setTyping(convId, false);
-      return;
+      /* ══ EL RELEVO SE ACABA CUANDO SE ACABA EL MOTIVO (23-ago-2026) ══
+         Una conversacion que pasa a una persona se quedaba en manos de esa
+         persona PARA SIEMPRE. Al dia siguiente habia 10 asi: todas con su
+         pedido ya entregado y quietas 13 horas. Ese cliente escribe otra vez
+         y Paco no le contesta nunca mas, aunque lo que lo aparto —un pago
+         raro, una foto, un domicilio sin precio— se resolvio anoche.
+
+         Se devuelve solo cuando se cumplen las TRES: hay un pedido detras,
+         ese pedido ya termino, y pasaron 6 horas desde el relevo. Sin pedido
+         no se toca: los numeros de los domiciliarios (MOTOS AL DIA, INTER-
+         DOMIS) tambien viven aqui y Paco no tiene nada que hablar con ellos.
+
+         Y si el cliente vuelve molesto, el clasificador lo devuelve a una
+         persona en el mismo mensaje: eso ya existe y no se toca. */
+      let devolver = false;
+      try {
+        const oidTk = tkRes[0].order_id;
+        const hAt = tkRes[0].handoff_at;
+        const horas = hAt ? (Date.now() - new Date(String(hAt)).getTime()) / 3600000 : 0;
+        if (oidTk && horas >= 6) {
+          const pTk = await sbGet(`/rest/v1/pos_orders?id=eq.${oidTk}&select=status,estado,delivery_status&limit=1`) as Array<Record<string, unknown>> | null;
+          const q = pTk?.[0];
+          devolver = !!q && (q.status === 'cancelled' || String(q.estado || '') === 'entregado'
+            || String(q.delivery_status || '') === 'entregado');
+        }
+      } catch (_e) { /* si no se puede comprobar, se queda en manos de la persona */ }
+      if (devolver) {
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+          human_takeover: false, handoff_motivo: null, handoff_at: null,
+        });
+        console.log(`[relevo] ${convId}: el pedido ya termino y pasaron 6h — Paco retoma`);
+      } else {
+        await setTyping(convId, false);
+        return;
+      }
     }
   } catch { /* si no se puede leer el flag, mejor atender que dejar mudo el negocio */ }
 
