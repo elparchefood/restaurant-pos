@@ -433,6 +433,29 @@ REGLAS:
         }
         if (!factor || factor > 500) factor = 1;
 
+        /* EL PRECIO MANDA, TAMBIEN CUANDO LO DICE EL GERENTE (22-ago-2026).
+
+           Sergio contesto "un paquete de Coca-Cola que TRAE 12 UNIDADES" y ese
+           12 se tomo como multiplicador: entraron 12 PAQUETES = 144 botellas,
+           cuando era UN paquete. El insumo ya se compra en "paq. x12": ese doce
+           ya estaba contado, y el gerente solo estaba describiendo su propio
+           paquete.
+
+           No se puede resolver mirando solo la palabra —"trae 12" puede ser una
+           CAJA de 12 paquetes, y ahi el 12 SI multiplica—, pero el precio no
+           miente: una caja de doce cuesta doce veces lo que un paquete. Se
+           prueban las dos cuentas contra el precio que ya conocemos y gana la
+           que cuadra. Es el mismo control que ya hace la busqueda por nombre;
+           aqui se confiaba en el numero a ciegas. */
+        if (factor > 1 && insDicho.precio > 0 && linDicha.valor_total > 0 && linDicha.cantidad > 0) {
+          const rUno  = razonPrecio(linDicha.valor_total, linDicha.cantidad, insDicho.precio);
+          const rMult = razonPrecio(linDicha.valor_total, linDicha.cantidad * factor, insDicho.precio);
+          if (!precioCuadra(rMult) && precioCuadra(rUno)) {
+            console.log(`[factura] "${linDicha.desc}": el gerente dijo x${factor}, pero el precio dice x1 — se deja en 1`);
+            factor = 1;
+          }
+        }
+
         const ins = insDicho, lin = linDicha, fac = factor;
         await sbPost(`/iv_insumo_alias`, {
           branch_id, insumo_id: ins.id, alias: lin.desc,

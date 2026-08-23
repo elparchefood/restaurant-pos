@@ -3,6 +3,56 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 El gerente de inventario: 144 botellas y el sabor equivocado — 22-ago-2026
+
+Sergio: *"está haciendo muy incómodo hablar con él, no me está entendiendo las
+cosas que yo le digo"*. Dos errores distintos la misma noche.
+
+### 1) "Trae 12 unidades" se tomó como multiplicador
+
+La factura traía `COCA-COLA 1.5 PET X12` (1 paquete). El sistema dudó del
+empaque y preguntó; Sergio contestó *"un paquete que trae 12 unidades"* —
+describiendo el CONTENIDO. `factura-inventario` lo leyó como factor y entró
+**1 × 12 = 12 paquetes = 144 botellas**. Igual con la Personal.
+
+El insumo ya se compra en **`paq. ×12` con `conversion = 12`**: ese doce ya
+estaba contado. Sergio estaba describiendo su propio paquete.
+
+**No se puede resolver mirando la palabra**: "trae 12" TAMBIÉN puede ser una
+caja de 12 paquetes, y ahí el 12 sí multiplica. **Pero el precio no miente**:
+una caja de doce cuesta doce veces lo que un paquete. Ahora se prueban las dos
+cuentas contra el precio conocido y gana la que cuadra — el mismo control que
+ya hacía la búsqueda por nombre y que aquí se saltaba, confiando en el número
+a ciegas.
+
+También se corrigió el **alias aprendido** (`factor 12 → 1`): sin eso, la
+próxima factura del proveedor repetía el error sin preguntar nada.
+
+### 2) "hit litro mango" entró en "Hit Litro Mora"
+
+`gerente-inventario` le da al modelo hasta 15 candidatos y este devuelve el
+`insumo_id`. Entre **Mango, Mora, Lulo, Naranja Piña** —nombres que solo se
+diferencian en la última palabra— y un id largo que hay que copiar exacto, el
+modelo se equivocó de sabor. **"Hit Litro Mango" existe con ese nombre exacto.**
+
+**El arreglo, determinista y conservador:** después de que el modelo elige, se
+comprueba que el nombre cuadre. Solo se corrige cuando la línea nombra
+**completo** a UN solo insumo. "hit litro mango" nombra entero a Hit Litro
+Mango y a ningún otro → se corrige. "compre 2 paquetes de coca cola" no nombra
+entero a ninguno (falta "personal" o "1.5 litros") → se respeta al modelo, que
+para eso entiende. Los alias del proveedor cuentan igual que el nombre.
+
+### Reparación
+
+`2026-08-22-reparar-inventario-gerente.sql` revierte exactamente lo que entró
+mal: Coca 1.5 y Personal −11 paquetes cada una, Mora −0.5, Mango +0.5.
+`stock_servicio` no se tocó (las operaciones solo movieron bodega).
+
+Probado con las funciones reales y 11 casos, incluidos los dos que NO podían
+romperse: el maíz del 21-ago (`1 CAJAx10` a $79.000 con el kilo a $7.900 →
+sigue en ×10) y una caja de verdad de 12 paquetes → sigue en ×12.
+**factura-inventario v22, gerente-inventario v35.**
+
 ## 🔴→🟢 Paco avisaba que faltaba algo que SÍ estaba en el pedido (motor v361) — 22-ago-2026
 
 Isabela pidió *"una salchipapa maicitos especial con pollo personal"* y *"una

@@ -174,11 +174,62 @@ function candidatos(linea: string, insumos: Insumo[]): Insumo[] {
   return puntuado.slice(0, 15).map((x) => x.i);
 }
 
+/* EL INSUMO ELEGIDO TIENE QUE CUADRAR CON LO QUE DIJO (22-ago-2026).
+
+   Sergio escribio "Compre 0.5 paquete hit litro mango" y el modelo devolvio
+   el id de "Hit Litro Mora": medio paquete entro al sabor equivocado. Con
+   quince nombres que solo se diferencian en la ultima palabra —Mango, Mora,
+   Lulo, Naranja Piña— y un id largo que hay que copiar exacto, ese error era
+   cuestion de tiempo.
+
+   Aqui NO se adivina: solo se corrige cuando la linea nombra COMPLETO a un
+   solo insumo. "hit litro mango" nombra entero a "Hit Litro Mango" y a
+   ningun otro (a "Hit Litro Mora" le falta "mora" en el texto), asi que el
+   elegido se corrige. En cambio "compre 2 paquetes de coca cola" no nombra
+   entero a ninguno —falta "personal" o "1.5 litros"— y ahi se respeta lo que
+   dijo el modelo, que para eso entiende.
+
+   El modelo entiende la intencion; el codigo comprueba que el nombre cuadre. */
+function corregirInsumoPorNombre(linea: string, ops: Op[], insumos: Insumo[]): void {
+  const limpio = (s: string) => s.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]+/g, " ").replace(/ +/g, " ").trim();
+  const dichas = new Set(limpio(linea).split(" ").filter(Boolean));
+  if (!dichas.size) return;
+
+  /* Nombrado COMPLETO = todas las palabras de su nombre (de 3 letras o mas)
+     estan en la linea. Los alias cuentan igual: es como lo llama el gerente. */
+  const nombradoCompleto = (i: Insumo): boolean => {
+    const juegos = [i.nombre, ...(i.alias || [])];
+    return juegos.some((n) => {
+      const ws = limpio(n).split(" ").filter((w) => w.length >= 3);
+      return ws.length > 0 && ws.every((w) => dichas.has(w));
+    });
+  };
+  const completos = insumos.filter(nombradoCompleto);
+  if (completos.length !== 1) return;   // ninguno o varios: no se toca
+
+  const bueno = completos[0];
+  for (const op of ops) {
+    if (!op.insumo_id || op.insumo_id === bueno.id) continue;
+    const eligio = insumos.find((i) => i.id === op.insumo_id);
+    /* Si lo que eligio TAMBIEN esta nombrado completo, no hay nada que
+       corregir (no deberia pasar: completos.length seria 2). */
+    if (eligio && nombradoCompleto(eligio)) continue;
+    console.log(`[gerente] la linea dice "${linea.trim()}" — se corrige ${eligio ? eligio.nombre : op.insumo_id} -> ${bueno.nombre}`);
+    op.insumo_id = bueno.id;
+  }
+}
+
 type Parseo = { ops: Op[]; consulta: boolean; texto: string; consulta_ids: string[]; consulta_todo: boolean; fallo: boolean; sinEntender?: string[] };
 
 async function parseConGPT(mensaje: string, insumos: Insumo[]): Promise<Parseo> {
   const trozos = trocear(mensaje);
-  if (trozos.length === 1) return await parseUnTrozo(mensaje, insumos);
+  if (trozos.length === 1) {
+    const uno = await parseUnTrozo(mensaje, insumos);
+    corregirInsumoPorNombre(mensaje, uno.ops, insumos);
+    return uno;
+  }
 
   // Linea a linea se usa gpt-4o-mini: la tarea ya es minima (UNA linea y
   // como mucho 15 insumos candidatos) y el cupo por minuto de gpt-4o (30.000
@@ -188,7 +239,13 @@ async function parseConGPT(mensaje: string, insumos: Insumo[]): Promise<Parseo> 
   const partes: Parseo[] = [];
   const POR_TANDA = 8;
   for (let i = 0; i < trozos.length; i += POR_TANDA) {
-    const tanda = await Promise.all(trozos.slice(i, i + POR_TANDA).map((t) => parseUnTrozo(t, candidatos(t, insumos), 0, "gpt-4o-mini")));
+    const tanda = await Promise.all(trozos.slice(i, i + POR_TANDA).map(async (t) => {
+      const pr = await parseUnTrozo(t, candidatos(t, insumos), 0, "gpt-4o-mini");
+      /* Se revisa contra la carta ENTERA, no solo contra los candidatos: el
+         bueno podria haber quedado fuera de los quince. */
+      corregirInsumoPorNombre(t, pr.ops, insumos);
+      return pr;
+    }));
     partes.push(...tanda);
   }
   const ops: Op[] = [];
