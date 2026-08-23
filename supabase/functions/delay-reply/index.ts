@@ -262,8 +262,42 @@ function categoriaMencionada(texto: string, cats: string[]): string | null {
   return null;
 }
 // Matching DETERMINÍSTICO de productos en el texto del cliente (no depende de GPT)
+/* PALABRAS QUE EL CLIENTE PARTIO (22-ago-2026, caso real de Katherin).
+
+   Escribio "Salchi papa tradicional" —separado— y el buscador encontro la
+   ADICION "Papas" dentro de " papa ". El pedido arranco en $8.000, el
+   resumen salio en $13.000, y cuando ella pago los $31.000 de verdad el
+   comprobante no se pudo verificar contra un total que estaba mal.
+
+   Antes de buscar se vuelven a pegar los pares de palabras que JUNTAS si son
+   algo de la carta: "salchi"+"papa" = "salchipapa". El vocabulario sale del
+   catalogo del restaurante —no de una lista escrita a mano—, asi que sirve
+   igual para "hamburgue sa" o "maici tos" en cualquier restaurante. */
+function juntarPartidas(t: string): string {
+  const vocab = new Set<string>();
+  for (const e of DYN_PROD_MAP) vocab.add(e.key);
+  for (const c of DYN_CATEGORY_NAMES) {
+    for (const w of String(c).split(/\s+/)) if (w.length >= 5) vocab.add(w);
+  }
+  if (!vocab.size) return t;
+  const w = t.split(" ").filter(Boolean);
+  const out: string[] = [];
+  for (let i = 0; i < w.length; i++) {
+    const juntas = i + 1 < w.length ? w[i] + w[i + 1] : "";
+    /* Se pegan solo si el resultado ES de la carta y la primera mitad NO lo
+       era ya: asi "papas fritas" o "coca cola" no se convierten en otra cosa.
+       El minimo de 7 letras evita pegar palabras cortas por casualidad. */
+    if (juntas.length >= 7 && !vocab.has(w[i])
+        && (vocab.has(juntas) || vocab.has(juntas + "s"))) {
+      out.push(juntas); i++; continue;
+    }
+    out.push(w[i]);
+  }
+  return out.join(" ");
+}
+
 function matchProductosEnTexto(texto: string): Array<{ name: string; cat: string; pos: number }> {
-  const t = " " + normalizarTexto(texto) + " ";
+  const t = " " + juntarPartidas(normalizarTexto(texto)) + " ";
   const found: Array<{ name: string; cat: string; pos: number }> = [];
   /* EN PLURAL TAMBIEN (19-ago, hallado en las pruebas). "dos salchipapas
      MIXTAS familiares y una hit personal" salia con la HIT sola: las dos
@@ -288,7 +322,14 @@ function matchProductosEnTexto(texto: string): Array<{ name: string; cat: string
        el resumen salio con dos hamburguesas que nadie pidio. */
     if (idx < 0) {
       const sing = e.key.replace(/s(?= |$)/g, "");
-      if (sing !== e.key && sing.length >= 4) idx = t.indexOf(" " + sing + " ");
+      /* PERO NO EN LAS ADICIONES (22-ago, mismo caso). Sus nombres son
+         palabras cortas y comunes —"papas", "queso"— que viven DENTRO de
+         otras: en el audio de Katherin, "suti papa" (asi lo transcribio) se
+         convirtio otra vez en la adicion "Papas" y su correccion confirmo el
+         error en vez de arreglarlo. El singular se tolera para nombres
+         propios y largos ("maicitos"), no para una adicion suelta. */
+      const esAdicion = /adicion/.test(normalizarTexto(e.cat || ""));
+      if (!esAdicion && sing !== e.key && sing.length >= 4) idx = t.indexOf(" " + sing + " ");
     }
     if (idx >= 0) found.push({ name: e.name, cat: e.cat, pos: idx });
   }
@@ -7864,6 +7905,13 @@ async function buildConversationResponse(
        no ejecuta es mentirle al cliente. */
     "- Si el pago es en EFECTIVO, JAMAS pidas comprobante de pago ni hables de comprobantes: el comprobante existe solo para transferencias. Pedirselo a quien paga en efectivo lo confunde (paso el 18-ago: 'pago con un billete de 100' y se le pidio comprobante).",
     "- JAMAS prometas acciones: no digas 'en un momento te envio el resumen', 'ya te mando el total', 'enseguida creo tu pedido' ni nada parecido. El resumen y el pedido los manda el sistema solo. Tu unico trabajo en cada turno es responder la duda del cliente y/o hacer LA pregunta del paso.",
+    /* Paco escribio de su cabeza "Asi queda tu pedido: Pedido $26.000, Total
+       $31.000" mientras el pedido guardado decia $13.000 (22-ago, caso de
+       Katherin). La clienta pago los $31.000 que Paco le dijo y el
+       comprobante no se pudo verificar contra el total guardado. Lo que Paco
+       DICE y lo que el sistema COBRA no pueden ser dos numeros distintos. */
+    "- NUNCA escribas tu un resumen del pedido con precios ni un total ('Asi queda tu pedido...', 'Pedido: $X, Domicilio: $Y, Total: $Z'). Ese resumen lo arma el sistema con los datos guardados; si lo escribes tu, le dices al cliente un numero que el sistema no tiene y el pago no le va a cuadrar.",
+    "- Si el cliente dice que el precio o el producto del resumen esta mal: dale la razon, discupate en UNA linea y di que ya lo corriges — pero NO le confirmes otro total ni le repitas el pedido corregido. El sistema lo corrige y le manda el resumen bueno.",
     "- Cuando el cliente te dé un dato, confírmalo en máximo 2-3 palabras y pasa al siguiente paso. Usa '¡Perfecto! 🙌', 'Listo 👍', 'Claro ✅', 'Dale 🙌' — NUNCA uses 'Anotado'.",
     "- HAZ UNA SOLA PREGUNTA POR MENSAJE. Aunque falten varios datos, pregunta solo el siguiente en el flujo.",
     "- Responde brevemente al cliente solo si es necesario (pregunta, confusión). De lo contrario ve directo al siguiente paso.",

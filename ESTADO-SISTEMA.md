@@ -3,6 +3,50 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 "Salchi papa" partido → Paco cobró la ADICIÓN de $8.000 (motor v359) — 22-ago-2026
+
+Katherin escribió *"me envías por favor una **Salchi papa** tradicional de
+26.000"* — con la palabra partida. Paco armó el pedido con la **adición
+"Papas" de $8.000** de la categoría Adiciones. Resumen: $13.000. Ella pagó
+los $31.000 de verdad y **el comprobante no se pudo verificar**.
+
+**Las tres preguntas de Sergio, respondidas:**
+
+1. **¿Por qué se equivocó de precio?** El buscador de productos tolera el
+   singular desde el 22-ago (para que "maicito" encuentre "Maicitos
+   Especial"). Eso convierte `papas` → `papa`, y `" papa "` **sí aparece** en
+   "Salchi papa". Se llevó la adición.
+2. **¿Por qué se quedó con el precio anterior?** Porque su corrección por
+   audio se transcribió *"yo pedí una **suti papá** de 26 o 25"* — y `" papa "`
+   volvió a casar con la misma adición. **La corrección confirmó el error en
+   vez de arreglarlo.** Paco (el modelo) sí escribió el precio bueno
+   ($26.000 / total $31.000), pero **solo de palabra**: el pedido guardado
+   siguió en $13.000.
+3. **¿Por qué no pudo verificar el pago?** `verify-transfer` compara el
+   comprobante contra el total GUARDADO: $31.000 vs $13.000, 138% de
+   diferencia sobre una tolerancia del 12% → se negó y lo pasó a una persona.
+   **Eso estuvo bien** — es plata; el error estaba aguas arriba.
+
+**Los tres arreglos:**
+
+- **Palabras partidas**: antes de buscar se vuelven a pegar los pares que
+  JUNTOS sí son de la carta (`"salchi"+"papa" = "salchipapa"`). El
+  vocabulario sale del **catálogo del restaurante**, no de una lista escrita:
+  sirve igual para "hamburgue sa" o "maici tos" en cualquier restaurante.
+- **El singular NO se tolera en las adiciones**: sus nombres son palabras
+  cortas y comunes ("papas", "queso") que viven dentro de otras. El singular
+  sigue vivo para nombres largos y propios ("maicitos").
+- **Paco no escribe resúmenes ni totales**: regla nueva en el prompt. Lo que
+  Paco DICE y lo que el sistema COBRA no pueden ser dos números distintos. Si
+  el cliente dice que el precio está mal: darle la razón y decir que ya se
+  corrige — **sin confirmarle otro total**; el resumen bueno lo manda el
+  sistema con los datos guardados.
+
+Probado con las funciones reales y los mensajes literales: los 3 textos de
+Katherin ya no capturan la adición, y los 7 casos normales (pedir papas de
+verdad, adición nombrada, plural, singular de "maicito", plato+adición) siguen
+exactamente igual. **Motor v359.**
+
 ## 🔴→🟢 Sin botón Imprimir en los pedidos rápidos de Paco — 22-ago-2026
 
 Sergio: *"si hay un pedido que recibió Paco para llevar no aparece el botón
