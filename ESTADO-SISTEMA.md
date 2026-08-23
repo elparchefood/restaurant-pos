@@ -3,6 +3,52 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🧹 Barrido de los 79 pendientes anotados — 23-ago-2026
+
+Sergio: *"revisa absolutamente todo y si ya se hicieron los quitas de la
+lista"*. Se revisaron los 79 `- [ ]` del repo contra el código y la base
+reales. **La mayoría ya estaba hecha** — 374 commits desde el 14-ago habían
+dejado los documentos viejos.
+
+### Hecho hoy
+- **Sinónimos de categoría por restaurante** (`ia_config.sinonimos_categoria`)
+  + su pantalla en Configuración → Chat IA. Un asadero le enseña
+  "corrientazo" a sus Bandejas; un sushi, "maki". Los universales
+  (hamburguesa, pizza, taco) **se suman, no se reemplazan**. Motor v362.
+- **Los ejemplos de la interfaz decían "El Parche Food"**: un restaurante
+  nuevo veía el nombre de otro negocio al configurar el suyo. Ahora
+  `posBrandName()`.
+- **Desglose de pago en los pedidos de la página** (`pos_payments`), con los
+  ids de método leídos de la config del propio restaurante. El pago mixto
+  (puntos + transferencia) era el que caía en la casilla equivocada.
+  Probado: el desglose **siempre suma el total cobrado**. web-pagar v14.
+- **El relevo a una persona ya no es para siempre** (motor v363). Había 10
+  conversaciones con Paco apagado, todas con su pedido entregado y quietas
+  13-16 h. Se devuelve solo con las TRES: hay pedido, ya terminó, y pasaron
+  6 horas. **Sin pedido no se toca** — los domiciliarios (MOTOS AL DIA,
+  INTER-DOMIS) viven en la misma bandeja. Comprobado: retoman los 5 clientes,
+  los 2 proveedores no.
+- **Centinela del `.nojekyll`**: hook de pre-commit + `scripts/`. Borrarlo
+  rompió 8 publicaciones en silencio el 22-ago. (No pudo ir como workflow de
+  GitHub: el token no tiene ese permiso.)
+- **Plantilla `puntos_ganados_util`** radicada como UTILITY con el texto
+  idéntico al aprobado — la actual es MARKETING y cuesta más en cada compra.
+
+### Falsos pendientes (verificados, NO volver a listarlos)
+- **El inventario por sede**: `iv_existencias.branch_id` nulo es lo CORRECTO
+  en modo `global`, que es el que usa El Parche. El modo `sucursal` sí escribe
+  la sede (`ivSedeExistencia()`). La nota del 14-ago es anterior a esa opción.
+- La llave Nequi vieja, el tiempo de entrega en la FAQ, las frases sembradas
+  de El Parche, el emoji 🍟 quemado, la regla de puntos en 4 sitios, la llave
+  del lector de comprobantes, la etiqueta del asistente, el anti-bucle, los
+  arqueos en caja, el canvas que pisaba configuración, el banner por tenant.
+
+### Auditoría de lo quemado en Paco
+Barrido de las 19 Edge Functions: **todo lo de El Parche que quedaba está en
+COMENTARIOS** que documentan casos reales, no en la lógica. El único valor
+quemado real es el `REDIRECT` de `meta-oauth-callback` — y es de la
+plataforma, no del restaurante; cambiarlo exige tocar la consola de Meta.
+
 ## 🔴→🟢 El gerente de inventario: 144 botellas y el sabor equivocado — 22-ago-2026
 
 Sergio: *"está haciendo muy incómodo hablar con él, no me está entendiendo las
