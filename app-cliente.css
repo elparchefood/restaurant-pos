@@ -2455,21 +2455,43 @@ html.tema-claro .ep-menu-it.malo { color: #8f2242; }
    El ancho se cuadra solo con `aspect-ratio` sobre la altura ya resuelta, asi
    que la caja es 9:16 exacta en cualquier pantalla y el video nunca sale con
    franjas negras. */
+/* El MARCO es solo el hueco elastico: ocupa todo el ancho y centra. */
 .ep-tuto-marco {
   flex: 1 1 auto; min-height: 0;
   display: flex; align-items: center; justify-content: center;
   margin-bottom: 14px;
 }
-.ep-tuto-video {
-  height: 100%; width: auto; max-width: 100%;
-  aspect-ratio: 9 / 16; object-fit: contain;
-  background: #000; border: 1px solid var(--line);
-  /* Bien redondeado, como pidio Sergio. Va en los dos —marco y video— porque
-     algunos navegadores pintan el video por encima del borde del padre. */
-  border-radius: 26px;
-  display: block;
+
+/* LA CAJA mide EXACTAMENTE lo que el video, y es la que recorta las esquinas.
+
+   Antes el redondeo estaba puesto en el propio <video> y en iPhone se veia mal
+   apenas empezaba a reproducir: el fotograma salia con las esquinas cuadradas
+   dentro del marco redondeado (lo vio Sergio, con capturas). No es culpa del
+   video: Safari NO recorta los fotogramas con el `border-radius` del elemento.
+   La unica forma de que obedezca es este contenedor con `overflow: hidden`,
+   y ademas mide lo mismo que el video — si midiera de mas (como el marco, que
+   va a todo el ancho) no le tocaria una esquina.
+   `translateZ(0)` obliga a Safari a pintarlo en su propia capa; sin eso sigue
+   ignorando el recorte en algunas versiones. */
+.ep-tuto-caja {
+  height: 100%; aspect-ratio: 9 / 16; max-width: 100%;
+  border-radius: 26px; overflow: hidden; isolation: isolate;
+  transform: translateZ(0); -webkit-transform: translateZ(0);
+  background: #000;
+  /* SIN BORDE. Tenia uno de 1px y era una raya que se veia justo donde el
+     video se acaba: el video vive DENTRO del borde, asi que quedaban 2px de
+     negro entre la imagen y la orilla redondeada. Ahora que el video llena la
+     caja entera, ese borde solo estorbaba. */
+  flex-shrink: 0;
 }
-.ep-tuto-marco { border-radius: 26px; }
+
+/* `cover` y no `contain`: los dos son 9:16, asi que no recorta ni un pelo, pero
+   `contain` dejaba una franja de menos de un pixel por el redondeo de la
+   division — el milimetro que se veia. Con `cover` la caja queda llena SIEMPRE. */
+.ep-tuto-video {
+  width: 100%; height: 100%; object-fit: cover;
+  display: block; border-radius: 26px;
+}
 
 .ep-tuto-pasos-t {
   font-size: 10px; font-weight: 700; text-transform: uppercase;

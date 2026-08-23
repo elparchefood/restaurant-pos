@@ -2303,9 +2303,12 @@
         '<p class="ep-tuto-lead">Se abre sola y te avisamos cuando tu pedido ' +
           'va en camino.</p>' +
         (url
-          ? '<div class="ep-tuto-marco">' +
+          /* La CAJA va aparte del marco a proposito: el marco es el hueco
+             elastico (ocupa todo el ancho) y la caja mide exactamente lo que
+             el video, que es lo unico que puede recortarle las esquinas. */
+          ? '<div class="ep-tuto-marco"><div class="ep-tuto-caja">' +
             '<video class="ep-tuto-video" src="' + esc(url) + '" ' +
-            'controls playsinline preload="metadata"></video></div>'
+            'controls playsinline preload="metadata"></video></div></div>'
           : '') +
         '<div class="ep-tuto-pasos-t">' +
           (url ? 'Los mismos pasos, escritos'
