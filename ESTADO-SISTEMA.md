@@ -1,7 +1,97 @@
 # ESTADO DEL SISTEMA — Cobra POS
-> Última actualización: 2026-08-22
+> Última actualización: 2026-08-23
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
+
+## 🔴→🟢 Auditoría de multimarca y permisos: cuatro fallos reales — 23-ago-2026
+
+Sergio pidió comprobar si **hoy** un restaurante que se registre puede crear su
+cuenta, su marca y su sucursal, crear roles y asignarlos, crear cuentas de
+empleado y repartir permisos, y que todo funcione. Se auditó de punta a punta.
+Quedó fuera, por ser exclusivo de El Parche: "Mi página web", el saldo y la
+tarjeta NFC. Los puntos SÍ entraron: son para todos.
+
+**Lo que estaba bien** (comprobado, no supuesto): las 86 tablas con `tenant_id`
+o `branch_id` tienen RLS encendido, y `current_tenant_id()` lo saca de la BASE
+(`pos_users`), no de la metadata que el usuario puede reescribir. Los 5 roles y
+la fila de `ia_config` los siembran triggers, así que nacen solos. La regla de
+puntos sale de `branches.operacion_config` con respaldo de $1.000, sin nada
+quemado; los niveles tienen valores por defecto si no hay configuración. El
+switch de marca/sucursal existe y funciona.
+
+### 1. `manage-user` estaba ABIERTA a internet (lo más grave)
+La función que crea, edita y borra las cuentas de acceso corría con la clave de
+servicio y **no miraba quién llamaba**, ni una línea, publicada con
+`verify_jwt = false`. Desde una terminal, cualquiera podía crear una cuenta con
+`{tenant_id: <el de cualquier restaurante>, role: "gerente"}`, **cambiarle la
+contraseña a la cuenta del dueño** y quedarse con ella, o borrar usuarios.
+La pantalla ya mandaba el token de la sesión; era el servidor el que lo tiraba.
+
+Ahora **manage-user v20** pone tres candados: token válido; que quien llame sea
+el dueño, el administrador del restaurante o el de la plataforma; y que la
+cuenta que toca sea de SU restaurante — el `tenant_id` se le pisa al del que
+llama y ya no se acepta del cuerpo del mensaje. El dueño no se puede borrar.
+Comprobado: sin token y con token falso responde 401 y no crea nada.
+**Se revisaron las 5 cuentas que existen: ninguna es extraña, nadie lo usó.**
+
+### 2. Los roles sembrados hablaban un idioma que ninguna pantalla entiende
+De los permisos que Cobra le siembra a cada restaurante, **ocho no existían en
+ninguna pantalla**: `cocina.ver`, `pedidos.estado`, `inventario.ver`,
+`historial.ver`, `informes.ver`, `mesas.gestionar`, `domicilios.ver`,
+`domicilios.estado`. Un permiso que nadie comprueba no abre nada:
+
+- **Cocinero** — sus tres permisos eran de esos ocho: el rol no le abría NADA,
+  cada pantalla le pedía el PIN del administrador. Ni mandar a cocina podía.
+- **Domiciliario** — igual: sus dos permisos, muertos.
+- **Cajero y Mesero** sí funcionaban, y por eso nunca se notó: son los dos
+  únicos que se han usado. **Los roles de El Parche estaban arreglados a mano**,
+  así que el fallo solo se veía desde un restaurante nuevo.
+
+Había un segundo efecto más callado: la pantalla de roles solo dibuja casillas
+para los 23 permisos que conoce, y al guardar escribe lo marcado. El día que el
+dueño entrara a tocar cualquier rol, los ocho desconocidos desaparecían solos.
+
+`sql/2026-08-23-permisos-mismo-idioma.sql` traduce cada permiso muerto al vivo
+que abre esa misma puerta, fila por fila (respetando lo que el dueño haya
+personalizado), y arregla el trigger. **El Parche no se tocó.** Probado creando
+un restaurante de mentira dentro de una transacción y deshaciéndola: los 5 roles
+nacen funcionando y no quedó ni una fila de basura.
+
+### 3. El dueño de un restaurante nuevo no quedaba marcado como dueño
+`provision` no llenaba `tenants.owner_user_id` en ninguno de sus dos caminos, y
+`es_dueno()` es como el sistema reconoce al dueño sin depender de la metadata.
+Consecuencia concreta: `posContexto` le da TODAS las sucursales al dueño y solo
+la suya al resto — así que **el dueño de un restaurante nuevo no habría visto la
+segunda sucursal que él mismo creara**. Multimarca rota desde el primer día.
+**provision v13** lo marca en los dos caminos (al aprobar, solo si está vacío,
+para que reintentar no le cambie el dueño a un restaurante que ya trabaja).
+
+### 4. El cuaderno de diagnósticos era público
+La política `diag_read` dejaba leer `pos_diag` a `anon`, o sea a cualquiera con
+la llave pública que va en el front. Dentro hay teléfonos de clientes y lecturas
+de comprobantes de banco con monto y remitente. Ninguna pantalla lee esa tabla
+—se buscó en todo el proyecto, solo hay inserciones— así que cerrarla no quita
+nada. `sql/2026-08-23-diagnosticos-privados.sql`: escribir, cualquiera (si no,
+se pierde el rastro justo cuando hace falta); leer, solo el administrador de la
+plataforma.
+
+### De paso: tres cuadros de diálogo del navegador
+`pos-marcas.js` remataba con `alert()` al crear una marca o una sucursal, y uno
+de ellos le decía al dueño que *"el cambio de marca todavía se está
+construyendo"* — texto viejo: el switch está ahí mismo, en ese menú. Ahora usa
+una ventana con la cara del producto y el texto correcto.
+
+### Lo que queda, y es decisión de Sergio
+- **Dos interruptores que no hacen nada**: `caja.ver_todas` y
+  `reservas.gestionar` se pueden marcar en la pantalla de roles pero ninguna
+  pantalla los comprueba.
+- **Cuatro pantallas sin candado de entrada**: historial, pagos, reservas e
+  impresoras. Ponérselo es fácil, pero es la dirección que SÍ puede dejar a
+  alguien fuera en pleno servicio, así que no se toca sin que él lo diga.
+- **Inventario** exige `catalogo.editar`, así que el cocinero no lo ve. Nunca lo
+  vio (su `inventario.ver` estaba muerto), pero ahora es una decisión a la vista.
+
+---
 
 ## 🟢 El conjunto se sabe por INTENCIÓN, y la nota ya no se repite (v372) — 23-ago-2026
 

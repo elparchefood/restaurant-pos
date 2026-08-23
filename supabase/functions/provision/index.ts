@@ -58,8 +58,16 @@ Deno.serve(async (req) => {
       const branchNom = String(body.branch_nombre || nombre).trim();
       if (!nombre) return json(400, { error: "falta el nombre del negocio" });
 
+      /* QUIEN CREA EL NEGOCIO ES SU DUENO (23-ago-2026).
+         `owner_user_id` no se llenaba en ninguno de los dos caminos, asi que
+         `es_dueno()` —que es como el sistema reconoce al dueno sin depender de
+         la metadata, que el propio usuario puede reescribir— devolvia false
+         para todo restaurante nuevo. Hoy no encierra a nadie porque el rol
+         "gerente" ya abre todo, pero deja al dueno sin su unica marca fiable:
+         cualquier candado que se apoye en ella lo dejaria fuera de SU casa. */
       const t = await sbAdmin("POST", "/rest/v1/tenants", {
         name: nombre, email: user.email || null, plan: "starter", status: "active",
+        owner_user_id: user.id,
       });
       if (!t.ok) return json(500, { error: "tenant: " + t.text });
       const tenant = (t.data as Array<Record<string, unknown>>)[0];
@@ -197,6 +205,14 @@ Deno.serve(async (req) => {
         id: userId, branch_id: firstBranch.id, tenant_id: tenant.id,
         name: reg.nombre, role: "gerente", is_authorized_admin: true,
       });
+
+      /* El dueno se marca AQUI y no arriba porque su cuenta de acceso nace
+         despues que el restaurante. Solo si esta vacio: si se vuelve a darle a
+         Aprobar, no se le cambia el dueno a un restaurante que ya trabaja. */
+      if (!tenant.owner_user_id && userId) {
+        await sbAdmin("PATCH", `/rest/v1/tenants?id=eq.${tenant.id}&owner_user_id=is.null`,
+          { owner_user_id: userId });
+      }
 
       /* El cierre: marcar la solicitud como aprobada. Aqui estaban DOS de los
          cuatro errores — el estado iba en espanol ("aprobado") y la tabla solo

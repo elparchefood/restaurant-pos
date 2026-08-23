@@ -13,10 +13,11 @@
    Los límites viven en la tabla `pos_planes`, no aquí: así se ajustan sin
    tocar código.
 
-   OJO — el SWITCH todavía no está. Cambiar de marca exige que las 12 pantallas
-   que hoy leen la sucursal del login obedezcan un contexto central; mientras
-   eso no exista, un switch mostraría datos de la sucursal equivocada. Por eso
-   aquí se muestra el contexto pero no se permite cambiarlo.
+   EL SWITCH YA ESTÁ (ver _cambiarHTML más abajo). Este comentario decía que
+   no, y siguió diciéndolo mucho después de que se construyó: se apoya en
+   window.posContexto, que es justo el contexto central que aquí se echaba de
+   menos. Se corrige el 23-ago-2026, junto con el aviso que le repetía lo
+   mismo al dueño en la cara al crear una marca.
    ══════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -96,6 +97,26 @@
 
   function sucursalesDeMarca(brandId) {
     return (ctx.sucursales || []).filter(function (x) { return x.brand_id === brandId; });
+  }
+
+  /* AVISO CON LA CARA DEL PRODUCTO, NO LA DEL NAVEGADOR (23-ago-2026).
+     Aquí había tres cuadros de dialogo del navegador. Además de romper la
+     regla de Sergio —nada de cuadros del navegador— salen con el nombre del
+     sitio encima, que es justo lo que un restaurante que paga por Cobra no
+     tiene por qué ver. */
+  function aviso(titulo, texto) {
+    css();
+    var ov = document.createElement("div");
+    ov.className = "pm-ov";
+    ov.innerHTML =
+        '<div class="pm-modal"><div class="pm-head"><div class="pm-title">' + esc(titulo) + '</div></div>'
+      + '<div class="pm-body"><div style="font-size:13.5px;line-height:1.6;color:#475569">'
+      +   esc(texto).split("\n").join("<br>") + '</div></div>'
+      + '<div class="pm-foot"><button class="pm-btn main" data-x>Entendido</button></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener("click", function (e) {
+      if (e.target === ov || e.target.closest("[data-x]")) ov.remove();
+    });
   }
 
   /* ══ EL SWITCH: cambiar de marca y de sucursal ══
@@ -224,7 +245,7 @@
     document.body.appendChild(ov);
     ov.addEventListener('click', function (e) {
       if (e.target === ov || e.target.closest('[data-x]')) ov.remove();
-      if (e.target.closest('[data-planes]')) { ov.remove(); alert('La pantalla de planes y pagos todavía no está construida.'); }
+      if (e.target.closest('[data-planes]')) { ov.remove(); aviso('Planes y pagos', 'Esta pantalla todavía no está construida.'); }
     });
   }
 
@@ -284,8 +305,11 @@
         if (rs.error) throw rs.error;
         ov.remove();
         await cargar(); pintar();
-        alert('Marca "' + nombre + '" creada con su sucursal "' + suc + '".\n\n'
-            + 'Para trabajar en ella hace falta el cambio de marca, que todavía se está construyendo.');
+        /* Antes esto remataba con "el cambio de marca todavía se está
+           construyendo". Ya no: el switch está arriba, en este mismo menú. */
+        aviso("Marca creada",
+              'Ya tienes la marca "' + nombre + '" con su sucursal "' + suc + '".\n'
+            + 'Para empezar a trabajar en ella, cámbiate desde este mismo menú, en "Cambiar de marca o sucursal".');
       } catch (e) {
         this.disabled = false; this.textContent = 'Crear marca';
         err.textContent = 'No se pudo crear: ' + (e.message || e);
@@ -335,7 +359,8 @@
         if (r.error) throw r.error;
         ov.remove();
         await cargar(); pintar();
-        alert('Sucursal "' + nombre + '" creada en ' + (ctx.marca ? ctx.marca.name : '') + '.');
+        aviso("Sucursal creada",
+              'Ya tienes la sucursal "' + nombre + '" en ' + (ctx.marca ? ctx.marca.name : '') + '.');
       } catch (e) {
         this.disabled = false; this.textContent = 'Crear sucursal';
         err.textContent = 'No se pudo crear: ' + (e.message || e);
