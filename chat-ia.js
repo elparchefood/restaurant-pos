@@ -1236,8 +1236,12 @@ function messageHTML(m) {
 function messageBubbleHTML(m) {
   const dir   = m.direction === 'in' ? 'in' : 'out';
   const time  = formatTime(m.sent_at);
+  /* Un envio que NO salio no puede lucir igual que uno entregado: chulos
+     solo para lo enviado; lo fallido lleva su aviso rojo, clarito. */
   const check = dir === 'out'
-    ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${m.delivery_status==='read'?'#fff':'rgba(255,255,255,.5)'}" stroke-width="2.4"><polyline points="18 7 9 17 5 13"/><polyline points="22 7 13 17 12.5 16.5"/></svg>`
+    ? ((m.delivery_status === 'failed' || m.delivery_status === 'error')
+        ? `<span style="color:#FF7B93;font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;gap:3px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>No salió</span>`
+        : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${m.delivery_status==='read'?'#fff':'rgba(255,255,255,.5)'}" stroke-width="2.4"><polyline points="18 7 9 17 5 13"/><polyline points="22 7 13 17 12.5 16.5"/></svg>`)
     : '';
   const menu  = msgTriggerHTML(m);
 
@@ -2110,7 +2114,13 @@ async function sendMessage() {
       const sendData = await sendRes.json();
       if (sendData.error) {
         showToast('No se pudo enviar el mensaje: ' + sendData.error, 'error');
-        S.messages = S.messages.map(m => m.id === data.id ? { ...m, delivery_status: 'error' } : m);
+        /* Tambien en la BASE. El mensaje se guarda como 'sent' ANTES de
+           enviarse; si el envio falla y esto solo se marca en memoria, al
+           recargar la burbuja vuelve a decir "enviado" — mentira que costo
+           cara el 22-ago: dos mensajes de las 8:52pm nunca salieron y el
+           chat los mostraba como entregados mientras el pedido se enfriaba. */
+        try { await sb.from('chat_messages').update({ delivery_status: 'failed' }).eq('id', data.id); } catch (e) {}
+        S.messages = S.messages.map(m => m.id === data.id ? { ...m, delivery_status: 'failed' } : m);
         renderThread();
       }
     } catch (e) {

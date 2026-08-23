@@ -43,7 +43,26 @@ Deno.serve(async (req) => {
     const canal = String(convRows[0].channel || "whatsapp");
 
     // 2. Get channel -> meta (access_token + phone_number_id)
-    const chRows = await sbGet(`/rest/v1/chat_channels?id=eq.${channel_id}&select=meta&limit=1`);
+    /* CONVERSACION SIN CANAL (22-ago-2026, urgencia real de las 9pm).
+       31 conversaciones viejas tenian channel_id NULO y este 404 dejaba a
+       Sergio sin poder escribirle a un cliente con el pedido enfriandose.
+       El canal se puede deducir siempre: es el del RESTAURANTE de la
+       conversacion, del mismo tipo (whatsapp con whatsapp). Se resuelve, se
+       envia, y de paso se deja la conversacion enlazada para la proxima. */
+    let chRows = channel_id
+      ? await sbGet(`/rest/v1/chat_channels?id=eq.${channel_id}&select=meta&limit=1`)
+      : null;
+    if (!chRows?.length) {
+      const porTipo = await sbGet(
+        `/rest/v1/chat_channels?tenant_id=eq.${convRows[0].tenant_id}&channel=eq.${encodeURIComponent(canal)}&select=id,meta&limit=1`
+      );
+      if (porTipo?.length) {
+        chRows = porTipo;
+        try {
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversation_id}`, { channel_id: porTipo[0].id });
+        } catch { /* el envio importa mas que dejarla enlazada */ }
+      }
+    }
     if (!chRows?.length) return json({ error: "Channel not found" }, 404);
 
     let meta: Record<string, string> = {};
