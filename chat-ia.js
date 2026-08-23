@@ -747,6 +747,20 @@ async function pintarFichaCliente(conv){
     if (desde) h += '<div class="ci-dw-row"><span>Cliente desde</span><b>'+new Date(desde).toLocaleDateString('es-CO',{day:'numeric',month:'short'})+'</b></div>';
     h += '</div>';
 
+    /* OTRO TELEFONO (22-ago-2026, pedido de Sergio).
+       Una clienta pidio que la llamaran a otro numero porque el suyo solo
+       tiene WhatsApp. Es un dato MAS para la entrega: sale en la factura
+       junto al principal y no reemplaza nada.
+       Los PUNTOS no se tocan — se guardan siempre contra el telefono
+       principal (asi lo hace la funcion de la base), y este numero solo
+       sirve para reconocer al cliente si escribe desde el y para llamarlo. */
+    h += '<div class="ci-dw-sec">Otro teléfono</div>'
+      + '<input class="ci-dw-tel2" id="fichaTel2" type="tel" inputmode="tel" maxlength="20" '
+      + 'placeholder="Por si no contesta el principal" value="'+escHtml(cli.telefono2||'')+'" '
+      + 'onblur="guardarTel2Cliente(&quot;'+cli.id+'&quot;,this.value)">'
+      + '<div class="ci-dw-hint">Sale en la factura junto al principal, para la entrega. '
+      + 'Los puntos siguen en el número principal.</div>';
+
     h += '<div class="ci-dw-sec">Direcciones</div><div class="ci-dw-dirs" id="fichaDirs">'
       + dirs.map(function(d,i){
           return ciDirRowHTML(cli.id, d.dir, d.barrio, i, i===dirs.length-1, d.id);
@@ -914,6 +928,25 @@ async function guardarNotasCliente(id, txt){
     await sb.from('pos_clientes').update({ notas: txt, updated_at: new Date().toISOString() }).eq('id', id);
     showToast('Nota guardada','success');
   } catch(e){ showToast('No se pudo guardar la nota','error'); }
+}
+/* Se guarda al salir del campo, como las notas. Vacio = se borra: si el
+   cliente cambia de numero alterno, dejarlo en blanco tiene que quitarlo. */
+async function guardarTel2Cliente(id, txt){
+  const limpio = String(txt||'').replace(/[^0-9+ ]/g,'').replace(/\s+/g,' ').trim().slice(0,20);
+  /* Si quedo igual al principal no sirve de nada y confunde en la factura. */
+  try {
+    const act = await sb.from('pos_clientes').select('telefono').eq('id', id).maybeSingle();
+    const p10 = String((act.data && act.data.telefono) || '').replace(/\D/g,'').slice(-10);
+    if (limpio && p10 && limpio.replace(/\D/g,'').slice(-10) === p10) {
+      showToast('Ese ya es el número principal','info');
+      const el = document.getElementById('fichaTel2'); if (el) el.value = '';
+      return;
+    }
+  } catch(e){}
+  try {
+    await sb.from('pos_clientes').update({ telefono2: limpio || null, updated_at: new Date().toISOString() }).eq('id', id);
+    showToast(limpio ? 'Otro teléfono guardado' : 'Otro teléfono borrado','success');
+  } catch(e){ showToast('No se pudo guardar el teléfono','error'); }
 }
 async function noEnviarleCliente(tel10){
   try {

@@ -2115,3 +2115,15 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 /* El mapa real entra dentro del recuadro y tapa el dibujo de respaldo. */
 .ci-loc-map > img, .ci-loc-map > canvas, .ci-loc-map > svg { position: relative; z-index: 2; }
 
+/* OTRO TELÉFONO en la ficha del cliente (22-ago-2026). Mismo trato visual
+   que el campo de notas: se ve editable y se guarda al salir. */
+.ci-dw-tel2 {
+  width: 100%; box-sizing: border-box; padding: 9px 11px;
+  background: #14161E; border: 1px solid #262935; border-radius: 9px;
+  color: #E6E8F0; font-family: inherit; font-size: 13px;
+  font-variant-numeric: tabular-nums; letter-spacing: .02em;
+}
+.ci-dw-tel2:focus { outline: none; border-color: rgba(124,92,255,.45); }
+.ci-dw-tel2::placeholder { color: #585C6B; letter-spacing: 0; }
+.ci-dw-hint { margin-top: 5px; font-size: 11px; line-height: 1.45; color: #8B8FA3; }
+
