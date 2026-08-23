@@ -278,6 +278,15 @@ function matchProductosEnTexto(texto: string): Array<{ name: string; cat: string
     let idx = t.indexOf(" " + e.key + " ");
     if (idx < 0) idx = t.indexOf(" " + e.key + "s ");
     if (idx < 0) idx = t.indexOf(" " + e.key + "es ");
+    /* Y EN SINGULAR (22-ago, caso real). "la salchipapa de maicito especial":
+       la clienta dijo "maicito" y el producto se llama "Maicitos Especial".
+       El plural ya se toleraba (arriba); el singular no, y el nombre partido
+       caia en pedazos: "especial" solo casaba con la hamburguesa ESPECIAL y
+       el resumen salio con dos hamburguesas que nadie pidio. */
+    if (idx < 0) {
+      const sing = e.key.replace(/s(?= |$)/g, "");
+      if (sing !== e.key && sing.length >= 4) idx = t.indexOf(" " + sing + " ");
+    }
     if (idx >= 0) found.push({ name: e.name, cat: e.cat, pos: idx });
   }
   /* UNA LETRA DE ERROR NO CAMBIA EL PLATO (18-ago). Shirley escribio "premiun
@@ -303,7 +312,12 @@ function matchProductosEnTexto(texto: string): Array<{ name: string; cat: string
         const win = winArr.join("");
         if (Math.abs(win.length - kJoin.length) > 1) continue;
         if (win === kJoin) break;                       // el exacto ya lo vio
-        if (winArr.some(w => DYN_PROD_MAP.some(o => o.key === w))) continue;
+        /* La palabra que bloquea tiene que ser un producto AJENO al candidato:
+           "maicito especial" no casaba con "Maicitos Especial" porque su
+           propia palabra "especial" tambien es la hamburguesa ESPECIAL, y la
+           cautela pensada para proteger productos exactos terminaba negando
+           el nombre completo del que se estaba buscando. */
+        if (winArr.some(w => !kWords.includes(w) && DYN_PROD_MAP.some(o => o.key === w))) continue;
         if (levenshtein(win, kJoin) === 1) {
           const pos = t.indexOf(" " + winArr[0]);
           found.push({ name: e.name, cat: e.cat, pos: pos >= 0 ? pos : 0 });
@@ -4045,7 +4059,12 @@ INTENCION, no las palabras exactas.` },
            es la letra d — la expresion decia (d+)s+ y no casaba nunca, asi que
            "2 coca colas" entraba siempre como 1. */
         const mC = normalizarTexto(sig.texto).match(new RegExp("(\\d+)\\s+(?:[a-z]+\\s+){0,2}" + kn));
-        if (mC) state.cantidad = Math.max(1, Math.min(20, parseInt(mC[1], 10)));
+        /* El numero de un decimal no cuenta: en "gaseosa 1.5cocacola" la
+           normalizacion deja "1 5cocacola" y el 5 parece cantidad. Se mira el
+           texto ORIGINAL, donde el punto todavia existe. */
+        const mDec = mC && new RegExp("[0-9][.,]" + mC[1] + "(?![0-9])").test(sig.texto)
+          && !new RegExp("(?:^|[^0-9.,])" + mC[1] + "(?![0-9])").test(sig.texto);
+        if (mC && !mDec) state.cantidad = Math.max(1, Math.min(20, parseInt(mC[1], 10)));
       } catch (_) { /* queda en 1 */ }
       if (state.adiciones !== null) state.adiciones = "";   // el upsell es del pedido
       currentProductData = await loadProductData(state.producto, branchId, state.producto_categoria);
@@ -5312,7 +5331,17 @@ const SOLO_CORTESIA_RE = /^\s*(por\s*fa(s|vor|vorcito)?|porfis|porfi|pls|plis|pl
 // (no solo en el paso "nombre"), p.ej. cuando el cliente da todo en un solo mensaje.
 const NOMBRE_MARCADOR_RE = /(?:me\s+llamo|mi\s+nombre\s+es|a\s+nombre\s+de|el\s+nombre\s+es|cambia\s+el\s+nombre\s+a|el\s+pedido\s+es\s+para)\s+([a-záéíóúüñÁÉÍÓÚÜÑ]+(?:\s+[a-záéíóúüñÁÉÍÓÚÜÑ]+){0,2})/i;
 
-function extractNombre(text: string, isCurrentStep: boolean, productData: ProductData | null = null, domCfg: Record<string, unknown> | null = null): string | null {
+function extractNombre(text: string, isCurrentStep: boolean, productData: ProductData | null = null, domCfg: Record<string, unknown> | null = null, barrioActual: string | null = null): string | null {
+  /* "BARRIO LOS ANDES" NO ES UNA PERSONA (22-ago, caso real). La clienta
+     repitio el barrio —creyendo que no se le habia entendido— justo cuando el
+     flujo iba por el nombre, el barrio aun no tenia precio configurado (la
+     compuerta de lookupDomiPrice no lo veia) y la factura salio a nombre de
+     "Barrio los andes". Nadie se llama "barrio", "vereda" ni "conjunto": si
+     la frase trae una de esas palabras, es un lugar. */
+  if (/\b(barrio|vereda|urbanizacion|urbanizaci\u00f3n|conjunto|manzana)\b/i.test(text)) return null;
+  /* Y REPETIR EL BARRIO YA CAPTURADO tampoco es dar un nombre, aunque el
+     barrio no este en ninguna zona todavia. */
+  if (barrioActual && normalizarTexto(text).includes(normalizarTexto(barrioActual))) return null;
   /* Un mensaje que es SOLO una cortesia no trae nombre, este o no en el paso
      del nombre. "porfa" a secas es lo que sigue a otra cosa, no una respuesta. */
   if (SOLO_CORTESIA_RE.test(text)) return null;
@@ -5615,6 +5644,8 @@ Devuelve SOLO este JSON con lo que ESTE mensaje aporta (omite lo que no diga):
 REGLAS:
 - "1.5", "litro y medio", "la de litro y medio" -> el tamaño "1.5 Litros" si esa es
   una de las opciones. Contestar con un pedazo TAMBIÉN es contestar.
+- "cantidad" JAMÁS sale de un número con punto o coma: en "gaseosa 1.5" o
+  "1,5 litros" la cantidad es 1 y el "1.5" es el tamaño.
 - Si no estás seguro de cuál opción es, deja null. Es mejor volver a preguntar que
   adivinar mal.
 - Un saludo o una cortesía sueltos ("porfa", "gracias", "listo", "ok") NO son un
@@ -6012,6 +6043,25 @@ function validarLeido(
         out.total_mostrado = null;
       }
       out.barrio = ok;
+    } else if (!ok && !state.barrio) {
+      /* EL BARRIO QUE EL CLIENTE DIO NO SE BOTA (22-ago, dos casos el mismo
+         dia). "...calle 28 cn #6c53 Galicia" y "...barrio los Andes calle
+         16#7E29": los dos clientes dieron TODO en un mensaje, el barrio no
+         estaba en las zonas, y este bloque lo botaba en silencio. Renglones
+         despues el flujo preguntaba "y en que barrio queda esa direccion?"
+         — preguntando lo que ya habian dicho. A los dos les toco atenderlos
+         un humano.
+
+         Se guarda tal cual lo dijo: el camino de "barrio sin zona" (diseno de
+         Sergio) hace el resto — Paco se calla, avisa al humano con "no se
+         cuanto cobrar el domicilio a X", y si Sergio aprueba el barrio, la
+         relectura sigue sola. El paso del barrio ya hacia esto mismo con lo
+         "dicho"; el lector era el unico camino que no. */
+      const crudo = String(leido.barrio).trim().slice(0, 40);
+      if (crudo.length >= 3 && !mencionaProductoCatalogo(crudo) && !CALLE_REGEX.test(crudo)) {
+        out.barrio = crudo;
+        console.log('[lector] barrio fuera de zonas, se guarda igual: "' + crudo + '"');
+      }
     }
   }
 
@@ -6108,7 +6158,22 @@ function validarLeido(
      — el de la gaseosa lo lee la cola con su propio texto. */
   if (typeof leido.cantidad === "number" && leido.cantidad >= 1 && leido.cantidad <= 50) {
     let esMio = true;
-    if (leido.cantidad > 1 && texto && state.producto) {
+    /* "GASEOSA 1.5COCACOLA" NO SON 5 GASEOSAS (22-ago, caso real). El lector
+       leyo el 5 de "1.5" como cantidad, y el comparador de aqui abajo lo
+       confirmo porque justo despues del 5 venia "cocacola". El resumen salio
+       con 5x COCA COLA. Un numero pegado a un punto o una coma es un TAMANO
+       (litro y medio), jamas una cantidad — y se mira en el texto ORIGINAL,
+       porque la normalizacion borra el punto y ya no se puede saber. */
+    if (leido.cantidad > 1 && texto) {
+      const nStr = String(Math.round(leido.cantidad));
+      const pegadoADecimal = new RegExp("[0-9][.,]" + nStr + "(?![0-9])").test(texto);
+      const sueltoEnElTexto = new RegExp("(?:^|[^0-9.,])" + nStr + "(?![0-9])").test(texto);
+      if (pegadoADecimal && !sueltoEnElTexto) {
+        console.log('[lector] cantidad ' + leido.cantidad + ' venia de un decimal ("x.' + nStr + '") — se ignora');
+        esMio = false;
+      }
+    }
+    if (esMio && leido.cantidad > 1 && texto && state.producto) {
       const tn = normalizarTexto(texto);
       const mNum = tn.match(new RegExp("(?:^|[^0-9])" + String(Math.round(leido.cantidad)) + "(?![0-9])"));
       if (mNum && typeof mNum.index === "number") {
@@ -6439,11 +6504,11 @@ function runExtractors(
          palabras iba a cubrir "exactamente", "tal cual", "ese mismo",
          "efectivamente". Lo unico que se respeta aparte es un "no" seco: ahi
          no se confirma nada y se le vuelve a preguntar. */
-      const n = esConfirmacion(text, intenciones) ? null : extractNombre(text, true, productData, (cfgGlobal.domicilios as Record<string, unknown> | null) || null);
+      const n = esConfirmacion(text, intenciones) ? null : extractNombre(text, true, productData, (cfgGlobal.domicilios as Record<string, unknown> | null) || null, state.barrio || (result.barrio as string) || null);
       if (n) result.nombre = n;
       else if (!/^no\b/.test(normalizarTexto(text))) result.nombre = nombreWa;
     } else {
-      const n = extractNombre(text, isNombreStep, productData, (cfgGlobal.domicilios as Record<string, unknown> | null) || null);
+      const n = extractNombre(text, isNombreStep, productData, (cfgGlobal.domicilios as Record<string, unknown> | null) || null, state.barrio || (result.barrio as string) || null);
       /* CON UN CLIENTE YA GUARDADO, EL NOMBRE SE CONFIRMA — NO SE COSECHA
          DEL TEXTO LIBRE (regla de Sergio, 21-ago).
 

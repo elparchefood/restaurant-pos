@@ -3,6 +3,54 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 Paco: dos conversaciones reales del 22-ago, cinco arreglos (motor v353)
+
+Dos clientas la misma tarde; a las dos les tocó terminarlas Sergio a mano.
+Al rastrear (regla: rastrear antes que adivinar) salieron **cinco** causas:
+
+**1. El barrio que el cliente dio se botaba en silencio (las DOS).**
+"...calle 28 cn #6c53 **Galicia**" y "...sería **barrio los Andes** calle
+16#7E29": todo en un solo mensaje. El barrio no estaba en las zonas en ese
+momento, y el LECTOR lo botaba — renglones después el flujo preguntaba *"¿y en
+qué barrio queda esa dirección?"*. El paso del barrio ya guardaba lo "dicho"
+aunque no tuviera zona (y con eso Paco se calla y avisa al humano con "no sé
+cuánto cobrar a X"); el lector era el único camino que no. Ahora también.
+
+**2. "Barrio los andes" quedó como el NOMBRE de la clienta.** Repitió el
+barrio creyendo que no la habían entendido, justo cuando el flujo iba por el
+nombre. La compuerta de lookupDomiPrice no lo veía porque el barrio **aún no
+tenía precio** (Sergio lo aprobó minutos después). Regla nueva en
+extractNombre: nadie se llama "barrio", "vereda" ni "conjunto"; y repetir el
+barrio ya capturado tampoco es un nombre (parámetro `barrioActual`).
+
+**3. "gaseosa 1.5cocacola" se volvió 5 GASEOSAS.** El lector leyó el 5 de
+"1.5" como cantidad, y el comparador lo confirmó porque justo después del 5
+venía "cocacola". Candado en tres sitios: el guardián de cantidad y la cola
+miran el texto ORIGINAL (la normalización borra el punto) y un número pegado
+a `.` o `,` jamás es cantidad; y la regla también se le dice al lector.
+
+**4. "la salchipapa de maicito especial" (SINGULAR) partía el producto.**
+El plural ya se toleraba ("maicitos" encuentra "maicito**s**"), el singular
+no: "maicito especial" no casaba con "Maicitos Especial", los pedazos caían
+por separado y "especial" solo casaba con la hamburguesa ESPECIAL. El resumen
+salió con **dos hamburguesas que nadie pidió**. Ahora el buscador también
+prueba el singular de cada nombre (quitando la s final de sus palabras).
+
+**5. La tolerancia de una letra se bloqueaba a sí misma.** La cautela "nunca
+convertir una palabra que YA es otro producto exacto" impedía que "maicito
+especial" casara con "Maicitos Especial"… porque su propia palabra "especial"
+también es un producto. Ahora la palabra que bloquea tiene que ser un producto
+**ajeno** al candidato.
+
+La pregunta de pollo/carne/mixta que nunca salió era consecuencia del #4/#5:
+con el producto mal casado (hamburguesa ESPECIAL, sin variables) no había nada
+que preguntar. Con el producto correcto el paso "tipo" vuelve a existir.
+
+Probado con las funciones REALES extraídas del archivo: los dos mensajes
+literales de las clientas casan bien, el 5 de "1.5" se ignora, "5 gaseosas" de
+verdad pasa, "Barrio los andes" nunca es nombre y "Andres" sí. Estado corrupto
+de la conversación limpiado. **Motor v353.**
+
 ## 🔴→🟢 El chat mostraba una cosa y el cliente recibía otra — 22-ago-2026
 
 Sergio, después de probar desde su cuenta de Instagram: *"cuando Paco envía la
