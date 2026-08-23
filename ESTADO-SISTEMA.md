@@ -3,6 +3,61 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 El total de los pedidos de la PÁGINA no incluía el domicilio — 22-ago-2026
+
+Hallado revisando el pedido de Angela. `web-pedido` guardaba
+`total = comida + empaque`, **sin el domicilio**. Todos los demás caminos
+(caja, chat) guardan `total` = lo que el cliente paga, domicilio incluido.
+
+**Por qué importa:** el cierre de caja hace `total_final = total − domicilio`
+para sacar la comida (regla: el domicilio nunca es una venta). Con un total
+que YA venía sin domicilio, restaba un domicilio que no estaba: **la venta de
+Angela contaba $23.000 en vez de $29.000**. Cada pedido de la página con
+domicilio se reportaba de menos por el valor del domicilio.
+
+No afectaba el cobro: `web-pagar` calcula lo que se paga como
+`(total_final ?? total) + delivery_fee` = $35.000, y así se verificó bien.
+Tampoco hay riesgo de que el domiciliario cobre mal: **la página no acepta
+efectivo**, todo se paga antes de confirmar.
+
+Arreglado en `web-pedido` (`total: aPagar`) y reparada la fila de Angela
+(`2026-08-22-total-pedidos-web.sql`). Era el único pedido afectado.
+
+## 🟢 Confirmación del pedido de la página, por plantilla — 22-ago-2026
+
+Sergio: *"la cliente escribió como escéptica para averiguar si el pedido sí
+había llegado"*. Comprobado en su chat: Angela recibió **un solo mensaje**, el
+de los puntos, minutos después. Nadie le confirmó el pedido.
+
+Plantilla **`pedido_confirmado`** (UTILITY, es), aprobada por Sergio y creada
+en Meta el 22-ago — id `1464538509032589`, **PENDING** de aprobación de Meta.
+
+```
+¡Hola {{1}}! 🍟 Recibimos tu pedido y ya está en preparación 👨‍🍳
+
+📋 Pedido: {{2}}
+💰 Total: {{3}}
+📍 Va para: {{4}}
+
+Te avisamos apenas salga en camino ☺️
+```
+
+Sale desde `web-pagar`, en **los dos caminos** de pago (saldo y
+transferencia), justo después de mandar a cocina. Detalles que importan:
+- **El resumen va en UNA línea**: Meta rechaza el envío entero si una
+  variable trae saltos de línea.
+- Va por PLANTILLA porque el cliente puede no haber escrito nunca al
+  WhatsApp: fuera de las 24 horas Meta solo deja plantillas aprobadas.
+- Es **cortesía**: si falla (plantilla sin aprobar, sin token, sin teléfono)
+  se anota y ya — **el pago nunca se cae por esto**.
+- Deja copia en el chat, como el aviso de puntos, creando la conversación si
+  no existe, para poder abrirla y ver que salió.
+- El nombre de la plantilla es configurable por sede
+  (`ia_config.estados_config.pedido_web`), y `activo: false` la apaga.
+
+**Los puntos de la página SÍ funcionaban** (lo preguntó Sergio): Angela ganó
+sus 29 puntos a las 19:41 y el aviso salió a las 19:42, sin error.
+
 ## 🟢 Paco reconoce el pedido venga por donde venga (motor v360) — 22-ago-2026
 
 Sergio: *"Si la persona hace un pedido de manera manual, por la página o

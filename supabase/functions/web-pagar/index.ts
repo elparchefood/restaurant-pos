@@ -89,6 +89,108 @@ function conPuntos(o: Record<string, unknown>, metodo: string): string {
   return (Number(o.puntos_redimidos) || 0) > 0 ? "Puntos + " + metodo : metodo;
 }
 
+/* ══ LA CONFIRMACION DEL PEDIDO (22-ago-2026, pedido de Sergio) ═══════
+   Una clienta pidio por la pagina, pago, y escribio desconfiada al WhatsApp
+   a ver si el pedido habia llegado: nadie le habia dicho nada. Lo unico que
+   recibia era el mensaje de los puntos, minutos despues.
+
+   Va por PLANTILLA porque el cliente puede no haber escrito nunca al
+   WhatsApp: fuera de las 24 horas Meta solo deja plantillas aprobadas.
+   Plantilla "pedido_confirmado" (UTILITY), aprobada con Sergio el 22-ago.
+
+   Es CORTESIA: si algo falla —la plantilla aun sin aprobar, sin token, sin
+   telefono— se anota y ya. El pago NUNCA se cae por esto.
+
+   Y se deja copia en el chat, como el aviso de puntos, para que Sergio vea
+   con sus ojos que salio. */
+async function confirmarPorWhatsApp(orderId: string) {
+  try {
+    const oR = await sbGet(`/pos_orders?id=eq.${orderId}&select=*&limit=1`) as Array<Record<string, unknown>> | null;
+    const o = oR?.[0];
+    if (!o) return;
+
+    const cR = await sbGet(`/pos_clientes?id=eq.${o.cliente_id}&select=nombre,telefono&limit=1`) as Array<Record<string, unknown>> | null;
+    const tel10 = String(cR?.[0]?.telefono || "").replace(/\D/g, "").slice(-10);
+    if (tel10.length !== 10) return;
+    /* Solo el PRIMER nombre: "Hola Katherin" suena a persona; el nombre
+       completo suena a factura. */
+    const nombre = String(cR?.[0]?.nombre || "").trim().split(/\s+/)[0] || "¡Hola!";
+
+    const its = await sbGet(`/pos_order_items?order_id=eq.${orderId}&select=quantity,name,product_name&limit=20`) as Array<Record<string, unknown>> | null;
+    /* EN UNA SOLA LINEA a proposito: Meta NO acepta saltos de linea dentro
+       de una variable de plantilla — el envio entero se rechaza. */
+    const resumen = (its || [])
+      .map(i => `${i.quantity}x ${String(i.name || i.product_name || "").trim()}`)
+      .filter(x => x.length > 3).join(", ").slice(0, 300) || "Tu pedido";
+
+    const totalTxt = "$" + Math.round(Number(o.total) || 0).toLocaleString("es-CO");
+
+    /* La direccion vive en las notas del pedido (asi la guarda web-pedido);
+       si es para recoger, se dice claro en vez de dejar el hueco vacio. */
+    const notas = String(o.notes || "");
+    let destino = notas.split("[")[0].trim().replace(/\s+/g, " ").slice(0, 120);
+    if (!destino || String(o.channel) !== "domicilio") destino = "Recoger en el local";
+
+    const chR = await sbGet(`/chat_channels?branch_id=eq.${o.branch_id}&channel=eq.whatsapp&select=meta&limit=1`) as Array<Record<string, unknown>> | null;
+    const meta = (chR?.[0]?.meta || {}) as Record<string, string>;
+    if (!meta.access_token || !meta.phone_id) return;
+
+    /* El nombre de la plantilla es configurable, como el aviso de puntos:
+       otro restaurante puede tener la suya con otro nombre. */
+    let plantilla = "pedido_confirmado", idioma = "es";
+    try {
+      const cfgR = await sbGet(`/ia_config?branch_id=eq.${o.branch_id}&select=estados_config&limit=1`) as Array<Record<string, unknown>> | null;
+      const pc = ((cfgR?.[0]?.estados_config as Record<string, unknown>) || {}).pedido_web as Record<string, unknown> | undefined;
+      if (pc && pc.activo === false) return;   // el dueño lo apago
+      if (pc?.plantilla) plantilla = String(pc.plantilla);
+      if (pc?.idioma) idioma = String(pc.idioma);
+    } catch { /* con los valores por defecto basta */ }
+
+    const params = [nombre, resumen, totalTxt, destino];
+    const res = await fetch(`https://graph.facebook.com/v22.0/${meta.phone_id}/messages`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${meta.access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messaging_product: "whatsapp", to: "57" + tel10, type: "template",
+        template: { name: plantilla, language: { code: idioma },
+          components: [{ type: "body", parameters: params.map(p => ({ type: "text", text: p || "-" })) }] },
+      }),
+    });
+    const data = await res.json().catch(() => ({})) as Record<string, unknown>;
+    if (!res.ok) {
+      console.error("[web-pagar] confirmacion no salio:", JSON.stringify(data).slice(0, 300));
+      return;
+    }
+    const waId = ((data.messages as Array<Record<string, string>>)?.[0]?.id) || null;
+
+    /* La copia en el chat, igual que el aviso de puntos: si el cliente no
+       tiene conversacion se crea, para poder abrirla y ver que salio. */
+    const texto = `¡Hola ${nombre}! 🍟 Recibimos tu pedido y ya está en preparación 👨‍🍳\n\n`
+      + `📋 Pedido: ${resumen}\n💰 Total: ${totalTxt}\n📍 Va para: ${destino}\n\n`
+      + "Te avisamos apenas salga en camino ☺️";
+    const convR = await sbGet(`/chat_conversations?branch_id=eq.${o.branch_id}&channel=eq.whatsapp&contact_handle=like.*${tel10}&select=id,tenant_id&limit=1`) as Array<Record<string, unknown>> | null;
+    let conv = convR?.[0];
+    if (!conv) {
+      const creada = await fetch(`${SUPABASE_URL}/rest/v1/chat_conversations`, {
+        method: "POST", headers: { ...H, "Prefer": "return=representation" },
+        body: JSON.stringify({ tenant_id: o.tenant_id, branch_id: o.branch_id, channel: "whatsapp",
+          contact_handle: "57" + tel10, contact_name: nombre, status: "open" }),
+      });
+      if (creada.ok) conv = ((await creada.json()) as Array<Record<string, unknown>>)?.[0];
+    }
+    if (conv) {
+      await fetch(`${SUPABASE_URL}/rest/v1/chat_messages`, { method: "POST", headers: H,
+        body: JSON.stringify({ conversation_id: conv.id, tenant_id: conv.tenant_id ?? o.tenant_id,
+          direction: "out", origen: "sistema", external_id: waId, body: texto,
+          sent_at: new Date().toISOString(), delivery_status: "sent" }) });
+      await sbPatch(`/chat_conversations?id=eq.${conv.id}`, { last_message: texto,
+        last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false });
+    }
+  } catch (e) {
+    console.error("[web-pagar] confirmacion:", String(e).slice(0, 200));
+  }
+}
+
 async function aCocina(orderId: string) {
   try {
     await sbPatch(`/pos_orders?id=eq.${orderId}`, { visible_cocina: true });
@@ -167,6 +269,7 @@ Deno.serve(async (req) => {
         closed_at: new Date().toISOString(),
       });
       await aCocina(String(o.id));
+      await confirmarPorWhatsApp(String(o.id));
       const sal2 = await rpc("fn_saldo_cliente", { p_tenant: tenantId, p_cliente: clienteId }) as unknown;
       return json({ ok: true, metodo: "saldo",
         saldo: Math.round(num(Array.isArray(sal2) ? (sal2[0] as Record<string, unknown>)?.saldo : sal2)),
@@ -212,6 +315,7 @@ Deno.serve(async (req) => {
       closed_at: new Date().toISOString(),
     });
     await aCocina(String(o.id));
+    await confirmarPorWhatsApp(String(o.id));
     return json({ ok: true, metodo: "transferencia", referencia: ver.referencia || null,
       mensaje: "¡Listo! Confirmamos tu pago 🎉 Ya estamos preparando tu pedido." });
   } catch (e) {

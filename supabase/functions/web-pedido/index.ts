@@ -735,7 +735,15 @@ Deno.serve(async (req) => {
          el cliente se quedaba esperando algo que ya habia pagado con puntos. */
       status: (canje && aPagar === 0) ? "paid" : "pendiente_pago",
       customer_name: cli?.[0]?.nombre || null,
-      subtotal, total, total_final: total,
+      /* `total` ES LO QUE EL CLIENTE PAGA, domicilio incluido — la misma
+         convencion que la caja y el chat. Aqui se guardaba SIN el domicilio y
+         el cierre de caja, que hace "total − domicilio" para sacar la comida,
+         restaba un domicilio que nunca estuvo: la venta de Angela (22-ago)
+         contaba $23.000 en vez de $29.000. Cada pedido de la pagina con
+         domicilio se reportaba de menos por el valor del domicilio.
+         `total_final` sigue siendo SOLO la comida (regla de Sergio: el
+         domicilio nunca es una venta). */
+      subtotal, total: aPagar, total_final: total,
       delivery_fee: domi, packaging_fee: empaque,
       /* Lo que hace que en Cobra se vea "pagado con puntos", igual que cuando
          se canjea en el local: mismo metodo, mismos dos campos. */
