@@ -2105,6 +2105,16 @@
     location.href = 'intent://' + url + '#Intent;scheme=https;package=com.android.chrome;end';
   }
 
+  /* EL ICONO DE COMPARTIR DE IPHONE, dibujado igual que el de verdad: el
+     cuadrito abierto por arriba con la flecha saliendo. Se pone al lado de la
+     palabra para que la persona lo RECONOZCA en la lista en vez de tener que
+     leerse los nombres uno por uno. */
+  var ICO_COMPARTIR = '<svg class="ep-ico-compartir" viewBox="0 0 24 24" ' +
+    'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+    'stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M8 11v7a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-7"/>' +
+    '<path d="M12 3v11"/><path d="M8.5 6.5 12 3l3.5 3.5"/></svg>';
+
   function pasosInstalar() {
     /* Dentro de Instagram no sirven ni los pasos de iPhone ni los de Android:
        hay que salir primero. */
@@ -2130,8 +2140,19 @@
          Los tres puntos sirven en todas las versiones —de ahi cuelga tanto
          Compartir como Agregar a inicio—, asi que es ademas la instruccion mas
          segura. */
+      /* COMPARTIR NO SE SALTA, PERO VA JUNTO CON LOS TRES PUNTOS.
+         Primero faltaba: de los tres puntos no se pasa directo a 'Agregar a
+         inicio' —hay que entrar a Compartir, y ahi dentro esta la opcion—, y
+         omitirlo deja a la persona mirando una lista donde no encuentra lo que
+         le dijimos. Al ponerlo aparte quedaban cuatro pasos, y con cuatro el
+         video se encogia a 198px de ancho en un iPhone normal: una grabacion
+         de pantalla a ese tamaño no se lee.
+         La salida la dio Sergio: los dos toques son seguidos y en la misma
+         pantalla, asi que son UN paso. Nada de informacion se pierde y el video
+         recupera su tamaño. (23-ago-2026.) */
       return [
-        ['mas', 'Toca los <b>tres puntos</b>', 'Abajo a la derecha, en la barra del navegador. La flecha te los señala.'],
+        ['mas', 'Toca los <b>tres puntos</b> y luego <b>Compartir</b> ' + ICO_COMPARTIR,
+               'Los tres puntos están abajo a la derecha, en la barra del navegador — la flecha te los señala.'],
         ['compartir', 'Busca <b>Agregar a inicio</b>', 'Deslízate hacia abajo en la lista de opciones.'],
         ['ok', 'Toca <b>Agregar</b>', 'Listo: te queda con el logo entre tus aplicaciones.'],
       ];
@@ -2358,7 +2379,8 @@
           : '') +
         '<div class="ep-tuto-pasos-t">' +
           (url ? 'Los mismos pasos, escritos'
-               : (pasos.length === 2 ? 'Son dos pasos' : 'Son tres pasos')) +
+               : 'Son ' + ['cero','un','dos','tres','cuatro','cinco'][pasos.length] +
+                 (pasos.length === 1 ? ' paso' : ' pasos')) +
         '</div>' +
         '<div class="ep-inst-pasos">' + pasos.map(function (p, i) {
           return '<div class="ep-inst-paso"><span class="ep-inst-n">' + (i + 1) + '</span>' +

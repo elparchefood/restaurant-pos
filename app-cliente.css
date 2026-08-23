@@ -2440,13 +2440,16 @@ html.tema-claro .ep-menu-it.malo { color: #8f2242; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .ep-tuto-h {
-  font-size: 20px; font-weight: 700; letter-spacing: -.025em; line-height: 1.15;
-  margin: 14px 0 5px; color: var(--ink); flex-shrink: 0;
+  font-size: 19px; font-weight: 700; letter-spacing: -.025em; line-height: 1.15;
+  margin: 11px 0 4px; color: var(--ink); flex-shrink: 0;
 }
-.ep-tuto-lead {
-  font-size: 13px; color: var(--sub); line-height: 1.4; margin: 0 0 12px;
-  flex-shrink: 0;
-}
+/* LA FRASE DEL "PARA QUE SIRVE" YA NO SE PINTA (23-ago). Al pasar los pasos de
+   iPhone de 3 a 4 —faltaba Compartir— el video se quedaba en 198px de ancho en
+   un iPhone normal: una grabacion de pantalla a ese tamaño no se lee.
+   De todo lo que hay aqui, esta frase era lo unico que NO son instrucciones ni
+   el regalo, y el regalo ya dice el para que con mas fuerza. Los ~46px que
+   ocupaba se los queda el video. */
+.ep-tuto-lead { display: none; }
 
 /* EL MARCO es el que manda sobre el tamano: se estira con lo que sobre y le
    pasa la medida al video. El `min-height: 0` es lo que deja que ENCOJA — sin
@@ -2495,19 +2498,23 @@ html.tema-claro .ep-menu-it.malo { color: #8f2242; }
 
 .ep-tuto-pasos-t {
   font-size: 10px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .13em; color: var(--dim); margin-bottom: 10px; flex-shrink: 0;
+  letter-spacing: .13em; color: var(--dim); margin-bottom: 8px; flex-shrink: 0;
 }
-.ep-tuto .ep-inst-pasos { gap: 9px; margin-bottom: 0; flex-shrink: 0; }
-.ep-tuto .ep-inst-p-t { font-size: 13px; }
-.ep-tuto .ep-inst-p-s { font-size: 11.5px; }
+.ep-tuto .ep-inst-pasos { gap: 7px; margin-bottom: 0; flex-shrink: 0; }
+.ep-tuto .ep-inst-p-t { font-size: 13px; line-height: 1.25; }
+.ep-tuto .ep-inst-p-s { font-size: 11.5px; line-height: 1.3; margin-top: 1px; }
 .ep-tuto .ep-btn { width: 100%; justify-content: center; margin-top: 14px; flex-shrink: 0; }
 
 /* En pantallas bajas (un iPhone SE, o el navegador con su barra abierta) el
    video se quedaria en nada. Se sacrifica la frase del "para que sirve", que
    es lo unico que NO son instrucciones. */
+/* En pantallas bajas (un iPhone SE, o el navegador con su barra abierta) se
+   aprieta un poco mas todavia. */
 @media (max-height: 700px) {
-  .ep-tuto-lead { display: none; }
-  .ep-tuto-h { font-size: 18px; margin-top: 10px; }
+  .ep-tuto-h { font-size: 17px; margin: 8px 0 3px; }
+  .ep-tuto-bono { padding: 7px 12px; margin-bottom: 8px; }
+  .ep-tuto-bono-m { font-size: 14.5px; }
+  .ep-tuto-marco { margin-bottom: 10px; }
 }
 
 /* El regalo por instalar. Es la razon mas fuerte para hacerlo, asi que se
@@ -2518,7 +2525,7 @@ html.tema-claro .ep-menu-it.malo { color: #8f2242; }
    nunca esta pantalla. */
 .ep-tuto-bono {
   display: flex; flex-direction: column; gap: 1px;
-  padding: 9px 14px; margin: 0 0 12px; flex-shrink: 0;
+  padding: 8px 14px; margin: 0 0 10px; flex-shrink: 0;
   border-radius: 14px;
   background: linear-gradient(135deg, rgba(227,176,75,.16), rgba(227,176,75,.06));
   border: 1px solid rgba(227,176,75,.34);
@@ -2679,4 +2686,10 @@ html.tema-claro .ep-tuto-bono {
 @media (prefers-reduced-motion: reduce) {
   .ep-tuto-sonido { animation: none; }
   .ep-tuto-sonido::before { animation: none; opacity: 0; }
+}
+
+/* El icono de compartir, en linea con el texto del paso. */
+.ep-ico-compartir {
+  width: 14px; height: 14px; display: inline-block; vertical-align: -2px;
+  margin-left: 1px; color: var(--oro-tx);
 }
