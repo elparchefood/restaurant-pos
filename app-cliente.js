@@ -2335,8 +2335,16 @@
              elastico (ocupa todo el ancho) y la caja mide exactamente lo que
              el video, que es lo unico que puede recortarle las esquinas. */
           ? '<div class="ep-tuto-marco"><div class="ep-tuto-caja">' +
+            /* SIN CONTROLES Y ARRANCANDO SOLO (pedido de Sergio, 23-ago).
+               `muted` no es una eleccion: ningun navegador —ni iPhone ni
+               Android— deja que un video empiece solo CON sonido. Sin `muted`
+               el arranque automatico se rechaza y quedaria un cuadro quieto.
+               `playsinline` para que en iPhone no se tome la pantalla entera,
+               y `loop` porque son 79 segundos: quien llegue a mitad lo ve
+               completo sin tener que buscar como repetirlo. */
             '<video class="ep-tuto-video" src="' + esc(url) + '" ' +
-            'controls playsinline preload="metadata"></video></div></div>'
+            'autoplay muted loop playsinline preload="auto" ' +
+            'disablepictureinpicture></video></div></div>'
           : '') +
         '<div class="ep-tuto-pasos-t">' +
           (url ? 'Los mismos pasos, escritos'
@@ -2377,6 +2385,72 @@
       try { history.replaceState(null, '', location.pathname + location.search); } catch (x) {}
       if (S.cliente) pantallaDentro(); else pantallaEntrar('', false);
     }
+    /* TOCAR EL VIDEO LO PAUSA Y LO SIGUE, sin que se vea ningun boton.
+
+       El unico dibujo que puede aparecer es el triangulo de 'play', y solo en
+       un caso: que el arranque automatico lo haya bloqueado el navegador (pasa
+       en iPhone con el ahorro de bateria encendido) y la persona todavia no
+       haya tocado nada. Sin eso, ese celular mostraria un cuadro quieto sin
+       ninguna pista de que hay que tocarlo, y el video no lo veria nadie.
+       En cuanto toca una vez, no vuelve a salir nunca — que es lo que pidio
+       Sergio: pausar y seguir sin ver un solo boton. */
+    var vid  = document.querySelector('.ep-tuto-video');
+    var caja = document.querySelector('.ep-tuto-caja');
+    if (vid && caja) {
+      var tocado = false;   // la persona ya toco el video alguna vez
+      /* LO PARO ELLA, o lo paro el celular. No es lo mismo: si lo paro ella hay
+         que respetarlo, y si lo paro el celular al irse la pagina al fondo hay
+         que seguirlo al volver. Con un solo `tocado` no se distinguian, y
+         bastaba con que hubiera tocado una vez —aunque fuera para SEGUIR— para
+         que al volver del menu del navegador se quedara congelado. */
+      var loParoElla = false;
+      var arranco = false;  // el video llego a reproducirse alguna vez
+      /* EL TRIANGULO SOLO SI NUNCA ARRANCO. Antes salia en CUALQUIER pausa, y
+         eso incluye la que hace el propio celular al irse la pagina al fondo
+         — que aqui pasa siempre, porque el paso 1 es justamente abrir el menu
+         del navegador. La persona volvia y se encontraba el boton que Sergio
+         pidio no ver. Si ya arranco una vez, no hay nada que avisar. */
+      function avisarQuietoSiHaceFalta() {
+        if (!tocado && !arranco && vid.paused) caja.classList.add('pausado');
+      }
+      /* SE INTENTA MAS DE UNA VEZ, y no por terco: el primer intento sale
+         cuando el archivo todavia no tiene ni un fotograma cargado y el
+         navegador lo rechaza por la carrera con la descarga, no porque no
+         quiera reproducir. Comprobado en la prueba: ese primer play() se
+         rechazaba y el mismo play() a mano, un segundo despues, funcionaba.
+         Se reintenta cuando ya hay datos; si ahi tambien falla, entonces si es
+         que el navegador no deja (ahorro de bateria) y sale el triangulo. */
+      function arrancar() {
+        if (loParoElla || !vid.paused) return;
+        var p = vid.play();
+        if (p && p.catch) p.catch(avisarQuietoSiHaceFalta);
+      }
+      arrancar();
+      vid.addEventListener('loadeddata', arrancar);
+      vid.addEventListener('canplay', arrancar);
+      vid.addEventListener('pause', avisarQuietoSiHaceFalta);
+      vid.addEventListener('playing', function () {
+        arranco = true;
+        caja.classList.remove('pausado');
+      });
+      /* Al volver de abrir el menu del navegador, el video sigue solo. Si la
+         persona lo habia pausado ELLA, se respeta y se queda quieto. */
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) arrancar();
+      });
+      caja.addEventListener('click', function () {
+        tocado = true;
+        caja.classList.remove('pausado');
+        if (vid.paused) {
+          loParoElla = false;
+          var p = vid.play(); if (p && p.catch) p.catch(function () {});
+        } else {
+          loParoElla = true;
+          vid.pause();
+        }
+      });
+    }
+
     var bYa = document.querySelector('.ep-tuto-ya');
     if (bYa) bYa.onclick = async function () {
       var ev = instalador;

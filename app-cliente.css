@@ -2592,3 +2592,38 @@ html.tema-claro .ep-tuto-bono {
 
 /* Que la flecha no se siente encima de la ultima linea de los pasos. */
 .ep-tuto .ep-inst-paso:last-child .ep-inst-p-s { padding-right: 72px; }
+
+/* El video se toca para pausar y seguir. Sin controles nativos: la caja entera
+   es el boton, y no se ve ninguno. */
+.ep-tuto-caja { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+
+/* Esconder los controles que iOS y Android dibujan por su cuenta aunque no se
+   pida `controls` (el boton de play grande en el centro, sobre todo). */
+.ep-tuto-video::-webkit-media-controls,
+.ep-tuto-video::-webkit-media-controls-start-playback-button,
+.ep-tuto-video::-webkit-media-controls-panel,
+.ep-tuto-video::-webkit-media-controls-overlay-play-button {
+  display: none !important;
+  -webkit-appearance: none;
+}
+
+/* EL TRIANGULO DE RESPALDO. Solo sale si el navegador bloqueo el arranque
+   automatico (el ahorro de bateria del iPhone lo hace) y la persona todavia no
+   ha tocado nada: si no, ese celular mostraria un cuadro quieto sin ninguna
+   pista y el video no lo veria nadie. En cuanto toca una vez, no vuelve. */
+.ep-tuto-caja.pausado::after {
+  content: ''; position: absolute; left: 50%; top: 50%;
+  width: 0; height: 0; transform: translate(-40%, -50%);
+  border-left: 22px solid rgba(255,255,255,.92);
+  border-top: 14px solid transparent;
+  border-bottom: 14px solid transparent;
+  filter: drop-shadow(0 2px 10px rgba(0,0,0,.6));
+  pointer-events: none;
+}
+.ep-tuto-caja.pausado::before {
+  content: ''; position: absolute; left: 50%; top: 50%;
+  width: 64px; height: 64px; margin: -32px 0 0 -32px;
+  border-radius: 50%; background: rgba(0,0,0,.42);
+  pointer-events: none;
+}
+.ep-tuto-caja { position: relative; }
