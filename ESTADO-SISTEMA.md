@@ -3,6 +3,31 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Número alterno del cliente, editable desde el chat — 22-ago-2026
+
+Sergio: una clienta pidió que la llamaran a **otro** número porque el suyo
+solo tiene WhatsApp. *"Es un dato más... no reemplaza los puntos ni nada de
+eso. Los puntos siguen guardándose en el número principal."*
+
+**Casi todo ya existía** y no hubo que inventarlo: la columna
+`pos_clientes.telefono2`, el campo "Otro teléfono" en Domicilios, la línea
+`Otro:` en la factura (`pos-print.js`) y la búsqueda del cliente por ese
+número. Lo único que faltaba era **poder ponerlo desde la ficha del contacto
+en el chat**, que es donde se atiende.
+
+**Los puntos NO se tocan** — verificado, no asumido: la función de la base
+hace `SELECT telefono INTO tel` (el principal, siempre). Los otros dos usos
+de `telefono2` son solo para IDENTIFICAR (mostrar la ficha si escribe desde
+ese número) y para NOMBRAR (la variable del mensaje de puntos).
+
+Probado con la ficha real de Katherin: se guardó el alterno (3126626457) y
+sus **96 puntos siguen en el principal**, con cero cuentas de puntos creadas
+en el número nuevo. El pedido de hoy está enlazado a su ficha, así que la
+factura ya saca las dos líneas.
+
+Detalles: si el alterno es igual al principal no se guarda (no sirve y
+confunde en la factura); dejarlo vacío lo borra.
+
 ## 🔴→🟢 "Salchi papa" partido → Paco cobró la ADICIÓN de $8.000 (motor v359) — 22-ago-2026
 
 Katherin escribió *"me envías por favor una **Salchi papa** tradicional de
