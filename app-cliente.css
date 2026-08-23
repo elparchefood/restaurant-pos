@@ -2396,3 +2396,46 @@ html.tema-claro .ep-menu-it.malo { color: #8f2242; }
   padding: 10px 12px; margin: 12px 0 0; font-size: 12.5px; color: var(--sub); line-height: 1.5;
 }
 
+
+/* ══ TUTORIAL DE INSTALACION ═══════════════════════════════════════════════
+   La pantalla a la que cae el boton de la plantilla de WhatsApp (#instalar).
+   Es una pantalla, no un aviso: la persona llego aqui a propOsito y se queda
+   el tiempo del video, asi que necesita respirar y poder desplazarse.
+
+   El video va en 9:16 porque se graba vertical. El tope de altura se pone en
+   el ANCHO (max-width) y no en `max-height`: probado en un celular de 375x812,
+   un `max-height` recortaba la caja a 339x471 —proporcion 0.72, no 9:16— y el
+   video habria salido con franjas negras a los lados dentro de su propio
+   recuadro. Capando el ancho, la caja SIEMPRE es 9:16.
+
+   Y el tope es 62vh, no 70, porque Sergio pidio los pasos escritos JUNTO al
+   video. Medido en 375x812: con 70vh el titulo de los pasos caia en y=848,
+   36px por debajo del borde — invisible, y nadie baja a buscar lo que no sabe
+   que existe. Con 62vh cae en 783 y asoma. En pantallas muy pequeñas (un SE
+   de 375x667) sigue quedando abajo; ahi no cabe de otra forma.
+
+   Si algun dia se graba en horizontal por error, el `object-fit: contain` lo
+   encaja sin recortarle nada. */
+.ep-tuto {
+  max-width: var(--maxw); margin: 0 auto; padding: 18px 18px 40px;
+  display: flex; flex-direction: column; gap: 0;
+}
+.ep-tuto-cab { display: flex; align-items: center; gap: 13px; margin-bottom: 20px; }
+.ep-tuto-h {
+  font-size: 21px; font-weight: 700; letter-spacing: -.025em; line-height: 1.2;
+  margin: 0 0 7px; color: var(--ink); text-wrap: balance;
+}
+.ep-tuto-lead { font-size: 13.5px; color: var(--sub); line-height: 1.5; margin: 0 0 18px; }
+.ep-tuto-video {
+  display: block; width: 100%; max-width: calc(62vh * 9 / 16);
+  aspect-ratio: 9 / 16; margin: 0 auto 22px;
+  object-fit: contain; background: #000;
+  border: 1px solid var(--line); border-radius: 16px;
+}
+.ep-tuto-pasos-t {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .13em; color: var(--dim); margin-bottom: 13px;
+}
+.ep-tuto .ep-inst-pasos { margin-bottom: 22px; }
+.ep-tuto .ep-btn { width: 100%; justify-content: center; }
+.ep-tuto .ep-btn--ghost { margin-top: 9px; }

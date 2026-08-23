@@ -2217,6 +2217,97 @@
     };
   }
 
+  /* ══ EL TUTORIAL DE INSTALACION, EN PANTALLA COMPLETA ═══════════════════
+
+     A donde cae el boton de la plantilla de WhatsApp que se le manda a quien
+     se registro y NO instalo la app. Se llega con #instalar en la direccion.
+
+     Por que una pantalla nuestra y no un enlace a YouTube o a Drive: el boton
+     que instala de verdad solo funciona DENTRO de este dominio (lo exige el
+     navegador). Si el video viviera en YouTube, la persona lo veria... y
+     quedaria dentro de YouTube, teniendo que volver a WhatsApp y empezar de
+     nuevo. Aqui ve el video e instala en la misma pantalla, sin saltos.
+
+     Se pinta ANTES de pedir sesion a proposito: quien llega por este enlace
+     viene a aprender a instalar, no a entrar. Una pantalla de login en la cara
+     seria justo el obstaculo que este mensaje existe para quitar.
+
+     Los pasos escritos NO se escriben aqui: salen de pasosInstalar(), que ya
+     los tiene y ya distingue iPhone de Android y de estar dentro de Instagram.
+     Asi el video y las letras nunca se contradicen, y el dia que Apple cambie
+     un menu se corrige en un solo sitio. */
+
+  /* La direccion del video la pone CADA RESTAURANTE en su propio index.html
+     (window.COBRA_TUTORIAL), que es el unico archivo propio de cada uno — el
+     mismo sitio donde ya vive COBRA_SLUG. Cobra no es El Parche: aqui no va
+     quemada ninguna direccion.
+     Si todavia no hay video, la pantalla NO muestra un recuadro vacio: se ve
+     completa con el titulo y los pasos. Un hueco que dice "aqui va el video"
+     es peor que no tenerlo — la misma regla de los tutoriales. */
+  function videoTutorial() {
+    var c = window.COBRA_TUTORIAL || {};
+    var u = esIOS() ? c.ios : c.android;
+    if (!u) u = c.ios || c.android || '';
+    u = String(u || '').trim();
+    /* Solo direcciones de verdad: un `javascript:` metido en un src no se
+       pinta. Viene del archivo del propio restaurante, pero el filtro es de
+       una linea y quita la duda. */
+    return /^https:\/\//i.test(u) ? u : '';
+  }
+
+  function pantallaTutorial() {
+    var e = S.negocio || {};
+    var url = videoTutorial();
+    /* En Android hay boton que instala de un toque; en iPhone no existe esa
+       señal —Apple no la da— y los pasos SON la accion. */
+    var directo = !!instalador && !enAppAjena();
+    var pasos = pasosInstalar();
+
+    pinta(
+      '<div class="ep-tuto">' +
+        '<div class="ep-tuto-cab">' + cabecera() + '</div>' +
+        '<h2 class="ep-tuto-h">Instala ' + esc(e.nombre || 'la app') + ' en tu celular</h2>' +
+        '<p class="ep-tuto-lead">Te queda entre tus aplicaciones, se abre sola y ' +
+          'te avisamos cuando tu pedido va en camino.</p>' +
+        (url
+          ? '<video class="ep-tuto-video" src="' + esc(url) + '" ' +
+            'controls playsinline preload="metadata"></video>'
+          : '') +
+        '<div class="ep-tuto-pasos-t">' +
+          (url ? 'Los mismos pasos, escritos'
+               : (pasos.length === 2 ? 'Son dos pasos' : 'Son tres pasos')) +
+        '</div>' +
+        '<div class="ep-inst-pasos">' + pasos.map(function (p, i) {
+          return '<div class="ep-inst-paso"><span class="ep-inst-n">' + (i + 1) + '</span>' +
+            '<div><div class="ep-inst-p-t">' + p[1] + '</div>' +
+            '<div class="ep-inst-p-s">' + esc(p[2]) + '</div></div></div>';
+        }).join('') + '</div>' +
+        (directo
+          ? '<button class="ep-btn gold big ep-tuto-ya" type="button">Instalar ahora</button>'
+          : '') +
+        '<button class="ep-btn ep-btn--ghost ep-tuto-seguir" type="button">' +
+          (directo ? 'Prefiero hacerlo yo' : 'Ya la instalé, entrar') + '</button>' +
+      '</div>');
+
+    /* Al salir se quita el #instalar: si la persona recarga o vuelve mañana
+       por el historial, no cae otra vez en el tutorial. */
+    function seguir() {
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (x) {}
+      if (S.cliente) pantallaDentro(); else pantallaEntrar('', false);
+    }
+    var bSeguir = document.querySelector('.ep-tuto-seguir');
+    if (bSeguir) bSeguir.onclick = seguir;
+
+    var bYa = document.querySelector('.ep-tuto-ya');
+    if (bYa) bYa.onclick = async function () {
+      var ev = instalador;
+      if (!ev) return;
+      instalador = null;
+      try { ev.prompt(); await ev.userChoice; } catch (x) { console.error('[tutorial]', x); }
+      seguir();
+    };
+  }
+
   /* Se ofrece cuando la persona YA ESTA ADENTRO, no al abrir. Al abrir todavia
      no sabe que es esto y lo cierra sin leer; despues de entrar ya vio sus
      puntos y la oferta tiene sentido. */
@@ -4181,6 +4272,27 @@
     S.horarios = neg.horarios || null;
     S.pago = neg.pago || null;   // los datos para transferir, de la recarga
     document.title = neg.nombre;
+
+    /* EL TUTORIAL MANDA SOBRE TODO LO DEMAS (23-ago-2026).
+       Quien llega con #instalar viene del boton de la plantilla de WhatsApp
+       que se le manda a los que se registraron y no instalaron la app. Va
+       ANTES de mirar la sesion: si no, al que tenga sesion abierta le saldria
+       su cuenta y no el tutorial, que es justo lo que fue a buscar. */
+    if (String(location.hash || '').toLowerCase().indexOf('instalar') >= 0) {
+      var t0 = leerToken();
+      /* Se recupera la sesion en silencio para que el boton "ya la instale"
+         lo deje adentro y no en el login. Si falla, no importa: el tutorial
+         se ve igual, que es lo unico a lo que vino. */
+      if (t0) {
+        try {
+          var d0 = await acceso({ accion: 'sesion', token: t0,
+            instalada: yaInstalada(),
+            plataforma: esIOS() ? 'ios' : (/android/i.test(navigator.userAgent) ? 'android' : 'escritorio') });
+          if (d0.ok) S.cliente = d0.cliente;
+        } catch (x) {}
+      }
+      return pantallaTutorial();
+    }
 
     // ¿Ya tenía sesión abierta? (la casilla "mantener mi sesión")
     var t = leerToken();

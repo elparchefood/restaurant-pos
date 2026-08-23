@@ -44,6 +44,36 @@
 <body>
 <div id="app"></div>
 <script>window.COBRA_SLUG = 'elparchefood';</script>
+<!-- LOS DOS VIDEOS DEL TUTORIAL DE INSTALACION.
+
+     Aqui van porque este archivo es lo unico propio de cada restaurante: la
+     aplicacion es la misma para todos y no puede traer la direccion de El
+     Parche quemada dentro.
+
+     A donde apunta: al boton de la plantilla de WhatsApp que se le manda a
+     quien se registro y no instalo la app. Ese boton lleva a
+         https://cobrapos.app/elparchefood/#instalar
+     y ahi la aplicacion muestra el video que corresponda al telefono de la
+     persona, con los pasos escritos debajo y el boton de instalar.
+
+     Los archivos viven en Supabase Storage, bucket `chat-media`, que ya es
+     publico. Se suben y quedan con una direccion asi:
+         https://tblujfduscslxjmrjbdr.supabase.co/storage/v1/object/public/chat-media/instalar-iphone.mp4
+
+     MIENTRAS ESTEN VACIOS la pantalla se ve completa igual, solo con el
+     titulo y los pasos: no sale un recuadro negro ni un "aqui va el video".
+     Grabarlos verticales (9:16), de 30 a 60 segundos, con letras en pantalla
+     —casi todos los ven sin sonido— y livianos, entre 5 y 10 MB: muchos los
+     van a abrir con datos.
+
+     Tienen que ser DOS y distintos: en iPhone se instala por Compartir ->
+     Agregar a inicio, y en Android por los tres puntos -> Instalar. -->
+<script>
+  window.COBRA_TUTORIAL = {
+    ios:     '',
+    android: ''
+  };
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <!-- EL ?v= SE CALCULA SOLO (16-ago). Antes era un numero escrito a mano que
      habia que subir en cada despliegue... y nadie lo subia: quedo congelado en
@@ -64,7 +94,7 @@
        en realidad ya estaba corregido: paso con los avisos de Sergio.
        El sello se sube A MANO en cada cambio de la aplicacion; la hora sigue
        ahi detras como red, para que un olvido cueste una hora y no la eternidad. */
-    var SELLO = '0821d';
+    var SELLO = '0823a';
     var v = SELLO + new Date().toISOString().slice(0, 13).replace(/\D/g, '');   // sello + AAAAMMDDHH
     document.write('<link rel="stylesheet" href="../app-cliente.css?v=' + v + '">');
     document.write('<scr' + 'ipt src="../app-cliente.js?v=' + v + '"><\/scr' + 'ipt>');
