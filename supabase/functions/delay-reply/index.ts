@@ -7947,7 +7947,10 @@ async function buildConversationResponse(
      de otras pantallas del sistema. También se pueden desconectar: un
      restaurante puede preferir que el asistente NO hable de precios de
      domicilio, por ejemplo, y lo diga siempre una persona. */
-  if (conectado("menu")       && menuText)       sysLines.push("", "MENÚ:", menuText);
+  if (conectado("menu")       && menuText)       sysLines.push("", "MENÚ:", menuText,
+    /* Sin esto, el modelo "corregia" al cliente con el precio pelado que
+       recordaba de otro lado. El cliente ve la carta digital CON empaque. */
+    "LOS PRECIOS DEL MENÚ DE ARRIBA YA INCLUYEN EL EMPAQUE. Dilos tal cual, NUNCA los desgloses (no menciones la palabra empaque ni digas que algo cuesta menos 'en mesa'). Si el cliente dice un precio y coincide con el menú de arriba, tiene razón — JAMÁS lo contradigas con otro número.");
   if (conectado("horarios")   && horariosText)   sysLines.push("", horariosText);
   if (conectado("pagos")      && pagosText)      sysLines.push("", pagosText);
   if (conectado("domicilios") && domiciliosText) sysLines.push("", domiciliosText);
@@ -9368,12 +9371,46 @@ async function cargarCombos(branchId: string): Promise<void> {
 async function buildMenuText(branchId: string): Promise<string> {
   const rows = await sbGet(
     `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true` +
-    `&select=name,price,description,price_mode,presentations,variables,category_id(name)&order=sort_order`
+    /* Los ids (producto, categoria, presentacion) viajan para poder calcular
+       el empaque de cada precio con las MISMAS reglas de la caja. */
+    `&select=id,name,price,description,price_mode,presentations,variables,category_id,cat:category_id(name)&order=sort_order`
   ) as Array<Record<string, unknown>> | null;
   if (!rows || !rows.length) return "";
+
+  /* ══ LOS PRECIOS QUE PACO DICE YA INCLUYEN EL EMPAQUE (22-ago-2026) ═══
+     Caso real: un cliente pidio "una tradicional de 26.000" —el precio que
+     VE en la carta digital, que suma el empaque— y Paco lo contradijo:
+     "cuesta $25.000". El cliente tenia razon: por el chat todo pedido va
+     empacado (domicilio o recogido), asi que el precio pelado de mesa no es
+     el precio de ese cliente, nunca.
+
+     Regla de Sergio: el precio se dice YA con el empaque y SIN desglosarlo
+     — "una de 26.000", como lo ve el cliente. El calculo es calcularEmpaque,
+     LA MISMA funcion que cobra el resumen y la caja: si aqui se sumara
+     distinto, Paco cotizaria un precio y cobraria otro.
+
+     Si el empaque esta apagado, o se cobra por PEDIDO completo (no se puede
+     repartir en cada plato sin mentir), los precios quedan como estan. */
+  let opEmp: Record<string, unknown> | null = null;
+  try {
+    const oR = await sbGet(`/rest/v1/branches?id=eq.${branchId}&select=operacion_config&limit=1`) as Array<Record<string, unknown>> | null;
+    opEmp = (oR?.[0]?.operacion_config as Record<string, unknown>) || null;
+  } catch (_e) { /* sin config no se hornea nada */ }
+  const horneable = !!opEmp && opEmp.empaquesActivo === true
+    && (opEmp.empaqueModo === "especifico" || opEmp.empaqueBase !== "pedido");
+  const conEmp = (precio: number, prodId: unknown, catId: unknown, presId: unknown): number => {
+    if (!horneable || !(precio > 0)) return precio;
+    return precio + calcularEmpaque(opEmp, [{
+      cantidad: 1, precio,
+      producto_id: prodId ? String(prodId) : null,
+      categoria_id: catId ? String(catId) : null,
+      presentacion_id: presId ? String(presId) : null,
+    }], true);
+  };
+
   const byCategory: Record<string, Array<Record<string, unknown>>> = {};
   for (const p of rows) {
-    const cat = ((p.category_id as Record<string,string>)?.name) || "General";
+    const cat = ((p.cat as Record<string,string>)?.name) || "General";
     if (!byCategory[cat]) byCategory[cat] = [];
     byCategory[cat].push(p);
   }
@@ -9416,7 +9453,8 @@ async function buildMenuText(branchId: string): Promise<string> {
   for (const [cat, items] of Object.entries(byCategory)) {
     lines.push(`\n[${cat.toUpperCase()}]`);
     for (const item of items) {
-      const pres = (item.presentations as Array<{name:string;price:number}>) || [];
+      const pres = (item.presentations as Array<{id?:string;name:string;price:number}>) || [];
+      const prodId = item.id, catId = item.category_id;
       const vars = (item.variables as Array<{id:string;name:string;isPricing?:boolean;options:Array<{id:string;name:string;prices?:number[]}>}>) || [];
       const priceMode = String(item.price_mode || "simple");
       let priceStr: string;
@@ -9425,16 +9463,16 @@ async function buildMenuText(branchId: string): Promise<string> {
         const varLines: string[] = [];
         for (const opt of varGroup.options) {
           if (Array.isArray(opt.prices) && pres.length > 0) {
-            const optPrices = pres.map((p2, i) => `${p2.name} ${fmtPrice(opt.prices![i] ?? 0)}`).join(" / ");
+            const optPrices = pres.map((p2, i) => `${p2.name} ${fmtPrice(conEmp(opt.prices![i] ?? 0, prodId, catId, p2.id))}`).join(" / ");
             varLines.push(`  ${opt.name}: ${optPrices}`);
           }
         }
         priceStr = "\n" + varLines.join("\n");
       } else {
         const validPres = pres.filter(p => p.price > 0);
-        if (validPres.length > 1) priceStr = validPres.map(p => `${p.name} ${fmtPrice(p.price)}`).join(" / ");
-        else if (validPres.length === 1) priceStr = fmtPrice(validPres[0].price);
-        else priceStr = fmtPrice(Number(item.price) || 0);
+        if (validPres.length > 1) priceStr = validPres.map(p => `${p.name} ${fmtPrice(conEmp(p.price, prodId, catId, p.id))}`).join(" / ");
+        else if (validPres.length === 1) priceStr = fmtPrice(conEmp(validPres[0].price, prodId, catId, validPres[0].id));
+        else priceStr = fmtPrice(conEmp(Number(item.price) || 0, prodId, catId, null));
       }
       let line = `- ${item.name}: ${priceStr}`;
       if (item.description) line += ` — ${item.description}`;

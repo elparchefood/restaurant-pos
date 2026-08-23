@@ -3,6 +3,35 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 Paco contradecía al cliente con el precio SIN empaque (motor v358) — 22-ago-2026
+
+Cliente: *"una salchipapa tradicional de 26.000"* (el precio que VE en la
+carta digital: Mixta Personal $25.000 + $1.000 de empaque). Paco: *"cuesta
+$25.000"*. El cliente tenía razón y Paco lo contradijo.
+
+**Regla de Sergio:** el precio que Paco dice va YA con el empaque y SIN
+desglosarlo — "una de 26.000", como lo ve el cliente. Por el chat TODO pedido
+va empacado (domicilio o recogido); el precio pelado de mesa nunca es el
+precio de ese cliente.
+
+**El arreglo:** `buildMenuText` —la carta en texto que lee el modelo para
+cotizar— ahora hornea el empaque en cada precio usando **`calcularEmpaque`,
+la MISMA función que cobra el resumen y la caja** (regla del archivo: un
+empaque que el chat cobra distinto al mostrador es un descuadre). Cubre los
+tres formatos: precio simple, presentaciones y matriz por variable. Los ids
+de producto/categoría/presentación viajan en el select para respetar los
+packs específicos y las exenciones.
+
+No se hornea cuando el empaque está apagado o se cobra por PEDIDO completo
+(no se puede repartir por plato sin mentir) — en esos casos la carta queda
+como estaba. Y en el prompt: "los precios ya incluyen el empaque; dilos tal
+cual, nunca los desgloses, y si el precio del cliente coincide con el menú,
+JAMÁS lo contradigas".
+
+Probado con los datos reales de El Parche: Mixta Personal 25.000+1.000 =
+**26.000** (lo que decía el cliente) y Familiar 49.000+1.000 = 50.000.
+**Motor v358.**
+
 ## 🔴→🟢 Después de crear el pedido, Paco olvidaba que existía (motor v357) — 22-ago-2026
 
 David confirmó su pedido y UN minuto después preguntó *"¿cuánto se demora mi
