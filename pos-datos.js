@@ -113,6 +113,12 @@
          podria hacer el MISMO filtro que hace hoy. */
       s.from('iv_insumos').select('id,nombre,control_manual,sub_inventario,vender_bodega,aviso_bodega,buy_unit,use_unit,conversion,brand_id,branch_id,tenant_id').eq('tenant_id', tid),
       s.from('iv_recetas').select('product_id,insumo_id,variant_option_id,cantidades,mod_option_id,brand_id,branch_id,tenant_id').eq('tenant_id', tid),
+      /* De que MARCA es esta sede, y si el inventario es uno solo para toda la
+         marca o uno por sucursal. Dos preguntas que el detector de agotados
+         hacia UNA POR UNA cada vez que se abria una pantalla de venta, y cuya
+         respuesta no cambia nunca durante un turno. */
+      bid ? s.from('branches').select('brand_id').eq('id', bid).maybeSingle()
+          : Promise.resolve({ data: null }),
     ]);
 
     function ok(i, porDefecto) {
@@ -127,7 +133,20 @@
     var productos = ok(0, null);
     if (!productos || !productos.length) return null;
 
+    /* El modo de inventario cuelga de la marca, asi que su consulta no puede ir
+       en el paquete de arriba: hasta ahi no se sabe cual es la marca. Es UN
+       viaje mas al abrir, a cambio de dos menos en CADA pantalla de venta. */
+    var marca = (ok(7, null) || {}).brand_id || null;
+    var modo = 'global';
+    if (marca) {
+      try {
+        var ma = await s.from('brands').select('inventario_modo').eq('id', marca).maybeSingle();
+        modo = (ma.data && ma.data.inventario_modo) || 'global';
+      } catch (e) { /* sin respuesta: 'global', que es lo de siempre */ }
+    }
+
     return {
+      negocio:    { brandId: marca, inventarioModo: modo },
       productos:  productos,
       categorias: ok(1, []),
       adiciones:  ok(2, []),
@@ -218,6 +237,7 @@
     plano:      parte('plano', []),
     config:     parte('config', null),
     insumos:    parte('insumos', []),
-    recetas:    parte('recetas', [])
+    recetas:    parte('recetas', []),
+    negocio:    parte('negocio', null)
   };
 })(window);

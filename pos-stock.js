@@ -109,42 +109,124 @@
 
         /* Los insumos y las recetas son de la MARCA. Filtrar por sede dejaba a
            una sucursal nueva SIN recetas — y sin recetas nada se marca agotado
-           nunca: se venderia todo, en silencio. */
-        var brandId = null, modo = 'global';
-        try {
-          var br = await sb.from('branches').select('brand_id').eq('id', branchId).maybeSingle();
-          brandId = (br.data && br.data.brand_id) || null;
-          if (brandId) {
-            var ma = await sb.from('brands').select('inventario_modo').eq('id', brandId).maybeSingle();
-            modo = (ma.data && ma.data.inventario_modo) || 'global';
-          }
-        } catch (e) {}
+           nunca: se venderia todo, en silencio.
 
-        var qi = sb.from('iv_insumos').select('id,nombre,control_manual,sub_inventario,vender_bodega,aviso_bodega,iv_existencias(branch_id,stock,stock_servicio,agotado_manual)');
-        if (brandId) qi = qi.eq('brand_id', brandId);
-        else if (branchId) qi = qi.eq('branch_id', branchId);
-        else if (tenantId) qi = qi.eq('tenant_id', tenantId);
-        // Ahora traemos variant_option_id + cantidades para diferenciar por sabor/variante,
-        // y mod_option_id para las recetas de adiciones (modificadores).
-        var qr = sb.from('iv_recetas').select('product_id,insumo_id,variant_option_id,cantidades,mod_option_id');
-        if (brandId) qr = qr.eq('brand_id', brandId);
-        else if (branchId) qr = qr.eq('branch_id', branchId);
-        else if (tenantId) qr = qr.eq('tenant_id', tenantId);
-
-        var resI = await qi;
-        var resR = await qr;
-
-        /* De que bolsa se lee: la comun de la marca, o la de esta sede. */
-        var sedeEx = (modo === 'sucursal') ? branchId : null;
-        function exDe(i) {
-          var l = i.iv_existencias || [];
-          for (var k = 0; k < l.length; k++) {
-            if ((l[k].branch_id || null) === sedeEx) return l[k];
-          }
-          return {};
+           Estas dos preguntas ya NO se hacen siempre: normalmente vienen con
+           lo guardado (`posDatos.negocio`). Solo se preguntan si lo guardado
+           no esta, que es la primera vez que se abre el programa. */
+        var brandId = null, modo = 'global', yaSeLaMarca = false;
+        async function averiguarMarca() {
+          try {
+            var br = await sb.from('branches').select('brand_id').eq('id', branchId).maybeSingle();
+            brandId = (br.data && br.data.brand_id) || null;
+            if (brandId) {
+              var ma = await sb.from('brands').select('inventario_modo').eq('id', brandId).maybeSingle();
+              modo = (ma.data && ma.data.inventario_modo) || 'global';
+            }
+            yaSeLaMarca = true;
+          } catch (e) {}
         }
-        (resI.data || []).forEach(function (i) { var e = exDe(i); S._ins[i.id] = { nombre: i.nombre, stock: num(e.stock), manual: !!i.control_manual, agotadoManual: !!e.agotado_manual, sub: !!i.sub_inventario, servicio: num(e.stock_servicio), venderBodega: !!i.vender_bodega, avisoBodega: i.aviso_bodega || '' }; });
-        (resR.data || []).forEach(function (r) {
+
+        /* ══════════════════════════════════════════════════════════════
+           QUE SE GUARDA Y QUE NO — la regla de todo este modulo
+           ──────────────────────────────────────────────────────────────
+           Sergio, 24-ago-2026: *"la carne siempre sera carne... lo que
+           cambia es la CANTIDAD del insumo, no el insumo en si"*.
+
+           Asi que se parte en dos:
+             · IDENTIDAD (nombre, si es de control manual, si va por
+               sub-inventario, si se vende de bodega) y RECETAS  -> de
+               `posDatos`, traidas UNA vez al abrir el programa.
+             · EXISTENCIAS (stock, stock en servicio, agotado a mano) -> EN
+               VIVO, siempre. Es lo unico que se pregunta aqui.
+
+           Esto NO es un detalle de velocidad: de las existencias sale el
+           aviso de "agotado". Si se guardaran, un cajero seguiria vendiendo
+           algo que se acabo hace media hora — y eso pasa todos los dias.
+
+           Antes esta pantalla pedia cinco cosas seguidas cada vez que se
+           abria: la marca, el modo de inventario, 44 insumos y 374 recetas,
+           ademas de las existencias. Ninguna de las cuatro primeras cambia
+           durante un turno.
+
+           SI `posDatos` NO ESTA LISTO se hace lo de siempre, entero. Nunca
+           se deja la pantalla sin saber que hay agotado: eso seria vender
+           lo que no hay. */
+        var insumos = null, recetas = null;
+        if (window.posDatos) {
+          try {
+            var d = await posDatos.cargar();
+            /* `negocio` es OBLIGATORIO para usar lo guardado, no un extra. Sin
+               el no se sabe la marca, y sin marca el filtro caeria al de sede
+               — que para los insumos de una marca con inventario comun
+               descarta TODO. El resultado no seria un error a la vista: seria
+               una pantalla que no marca nada agotado y deja vender lo que no
+               hay. Un blob guardado antes de que existiera `negocio` (hasta 8
+               horas) cae por aqui y se pregunta a la base, como siempre. */
+            if (d && d.negocio && d.insumos && d.insumos.length && d.recetas) {
+              insumos = d.insumos;
+              recetas = d.recetas;
+              brandId = d.negocio.brandId;
+              modo = d.negocio.inventarioModo || 'global';
+              yaSeLaMarca = true;
+            }
+          } catch (e) { console.warn('[posStock] datos guardados:', e && e.message); }
+        }
+
+        /* Sin lo guardado: el camino de siempre. Los tres filtros en el mismo
+           orden de antes — marca, sede, restaurante. */
+        if (!insumos) {
+          if (!yaSeLaMarca) await averiguarMarca();
+          var qi = sb.from('iv_insumos').select('id,nombre,control_manual,sub_inventario,vender_bodega,aviso_bodega,brand_id,branch_id,tenant_id');
+          if (brandId) qi = qi.eq('brand_id', brandId);
+          else if (branchId) qi = qi.eq('branch_id', branchId);
+          else if (tenantId) qi = qi.eq('tenant_id', tenantId);
+          var qr = sb.from('iv_recetas').select('product_id,insumo_id,variant_option_id,cantidades,mod_option_id');
+          if (brandId) qr = qr.eq('brand_id', brandId);
+          else if (branchId) qr = qr.eq('branch_id', branchId);
+          else if (tenantId) qr = qr.eq('tenant_id', tenantId);
+          /* Los dos A LA VEZ. Estaban en fila india (`await qi; await qr;`), o
+             sea dos viajes a Bogota uno detras del otro por dos preguntas que
+             no dependen entre si. */
+          var par = await Promise.all([qi, qr]);
+          insumos = (par[0] && par[0].data) || [];
+          recetas = (par[1] && par[1].data) || [];
+        } else {
+          /* Lo guardado viene del restaurante entero; aqui se aplica el MISMO
+             filtro que haria la base, para que el resultado sea identico. */
+          if (brandId) {
+            insumos = insumos.filter(function (x) { return x.brand_id === brandId; });
+            recetas = recetas.filter(function (x) { return x.brand_id === brandId; });
+          } else if (branchId) {
+            insumos = insumos.filter(function (x) { return x.branch_id === branchId; });
+            recetas = recetas.filter(function (x) { return x.branch_id === branchId; });
+          }
+        }
+
+        /* ── LO UNICO QUE SE PREGUNTA EN VIVO ── */
+        var sedeEx = (modo === 'sucursal') ? branchId : null;
+        var ex = {};
+        try {
+          var qe = sb.from('iv_existencias').select('insumo_id,branch_id,stock,stock_servicio,agotado_manual');
+          if (tenantId) qe = qe.eq('tenant_id', tenantId);
+          var re = await qe;
+          /* Se queda la fila de la bolsa que corresponde. En modo `global` esa
+             fila tiene la sede VACIA, a proposito: es una sola bolsa para toda
+             la marca. Copiarle la sede fue justo el error que dejo todo
+             marcado "Agotado" en el restaurante de pruebas (24-ago). */
+          (re.data || []).forEach(function (e) {
+            if ((e.branch_id || null) === sedeEx) ex[e.insumo_id] = e;
+          });
+        } catch (e) { console.warn('[posStock] existencias:', e && e.message); }
+
+        (insumos || []).forEach(function (i) {
+          var e = ex[i.id] || {};
+          S._ins[i.id] = { nombre: i.nombre, stock: num(e.stock), manual: !!i.control_manual,
+                           agotadoManual: !!e.agotado_manual, sub: !!i.sub_inventario,
+                           servicio: num(e.stock_servicio), venderBodega: !!i.vender_bodega,
+                           avisoBodega: i.aviso_bodega || '' };
+        });
+        (recetas || []).forEach(function (r) {
           if (r.mod_option_id) {   // receta de una adición (opción de modificador)
             if (!S._modLines[r.mod_option_id]) S._modLines[r.mod_option_id] = [];
             S._modLines[r.mod_option_id].push({ ins: r.insumo_id, qty: r.cantidades || null });
