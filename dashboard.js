@@ -929,53 +929,113 @@ async function loadOpsKPIs(orders, branchId) {
   }).join('');
 }
 
-// ── TIPO DE PAGO ──────────────────────────────────────
-function renderTipoPago(orders) {
-  const pm = buildPagosPM(orders);
-  const grand = orders.reduce((s,o) => s + (parseFloat(o.total)||0), 0);
+/* Escapar el nombre del metodo antes de meterlo en la pagina. Lo escribe el
+   dueno en Configuracion, asi que es texto de fuera: sin esto, un metodo
+   llamado con un signo raro podria romper la cuadricula. Otras pantallas
+   tienen su propia copia de esto; dashboard.js no tenia ninguna. */
+function _dEsc(t) {
+  return String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
+// ── TIPO DE PAGO ──────────────────────────────────────
+/* LOS METODOS SALEN DE LOS QUE EL RESTAURANTE CONFIGURO (24-ago-2026).
+
+   Aqui habia SEIS tarjetas escritas a mano en el codigo: "En deposito
+   (Bancolombia)", "En vale (Sodexo · Big Pass)", "Tarjeta", "En linea"…
+   Ninguna de esas existe en El Parche, y en otro restaurante serian otras
+   seis distintas igual de inventadas. Lo vio Sergio: *"hay cosas que estan
+   quemadas en el sistema... es mejor que se pongan las que si existen"*.
+
+   Peor todavia: si el dueno le cambia el nombre a "Transferencia" en
+   Configuracion, el tablero seguia diciendo "Transferencia". El nombre de
+   aqui y el de la pantalla de cobro eran dos cosas distintas.
+
+   Ahora se usa `posMetodos.agrupar`, que ya existia y hace justo esto: junta
+   los pagos por el metodo configurado, resolviendo tanto los ids nuevos
+   (`pm_x719c1pqb`) como los nombres viejos (`transferencia`, `Transferencia`)
+   al MISMO metodo. Se ve en los datos reales: seis formas de guardar lo
+   mismo, dos metodos de verdad.
+
+   Lo que no reconoce cae en "Otros" — nunca en efectivo, que era el error de
+   antes y descuadraba el arqueo sin que nadie lo viera. */
+function renderTipoPago(orders) {
+  const grand = orders.reduce((s,o) => s + (parseFloat(o.total)||0), 0);
   const pt = document.getElementById('pago-total');
   if (pt) pt.textContent = COPF(grand);
 
-  const METHODS = [
-    { key:'cash',     label:'En efectivo',    color:'#5B6BFF', sub:'Pesos Colombianos (100%)' },
-    { key:'bank',     label:'En deposito',    color:'#8B5CF6', sub:'Bancolombia · transferencia' },
-    { key:'card',     label:'Tarjeta',        color:'#06B6D4', sub:'Debito / Credito' },
-    { key:'online',   label:'En linea',       color:'#10B981', sub:'QR · link de pago' },
-    { key:'voucher',  label:'En vale',        color:'#F59E0B', sub:'Sodexo · Big Pass' },
-    { key:'transfer', label:'Transferencia',  color:'#EF4444', sub:'Nequi · Daviplata' },
-  ];
+  /* Se arma UNA lista de pagos: el desglose real, y para los pedidos que no
+     lo tienen, su total con el metodo que quedo escrito en el pedido. */
+  const pagos = ((S.pagosHoy) || []).map(function (p) {
+    return { m: p.method, v: parseFloat(p.amount) || 0 };
+  });
+  const conDesglose = new Set(((S.pagosHoy) || []).map(function (p) { return p.order_id; }));
+  (orders || []).forEach(function (o) {
+    if (conDesglose.has(o.id)) return;
+    if ((o.payment_method || '').toLowerCase() === 'multiple') return;  // sin desglose no se reparte
+    pagos.push({ m: o.payment_method, v: parseFloat(o.total) || 0 });
+  });
+
+  /* Sin `posMetodos` cargado no se inventa nada: se deja la caja vacia en vez
+     de mostrar metodos que quiza no son de este restaurante. */
+  let filas = [];
+  try {
+    if (window.posMetodos && posMetodos.lista().length) filas = posMetodos.agrupar(pagos, 'm', 'v');
+  } catch (e) { console.warn('[tipo de pago]', e); }
+
+  /* El color y el dibujo salen del TIPO, no de una lista de nombres: asi un
+     metodo que el dueno llame "Nequi de mi mama" sale igual de bien. */
+  const ESTILO = {
+    efectivo:      { c:'#5B6BFF', i:'cash',     sub:'Billetes y monedas' },
+    transferencia: { c:'#EF4444', i:'transfer', sub:'Transferencia' },
+    banco:         { c:'#8B5CF6', i:'bank',     sub:'Cuenta bancaria' },
+    tarjeta:       { c:'#06B6D4', i:'card',     sub:'Debito / credito' },
+    billetera:     { c:'#10B981', i:'online',   sub:'Billetera digital' },
+    puntos:        { c:'#7C3AED', i:'voucher',  sub:'Canje de premios' },
+    saldo:         { c:'#0891B2', i:'card',     sub:'Billetera del cliente' },
+    credito:       { c:'#F59E0B', i:'credit',   sub:'Fiado' },
+    otro:          { c:'#94A3B8', i:'cash',     sub:'' },
+  };
+  const est = function (t) { return ESTILO[String(t || 'otro').toLowerCase()] || ESTILO.otro; };
 
   const sb2 = document.getElementById('stacked-bar');
   if (sb2) {
-    const active = METHODS.filter(m => pm[m.key] > 0);
-    sb2.innerHTML = active.length
-      ? active.map(m => {
-          const p = grand > 0 ? (pm[m.key] / grand) * 100 : 0;
-          return `<div style="width:${p.toFixed(2)}%;background:${m.color}" title="${m.label}: ${COPF(pm[m.key])}"></div>`;
+    const conPlata = filas.filter(function (f) { return f.monto > 0; });
+    sb2.innerHTML = conPlata.length
+      ? conPlata.map(function (f) {
+          const p = grand > 0 ? (f.monto / grand) * 100 : 0;
+          return '<div style="width:' + p.toFixed(2) + '%;background:' + est(f.tipo).c
+               + '" title="' + _dEsc(f.nombre) + ': ' + COPF(f.monto) + '"></div>';
         }).join('')
       : '<div style="width:100%;background:#E0E7FF"></div>';
   }
 
   const pg = document.getElementById('pay-grid');
-  if (pg) pg.innerHTML = METHODS.map(m => {
-    const val    = pm[m.key] || 0;
-    const p      = grand > 0 ? ((val / grand) * 100).toFixed(1) : '0';
-    const active = val > 0;
-    return `<div class="pay-card" style="${active ? `border-color:${m.color}40;background:${m.color}08` : ''}">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div style="display:flex;align-items:center;gap:10px">
-          <div class="card-head-icon" style="color:${m.color};background:${m.color}14">${payIcon(m.key)}</div>
-          <div style="font-size:13px;font-weight:700;color:#0F172A">${m.label}</div>
-        </div>
-        <span style="font-size:12px;font-weight:700;color:${active ? m.color : '#94A3B8'}">${p}%</span>
-      </div>
-      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:14px">
-        <div style="font-size:11px;color:#94A3B8;max-width:60%">${m.sub}</div>
-        <div style="font-size:16px;font-weight:700;color:${active ? '#0F172A' : '#94A3B8'};letter-spacing:-.02em;font-variant-numeric:tabular-nums">${COPF(val)}</div>
-      </div>
-    </div>`;
-  }).join('');
+  if (!pg) return;
+  if (!filas.length) {
+    pg.innerHTML = '<div style="grid-column:1/-1;padding:22px;text-align:center;font-size:13px;color:#94A3B8">'
+      + 'Configura tus métodos de pago para ver el desglose.</div>';
+    return;
+  }
+  /* "Otros" solo si tiene plata: una tarjeta en cero que dice "Otros" no le
+     dice nada a nadie y ensucia la cuadricula. */
+  pg.innerHTML = filas.filter(function (f) { return f.id !== '__otros' || f.monto > 0; })
+    .map(function (f) {
+      const e = est(f.tipo);
+      const val = f.monto || 0;
+      const p = grand > 0 ? ((val / grand) * 100).toFixed(1) : '0';
+      const activo = val > 0;
+      return '<div class="pay-card" style="' + (activo ? 'border-color:' + e.c + '40;background:' + e.c + '08' : '') + '">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between">'
+        + '<div style="display:flex;align-items:center;gap:10px">'
+        + '<div class="card-head-icon" style="color:' + e.c + ';background:' + e.c + '14">' + payIcon(e.i) + '</div>'
+        + '<div style="font-size:13px;font-weight:700;color:#0F172A">' + _dEsc(f.nombre) + '</div></div>'
+        + '<span style="font-size:12px;font-weight:700;color:' + (activo ? e.c : '#94A3B8') + '">' + p + '%</span></div>'
+        + '<div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:14px">'
+        + '<div style="font-size:11px;color:#94A3B8;max-width:60%">' + _dEsc(e.sub) + '</div>'
+        + '<div style="font-size:16px;font-weight:700;color:' + (activo ? '#0F172A' : '#94A3B8')
+        + ';letter-spacing:-.02em;font-variant-numeric:tabular-nums">' + COPF(val) + '</div></div></div>';
+    }).join('');
 }
 
 // ── CANAL DE VENTA ────────────────────────────────────
