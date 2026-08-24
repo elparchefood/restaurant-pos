@@ -1020,6 +1020,7 @@ document.addEventListener('DOMContentLoaded', async function() {
      precio en blanco. */
   await cargarPlanes();
   await cargarCuentaCobro();   // y la marca roja si nadie la ha confirmado
+  await cargarCorreoPlataforma();
   await loadRegistrations();
 });
 
@@ -1366,3 +1367,95 @@ function generarClaveNueva(tenantId, negocio) {
       }
     });
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   EL CORREO DE COBRA POS
+   ───────────────────────────────────────────────────────────────────────
+   Sergio: *"si yo quiero conecto el mismo, pero si yo quiero conecto otro"*.
+   Por eso vive en `plataforma_correo` y no en el `ia_config` del restaurante:
+   hoy pueden ser el mismo correo, y eso no los vuelve el mismo dato.
+
+   EL PERMISO DE GOOGLE NO BAJA NUNCA A ESTA PANTALLA. Se pregunta QUE correo
+   esta conectado —con `fn_correo_plataforma`, que devuelve el correo y la
+   fecha y nada mas— y quien lo usa es el servidor. Misma idea que el PIN.
+   ═══════════════════════════════════════════════════════════════════════ */
+async function cargarCorreoPlataforma() {
+  var est = document.getElementById('pc-estado');
+  var bC = document.getElementById('pc-conectar');
+  var bD = document.getElementById('pc-desconectar');
+  if (!est) return;
+  try {
+    var r = await sb.rpc('fn_correo_plataforma');
+    var d = (r && r.data) || {};
+    if (d.conectado) {
+      est.innerHTML = '<b style="color:#16A34A">Conectado</b> · ' + (d.email || 'cuenta de Google')
+        + (d.desde ? ' <span style="color:#94A3B8">· desde el '
+            + new Date(d.desde).toLocaleDateString('es-CO') + '</span>' : '');
+      if (bC) bC.textContent = 'Conectar otro';
+      if (bD) bD.style.display = '';
+    } else {
+      est.innerHTML = '<b style="color:#B45309">Sin conectar</b> · todavía no se pueden comprobar los pagos solos';
+      if (bC) bC.textContent = 'Conectar Gmail';
+      if (bD) bD.style.display = 'none';
+    }
+  } catch (e) { est.textContent = 'No se pudo comprobar'; }
+}
+
+function conectarCorreoPlataforma() {
+  var clientId = '673589658608-e3p5i9pt9gsjjivocu9unpsd2r8e2k34.apps.googleusercontent.com';
+  var redirectUri = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/gmail-oauth-callback';
+  /* DOS permisos. Hasta hoy solo se pedia `readonly`, porque el unico uso era
+     leer el correo del banco. `send` es lo que permite mandar la bienvenida
+     sin contratar ningun servicio de correo ni verificar un dominio. */
+  var scope = 'https://www.googleapis.com/auth/gmail.readonly'
+            + ' https://www.googleapis.com/auth/gmail.send';
+  var url = 'https://accounts.google.com/o/oauth2/v2/auth'
+    + '?client_id=' + encodeURIComponent(clientId)
+    + '&redirect_uri=' + encodeURIComponent(redirectUri)
+    + '&response_type=code'
+    + '&scope=' + encodeURIComponent(scope)
+    + '&access_type=offline'
+    /* `consent` obliga a Google a devolver el permiso de largo plazo. Sin el,
+       una cuenta que ya autorizo antes vuelve sin ese permiso y la conexion se
+       cae a la hora, sin que nadie entienda por que.
+       `select_account` para poder elegir OTRO Gmail, que es justo el caso. */
+    + '&prompt=' + encodeURIComponent('select_account consent')
+    + '&state=plataforma';
+  window.open(url, '_blank');
+  showToast('Autoriza en la ventana de Google y vuelve aquí');
+
+  /* Se mira cada 3 segundos si ya quedo. Hasta 2 minutos: mas que eso es que
+     la persona abandono, y seguir preguntando no la ayuda. */
+  var vueltas = 0;
+  var reloj = setInterval(async function () {
+    vueltas++;
+    await cargarCorreoPlataforma();
+    var est = document.getElementById('pc-estado');
+    if ((est && est.textContent.indexOf('Conectado') === 0) || vueltas > 40) clearInterval(reloj);
+  }, 3000);
+}
+
+function desconectarCorreoPlataforma() {
+  showConfirm('Desconectar el correo',
+    'Cobra POS dejará de poder comprobar los pagos contra tu banco y de mandar la bienvenida. Puedes volver a conectarlo cuando quieras.',
+    async function () {
+      var r = await sb.rpc('fn_correo_plataforma_desconectar');
+      if (r.error || r.data !== true) { showToast('No se pudo desconectar', 'red'); return; }
+      await cargarCorreoPlataforma();
+      showToast('Correo desconectado');
+    });
+}
+
+/* Al volver de Google se avisa aqui mismo, en vez de dejar a Sergio
+   preguntandose si funciono. */
+(function () {
+  var p = new URLSearchParams(location.search);
+  if (p.get('gmail') === 'ok') {
+    setTimeout(function () { showToast('Correo conectado: ' + (p.get('email') || '')); }, 600);
+    history.replaceState({}, '', location.pathname);
+  } else if (p.get('gmail') === 'error') {
+    setTimeout(function () { showToast('No se pudo conectar el correo: ' + (p.get('msg') || ''), 'red'); }, 600);
+    history.replaceState({}, '', location.pathname);
+  }
+})();

@@ -326,6 +326,22 @@
 
           <div class="a-card">
             <div class="a-card-head"><div>
+              <div class="a-card-title">Correo para comprobar los pagos</div>
+              <div class="a-card-sub">El Gmail donde te llegan las confirmaciones del banco. Es <b>independiente</b> del correo de tu restaurante: puedes conectar el mismo o uno distinto.</div>
+            </div></div>
+            <div style="padding:18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+              <div id="pc-estado" style="flex:1;min-width:240px;font-size:13px;color:#64748B">Comprobando…</div>
+              <button class="a-btn a-btn--primary" id="pc-conectar" onclick="conectarCorreoPlataforma()">Conectar Gmail</button>
+              <button class="a-btn" id="pc-desconectar" onclick="desconectarCorreoPlataforma()" style="display:none;color:#DC2626">Desconectar</button>
+            </div>
+            <div style="padding:0 18px 18px;font-size:12px;color:#94A3B8;line-height:1.6">
+              Se le piden dos permisos a Google: <b>leer</b> —para encontrar el correo del banco y confirmar
+              que el pago entró— y <b>enviar</b>, para mandarle desde aquí la bienvenida a quien se registre.
+            </div>
+          </div>
+
+          <div class="a-card">
+            <div class="a-card-head"><div>
               <div class="a-card-title">Código QR</div>
               <div class="a-card-sub">Opcional. Si lo subes, quien se registre puede pagar escaneando en vez de copiar el número — que es donde la gente se equivoca de un dígito.</div>
             </div></div>
@@ -416,7 +432,7 @@
 <script src="pos-core.js?v=1791745000"></script>
   <script src="pos-plan.js?v=1791810000"></script>
 <script src="pos-brand.js?v=1790530000"></script>
-<script src="admin-reg.js?v=1792090000"></script>
+<script src="admin-reg.js?v=1792100000"></script>
   <script src="admin-tutoriales.js?v=1789830000"></script>
   <!-- Editor de módulo / video. Panel propio y no el modal de confirmar, que
        es de una sola pregunta. -->
