@@ -3,6 +3,93 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Puesta en marcha guiada: un solo candado, de a un paso — 24-ago-2026
+
+Diseño de Sergio: *"No se bloquea nada. Lo único que se va a bloquear es la
+apertura de caja. Con eso ya tenemos todo, porque si no puede abrir caja tampoco
+va a poder vender"*. Y la información no va de golpe: **un paso por modal**, con
+un conteo del estilo "paso 4 de 11".
+
+### Por qué un candado y no diez
+
+Tapar pantalla por pantalla era el camino evidente y el equivocado: **las
+pantallas que el dueño necesita para resolverlo son justo las que se le
+taparían**. Abrir caja es el único sitio por donde pasa una venta — y resultó
+ser **una sola función**, `handleOpenSession`.
+
+El candado va **dentro de esa función**, no en el botón que la llama. Colgarlo
+del botón sería el error de forma de siempre: mañana alguien abre turno desde
+otro sitio y el candado se queda atrás.
+
+Y si `posArranque` no cargó, **se deja pasar**. Frenarle la caja a alguien por
+una consulta que no volvió es mucho peor que dejar abrir la caja de un
+restaurante a medio configurar.
+
+### Los 11 pasos
+
+| # | Paso | ¿Bloquea la caja? |
+|---|---|---|
+| 1 | Carga tu carta | sí |
+| 2 | Di cómo te pagan | sí |
+| 3 | Dirección y teléfono | sí |
+| 4 | Dibuja tu salón | sí *(con salida)* |
+| 5–11 | PIN, equipo, horarios, zonas, fotos, adiciones, impresoras | no |
+
+### La trampa de las mesas
+
+Un restaurante de solo domicilios no tiene salón y no crearía una mesa jamás:
+con las mesas obligatorias a secas **no podría abrir caja nunca**. Solución de
+Sergio: el paso se exige, pero trae un botón de **"Solo vendo domicilios"** que
+lo resuelve y encadena con el siguiente.
+
+Ese botón **no es una casilla de "ya lo hice"**: guarda un dato real del negocio
+(`branches.operacion_config.sin_salon`), es reversible, y el día que creen una
+mesa el paso se da por hecho igual.
+
+### El estado sale de los datos, siempre
+
+Ningún paso se marca hecho porque alguien tocó un botón: se comprueba contra la
+base cada vez. Si borran todos los productos, el paso vuelve solo — que es lo
+correcto, el sistema volvió a estar sin carta.
+
+### Una sola lista
+
+`pos-notifs` tenía su propia versión con tres comprobaciones. Ahora lee la de
+`pos-arranque`. **Dos listas del mismo asunto es la manera de que se separen**:
+pasó exactamente eso con el menú de Configuración, que estaba copiado en cada
+pantalla y acabó distinto en cada una. Lo obligatorio sale marcado como urgente
+en la campana — es lo que le está frenando la caja.
+
+**El modal solo sale por lo que bloquea.** Las sugerencias viven en la campana.
+Un modal cada vez que entra por algo que no le frena nada es la manera de que
+aprenda a cerrarlo sin leerlo — y entonces el día que sí le frene la caja,
+tampoco lo va a leer.
+
+⚠️ **La campana se queda SOLO en el escritorio.** Decisión de Sergio,
+24-ago-2026: *"es mejor que solo esté en el escritorio"*. No proponer llevarla
+al resto de pantallas.
+
+### Comprobado
+
+| Restaurante | Estado | Caja |
+|---|---|---|
+| El Parche | 11 de 11 | **abre — cero cambio** |
+| Restaurante de Prueba | 7 de 11 | bloqueada solo por la dirección |
+| Demo Restaurant | 1 de 11 | bloqueada por pagos, local y mesas |
+
+Y los cuatro casos del modal vistos en el navegador (`tests/ver-arranque.html`,
+que le finge el estado al módulo sin tocar la base): el conteo apunta a la
+posición real del paso, la salida de domicilios sale solo en el paso del salón,
+y el "Ahora no" solo cuando ya no bloquea nada.
+
+### Lo que NO se puede comprobar
+
+Si WhatsApp está conectado: las credenciales no viven en una tabla que el
+navegador pueda leer. Por eso ese paso no está en la lista, aunque
+`PUESTA-EN-MARCHA.md` lo liste como último del primer día.
+
+---
+
 ## 🔴→🟢 Los puntos se veían sin tenerlos, y el gerente se llamaba como su correo — 24-ago-2026
 
 Los dos los encontró Sergio probando el **Restaurante de Prueba**, que está en
