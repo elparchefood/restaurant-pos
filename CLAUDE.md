@@ -5,6 +5,33 @@
 
 ---
 
+## 0-bis. TRES MÓDULOS SON EXCLUSIVOS DE SERGIO (23-ago-2026)
+
+**Ningún restaurante cliente los tiene, ni los configura, ni los ve:**
+
+1. **La página / app de los clientes** — la carpeta `elparchefood/`, el módulo
+   "Mi página web", su dirección web, su logo, activarla, el banner, los
+   destacados. Todo eso.
+2. **El saldo / la billetera** del cliente y sus recargas.
+3. **La tarjeta NFC.**
+
+Están construidos POR RESTAURANTE, y está bien que así sea por si algún día
+cambia de opinión. **Pero que el dato viva por tenant NO significa que el
+cliente lo configure.** Hoy los usa él solo y lo más probable es que siga así.
+
+**Qué implica en la práctica:** no aparecen en las listas de lo que un dueño
+debe configurar, ni en las auditorías de multimarca, ni en los pendientes del
+producto, ni en la documentación de puesta en marcha.
+
+**Los PUNTOS sí son para todos los restaurantes** y no entran en esta regla.
+
+> Reclamado dos veces el 23-ago-2026. La segunda fue al listarle lo que
+> configura un restaurante nuevo: se puso "la página del cliente: dirección
+> web, logo y activarla" y hubo que corregirlo. El dato ya existía, pero
+> enterrado al final de un documento largo. Por eso está aquí arriba.
+
+---
+
 ## 0. Regla de documentación continua (OBLIGATORIA)
 
 Después de cada cambio importante, corrección compleja o decisión de diseño, **actualizar `ESTADO-SISTEMA.md`** antes de terminar la sesión. Esto garantiza que cuando la conversación se compacte, toda la información esté en los documentos y no se pierda.

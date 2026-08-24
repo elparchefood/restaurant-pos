@@ -35,6 +35,38 @@ $35.000"*, y pidiéndolo como él lo pidió, Paco ya ni corrige — acepta y sig
 
 ---
 
+## 📋 Qué configura un restaurante nuevo — `PUESTA-EN-MARCHA.md` — 23-ago-2026
+
+Sergio preguntó qué tendría que configurar un dueño que se registre hoy para
+poder trabajar. La lista **no se escribió de memoria**: sale de comparar dato
+por dato lo que tiene El Parche contra los tres restaurantes sin configurar que
+ya existen en la base.
+
+Queda en `PUESTA-EN-MARCHA.md`, en cuatro secciones: sin esto no se vende · sin
+esto el asistente no atiende · se vende pero la operación queda coja · para más
+adelante. Con un orden recomendado para el primer día.
+
+**Dos hallazgos que salieron de hacerla:**
+
+1. **El asistente nace ENCENDIDO** (`ia_config.activo` por defecto `true`).
+   Comprobado en los tres restaurantes nuevos: activo, con la carta vacía, sin
+   horarios y sin métodos de pago. Hoy no hace daño porque sin WhatsApp
+   conectado no le llega nada — pero conectar WhatsApp es de lo primero que hace
+   un dueño, y en ese momento empieza a atender clientes reales sin saber nada.
+   En el documento se resuelve poniendo "conectar WhatsApp" **al final** del
+   orden recomendado. Que nazca apagado es una decisión de producto de Sergio,
+   pendiente.
+2. **El inventario es, de lejos, lo más largo**: El Parche tiene 374 recetas.
+   Se deja explícitamente para después de abrir; intentarlo antes retrasa la
+   apertura semanas.
+
+> Y una corrección de método: en la primera versión se listó "la página del
+> cliente: dirección web, logo y activarla" como algo que configura un
+> restaurante. **No lo es** — ver la sección 0-bis de `CLAUDE.md`. Fue la
+> segunda vez que hubo que corregirlo el mismo día.
+
+---
+
 ## 🔴→🟢 DOS COPIAS DE PACO A LA VEZ: la raíz de todo lo raro (v375) — 23-ago-2026
 
 Sergio, 8:45 pm: *"En estos dos clientes Paco atendió de una manera muy extraña,
