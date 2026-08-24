@@ -965,7 +965,14 @@ async function approveRegistration(id, email) {
         if (!provRes.ok || !prov.ok) throw new Error(prov.error || 'No se pudo aprobar');
 
         await loadRegistrations();
-        showToast('Listo — cuenta creada con ' + (prov.branches || 1) + ' sucursal' + ((prov.branches||1)>1?'es':'') + '. Ya puede entrar con ' + email, 'green');
+        /* LA CLAVE SE MUESTRA, NO SE TIRA. Antes esta linea decia "ya puede
+           entrar con <correo>" y la clave que devuelve el servidor se perdia
+           aqui mismo: el restaurante quedaba creado y sin poder entrar, porque
+           NADIE sabia la clave — ni el cliente ni Sergio. No se guarda en la
+           base a proposito (una clave guardada es una clave que se puede leer),
+           asi que este modal es la unica oportunidad de copiarla. Si se pierde,
+           el boton "Generar clave nueva" de la lista de clientes hace otra. */
+        mostrarClave(prov.clave_temporal, email, prov.negocio || nombre, true);
 
       } catch(e) {
         console.error('approveRegistration:', e);
@@ -1189,4 +1196,173 @@ function quitarQrCobro() {
     await cargarCuentaCobro();
     showToast('QR quitado');
   });
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LA CLAVE TEMPORAL — se muestra UNA vez
+   ───────────────────────────────────────────────────────────────────────
+   No hay servicio de correo conectado, asi que el camino real es: Sergio la
+   copia y se la manda al cliente por WhatsApp, que es como habla con todo el
+   mundo. Por eso el modal trae el mensaje ya redactado: copiar y pegar, sin
+   tener que escribir nada ni acordarse de que hay que decirle.
+   ═══════════════════════════════════════════════════════════════════════ */
+function mostrarClave(clave, email, negocio, esNueva) {
+  var prev = document.getElementById('modal-clave');
+  if (prev) prev.remove();
+
+  if (!clave) {
+    showToast('La cuenta quedo creada, pero no llego la clave. Usa "Generar clave nueva".', 'red');
+    return;
+  }
+
+  var mensaje = '¡Hola! Tu cuenta de Cobra POS ya esta lista.\n\n'
+    + 'Entra en cobrapos.app\n'
+    + 'Correo: ' + email + '\n'
+    + 'Clave temporal: ' + clave + '\n\n'
+    + 'Cambiala apenas entres, en Configuracion.';
+
+  var esc = function (t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  var fila = function (k, val) {
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #ECEEF2">'
+      + '<span style="font-size:12px;color:#64748B">' + k + '</span>'
+      + '<span style="font-size:12.5px;font-weight:700;color:#0F172A;text-align:right">' + esc(val || '—') + '</span></div>';
+  };
+  v.innerHTML = '<div style="font-size:14px;font-weight:800;color:#0F172A;margin-bottom:8px">'
+      + esc(g('cb-banco') || 'Transferencia') + '</div>'
+    + fila('Tipo de pago', g('cb-tipo'))
+    + fila(/llave/i.test(g('cb-tipo')) ? 'Llave' : 'Cuenta', num)
+    + fila('Titular', g('cb-titular'))
+    + (g('cb-nota') ? fila('Nota', g('cb-nota')) : '');
+}
+
+async function guardarCuentaCobro() {
+  var btn = document.getElementById('cb-guardar');
+  var g = function (id) { var e = document.getElementById(id); return (e && e.value.trim()) || ''; };
+  var numero = g('cb-numero').replace(/\s/g, '');
+
+  /* Se comprueba lo que de verdad importa: sin número no hay a dónde pagar, y
+     sin titular quien transfiere no puede confirmar que le está pagando a la
+     persona correcta. Lo demás es texto. */
+  if (!numero) { showToast('Falta el número o la llave de la cuenta', 'red'); return; }
+  if (!g('cb-titular')) { showToast('Falta el titular: quien paga necesita saber a nombre de quién va', 'red'); return; }
+
+  btn.disabled = true;
+  try {
+    var r = await sb.from('plataforma_cobro').update({
+      banco: g('cb-banco'), tipo: g('cb-tipo'), numero: numero,
+      titular: g('cb-titular'), nota: g('cb-nota'),
+      verificada: true, updated_at: new Date().toISOString(),
+    }).eq('id', 1);
+    if (r.error) { showToast('No se pudo guardar: ' + r.error.message, 'red'); return; }
+    showToast('Cuenta de cobro guardada');
+    await cargarCuentaCobro();
+  } finally { btn.disabled = false; }
+}
+
+/* Se repinta la vista previa mientras escribe: ver el resultado al momento es
+   lo que hace que se note un dígito de menos antes de guardarlo. */
+document.addEventListener('input', function (e) {
+  if (e.target && /^cb-(banco|tipo|numero|titular|nota)$/.test(e.target.id)) pintarVistaCobro();
+});
+
+
+/* ── EL QR ──────────────────────────────────────────────────────────────
+   La imagen vive en el deposito `plataforma`, que solo el administrador puede
+   escribir y cualquiera puede leer — tiene que verla quien todavia no tiene
+   cuenta. */
+function pintarQrCobro() {
+  var caja = document.getElementById('cb-qr-caja');
+  var quitar = document.getElementById('cb-qr-quitar');
+  var btn = document.getElementById('cb-qr-btn');
+  if (!caja) return;
+  var url = _cobro && _cobro.qr_url;
+  if (url) {
+    caja.innerHTML = '<img src="' + url + '" alt="QR de pago" style="width:100%;height:100%;object-fit:contain">';
+    caja.style.border = '1px solid #ECEEF2';
+    if (quitar) quitar.style.display = '';
+    if (btn) btn.textContent = 'Cambiar la imagen';
+  } else {
+    caja.innerHTML = '<span style="font-size:11.5px;color:#94A3B8;text-align:center;padding:12px">Todavía no has subido ninguno</span>';
+    caja.style.border = '1.5px dashed #DCE0E8';
+    if (quitar) quitar.style.display = 'none';
+    if (btn) btn.textContent = 'Subir imagen del QR';
+  }
+}
+
+async function subirQrCobro(input) {
+  var f = input && input.files && input.files[0];
+  if (!f) return;
+  var est = document.getElementById('cb-qr-estado');
+  /* Se comprueba aqui ADEMAS de en el deposito: el aviso del servidor llega
+     como un error tecnico que no dice nada, y el archivo ya viajo entero. */
+  if (f.size > 2 * 1024 * 1024) {
+    showToast('La imagen pesa mas de 2 MB. Toma una captura mas pequena.', 'red');
+    input.value = ''; return;
+  }
+  if (est) est.textContent = 'Subiendo…';
+  try {
+    /* Nombre AL AZAR y no fijo: con un nombre fijo, el navegador de quien mire
+       la pantalla de registro se quedaria con la imagen vieja guardada y
+       seguiria viendo el QR anterior sin saberlo. */
+    var ext = String(f.name || '').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+    var nombre = 'qr-' + ((crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now()) + '.' + ext;
+    var up = await sb.storage.from('plataforma').upload(nombre, f, { contentType: f.type, upsert: false });
+    if (up.error) throw up.error;
+    var url = sb.storage.from('plataforma').getPublicUrl(nombre).data.publicUrl;
+
+    var anterior = _cobro && _cobro.qr_url;
+    var r = await sb.from('plataforma_cobro').update({ qr_url: url, updated_at: new Date().toISOString() }).eq('id', 1);
+    if (r.error) throw r.error;
+
+    /* El anterior se borra DESPUES de que el nuevo quedo guardado. Al reves,
+       un fallo al guardar dejaria la pantalla de registro sin QR. */
+    if (anterior) { try { await borrarQrViejo(anterior); } catch (e) {} }
+
+    if (est) est.textContent = 'Listo';
+    await cargarCuentaCobro();
+    showToast('QR actualizado');
+  } catch (e) {
+    if (est) est.textContent = '';
+    showToast('No se pudo subir: ' + (e.message || e), 'red');
+  } finally { input.value = ''; }
+}
+
+function borrarQrViejo(url) {
+  var m = String(url).split('/plataforma/');
+  if (m.length < 2) return Promise.resolve();
+  return sb.storage.from('plataforma').remove([decodeURIComponent(m[1].split('?')[0])]);
+}
+
+function quitarQrCobro() {
+  showConfirm('Quitar el QR', 'La pantalla de registro dejara de mostrar el boton para pagar escaneando. El numero de cuenta sigue igual.', async function () {
+    var anterior = _cobro && _cobro.qr_url;
+    var r = await sb.from('plataforma_cobro').update({ qr_url: null, updated_at: new Date().toISOString() }).eq('id', 1);
+    if (r.error) { showToast('No se pudo quitar: ' + r.error.message, 'red'); return; }
+    if (anterior) { try { await borrarQrViejo(anterior); } catch (e) {} }
+    await cargarCuentaCobro();
+    showToast('QR quitado');
+  });
+}
+
+
+function generarClaveNueva(tenantId, negocio) {
+  showConfirm('Generar clave nueva',
+    'Se le va a cambiar la clave a ' + (negocio || 'este restaurante') + '. La que tenga ahora deja de funcionar.',
+    async function () {
+      try {
+        var ses = await sb.auth.getSession();
+        var tok = ses.data.session.access_token;
+        var r = await fetch(SUPABASE_URL + '/functions/v1/provision', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'clave_nueva', tenant_id: tenantId })
+        });
+        var d = await r.json();
+        if (!r.ok || !d.ok) throw new Error(d.error || 'no se pudo');
+        mostrarClave(d.clave_temporal, d.email, d.negocio || negocio, false);
+      } catch (e) {
+        showToast('No se pudo generar: ' + (e.message || e), 'red');
+      }
+    });
 }

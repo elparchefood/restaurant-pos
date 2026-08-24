@@ -32,6 +32,18 @@ async function sbAdmin(method: string, path: string, body?: unknown): Promise<{ 
   return { ok: res.ok, data, text };
 }
 
+/* Una clave temporal legible por telefono: sin caracteres que se confundan al
+   dictarla (ni O ni 0, ni I ni l), pero con mayusculas, numeros y un signo. */
+function nuevaClave(): string {
+  const letras = "ABCDEFGHJKMNPQRSTUVWXYZ";      // sin I ni O
+  const nums = "23456789";                        // sin 0 ni 1
+  let x = "Cobra";
+  for (let i = 0; i < 4; i++) x += letras[Math.floor(Math.random() * letras.length)];
+  x += "!";
+  for (let i = 0; i < 3; i++) x += nums[Math.floor(Math.random() * nums.length)];
+  return x;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json(405, { error: "method not allowed" });
@@ -106,6 +118,49 @@ Deno.serve(async (req) => {
       return json(200, { ok: true, tenant_id: tenant.id, brand_id: brand.id, branch_id: branch.id });
     }
 
+    /* ── CLAVE NUEVA para un cliente que ya existe ────────────────────────
+       Hacia falta porque la clave temporal no se guarda: si Sergio cierra la
+       ventana sin copiarla, o el cliente la pierde, no habia forma de volver a
+       entrar. Sin esto, el unico camino era crear el restaurante otra vez.
+       Solo el administrador de la plataforma, y solo sobre el DUENO. */
+    if (action === "clave_nueva") {
+      const adminChk2 = await sbAdmin("GET", `/rest/v1/user_profiles?id=eq.${user.id}&select=role&limit=1`);
+      const esAdmin2 = Array.isArray(adminChk2.data) && (adminChk2.data as Array<Record<string, unknown>>)[0]?.role === "admin";
+      if (!esAdmin2) return json(403, { error: "Solo un administrador de la plataforma puede hacer esto" });
+
+      const tId = String(body.tenant_id || "");
+      if (!tId) return json(400, { error: "falta tenant_id" });
+
+      const tRes = await sbAdmin("GET", `/rest/v1/tenants?id=eq.${tId}&select=id,name,owner_user_id,email&limit=1`);
+      const t = Array.isArray(tRes.data) ? (tRes.data as Array<Record<string, unknown>>)[0] : null;
+      if (!t) return json(404, { error: "restaurante no encontrado" });
+
+      /* El dueno sale de `owner_user_id`. Si no esta puesto —restaurantes de
+         antes de que se marcara— se cae a la ficha de gerente. */
+      let destino = String(t.owner_user_id || "");
+      if (!destino) {
+        const pu = await sbAdmin("GET", `/rest/v1/pos_users?tenant_id=eq.${tId}&role=eq.gerente&select=auth_user_id,id&limit=1`);
+        const fila = Array.isArray(pu.data) ? (pu.data as Array<Record<string, unknown>>)[0] : null;
+        destino = String(fila?.auth_user_id || fila?.id || "");
+      }
+      if (!destino) return json(404, { error: "ese restaurante no tiene dueno con cuenta de acceso" });
+
+      const clv = nuevaClave();
+      const up = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${destino}`, {
+        method: "PUT",
+        headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ password: clv }),
+      });
+      if (!up.ok) return json(500, { error: "no se pudo cambiar la clave: " + await up.text() });
+
+      const quien = await sbAdmin("GET", `/auth/v1/admin/users/${destino}`);
+      return json(200, {
+        ok: true, clave_temporal: clv,
+        email: (quien.data as Record<string, unknown>)?.email || t.email || null,
+        negocio: t.name || null,
+      });
+    }
+
     // ── APPROVE: solo admin de plataforma ─────────────────────────────────────
     if (action === "approve") {
       /* ADMINISTRADOR DE LA PLATAFORMA, no de un restaurante.
@@ -170,13 +225,15 @@ Deno.serve(async (req) => {
       }
       const firstBranch = sucursales[0];
 
-      /* La cuenta de acceso. `reg.password_tmp` NO existe como columna, asi que
-         antes el usuario se creaba sin contrasena y el restaurante no podia
-         entrar. Se genera una temporal y se DEVUELVE, para que Sergio se la
-         pase al cliente.
-         Pendiente: mandarla por correo o pedirle al cliente que la ponga el
-         primer dia. */
-      const claveTemporal = "Cobra" + Math.random().toString(36).slice(2, 8).toUpperCase() + "!" + Math.floor(Math.random() * 90 + 10);
+      /* La cuenta de acceso. Se genera una clave temporal y se DEVUELVE, para
+         que Sergio se la pase al cliente.
+
+         NO SE GUARDA EN NINGUNA PARTE, a proposito: una clave escrita en la
+         base es una clave que cualquiera con acceso a la base puede leer —
+         justo lo que se acaba de corregir con el PIN. Por eso la consola la
+         muestra UNA vez, para copiar y mandar. Si se pierde no se recupera: se
+         genera otra con la accion `clave_nueva`. */
+      const claveTemporal = nuevaClave();
 
       const uEx = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?filter=${encodeURIComponent(String(reg.email))}`, {
         headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}` },
