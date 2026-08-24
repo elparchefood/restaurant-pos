@@ -94,13 +94,30 @@ Deno.serve(async (req: Request) => {
        siempre — tres sitios avisando y uno quedandose atras.
        Es best-effort y no se espera: si el aviso falla, el cambio de estado ya
        quedo guardado, que es lo que de verdad importa. */
+    /* AHORA SE ESPERA LA RESPUESTA, y antes no. El motivo esta abajo, en el
+       respaldo por WhatsApp: para decidir si hace falta escribirle hay que
+       saber primero si el aviso al celular llego. El cambio de estado YA quedo
+       guardado unas lineas arriba, asi que esperar aqui no arriesga el dato;
+       solo demora la respuesta a la pantalla.
+
+       Con tope de 4 segundos: si el servicio de avisos se queda colgado, se
+       sigue adelante dando por hecho que NO llego. Equivocarse hacia ese lado
+       manda un WhatsApp de mas; equivocarse hacia el otro deja al cliente sin
+       enterarse de nada. */
+    let pushLlego = false;
     try {
-      fetch(`${SUPABASE_URL}/functions/v1/avisar-cliente`, {
-        method: "POST",
+      const ctrl = new AbortController();
+      const reloj = setTimeout(() => ctrl.abort(), 4000);
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/avisar-cliente`, {
+        method: "POST", signal: ctrl.signal,
         headers: { "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ tipo: "pedido", order_id, estado }),
-      }).catch(() => {});
-    } catch (_e) { /* nunca bloquea el cambio de estado */ }
+      });
+      clearTimeout(reloj);
+      const d = r.ok ? await r.json() : null;
+      pushLlego = Number(d?.enviados || 0) > 0;
+      console.log(`[estado] ${order_id} -> ${estado} | avisos al celular: ${Number(d?.enviados || 0)}`);
+    } catch (_e) { /* nunca bloquea el cambio de estado; se asume que no llego */ }
 
     /* Cuanto duro en el estado ANTERIOR. El reloj de la tarjeta se reinicia en
        cada cambio (cuenta desde `estado_at`), y aqui queda el tramo cerrado
@@ -152,19 +169,89 @@ Deno.serve(async (req: Request) => {
     if (body.sin_mensaje === true) e.mensaje = "";
 
     const convs = await sbGet(`/chat_conversations?order_id=eq.${order_id}&select=id,channel,labels,tenant_id`) as Array<Record<string, unknown>> | null;
-    const conv = convs?.[0];
+    let conv = convs?.[0];
+    /* `soloMensaje`: la conversacion encontrada NO es la de este pedido, sino
+       el chat general del cliente. Se le escribe, pero no se le ponen las
+       etiquetas de estado: esas son del pedido, y ahi confundirian si tiene
+       otro pedido abierto. */
+    let soloMensaje = false;
+
+    /* ── EL RESPALDO POR WHATSAPP (24-ago-2026) ──────────────────────────
+       Pedido de Sergio: *"no hay necesidad de enviarle el Estado por WhatsApp
+       a las personas que tenemos asegurado que le llega la notificacion. Pero
+       si una persona tiene instalada la APP pero no tiene activadas las
+       notificaciones si necesito que le lleguen las confirmaciones"*.
+
+       Por que hacia falta: un pedido hecho por la APP no tiene conversacion
+       enlazada, asi que este bloque no encontraba `conv` y no avisaba NADA.
+       Comprobado sobre los tres pedidos por app que existen: los tres con cero
+       conversacion enlazada y cero celulares con avisos. O sea, ninguno de los
+       tres clientes se entero de nada. Uno de ellos es el caso que reporto
+       Sergio.
+
+       Se busca la conversacion del CLIENTE (no la del pedido) solo cuando el
+       aviso al celular no llego. Si llego, no se hace nada: seria decirle lo
+       mismo dos veces. */
+    if (!conv && !pushLlego) {
+      try {
+        const oc = await sbGet(`/pos_orders?id=eq.${order_id}&select=cliente_id`) as Array<Record<string, unknown>> | null;
+        const cid = oc?.[0]?.cliente_id;
+        if (cid) {
+          const cc = await sbGet(
+            `/chat_conversations?cliente_id=eq.${cid}&channel=eq.whatsapp` +
+            `&select=id,channel,labels,tenant_id,last_message_at&order=last_message_at.desc&limit=1`
+          ) as Array<Record<string, unknown>> | null;
+          if (cc?.[0]) {
+            /* LA VENTANA DE 24 HORAS DE META. A alguien que no ha escrito en
+               las ultimas 24 h no se le puede mandar texto libre: Meta lo
+               rechaza. Si no se comprobara, el mensaje quedaria guardado en el
+               chat como enviado y nunca llegaria — una mentira en pantalla,
+               que es peor que no avisar. Se mira el ultimo mensaje ENTRANTE, no
+               `last_message_at`, que se mueve tambien con lo que escribe el
+               restaurante y daria una ventana abierta que no existe. */
+            const ent = await sbGet(
+              `/chat_messages?conversation_id=eq.${cc[0].id}&direction=eq.in` +
+              `&select=sent_at&order=sent_at.desc&limit=1`
+            ) as Array<Record<string, unknown>> | null;
+            const ult = ent?.[0]?.sent_at ? new Date(String(ent[0].sent_at)).getTime() : 0;
+            const horas = ult ? (Date.now() - ult) / 3600000 : 999;
+            if (horas < 24) {
+              conv = cc[0];
+              soloMensaje = true;   // su chat general: no se le tocan las etiquetas
+              console.log(`[estado] ${order_id}: sin aviso al celular, se responde por su chat de WhatsApp`);
+            } else {
+              console.log(`[estado] ${order_id}: su chat de WhatsApp lleva ${Math.round(horas)} h sin actividad suya — Meta no deja escribirle`);
+            }
+          } else {
+            /* Sin chat de WhatsApp no hay por donde. Meta NO deja escribirle a
+               alguien que nunca ha escrito: haria falta una plantilla aprobada,
+               y hoy la de pedidos (`pedido_confirmado`) sigue en revision. Se
+               deja anotado en vez de fallar en silencio, para que se vea el dia
+               que se apruebe y se conecte aqui. */
+            console.log(`[estado] ${order_id}: el cliente no tiene avisos ni chat de WhatsApp — no se le pudo avisar`);
+          }
+        }
+      } catch (_e) { /* el respaldo nunca frena el cambio de estado */ }
+    }
     if (conv) {
       // Etiquetas de estado EXCLUSIVAS: en CUALQUIER cambio de estado se quitan las
       // etiquetas de los OTROS estados y se pone la del estado actual (si tiene). Así
       // "En preparacion" desaparece al pasar a "En camino" y no quedan dobles. Las
       // etiquetas MANUALES del operador no se tocan (solo se filtran las de estado).
-      const cur: string[] = Array.isArray(conv.labels) ? (conv.labels as string[]).slice() : [];
+      const cur: string[] = (!soloMensaje && Array.isArray(conv.labels)) ? (conv.labels as string[]).slice() : [];
       const estadoEtqs = new Set<string>();
       ESTADOS.forEach((k) => { const et = cfg[tipo]?.[k]?.etiqueta; if (et) estadoEtqs.add(et); });
       const next = cur.filter((l) => !estadoEtqs.has(l));
       if (e.etiqueta && !next.includes(e.etiqueta)) next.push(e.etiqueta);
       const changed = JSON.stringify([...cur].sort()) !== JSON.stringify([...next].sort());
-      if (changed) await sbPatch(`/chat_conversations?id=eq.${conv.id}`, { labels: next });
+      if (changed && !soloMensaje) await sbPatch(`/chat_conversations?id=eq.${conv.id}`, { labels: next });
+      /* Si el aviso al celular llego, no se le escribe: es el mismo aviso dos
+         veces. Regla de Sergio, y la razon por la que arriba se espera la
+         respuesta del servicio de avisos. */
+      if (pushLlego && e.mensaje) {
+        console.log(`[estado] ${order_id}: ya le llego al celular, no se le escribe por WhatsApp`);
+        e.mensaje = "";
+      }
       if (e.mensaje && String(e.mensaje).trim()) {
         const text = String(e.mensaje).trim();
         const msg = await sbPost(`/chat_messages`, {
