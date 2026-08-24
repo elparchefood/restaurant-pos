@@ -1598,7 +1598,21 @@
     const sb = window._pos && window._pos.sb;
     if (!sb) return {};
     try {
-      const { data } = await sb.from('pos_products').select('id,category_id,presentations');
+      /* De lo guardado en el equipo si esta (`posDatos`, traido una vez al
+         abrir el programa). Aqui se necesitan TODOS los productos, tambien los
+         apagados: un pedido de hace un rato puede llevar uno que acaban de
+         desactivar, y sin su ficha no se sabria traducir la presentacion. Por
+         eso se usa `posDatos.productos()` en crudo y no `carta()`, que filtra
+         por disponible. */
+      let data = null;
+      if (window.posDatos) {
+        try {
+          await posDatos.cargar();
+          const g = posDatos.productos();
+          if (g && g.length) data = g;
+        } catch (e) {}
+      }
+      if (!data) data = (await sb.from('pos_products').select('id,category_id,presentations')).data;
       const m = {};
       (data || []).forEach(function (pr) { m[pr.id] = pr; });
       _vsProdMap = m;
