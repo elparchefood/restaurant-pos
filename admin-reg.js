@@ -1405,11 +1405,16 @@ async function cargarCorreoPlataforma() {
 function conectarCorreoPlataforma() {
   var clientId = '673589658608-e3p5i9pt9gsjjivocu9unpsd2r8e2k34.apps.googleusercontent.com';
   var redirectUri = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/gmail-oauth-callback';
-  /* DOS permisos. Hasta hoy solo se pedia `readonly`, porque el unico uso era
-     leer el correo del banco. `send` es lo que permite mandar la bienvenida
-     sin contratar ningun servicio de correo ni verificar un dominio. */
-  var scope = 'https://www.googleapis.com/auth/gmail.readonly'
-            + ' https://www.googleapis.com/auth/gmail.send';
+  /* SOLO LEER. Llegue a pedir tambien permiso de enviar, para mandar la
+     bienvenida desde este mismo correo. Sergio lo corrigio y tenia razon: ese
+     correo es el suyo personal —es donde le llegan los comprobantes del
+     banco— y mandarle desde ahi un correo a un cliente se ve mal. Las
+     confirmaciones salen de `ingreso@cobrapos.app`, por otro camino.
+
+     Asi que aqui se pide UN permiso y no dos. Pedir uno que no se usa no es
+     inofensivo: hace que la pantalla de Google diga "Cobra POS quiere enviar
+     correos en tu nombre", que da mas susto y es mentira. */
+  var scope = 'https://www.googleapis.com/auth/gmail.readonly';
   var url = 'https://accounts.google.com/o/oauth2/v2/auth'
     + '?client_id=' + encodeURIComponent(clientId)
     + '&redirect_uri=' + encodeURIComponent(redirectUri)

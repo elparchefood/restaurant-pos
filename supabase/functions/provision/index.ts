@@ -285,6 +285,32 @@ Deno.serve(async (req) => {
          acepta pending/approved/rejected, y `password_tmp` no existe. Las dos
          cosas hacian fallar esta actualizacion, y como nadie miraba el
          resultado, todo el trabajo se hacia y la solicitud seguia pendiente. */
+      /* EL CORREO DE BIENVENIDA. Va aqui, cuando el restaurante ya quedo
+         creado y hay clave que mandar.
+
+         NO SE ESPERA Y NO PUEDE FALLAR HACIA AFUERA: si el correo no sale, el
+         restaurante ya existe y su dueno necesita entrar igual. Sergio ve la
+         clave en la consola de todas formas, asi que el correo es un extra,
+         no el unico camino. Al reves —aprobar solo si el correo salio— seria
+         dejar un restaurante pagado a medio crear por un problema de un
+         servicio de terceros. */
+      if (clave) {
+        try {
+          const cr = await fetch(`${SUPABASE_URL}/functions/v1/enviar-correo`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tipo: "bienvenida", para: reg.email,
+              nombre: reg.nombre, negocio: reg.negocio, clave,
+            }),
+          });
+          const cd = await cr.json().catch(() => ({}));
+          console.log(`[aprobar] correo a ${reg.email}: ${cd?.enviado ? "enviado" : "NO enviado (" + (cd?.razon || "?") + ")"}`);
+        } catch (e) {
+          console.error("[aprobar] el correo no salio:", String(e).slice(0, 200));
+        }
+      }
+
       const fin = await sbAdmin("PATCH", `/rest/v1/pos_registrations?id=eq.${regId}`, {
         status: "approved", reviewed_at: new Date().toISOString(),
         tenant_id: tenant.id, user_id: userId,
