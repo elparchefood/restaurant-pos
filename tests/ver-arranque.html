@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Ver el modal de puesta en marcha</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;padding:40px;background:#FAFAFB;font-family:'DM Sans',system-ui,sans-serif;color:#0F172A}
+  h1{font-size:20px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
+  p{font-size:13px;color:#64748B;margin:0 0 20px;max-width:60ch;line-height:1.6}
+  .fila{display:flex;gap:9px;flex-wrap:wrap}
+  button{padding:9px 14px;background:#5B6BFF;color:#fff;border:none;border-radius:9px;
+    font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;
+    box-shadow:0 2px 8px -2px rgba(91,107,255,.45)}
+  button.g{background:#fff;color:#475569;border:1px solid #ECEEF2;box-shadow:none}
+</style>
+<h1>El modal de puesta en marcha</h1>
+<p>Banco de pruebas: se le finge a <code>pos-arranque.js</code> el estado de un
+restaurante para ver cómo se le presenta cada paso al dueño. No toca la base ni
+ninguna cuenta real.</p>
+<div class="fila">
+  <button data-caso="nuevo">Restaurante recién registrado</button>
+  <button data-caso="mesas">Le falta el salón (con la salida de domicilios)</button>
+  <button data-caso="prueba">Solo le falta la dirección</button>
+  <button class="g" data-caso="sugerencia">Ya puede vender, le faltan sugerencias</button>
+</div>
+
+<script src="../pos-arranque.js"></script>
+<script>
+/* Se le sustituye a `pos-arranque` de dónde saca los datos. El resto del
+   módulo —qué paso toca, el conteo, la barra, los botones— corre tal cual. */
+const CASOS = {
+  nuevo:      { productos:0, mesas:0, metodos:0, direccion:false, telefono:false, sinSalon:false,
+                pin:false, usuarios:1, horarios:false, zonas:0, fotos:0, adiciones:0, impresoras:0 },
+  mesas:      { productos:54, mesas:0, metodos:2, direccion:true, telefono:true, sinSalon:false,
+                pin:false, usuarios:1, horarios:false, zonas:0, fotos:42, adiciones:2, impresoras:0 },
+  prueba:     { productos:54, mesas:8, metodos:4, direccion:false, telefono:false, sinSalon:false,
+                pin:false, usuarios:1, horarios:true, zonas:9, fotos:42, adiciones:2, impresoras:0 },
+  sugerencia: { productos:54, mesas:8, metodos:4, direccion:true, telefono:true, sinSalon:false,
+                pin:true, usuarios:3, horarios:true, zonas:9, fotos:0, adiciones:2, impresoras:0 },
+};
+
+document.querySelectorAll('button').forEach(b => b.onclick = async () => {
+  const d = CASOS[b.dataset.caso];
+  // Se arma la foto igual que lo hace revisar(), pero con los datos fingidos.
+  const PASOS = [
+    ['carta',1,'Carga tu carta','Sin productos no hay nada que vender.','catalogo-productos.html',null,d.productos>0],
+    ['pagos',1,'Di cómo te pagan','Efectivo, transferencia… sin esto no se puede cerrar una cuenta.','configuracion.html?s=pagos',null,d.metodos>0],
+    ['local',1,'Pon la dirección y el teléfono','Salen en el recibo, en la comanda y en lo que el asistente le responde a quien pregunte dónde quedas.','configuracion.html?s=general',null,d.direccion&&d.telefono],
+    ['mesas',1,'Dibuja tu salón','Las mesas y las zonas donde vas a atender.','configuracion.html?s=mesas',{texto:'Solo vendo domicilios'},d.mesas>0||d.sinSalon],
+    ['pin',0,'Ponle un PIN al administrador','Es el que autoriza descuentos y anulaciones. Sin él, un empleado sin permiso se queda trancado y no hay cómo dejarlo pasar.','configuracion.html?s=usuarios',null,d.pin],
+    ['equipo',0,'Crea las cuentas de tu equipo','Cada cajero, mesero o domiciliario con la suya y su rol. De ahí salen los permisos.','configuracion.html?s=usuarios',null,d.usuarios>1],
+    ['horarios',0,'Pon tus horarios','Sin ellos el asistente no sabe si estás abierto, y esa es la primera pregunta que hace medio mundo.','configuracion.html?s=horario',null,d.horarios],
+    ['domicilios',0,'Define tus zonas de domicilio','Cuánto vale llevar a cada barrio. Es lo que decide si el cliente pide o no.','configuracion.html?s=domicilios',null,d.zonas>0],
+    ['fotos',0,'Súbele fotos a tu carta','Son las imágenes que el asistente manda cuando le piden la carta. Sin ellas contesta que no puede enviarla.','catalogo-productos.html',null,d.fotos>0],
+    ['adiciones',0,'Carga tus adiciones','Una salchicha extra, una salsa. Si las vendes y no están cargadas, no se cobran.','catalogo-productos.html',null,d.adiciones>0],
+    ['impresoras',0,'Conecta tus impresoras','Para que la comanda salga en cocina y el recibo en caja.','impresoras.html',null,d.impresoras>0],
+  ].map(([id,ob,titulo,sub,ir,salida,hecho]) => ({id,obligatorio:!!ob,titulo,sub,ir,salida,hecho}));
+
+  const faltan = PASOS.filter(p => !p.hecho);
+  const foto = { pasos:PASOS, faltan,
+    faltanObligatorios: faltan.filter(p=>p.obligatorio),
+    siguiente: faltan[0]||null, hechos: PASOS.length-faltan.length, total: PASOS.length, datos:d };
+
+  /* Se le pasa la foto por `opts.foto`, la puerta del banco. Todo lo demas
+     —que paso toca, el conteo, la barra, los botones— lo decide el modulo. */
+  window.posArranque.cerrar();
+  window.posArranque.mostrar({ foto, bloqueante: foto.faltanObligatorios.length > 0 });
+});
+</script>

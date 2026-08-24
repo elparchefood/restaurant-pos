@@ -171,32 +171,29 @@
     } catch (e) { return []; }
   }
 
+  /* Los pasos de la puesta en marcha, LEIDOS DE `pos-arranque.js`.
+
+     Antes esta funcion tenia su propia lista de tres comprobaciones. Dos
+     listas del mismo asunto es la manera de que se separen: paso exactamente
+     eso con el menu de Configuracion, que estaba copiado en cada pantalla y
+     acabo distinto en cada una. Aqui hay UNA lista, la de `pos-arranque`, y
+     esto solo la pinta.
+
+     Lo obligatorio sale marcado como urgente: es lo que le esta frenando la
+     caja, y tiene que distinguirse de "sube fotos a tu carta". */
   async function fuentePrimerosPasos() {
-    var s = sb(); if (!s) return [];
-    var items = [];
+    if (!w.posArranque) return [];
     try {
-      var checks = await Promise.allSettled([
-        s.from('pos_products').select('id', { count: 'exact', head: true }).eq('tenant_id', st().tenantId),
-        s.from('pos_tables').select('id', { count: 'exact', head: true }).eq('branch_id', st().branchId),
-        s.from('ia_config').select('pagos').eq('branch_id', st().branchId).maybeSingle(),
-      ]);
-      var nProd = checks[0].status === 'fulfilled' ? (checks[0].value.count || 0) : 1;
-      var nMesas = checks[1].status === 'fulfilled' ? (checks[1].value.count || 0) : 1;
-      var mets = 0;
-      if (checks[2].status === 'fulfilled') {
-        var pg = (checks[2].value.data && checks[2].value.data.pagos) || {};
-        mets = (Array.isArray(pg.metodos) ? pg.metodos : []).filter(function (m) {
-          return m && m.activo !== false && String(m.nombre || '').trim() && !/^__/.test(String(m.id || ''));
-        }).length;
-      }
-      if (!nProd) items.push({ id: 'paso-productos', tipo: 'paso', titulo: 'Carga tu carta',
-        sub: 'Sin productos no hay nada que vender. Empieza por aquí.', ir: 'catalogo-productos.html' });
-      if (!nMesas) items.push({ id: 'paso-mesas', tipo: 'paso', titulo: 'Crea tus mesas y zonas',
-        sub: 'Para vender por salón. Si solo vendes para llevar, puedes saltarlo.', ir: 'configuracion.html?s=mesas' });
-      if (!mets) items.push({ id: 'paso-pagos', tipo: 'paso', titulo: 'Configura cómo te pagan',
-        sub: 'Efectivo, transferencia… lo que aceptes al cobrar.', ir: 'configuracion.html?s=pagos' });
-    } catch (e) {}
-    return items;
+      var r = await posArranque.revisar();
+      if (!r || !r.faltan.length) return [];
+      return r.faltan.map(function (p) {
+        return {
+          id: 'paso-' + p.id, tipo: 'paso', titulo: p.titulo,
+          sub: p.obligatorio ? p.sub + ' Sin esto no se abre la caja.' : p.sub,
+          ir: p.ir, urgente: p.obligatorio,
+        };
+      });
+    } catch (e) { return []; }
   }
 
   /* ── El panel ─────────────────────────────────────────────────────────── */

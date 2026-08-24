@@ -1438,8 +1438,7 @@ document.getElementById('btn-confirmar-abrir').addEventListener('click', async f
     dejadas: AP.ultimo ? AP.ultimo.denoms.lineas.filter(l => AP.dejar[l.denom] !== false)
                                  .map(l => ({ denom: l.denom, qty: l.qty })) : [],
   };
-  await handleOpenSession(monto, turno, detalle);
-  closePanel('panel-abrir');
+  if (await handleOpenSession(monto, turno, detalle)) closePanel('panel-abrir');
 });
 
 // ── Verificar turnos abiertos de meseros ───────────────────────
@@ -2003,6 +2002,26 @@ async function updateArqueoEsperado() {
 
 // ── Acciones Supabase ──────────────────────────────────────────
 async function handleOpenSession(openingCash, shiftType, detalle) {
+  /* EL UNICO CANDADO DE TODA LA PUESTA EN MARCHA (24-ago-2026).
+
+     Decision de Sergio: no se tapa ninguna pantalla; se frena SOLO la apertura
+     de caja. "Si no puede abrir caja tampoco va a poder vender". Y taparle
+     pantallas seria peor: las que necesita para resolverlo son justo las que
+     se le taparian.
+
+     Va AQUI DENTRO y no en el boton que llama: por esta funcion pasa toda
+     apertura de turno, y colgarlo del boton seria el error de forma de
+     siempre — manana alguien abre turno desde otro sitio y el candado se
+     queda atras.
+
+     Si `posArranque` no esta cargado (una pantalla suelta, un fallo de red)
+     se deja pasar: frenarle la caja a alguien por eso es mucho peor que dejar
+     abrir la caja de un restaurante a medio configurar. */
+  if (window.posArranque) {
+    try {
+      if (!(await posArranque.exigirParaCaja())) return false;
+    } catch (e) { console.warn('[arranque] no se pudo revisar:', e); }
+  }
   try {
     const payload = {
       status: 'open', opening_cash: openingCash, shift_type: shiftType,
@@ -2013,10 +2032,11 @@ async function handleOpenSession(openingCash, shiftType, detalle) {
     if (S.branchId) payload.branch_id = S.branchId;
     if (S.tenantId) payload.tenant_id = S.tenantId;
     const { error } = await sb.from('pos_sessions').insert(payload);
-    if (error) { showToast('Error: ' + error.message); return; }
+    if (error) { showToast('Error: ' + error.message); return false; }
     showToast('Caja abierta correctamente');
     await refreshAll();
-  } catch(e) { console.error(e); showToast('Error al abrir caja'); }
+    return true;
+  } catch(e) { console.error(e); showToast('Error al abrir caja'); return false; }
 }
 
 /* Deja TODAS las mesas de la sede en libre, sin estado ni cronómetro.

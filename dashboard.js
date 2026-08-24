@@ -1921,3 +1921,28 @@ function qmReprintBtn(name, desc, svgPath, tipo) {
 
 // Inicializar cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', function(){ qmInit(); });
+
+
+/* ══════════════════════════════════════════════════════════════════
+   LA BIENVENIDA DE UN RESTAURANTE NUEVO
+   ──────────────────────────────────────────────────────────────────
+   El escritorio es donde aterriza el dueño al entrar, asi que es donde tiene
+   que encontrarse lo que le falta. Se muestra UN paso, no la lista: pedido
+   expreso de Sergio.
+
+   Solo sale si le falta algo OBLIGATORIO — o sea, si hoy no podria abrir caja.
+   Las sugerencias (fotos, impresoras, horarios) NO abren modal: viven en la
+   campana. Sacar un modal cada vez que entra por algo que no le frena nada es
+   la manera de que aprenda a cerrarlo sin leerlo, y entonces el dia que si le
+   frene la caja tampoco lo va a leer.
+   ══════════════════════════════════════════════════════════════════ */
+(function () {
+  async function bienvenida() {
+    if (!window.posArranque) return;
+    try {
+      var r = await posArranque.revisar();
+      if (r && r.faltanObligatorios.length) posArranque.mostrar({ bloqueante: true });
+    } catch (e) { /* nunca puede frenar el escritorio */ }
+  }
+  if (window._pos && window._pos.on) window._pos.on('core:ready', function () { setTimeout(bienvenida, 700); });
+})();
