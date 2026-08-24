@@ -95,9 +95,17 @@
       cifra('Te han comprado', num(compraron), 'de ' + num(tot) + ' registrados') +
       cifra('Han gastado', COP(gasto),
             num(pedidos) + (pedidos === 1 ? ' pedido' : ' pedidos') + ' · ' + COP(ticket) + ' cada uno') +
-      cifra('Puntos sin usar', num(puntos),
-            'en manos de ' + num(conPuntos) + (conPuntos === 1 ? ' cliente' : ' clientes'));
+      (hayPuntos()
+        ? cifra('Puntos sin usar', num(puntos),
+                'en manos de ' + num(conPuntos) + (conPuntos === 1 ? ' cliente' : ' clientes'))
+        : '');
   }
+  /* Los puntos vienen con el plan Pro. En un Starter esta pantalla no debe
+     hablar de puntos: ni la cifra de arriba, ni el "0 pts" al lado de cada
+     nombre, ni la barra del premio en la ficha. Si el plan todavia no se sabe
+     se deja pasar, igual que en el resto del sistema. */
+  function hayPuntos() { return !window.posPlan || posPlan.puede('puntos'); }
+
   function cifra(rotulo, valor, pie) {
     return '<div class="cl-fr"><div class="cl-fr-l">' + esc(rotulo) + '</div>' +
            '<div class="cl-fr-v">' + esc(valor) + '</div>' +
@@ -188,7 +196,8 @@
       return '<button class="cl-li-r' + (sel ? ' on' : '') + '" data-cli="' + esc(c.id) + '">' +
         '<div class="cl-av">' + esc(iniciales(c.nombre)) + '</div>' +
         '<div class="cl-li-m"><b>' + esc(c.nombre || 'Sin nombre') + '</b>' +
-          '<small>' + (p ? p + (p === 1 ? ' pedido' : ' pedidos') + ' · ' + num(c.puntos) + ' pts'
+          '<small>' + (p ? p + (p === 1 ? ' pedido' : ' pedidos')
+                             + (hayPuntos() ? ' · ' + num(c.puntos) + ' pts' : '')
                          : esc(c.telefono || 'Sin pedidos')) + '</small></div>' +
         '<div class="cl-li-d"><b>' + COP(c.gastado) + '</b>' +
           '<div class="cl-gbar"><i style="width:' +
@@ -289,7 +298,7 @@
           '</div></div>' +
         /* La tarjeta fisica del cliente: vincular, ver y quitar. Solo tiene
            sentido con telefono — la tarjeta apunta al numero, no a la ficha. */
-        (c.telefono
+        (c.telefono && (!window.posPlan || posPlan.puede('nfc'))
           ? '<button class="cl-tarjeta-btn" id="cl-tarjeta" type="button" title="Tarjeta física del cliente">' +
             '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M6 15h.01M10 15h4"/></svg>' +
             ' Tarjeta</button>'
@@ -302,6 +311,7 @@
           kpi('Promedio', p ? COP(c.promedio) : '—') +
           kpi('Último pedido', haceCuanto(c.ultimo)) +
         '</div>' +
+        (!hayPuntos() ? '' :
         '<div class="cl-puntos">' +
           '<div class="cl-pt-h">' +
             '<div><div class="cl-fr-l">Puntos</div>' +
@@ -318,10 +328,10 @@
               : '1 punto por cada $ 1.000 de comida. El domicilio no da puntos.') + '</div>' +
           /* Su billetera, aqui mismo: la consulta completa de un vistazo. Solo
              cuando tiene algo — "$ 0" de alguien sin billetera no dice nada. */
-          (Number(S.selSaldo) > 0
+          (Number(S.selSaldo) > 0 && (!window.posPlan || posPlan.puede('nfc'))
             ? '<div class="cl-pt-s" style="margin-top:4px"><b>Saldo en su billetera: ' + COP(S.selSaldo) + '</b></div>'
             : '') +
-        '</div>' +
+        '</div>') +
       '</div>' +
       /* El historial es lo unico que se mueve. Arriba queda quieto para poder
          mirar cuanto ha gastado mientras se baja por sus pedidos. */

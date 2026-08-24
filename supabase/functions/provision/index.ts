@@ -90,10 +90,16 @@ Deno.serve(async (req) => {
       const branch = (br.data as Array<Record<string, unknown>>)[0];
 
       // pos_users del gerente (best-effort, no bloquea)
+      /* `auth_user_id` ADEMAS de `id`. Las pantallas buscan la ficha por
+         `auth_user_id`; guardando solo el `id` no la encontraban y el
+         escritorio saludaba al dueno por su correo en vez de por su nombre.
+         Le paso a los tres restaurantes nacidos del registro (24-ago-2026). */
       await sbAdmin("POST", "/rest/v1/pos_users", {
-        id: user.id, branch_id: branch.id, tenant_id: tenant.id,
+        id: user.id, auth_user_id: user.id,
+        branch_id: branch.id, tenant_id: tenant.id,
         name: String(body.nombre_gerente || nombre),
         role: "gerente", phone: String(body.telefono || "") || null,
+        email: user.email || null,
         is_authorized_admin: true,
       });
 
@@ -202,8 +208,11 @@ Deno.serve(async (req) => {
       }
 
       await sbAdmin("POST", "/rest/v1/pos_users", {
-        id: userId, branch_id: firstBranch.id, tenant_id: tenant.id,
-        name: reg.nombre, role: "gerente", is_authorized_admin: true,
+        id: userId, auth_user_id: userId,      // ver la nota de arriba
+        branch_id: firstBranch.id, tenant_id: tenant.id,
+        name: reg.nombre, role: "gerente",
+        email: reg.email || null,
+        is_authorized_admin: true,
       });
 
       /* El dueno se marca AQUI y no arriba porque su cuenta de acceso nace

@@ -16,6 +16,7 @@
 
   var ctx = null;          // { plan, funciones[], nombrePlan }
   var cargando = null;     // promesa en curso, para no consultar dos veces
+  var oyentes = [];        // a quien avisarle cuando el plan quede confirmado
 
   function sb() {
     return (window._pos && window._pos.sb) || (typeof window.sb !== 'undefined' ? window.sb : null);
@@ -145,23 +146,34 @@
     try { marcarNav(); } catch (e) {}
     if (antes !== ahora) console.info('[plan] cambio:', antes, '->', ahora);
     try { protegerPantalla(); } catch (e) {}
+    avisar();
   }
 
   /* `porRed` obliga a preguntarle a la base y saltarse lo guardado. Sin eso,
      el refresco de fondo se llamaba a si mismo: pedia cargar(), cargar() veia
      que habia algo guardado, lo devolvia y programaba otro refresco. Nunca
      salia a internet y el candado viejo no se corregia jamas. */
+  var refrescando = false;   // para no encadenar veinte confirmaciones
+
   async function cargar(porRed) {
-    if (ctx && !porRed) return ctx;
+    if (ctx && !porRed) {
+      /* Lo guardado sirve YA, pero todavia no esta confirmado contra la base.
+         Sin esta linea, precargar `ctx` al abrir el archivo dejaba a `cargar()`
+         volviendo al instante para siempre: nunca salia a internet y un plan
+         que cambio no se enteraba jamas. */
+      if (!ctx.fresco && !refrescando) {
+        refrescando = true;
+        setTimeout(function () {
+          refrescarPorDetras().then(function () { refrescando = false; },
+                                    function () { refrescando = false; });
+        }, 0);
+      }
+      return ctx;
+    }
     if (cargando && !porRed) return cargando;
     if (!porRed) {
-      /* Lo guardado sirve YA. La consulta sale igual, pero nadie la espera. */
       var guardado = delEquipo();
-      if (guardado) {
-        ctx = guardado;
-        setTimeout(refrescarPorDetras, 0);
-        return ctx;
-      }
+      if (guardado) { ctx = guardado; return cargar(false); }   // cae al bloque de arriba
     }
     cargando = (async function () {
       var s = sb();
@@ -202,6 +214,23 @@
       return ctx;
     })();
     return cargando;
+  }
+
+  /* Le avisa a las pantallas que el plan ya se sabe (o que cambio). Sirve para
+     lo que se pinta ANTES de que llegue la respuesta: la pantalla de cobro se
+     dibuja al instante desde el cache del equipo, y si el plan tarda, alcanza a
+     mostrar un boton que ese restaurante no tiene. Con esto se repinta sola. */
+  function avisar() {
+    for (var i = 0; i < oyentes.length; i++) {
+      try { oyentes[i](ctx); } catch (e) { console.warn('[plan] oyente:', e); }
+    }
+  }
+
+  /* Se llama YA con lo que se sepa ahora, y otra vez cuando se confirme. */
+  function alSaber(fn) {
+    if (typeof fn !== 'function') return;
+    oyentes.push(fn);
+    try { fn(ctx); } catch (e) {}
   }
 
   function puede(clave) {
@@ -285,7 +314,50 @@
   /* Se puede llamar las veces que haga falta: pone los candados que faltan y
      QUITA los que ya no corresponden. Sin lo segundo, un candado puesto con un
      dato viejo se quedaba ahi aunque la consulta dijera que si se puede. */
+  /* Elementos marcados a mano con data-plan="clave". Sirve para lo que NO es
+     una pantalla propia: un boton dentro de Configuracion, una pestana, una
+     seccion. Dos comportamientos:
+       · data-plan          -> se queda visible con candado; al tocarlo, el aviso.
+       · data-plan-oculta   -> desaparece. Solo para lo que no tiene sentido
+                               anunciar en medio del trabajo (el letrero de
+                               puntos en la pantalla de cobro, por ejemplo:
+                               ahi el cajero esta cobrandole a alguien). */
+  function marcarSueltos() {
+    var ocultar = document.querySelectorAll('[data-plan-oculta]');
+    for (var j = 0; j < ocultar.length; j++) {
+      var o = ocultar[j];
+      o.style.display = puede(o.getAttribute('data-plan-oculta')) ? '' : 'none';
+    }
+
+    var marc = document.querySelectorAll('[data-plan]');
+    for (var k = 0; k < marc.length; k++) {
+      var el = marc[k], cl = el.getAttribute('data-plan');
+      var lk = el.querySelector('.pos-plan-lock');
+      if (puede(cl)) { if (lk) lk.remove(); continue; }
+      if (!lk) {
+        lk = document.createElement('span');
+        lk.className = 'pos-plan-lock';
+        lk.style.cssText = 'margin-left:6px;display:inline-flex;align-items:center;opacity:.55;flex-shrink:0;vertical-align:middle';
+        lk.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+          + 'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" '
+          + 'height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+        el.appendChild(lk);
+      }
+      if (!el.dataset.posPlanClick) {
+        el.dataset.posPlanClick = '1';
+        (function (c) {
+          el.addEventListener('click', function (ev) {
+            if (puede(c)) return;
+            ev.preventDefault(); ev.stopPropagation();
+            mostrar(c);
+          }, true);
+        })(cl);
+      }
+    }
+  }
+
   function marcarNav() {
+    try { marcarSueltos(); } catch (e) {}
     var items = document.querySelectorAll('a[href]');
     for (var i = 0; i < items.length; i++) {
       var a = items[i];
@@ -352,14 +424,28 @@
     exigir: exigir,
     mostrar: mostrar,
     marcarNav: marcarNav,
+    alSaber: alSaber,
     ctx: function () { return ctx; },
   };
+
+  /* EN CUANTO CARGA EL ARCHIVO, sin esperar nada, se toma lo guardado en el
+     equipo. Antes `ctx` quedaba en null hasta core:ready (o 400 ms), y `puede()`
+     con ctx en null responde "si" a todo — a proposito, para no estorbar. El
+     efecto era que la pantalla de cobro alcanzaba a pintar el boton de puntos
+     de un restaurante que no los tiene, y se corregia medio segundo despues.
+     Con esto, de la segunda visita en adelante el plan se sabe desde el primer
+     trazo. La consulta de verdad sale igual, por detras. */
+  try {
+    var _g = delEquipo();
+    if (_g) ctx = _g;
+  } catch (e) {}
 
   // Arranca solo: carga el plan y pone los candados del menú.
   function arrancar() {
     cargar().then(function () {
       try { marcarNav(); } catch (e) {}
       try { protegerPantalla(); } catch (e) {}
+      avisar();
     });
   }
   if (window._pos && window._pos.on) window._pos.on('core:ready', arrancar);

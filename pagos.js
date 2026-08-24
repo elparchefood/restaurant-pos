@@ -75,8 +75,17 @@ function _esEfectivo(){ var d=(SP.methodDefs||[]).find(function(m){ return m.key
 /* Aplica una lista de metodos a la pantalla. SINCRONO a proposito: es lo que
    permite pintar al instante desde el cache del equipo, sin esperar la red. */
 function _mpAplicarLista(metodos){
+  SP.metodosCrudos = metodos || SP.metodosCrudos || [];   // para repintar al saber el plan
   var canal = SP.channel==='domicilio' ? 'domicilio' : (SP.channel==='rapido' ? 'rapida' : 'mesa');
   var list = (metodos||[]).filter(function(m){ return m && String(m.nombre||'').trim() && m.activo!==false; });
+  /* Lo que el plan no incluye ni se ofrece. Va ANTES del filtro de canales
+     para que el "si no queda ninguno, efectivo" de abajo siga cubriendo el
+     caso de un restaurante cuyos unicos metodos fueran de un plan superior. */
+  list = list.filter(function(m){
+    if ((m.tipo||'') === 'puntos') return _pgHayPuntos();
+    if ((m.tipo||'') === 'saldo')  return _pgHaySaldo();
+    return true;
+  });
   list = list.filter(function(m){ return !Array.isArray(m.canales) || !m.canales.length || m.canales.indexOf(canal)>=0; });
   if (!list.length) list = [{ id:'efectivo', nombre:'Efectivo', tipo:'efectivo', digital:false }];
   list.sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
@@ -1987,6 +1996,7 @@ async function pgMostrarPuntosGanados(total, domi, empaque) {
   var caja = document.getElementById('done-puntos');
   var stats = document.querySelector('.pg-done-stats');
   if (!stats) return;
+  if (!_pgHayPuntos()) { if (caja) caja.style.display = 'none'; return; }
   if (!caja) {
     caja = document.createElement('div');
     caja.id = 'done-puntos';
@@ -2030,9 +2040,24 @@ async function pgMostrarPuntosGanados(total, domi, empaque) {
    empaque y al domicilio en vivo. La propina NO cuenta: no es venta del
    restaurante. El domicilio tampoco.
    ══════════════════════════════════════════════════════════════════ */
+/* Los puntos son del plan Pro. Un restaurante Starter no debe verlos por
+   ningun lado de la pantalla de cobro — ni el letrero, ni el boton de canje,
+   ni el resumen despues de cobrar. Aqui se OCULTAN en vez de poner el candado:
+   el cajero esta cobrandole a alguien, no es el momento de venderle un plan al
+   dueno. El candado con la explicacion va en Configuracion, que es donde el
+   dueno anda mirando. Mismo criterio para la billetera, que es de Premium.
+
+   Si el plan todavia no se sabe, `puede()` responde que si: mas vale que un
+   Pro lo vea medio segundo antes, a que un Pro que si pago no lo vea nunca
+   porque se cayo la consulta. Cuando llega la respuesta se repinta (ver el
+   posPlan.alSaber del final del archivo). */
+function _pgHayPuntos() { return !window.posPlan || posPlan.puede('puntos'); }
+function _pgHaySaldo()  { return !window.posPlan || posPlan.puede('nfc'); }
+
 function pgPuntosPreview(subtotal, empaque) {
   var el = document.getElementById('t-puntos');
   if (!el) return;
+  if (!_pgHayPuntos()) { el.hidden = true; return; }
 
   /* OJO: se calcula EXACTAMENTE igual que el trigger de la base
      (`subtotal + packaging_fee`), y el trigger NO descuenta el descuento
@@ -2240,3 +2265,23 @@ async function ptVerificarTransferencia() {
   btn.disabled = false; btn.textContent = 'Verificar transferencia';
   host.dataset.busy = '';
 }
+
+
+/* ══════════════════════════════════════════════════════════════════
+   CUANDO SE CONFIRMA EL PLAN, SE REPINTA
+   La pantalla de cobro se dibuja al instante desde lo guardado en el equipo,
+   sin esperar a internet — es lo que la hace rapida. El plan puede llegar un
+   momento despues. Sin esto, un restaurante Starter alcanzaba a ver el letrero
+   de puntos y el boton de canje, y se quedaban ahi hasta el siguiente repintado.
+   ══════════════════════════════════════════════════════════════════ */
+(function () {
+  if (!window.posPlan || !posPlan.alSaber) return;
+  var antes = null;
+  posPlan.alSaber(function (ctx) {
+    var ahora = ctx ? (ctx.plan + '|' + JSON.stringify(ctx.funciones)) : '';
+    if (ahora === antes) return;      // el primer aviso llega con lo que ya se pinto
+    antes = ahora;
+    try { if (SP.metodosCrudos) _mpAplicarLista(SP.metodosCrudos); } catch (e) {}
+    try { renderTotals(); } catch (e) {}
+  });
+})();

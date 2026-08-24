@@ -215,8 +215,24 @@ var SECTION_LABELS = {
   chatia:    'Asistente IA'
 };
 
+/* Que seccion necesita que funcion del plan. El candado del menu (pos-cfg-nav)
+   ya frena el clic, pero eso solo cubre el clic: quedaba abierta la direccion
+   `configuracion.html?s=puntos`, el enlace guardado en favoritos y el botón de
+   otra pantalla que lleva directo. Sin esto, el candado seria decorativo. */
+var SEC_PLAN = { puntos: 'puntos', dian: 'dian', chatia: 'chat_ia' };
+
 function setSection(sec) {
   if (sec === 'back') { window.location.href = 'dashboard.html'; return; }
+
+  /* Solo con el plan ya confirmado contra la base. Si todavia no llego, se
+     deja pasar: es peor dejar afuera a un Pro que si pago, que dejar entrar
+     medio segundo a un Starter. */
+  var _pl = SEC_PLAN[sec];
+  var _ctx = window.posPlan && posPlan.ctx && posPlan.ctx();
+  if (_pl && _ctx && _ctx.fresco && !posPlan.puede(_pl)) {
+    posPlan.mostrar(_pl);
+    return;
+  }
 
   document.querySelectorAll('.lm-nav').forEach(function(b){
     b.classList.toggle('on', b.dataset.section === sec);

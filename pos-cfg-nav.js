@@ -27,7 +27,7 @@
     i: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>' },
   { g: 'Ventas', s: 'impuesto', t: 'Impuestos y propina',
     i: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>' },
-  { g: 'Ventas', s: 'dian', t: 'Facturación DIAN',
+  { g: 'Ventas', s: 'dian', t: 'Facturación DIAN', p: 'dian',
     i: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/><circle cx="17" cy="17" r="3.2"/></svg>' },
   { g: 'Ventas', s: 'operacion', t: 'Operación',
     i: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>' },
@@ -35,13 +35,13 @@
     i: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 17.5h-6l-2-8h-3"/><path d="M9.5 9.5h6l1.5 5"/></svg>' },
   { g: 'Ventas', s: 'impresora', t: 'Impresoras',
     i: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>' },
-  { g: 'Equipo', s: 'puntos', t: 'Puntos',
+  { g: 'Equipo', s: 'puntos', t: 'Puntos', p: 'puntos',
     i: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' },
   { g: 'Equipo', s: 'creditos', t: 'Créditos',
     i: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>' },
   { g: 'Equipo', s: 'usuarios', t: 'Usuarios y roles',
     i: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>' },
-  { g: 'Chat IA', s: 'chatia', t: 'Asistente IA',
+  { g: 'Chat IA', s: 'chatia', t: 'Asistente IA', p: 'chat_ia',
     i: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V5"/><circle cx="12" cy="4" r="1.2" fill="currentColor"/><circle cx="9" cy="14" r="1" fill="currentColor"/><circle cx="15" cy="14" r="1" fill="currentColor"/><path d="M9.5 17h5"/></svg>' },
   ];
 
@@ -64,12 +64,20 @@
         grupo = it.g;
       }
       html += '<button class="lm-nav' + (it.s === activa ? ' on' : '') + '"'
-            + ' id="nav-' + it.s + '" data-section="' + it.s + '">'
+            + ' id="nav-' + it.s + '" data-section="' + it.s + '"'
+            /* `p` es la funcion del plan que abre esta seccion. pos-plan le
+               pone el candado y, al tocarla, explica en que plan viene. La
+               entrada NO se esconde: un boton ausente no le vende nada a
+               nadie, un candado si. */
+            + (it.p ? ' data-plan="' + it.p + '"' : '') + '>'
             + '<span class="cf-nav-l">' + it.i
             + '<span class="cf-nav-label">' + esc(it.t) + '</span></span></button>';
     });
     if (grupo !== null) html += '</div>';
     nav.innerHTML = html;
+    /* El menu se pinta cada vez; los candados hay que volver a ponerlos porque
+       el innerHTML se los llevo. */
+    try { if (w.posPlan && w.posPlan.marcarNav) w.posPlan.marcarNav(); } catch (e) {}
     return nav;
   }
 

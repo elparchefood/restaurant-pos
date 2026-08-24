@@ -307,7 +307,10 @@
     var mRef = notes.match(/Ref:(\S+)/i); if (mRef) h += '<div style="text-align:center;font-size:10.5px;color:#555">Ref: '+mRef[1]+'</div>';
     // Puntos del cliente. Solo si es un cliente guardado; en una venta al paso
     // el recibo queda igual que siempre, sin un "0 puntos" que no dice nada.
-    if (order.puntos_total != null) {
+    /* La base sigue sumando los puntos (el trigger no sabe de planes), pero un
+       restaurante que no tiene el programa no puede entregar un recibo que le
+       promete puntos al cliente. */
+    if (order.puntos_total != null && (!window.posPlan || posPlan.puede('puntos'))) {
       h += sep;
       h += '<div style="text-align:center;font-size:10px;font-weight:700;color:#555;text-transform:uppercase">Tus puntos</div>';
       h += '<table>';
