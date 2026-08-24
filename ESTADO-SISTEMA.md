@@ -1,5 +1,5 @@
 # ESTADO DEL SISTEMA — Cobra POS
-> Última actualización: 2026-08-23
+> Última actualización: 2026-08-24
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
@@ -32,6 +32,54 @@ $35.000"*, y pidiéndolo como él lo pidió, Paco ya ni corrige — acepta y sig
 > FOTO que mandó (Paco no lee imágenes salvo comprobantes), y a partir de ahí se
 > calló, que es lo correcto. Su pregunta *"¿cuánto es lo del domi y la
 > ranchera?"* llegó después del relevo y la contestó Sergio.
+
+---
+
+## ⚡ La comprobación de seguridad deja de barrer `pos_users` — 24-ago-2026
+
+Primero de los tres arreglos de velocidad que aprobó Sergio. **Invisible**: no
+cambia ni un comportamiento.
+
+`current_tenant_id()` es la función de la que cuelga toda la seguridad — las
+políticas de las 86 tablas con `tenant_id` la llaman, así que corre en cada
+consulta de cada pantalla. Y barría la tabla entera: **1.035.278 barridos
+completos contra 34 por índice**. La culpa era el `OR`
+(`auth_user_id = uid OR id = uid`), que impide usar índice porque son dos
+columnas distintas.
+
+Se partió en dos búsquedas indexadas unidas por prioridad, y se creó el índice
+que faltaba (`ix_pos_users_auth_user`, parcial: solo 2 de 5 filas tienen ese
+campo). El de `id` ya iba por la llave primaria.
+
+**Un detalle fino que se conservó a propósito:** si la fila existe pero su
+`tenant_id` es nulo, la función devuelve `auth.uid()`, igual que antes. Por eso
+el COALESCE envuelve el resultado entero y no cada búsqueda: con un COALESCE por
+búsqueda, una fila con tenant nulo habría caído a la segunda y podría haber
+devuelto **otro restaurante**. Hoy no existe ninguna fila así, pero la función
+de seguridad no se escribe para los datos de hoy.
+
+### Cómo se comprobó, en cuatro pasos
+
+1. **Antes de tocar nada:** se ejecutaron las dos versiones, la vieja y la
+   nueva, sobre los 7 identificadores que existen (todos los de `auth.users`,
+   todos los de `pos_users`, todos los `auth_user_id` y uno inventado).
+   **Resultados idénticos en los 7.**
+2. **El índice sirve:** forzando el plan, la búsqueda por `auth_user_id` usa
+   `ix_pos_users_auth_user`.
+3. **El aislamiento sigue intacto**, haciéndose pasar por cada usuario con
+   `role authenticated`: Sergio ve sus 374 pedidos y 54 productos; Ana
+   (Restaurante de Prueba) ve 0 y 0.
+4. **Los dos caminos y el respaldo:** Mónica —la única cuenta enlazada por
+   `auth_user_id` y no por su `id`, justo la rama reescrita— resuelve a El
+   Parche y ve sus 54 productos; y una cuenta que no está en `pos_users` no ve
+   nada.
+
+> **Qué NO hace esto:** no acelera nada hoy. Con 5 filas, barrer la tabla es
+> gratis, y de hecho Postgres sigue prefiriendo el barrido — que con 5 filas es
+> la decisión correcta. Lo que se quita es la mina: el día que haya diez
+> restaurantes con su personal, ese barrido ocurriría en cada consulta de cada
+> pantalla. Se arregla ahora porque después sería con el sistema lleno de
+> clientes.
 
 ---
 
