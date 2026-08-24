@@ -3,6 +3,107 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 Los puntos se veían sin tenerlos, y el gerente se llamaba como su correo — 24-ago-2026
+
+Los dos los encontró Sergio probando el **Restaurante de Prueba**, que está en
+plan Starter. Es exactamente para lo que se montó esa copia.
+
+### 1. Puntos y billetera a la vista de cualquier plan
+
+`pos-plan.js` tenía el catálogo completo de qué trae cada plan desde el
+principio — puntos, inventario, chat, DIAN, NFC— y la función `exigir()`
+escrita y documentada. **No la llamaba nadie.** Lo único que estaba conectado
+era el candado del menú lateral, y solo para dos pantallas: Chat IA e
+Inventario.
+
+Todo lo demás salía igual en cualquier plan:
+
+| Dónde | Qué se veía |
+|---|---|
+| Pantalla de cobro | "Este pedido vale 50 puntos", el método **Puntos**, el resumen de puntos ganados tras cobrar |
+| Tomar pedido / Venta rápida / Domicilios | la pestaña **Puntos** del catálogo de canje |
+| Clientes | la cifra "Puntos sin usar", el "N pts" de cada fila, la barra del próximo premio |
+| Recibo impreso | el bloque "Tus puntos" |
+| Configuración | la sección **Puntos** entera, abierta |
+| Clientes | el botón **Tarjeta** y el saldo de la billetera (eso es Premium, y hoy exclusivo de El Parche) |
+
+**Se arregla con dos criterios distintos, y la diferencia importa:**
+
+- Donde mira el **dueño** (Configuración) va el **candado**: la entrada se queda
+  visible, y al tocarla explica qué es y en qué plan viene. Esconderla haría
+  que ni sepa que existe, y lo que no se ve no se compra.
+- Donde trabaja el **cajero** (cobro, tomar pedido, recibo) se **esconde**: hay
+  un cliente esperando en el mostrador, no es el momento de venderle un plan a
+  nadie.
+
+Piezas nuevas en `pos-plan.js`:
+- `data-plan="clave"` — le pone el candado a cualquier elemento, no solo a una
+  pantalla del menú. Así se candó Puntos, DIAN y Asistente IA dentro de
+  Configuración (`pos-cfg-nav.js`).
+- `data-plan-oculta="clave"` — lo esconde. Así se quitó la pestaña Puntos de
+  las tres pantallas de venta.
+- `posPlan.alSaber(fn)` — avisa cuando el plan queda confirmado, para que la
+  pantalla de cobro se repinte (ver abajo).
+
+**Y el candado no es decorativo:** `setSection()` de Configuración también
+comprueba el plan, porque el clic no es la única puerta — quedaba abierta la
+dirección `configuracion.html?s=puntos`, el favorito guardado y el botón de
+otra pantalla que lleva directo.
+
+**El medio segundo en blanco.** `puede()` responde *"sí"* mientras no sepa el
+plan, a propósito: es peor dejar sin trabajar a un Pro que sí pagó que dejar
+entrar un instante a un Starter. Pero `ctx` quedaba en null hasta `core:ready`,
+así que la pantalla de cobro —que se pinta al instante desde el caché del
+equipo, por velocidad— alcanzaba a dibujar el botón de puntos y se lo quitaban
+después. Ahora **lo guardado se lee en cuanto carga el archivo**, sin esperar
+nada.
+
+⚠️ Eso casi mete un bug peor: con `ctx` precargado, `cargar()` volvía al
+instante y **nunca salía a confirmar contra la base**. Un plan que cambiara no
+se enteraba jamás. Se le puso la confirmación al camino corto.
+
+Probado en banco (`probar-plan.js`, con un navegador y una base fingidos), tres
+casos: (a) el Starter no ve los puntos desde el primer trazo, (b) igual se sale
+a confirmar contra la base, (c) si el dueño paga el Pro, **el candado se quita
+solo** — sin que nadie le borre el caché a mano.
+
+### 2. El escritorio saludaba por el correo
+
+"Buenas tardes, prueba-registro@ejemplo.com" — y arriba a la derecha, el correo
+otra vez, donde debía decir **Ana Prueba**, que es el nombre que sí estaba
+guardado en Configuración.
+
+Una fila con dos formas de decir lo mismo:
+
+- `pos_users.id` = la cuenta de acceso (forma vieja)
+- `pos_users.auth_user_id` = la cuenta de acceso (forma nueva)
+
+`provision` guardaba **solo la primera**. Las pantallas buscan por la segunda
+(`.eq('auth_user_id', ...)`), no encontraban nada, caían al respaldo por correo
+—vacío en esas filas— y terminaban mostrando el correo de la sesión como si
+fuera un nombre.
+
+**No era del restaurante de pruebas.** Se revisaron las cinco fichas del
+sistema y **las tres nacidas del registro estaban así**: Meta Reviewer, Carlos
+Prueba y Ana Prueba. Las dos que funcionan se crearon a mano. Es decir: a cada
+restaurante nuevo le pasaría lo mismo, y lo vería su dueño el primer día, en
+la primera pantalla.
+
+Arreglado por los dos lados:
+- `sql/2026-08-24-enlazar-usuario-con-su-cuenta.sql` — las que ya existen.
+  Solo las filas cuyo `id` **es de verdad** una cuenta de `auth.users`: una
+  ficha de mesero sin cuenta tiene un id suyo, y copiárselo la haría pasar por
+  una cuenta que no existe. Aplicado: 5 de 5 enlazadas.
+- `provision` v14 — las que vengan nacen con `auth_user_id` **y** `email`.
+
+### 3. De paso, la copia del banco
+
+Los métodos de pago del Restaurante de Prueba decían "Billetera **El Parche
+Food**": la copia se los trajo tal cual. Renombrado. (La llave de Nequi sí se
+había vaciado a propósito desde el principio.)
+
+---
+
 ## 🔴→🟢 El precio sin empaque, por TERCERA vez (v376) — 23-ago-2026
 
 Fabián Sánchez, 8:29 pm: *"Me regala por favor una premium mixta personal, de
