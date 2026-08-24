@@ -3,6 +3,47 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 La nota del pedido: se guardó la frase de relleno y se perdió la real (v373) — 23-ago-2026
+
+Pedido de Jennifer, 573202822376, 7:05 pm. La comanda salió con la nota
+**"no deseo agregar nada más"**, y lo que la clienta pidió de verdad —**"con ajo
+y rosada"**— no llegó a la cocina.
+
+Dos fallos en el mismo sitio, los dos del lector:
+
+- **"Con ajo y rosada" nunca se capturó.** Se comprobó que fue así y no que se
+  pisara después: las notas se ACUMULAN (`previas + pref`), así que si se
+  hubiera visto seguiría en la lista junto a la otra.
+  El prompt del lector describía las notas solo como lo que se QUITA o cómo se
+  cocina ("sin salsas", "papas doraditas"). Decir qué salsas SÍ quiere es la
+  misma instrucción de cocina, y no estaba contemplado.
+- **"No deseo agregar nada más" sí se guardó.** El prompt ya decía que los
+  cierres no son nota y listaba "nada más", pero el modelo lo tomó igual.
+
+**El arreglo va por el LECTOR, no por el buscador de palabras** — la regla que
+Sergio ya ha reclamado tres veces. Al prompt se le añadió:
+
+1. Que lo que el cliente QUIERE también es nota, con el caso real de ejemplo, y
+   que si viene pegada al plato en el mismo mensaje ("una premium personal /
+   con ajo y rosada") la nota es esa segunda línea.
+2. Que **mire qué preguntó Paco de último** y, si el mensaje es la RESPUESTA a
+   esa pregunta, no es nota — dicho explícitamente *"no busques esas frases
+   exactas; entiende a qué está contestando"*. Se verificó que el lector sí
+   recibe las preguntas de Paco: `histLector` son los 4 últimos mensajes con
+   los suyos incluidos, y el del upsell entra completo en los 120 caracteres.
+
+`extractPreferencias` —el buscador de `sin`/`solo`/`poca`— no se tocó: sigue
+siendo solo el respaldo por si el modelo se cae. De paso quedó claro por qué
+nunca habría servido aquí: sus disparadores no incluyen "con", y meterlo
+llenaría las comandas de basura ("para condominio con...").
+
+**Probado en el banco** repitiendo la conversación entera de Jennifer, palabra
+por palabra, mientras el restaurante estaba en servicio — sin tocar a nadie. El
+resumen salió con `↳ con ajo y rosada` y sin rastro de la frase de relleno.
+Las conversaciones de prueba se borraron.
+
+---
+
 ## 🟢 El tutorial de instalación: pantalla propia con el video — 23-ago-2026
 
 Es a donde cae el botón de la plantilla de WhatsApp que se le manda a quien se

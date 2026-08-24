@@ -5974,9 +5974,20 @@ REGLAS:
   palabra: "sin salsas", "las salsas aparte porque hay niños" -> "salsas aparte",
   "las papas bien doraditas" -> "papas bien doradas", "que no pique nada",
   "córtala en dos". Escríbela CORTA, lista para la comanda de cocina.
+  TAMBIÉN es nota lo que el cliente QUIERE, no solo lo que quita: "con ajo y
+  rosada", "solo ajo", "con mucho queso", "bien caliente" -> "con ajo y rosada".
+  Decir qué salsas quiere es decirle a la cocina cómo prepararlo, exactamente
+  igual que decir cuáles NO quiere. Si viene pegado al plato en el mismo
+  mensaje ("una premium personal / con ajo y rosada"), la nota es esa segunda
+  línea.
   NO es nota: cerrar el pedido ("no solo eso", "eso es todo", "así está bien",
   "nada más"), cortesías, confirmaciones ni preguntas -> null. Tampoco es nota
   lo que ya va en otro campo (una adición, un tamaño, una forma de pago).
+  Y MIRA QUÉ PREGUNTÓ PACO DE ÚLTIMO en los mensajes de abajo: si lo que dice
+  el cliente es la RESPUESTA a esa pregunta, no es una nota, sea como sea que
+  la diga. A "¿deseas agregar algo?" -> "no deseo agregar nada más", "así está
+  bien", "no gracias", "ninguna otra cosa" son la misma respuesta: null. No
+  busques esas frases exactas; entiende a qué está contestando.
 - "pago": Nequi, Daviplata, "por llave", el QR, "te consigno", "te transfiero" son TODOS
   el método de TRANSFERENCIA. El saldo prepagado y los puntos SOLO si el cliente los
   nombra ("con mi saldo", "con los puntos"). Devuelve el nombre del método SIN el
