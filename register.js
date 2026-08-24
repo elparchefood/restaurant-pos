@@ -38,6 +38,7 @@ function cop(n) {
 document.addEventListener('DOMContentLoaded', function() {
   updatePlanUI();
   setupDragDrop();
+  cargarCuentaCobro();   // la cuenta sale de la consola, no del codigo
 });
 
 // ── Navegación entre pasos ─────────────────────────────────────────────
@@ -199,9 +200,72 @@ function setupDragDrop() {
   });
 }
 
+/* ── LA CUENTA DE COBRO DE COBRA POS ────────────────────────────────────
+   Sale de `plataforma_cobro`, y NO de los metodos de pago de ningun
+   restaurante. Sergio: *"una cosa es la cuenta donde pagan los clientes del
+   restaurante y otra muy distinta donde pagan los clientes de Cobra... no
+   deben tener ninguna vinculacion"*. Hoy comparten numero por coincidencia;
+   el dia que cambie una, la otra no se puede mover sola.
+
+   Se muestra tal cual llega. Si la consulta falla, la caja queda con guiones
+   y el aviso de abajo: es preferible que alguien pregunte a que transfiera a
+   un numero viejo que quedo escrito en el codigo. */
+async function cargarCuentaCobro() {
+  var caja = document.querySelector('.bank-card') || document;
+  try {
+    var r = await sb.from('plataforma_cobro').select('*').eq('id', 1).maybeSingle();
+    var c = r && r.data;
+    if (!c || !String(c.numero || '').trim()) throw new Error('sin cuenta configurada');
+    var pon = function (id, val) { var e = document.getElementById(id); if (e) e.textContent = val; };
+    pon('bank-nombre',  c.banco || 'Transferencia');
+    pon('bank-tipo',    c.tipo || '—');
+    pon('bank-titular', c.titular || '—');
+    /* Se muestra en grupos de tres, que es como la gente lee un numero largo,
+       pero al copiar va limpio: un espacio de mas en la app del banco es un
+       "cuenta no encontrada" que nadie sabe explicar. */
+    pon('bank-llave', String(c.numero).replace(/\D/g, '').replace(/(\d{3})(?=\d)/g, '$1 ').trim());
+    var lbl = document.getElementById('bank-numero-lbl');
+    if (lbl) lbl.textContent = /llave/i.test(c.tipo || '') ? 'Llave' : 'Cuenta';
+    if (String(c.nota || '').trim()) {
+      pon('bank-nota', c.nota);
+      var fila = document.getElementById('bank-nota-row');
+      if (fila) fila.style.display = '';
+    }
+    CUENTA_COBRO = String(c.numero).replace(/\D/g, '');
+
+    /* El boton del QR solo si de verdad hay imagen. */
+    if (String(c.qr_url || '').trim()) {
+      QR_COBRO = c.qr_url;
+      var b = document.getElementById('bank-qr-btn');
+      if (b) b.style.display = '';
+      var t = document.getElementById('qr-titular-txt');
+      if (t) t.textContent = (c.banco || '') + (c.titular ? ' · ' + c.titular : '');
+    }
+  } catch (e) {
+    console.warn('[registro] no se pudo leer la cuenta de cobro:', e && e.message);
+    var av = document.getElementById('bank-tipo');
+    if (av) av.textContent = 'No disponible ahora mismo';
+  }
+}
+var CUENTA_COBRO = '';
+var QR_COBRO = '';
+
+function verQr() {
+  if (!QR_COBRO) return;
+  var img = document.getElementById('qr-img');
+  var ov  = document.getElementById('qr-overlay');
+  if (img) img.src = QR_COBRO;
+  if (ov) ov.style.display = 'flex';
+}
+function cerrarQr() {
+  var ov = document.getElementById('qr-overlay');
+  if (ov) ov.style.display = 'none';
+}
+
 function copyLlave() {
   var el = document.getElementById('bank-llave');
-  var val = el ? el.textContent.replace(/\s/g, '') : '0092571225';
+  var val = CUENTA_COBRO || (el ? el.textContent.replace(/\s/g, '') : '');
+  if (!val) { showToast('La cuenta no esta disponible. Escribenos y te la pasamos.'); return; }
   navigator.clipboard.writeText(val).then(function() {
     showToast('Llave copiada al portapapeles.');
   }).catch(function() {

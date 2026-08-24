@@ -254,23 +254,37 @@
         <div class="bank-header">
           <div class="bank-logo">B</div>
           <div>
-            <div class="bank-name">Bancolombia</div>
+            <div class="bank-name" id="bank-nombre">—</div>
             <div class="bank-sub">Transferencia o consignación</div>
           </div>
         </div>
+        <!-- Estos datos NO van escritos aqui: salen de `plataforma_cobro`, que
+             Sergio cambia desde la consola. Escritos a mano, cambiar de cuenta
+             obligaria a tocar el codigo y volver a publicar. Lo que se ve antes
+             de que lleguen es lo ultimo configurado, no un numero inventado. -->
         <div class="bank-row">
           <span class="bank-key">Tipo de pago</span>
-          <span class="bank-val">Llave Bancolombia</span>
+          <span class="bank-val" id="bank-tipo">—</span>
         </div>
         <div class="bank-row">
-          <span class="bank-key">Llave</span>
-          <span class="bank-val accent" id="bank-llave">009 257 1225</span>
+          <span class="bank-key" id="bank-numero-lbl">Llave</span>
+          <span class="bank-val accent" id="bank-llave">—</span>
           <button class="bank-copy" onclick="copyLlave()">Copiar</button>
         </div>
         <div class="bank-row">
           <span class="bank-key">Titular</span>
-          <span class="bank-val">Sergio Andrés Abadía</span>
+          <span class="bank-val" id="bank-titular">—</span>
         </div>
+        <div class="bank-row" id="bank-nota-row" style="display:none">
+          <span class="bank-key">Nota</span>
+          <span class="bank-val" id="bank-nota"></span>
+        </div>
+        <!-- Solo aparece si hay QR cargado. Un boton que abre un recuadro en
+             blanco es peor que no tener boton. -->
+        <button type="button" class="bank-copy" id="bank-qr-btn" onclick="verQr()"
+                style="display:none;width:100%;margin-top:10px;padding:9px;justify-content:center">
+          Pagar escaneando el QR
+        </button>
       </div>
 
       <!-- Upload comprobante -->
@@ -350,6 +364,22 @@
 <script src="pos-core.js?v=1791745000"></script>
   <script src="pos-plan.js?v=1791810000"></script>
 <script src="pos-brand.js?v=1790530000"></script>
-<script src="register.js?v=1792060000"></script>
+<script src="register.js?v=1792080000"></script>
+
+<!-- El QR a pantalla completa: se escanea desde OTRO telefono, asi que tiene
+     que verse grande y sobre blanco. Un QR pequeno o sobre color se lee mal. -->
+<div id="qr-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);
+     backdrop-filter:blur(3px);z-index:9999;align-items:center;justify-content:center;padding:20px"
+     onclick="if(event.target===this) cerrarQr()">
+  <div style="background:#fff;border-radius:18px;padding:22px;max-width:340px;width:100%;text-align:center">
+    <div style="font-size:16.5px;font-weight:800;color:#0F172A;margin-bottom:4px">Escanea para pagar</div>
+    <div style="font-size:12.5px;color:#64748B;margin-bottom:16px" id="qr-titular-txt"></div>
+    <img id="qr-img" alt="Código QR para pagar" style="width:100%;background:#fff;border-radius:10px;display:block">
+    <div style="font-size:12px;color:#94A3B8;margin-top:14px;line-height:1.5">
+      Después de pagar, vuelve aquí y sube el comprobante.</div>
+    <button type="button" class="bank-copy" onclick="cerrarQr()"
+            style="width:100%;margin-top:14px;padding:10px;justify-content:center">Cerrar</button>
+  </div>
+</div>
 </body>
 </html>

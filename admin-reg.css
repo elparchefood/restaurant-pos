@@ -375,3 +375,12 @@ body { background: #FAFAFB; font-family: 'DM Sans', -apple-system, BlinkMacSyste
 .tu-paso input { padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 12.5px; font-family: inherit; }
 .tu-paso .p-txt { flex: 1; min-width: 0; }
 @media (max-width: 640px) { .tu-f2 { grid-template-columns: 1fr; } }
+
+/* ── Campos de la cuenta de cobro ──────────────────────────────────────
+   Mismos valores que el resto del sistema (el anillo de foco de la marca),
+   para que la consola no se sienta de otro producto. */
+.cc-input{width:100%;padding:9px 11px;border:1px solid #ECEEF2;border-radius:9px;
+  font-family:inherit;font-size:13px;color:#0F172A;outline:none;background:#fff;
+  transition:border-color .15s,box-shadow .15s;box-sizing:border-box}
+.cc-input:focus{border-color:#5B6BFF;box-shadow:0 0 0 3px rgba(91,107,255,.12)}
+.cc-input::placeholder{color:#94A3B8}

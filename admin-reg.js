@@ -153,7 +153,8 @@ var PAGE_META = {
   clientes:    {kicker:'Plataforma',      crumb:'Clientes activos'},
   equipo:      {kicker:'Administración',  crumb:'Gestión de equipo'},
   planes:      {kicker:'Administración',  crumb:'Configuración de planes'},
-  tutoriales:  {kicker:'Administración',  crumb:'Tutoriales'}
+  tutoriales:  {kicker:'Administración',  crumb:'Tutoriales'},
+  cobro:       {kicker:'Administración',  crumb:'Cuenta de cobro'}
 };
 
 // ── VIEW SWITCHING ──
@@ -1011,5 +1012,181 @@ document.addEventListener('DOMContentLoaded', async function() {
      de las tablas salen de ahí. Sin él, la lista de clientes se pintaría con el
      precio en blanco. */
   await cargarPlanes();
+  await cargarCuentaCobro();   // y la marca roja si nadie la ha confirmado
   await loadRegistrations();
 });
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LA CUENTA DONDE COBRA COBRA
+   ───────────────────────────────────────────────────────────────────────
+   Sergio, 24-ago-2026: *"una cosa es la cuenta donde pagan los clientes del
+   restaurante y otra cosa muy distinta es donde pagan los clientes de Cobra.
+   Por ahora es la misma cuenta, pero no deben tener ninguna vinculación ni
+   ninguna relación"*.
+
+   Por eso vive en su propia tabla (`plataforma_cobro`) y no se lee de los
+   métodos de pago de ningún restaurante. Leerla de ahí habría sido un atajo
+   con trampa: el día que cambie la de Cobra, cambiaría la de El Parche y sus
+   clientes empezarían a transferirle a otro lado sin que nadie lo pidiera.
+   ═══════════════════════════════════════════════════════════════════════ */
+var _cobro = null;
+
+async function cargarCuentaCobro() {
+  try {
+    var r = await sb.from('plataforma_cobro').select('*').eq('id', 1).maybeSingle();
+    if (r.error || !r.data) return;
+    _cobro = r.data;
+    var pon = function (id, v) { var e = document.getElementById(id); if (e) e.value = v || ''; };
+    pon('cb-banco',   _cobro.banco);
+    pon('cb-tipo',    _cobro.tipo);
+    pon('cb-numero',  _cobro.numero);
+    pon('cb-titular', _cobro.titular);
+    pon('cb-nota',    _cobro.nota);
+
+    /* El aviso rojo y la marca en el menú solo mientras nadie la haya
+       confirmado. Guardar una vez la da por verificada: si Sergio la miró y le
+       dio a guardar, ya la revisó. */
+    var aviso = document.getElementById('cobro-aviso');
+    var marca = document.getElementById('cobro-badge');
+    if (aviso) aviso.style.display = _cobro.verificada ? 'none' : '';
+    if (marca) marca.style.display = _cobro.verificada ? 'none' : '';
+
+    var est = document.getElementById('cb-estado');
+    if (est) est.textContent = _cobro.verificada
+      ? 'Verificada' + (_cobro.updated_at ? ' · ' + new Date(_cobro.updated_at).toLocaleDateString('es-CO') : '')
+      : 'Sin verificar';
+    pintarVistaCobro();
+    pintarQrCobro();
+  } catch (e) { console.warn('[cobro]', e); }
+}
+
+/* La misma caja que ve quien se registra. Verla aquí evita el error clásico de
+   guardar un dato y no enterarse de cómo queda del otro lado. */
+function pintarVistaCobro() {
+  var v = document.getElementById('cb-vista');
+  if (!v) return;
+  var g = function (id) { var e = document.getElementById(id); return (e && e.value.trim()) || ''; };
+  var num = g('cb-numero').replace(/\D/g, '').replace(/(\d{3})(?=\d)/g, '$1 ').trim();
+  var esc = function (t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  var fila = function (k, val) {
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #ECEEF2">'
+      + '<span style="font-size:12px;color:#64748B">' + k + '</span>'
+      + '<span style="font-size:12.5px;font-weight:700;color:#0F172A;text-align:right">' + esc(val || '—') + '</span></div>';
+  };
+  v.innerHTML = '<div style="font-size:14px;font-weight:800;color:#0F172A;margin-bottom:8px">'
+      + esc(g('cb-banco') || 'Transferencia') + '</div>'
+    + fila('Tipo de pago', g('cb-tipo'))
+    + fila(/llave/i.test(g('cb-tipo')) ? 'Llave' : 'Cuenta', num)
+    + fila('Titular', g('cb-titular'))
+    + (g('cb-nota') ? fila('Nota', g('cb-nota')) : '');
+}
+
+async function guardarCuentaCobro() {
+  var btn = document.getElementById('cb-guardar');
+  var g = function (id) { var e = document.getElementById(id); return (e && e.value.trim()) || ''; };
+  var numero = g('cb-numero').replace(/\s/g, '');
+
+  /* Se comprueba lo que de verdad importa: sin número no hay a dónde pagar, y
+     sin titular quien transfiere no puede confirmar que le está pagando a la
+     persona correcta. Lo demás es texto. */
+  if (!numero) { showToast('Falta el número o la llave de la cuenta', 'red'); return; }
+  if (!g('cb-titular')) { showToast('Falta el titular: quien paga necesita saber a nombre de quién va', 'red'); return; }
+
+  btn.disabled = true;
+  try {
+    var r = await sb.from('plataforma_cobro').update({
+      banco: g('cb-banco'), tipo: g('cb-tipo'), numero: numero,
+      titular: g('cb-titular'), nota: g('cb-nota'),
+      verificada: true, updated_at: new Date().toISOString(),
+    }).eq('id', 1);
+    if (r.error) { showToast('No se pudo guardar: ' + r.error.message, 'red'); return; }
+    showToast('Cuenta de cobro guardada');
+    await cargarCuentaCobro();
+  } finally { btn.disabled = false; }
+}
+
+/* Se repinta la vista previa mientras escribe: ver el resultado al momento es
+   lo que hace que se note un dígito de menos antes de guardarlo. */
+document.addEventListener('input', function (e) {
+  if (e.target && /^cb-(banco|tipo|numero|titular|nota)$/.test(e.target.id)) pintarVistaCobro();
+});
+
+
+/* ── EL QR ──────────────────────────────────────────────────────────────
+   La imagen vive en el deposito `plataforma`, que solo el administrador puede
+   escribir y cualquiera puede leer — tiene que verla quien todavia no tiene
+   cuenta. */
+function pintarQrCobro() {
+  var caja = document.getElementById('cb-qr-caja');
+  var quitar = document.getElementById('cb-qr-quitar');
+  var btn = document.getElementById('cb-qr-btn');
+  if (!caja) return;
+  var url = _cobro && _cobro.qr_url;
+  if (url) {
+    caja.innerHTML = '<img src="' + url + '" alt="QR de pago" style="width:100%;height:100%;object-fit:contain">';
+    caja.style.border = '1px solid #ECEEF2';
+    if (quitar) quitar.style.display = '';
+    if (btn) btn.textContent = 'Cambiar la imagen';
+  } else {
+    caja.innerHTML = '<span style="font-size:11.5px;color:#94A3B8;text-align:center;padding:12px">Todavía no has subido ninguno</span>';
+    caja.style.border = '1.5px dashed #DCE0E8';
+    if (quitar) quitar.style.display = 'none';
+    if (btn) btn.textContent = 'Subir imagen del QR';
+  }
+}
+
+async function subirQrCobro(input) {
+  var f = input && input.files && input.files[0];
+  if (!f) return;
+  var est = document.getElementById('cb-qr-estado');
+  /* Se comprueba aqui ADEMAS de en el deposito: el aviso del servidor llega
+     como un error tecnico que no dice nada, y el archivo ya viajo entero. */
+  if (f.size > 2 * 1024 * 1024) {
+    showToast('La imagen pesa mas de 2 MB. Toma una captura mas pequena.', 'red');
+    input.value = ''; return;
+  }
+  if (est) est.textContent = 'Subiendo…';
+  try {
+    /* Nombre AL AZAR y no fijo: con un nombre fijo, el navegador de quien mire
+       la pantalla de registro se quedaria con la imagen vieja guardada y
+       seguiria viendo el QR anterior sin saberlo. */
+    var ext = String(f.name || '').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+    var nombre = 'qr-' + ((crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now()) + '.' + ext;
+    var up = await sb.storage.from('plataforma').upload(nombre, f, { contentType: f.type, upsert: false });
+    if (up.error) throw up.error;
+    var url = sb.storage.from('plataforma').getPublicUrl(nombre).data.publicUrl;
+
+    var anterior = _cobro && _cobro.qr_url;
+    var r = await sb.from('plataforma_cobro').update({ qr_url: url, updated_at: new Date().toISOString() }).eq('id', 1);
+    if (r.error) throw r.error;
+
+    /* El anterior se borra DESPUES de que el nuevo quedo guardado. Al reves,
+       un fallo al guardar dejaria la pantalla de registro sin QR. */
+    if (anterior) { try { await borrarQrViejo(anterior); } catch (e) {} }
+
+    if (est) est.textContent = 'Listo';
+    await cargarCuentaCobro();
+    showToast('QR actualizado');
+  } catch (e) {
+    if (est) est.textContent = '';
+    showToast('No se pudo subir: ' + (e.message || e), 'red');
+  } finally { input.value = ''; }
+}
+
+function borrarQrViejo(url) {
+  var m = String(url).split('/plataforma/');
+  if (m.length < 2) return Promise.resolve();
+  return sb.storage.from('plataforma').remove([decodeURIComponent(m[1].split('?')[0])]);
+}
+
+function quitarQrCobro() {
+  showConfirm('Quitar el QR', 'La pantalla de registro dejara de mostrar el boton para pagar escaneando. El numero de cuenta sigue igual.', async function () {
+    var anterior = _cobro && _cobro.qr_url;
+    var r = await sb.from('plataforma_cobro').update({ qr_url: null, updated_at: new Date().toISOString() }).eq('id', 1);
+    if (r.error) { showToast('No se pudo quitar: ' + r.error.message, 'red'); return; }
+    if (anterior) { try { await borrarQrViejo(anterior); } catch (e) {} }
+    await cargarCuentaCobro();
+    showToast('QR quitado');
+  });
+}

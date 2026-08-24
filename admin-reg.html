@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="admin-reg.css?v=1789840000">
+  <link rel="stylesheet" href="admin-reg.css?v=1792080000">
 </head>
 <body>
 <div class="a-shell" id="app">
@@ -60,6 +60,11 @@
           <button class="sh-nav" id="nav-tutoriales" data-view="tutoriales" onclick="setView('tutoriales')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5A5.5 5.5 0 0 0 6.5 4H3v13h4a4 4 0 0 1 4 3"/><path d="M12 6.5A5.5 5.5 0 0 1 17.5 4H21v13h-4a4 4 0 0 0-4 3"/><path d="M12 6.5V20"/></svg>
             <span class="sh-nav-flex">Tutoriales</span>
+          </button>
+          <button class="sh-nav" id="nav-cobro" data-view="cobro" onclick="setView('cobro')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            <span class="sh-nav-flex">Cuenta de cobro</span>
+            <span class="sh-nav-badge" id="cobro-badge" style="display:none;background:#FEF2F2;color:#DC2626">!</span>
           </button>
           <button class="sh-nav" id="nav-planes" data-view="planes" onclick="setView('planes')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
@@ -275,6 +280,83 @@
           </div>
         </div>
 
+        <!-- ═══ CUENTA DE COBRO DE COBRA POS ═══
+             Es a donde transfieren los restaurantes que compran el sistema.
+             NO tiene ninguna relacion con la cuenta a la que le pagan los
+             clientes de cada restaurante: son dos negocios distintos que hoy
+             pueden compartir un numero por coincidencia. -->
+        <div class="a-view" id="view-cobro">
+          <div class="pg-head-split">
+            <div><h1 class="pg-h1">Cuenta de cobro</h1>
+              <p class="pg-lead">A dónde transfieren los restaurantes que compran Cobra POS. Es lo que ven en la pantalla de registro.</p></div>
+          </div>
+
+          <div class="a-card" id="cobro-aviso" style="display:none;border-color:#FECACA;background:#FEF2F2">
+            <div class="a-card-head"><div>
+              <div class="a-card-title" style="color:#B91C1C">Sin verificar</div>
+              <div class="a-card-sub" style="color:#B91C1C">
+                Estos datos venían escritos dentro de la página de registro y no coinciden con los de El Parche.
+                Revísalos y guarda antes de que se registre un cliente de verdad: si están mal, el dinero se va a otra cuenta.
+              </div>
+            </div></div>
+          </div>
+
+          <div class="a-card">
+            <div class="a-card-head"><div>
+              <div class="a-card-title">Datos que ve quien se registra</div>
+              <div class="a-card-sub">Esta cuenta es <b>independiente</b> de la de tu restaurante. Cambiarla aquí no toca los métodos de pago de El Parche.</div>
+            </div></div>
+            <div style="padding:18px;display:grid;gap:14px;max-width:520px">
+              <label style="display:block"><span style="display:block;font-size:12px;font-weight:600;color:#64748B;margin-bottom:5px">Banco o billetera</span>
+                <input class="cc-input" id="cb-banco" placeholder="Bancolombia, Nequi, Daviplata…"></label>
+              <label style="display:block"><span style="display:block;font-size:12px;font-weight:600;color:#64748B;margin-bottom:5px">Tipo de pago</span>
+                <input class="cc-input" id="cb-tipo" placeholder="Llave Bancolombia, Cuenta de ahorros…"></label>
+              <label style="display:block"><span style="display:block;font-size:12px;font-weight:600;color:#64748B;margin-bottom:5px">Número o llave</span>
+                <input class="cc-input" id="cb-numero" inputmode="numeric" placeholder="0092571225"></label>
+              <label style="display:block"><span style="display:block;font-size:12px;font-weight:600;color:#64748B;margin-bottom:5px">Titular</span>
+                <input class="cc-input" id="cb-titular" placeholder="A nombre de quién está la cuenta"></label>
+              <label style="display:block"><span style="display:block;font-size:12px;font-weight:600;color:#64748B;margin-bottom:5px">Nota (opcional)</span>
+                <input class="cc-input" id="cb-nota" placeholder="Algo más que quieras decirle a quien va a pagar"></label>
+              <div style="display:flex;gap:9px;align-items:center">
+                <button class="a-btn a-btn--primary" id="cb-guardar" onclick="guardarCuentaCobro()">Guardar</button>
+                <span id="cb-estado" style="font-size:12.5px;color:#94A3B8"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="a-card">
+            <div class="a-card-head"><div>
+              <div class="a-card-title">Código QR</div>
+              <div class="a-card-sub">Opcional. Si lo subes, quien se registre puede pagar escaneando en vez de copiar el número — que es donde la gente se equivoca de un dígito.</div>
+            </div></div>
+            <div style="padding:18px;display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+              <div id="cb-qr-caja" style="width:170px;height:170px;border:1.5px dashed #DCE0E8;border-radius:12px;
+                   background:#FBFBFD;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">
+                <span style="font-size:11.5px;color:#94A3B8;text-align:center;padding:12px">Todavía no has subido ninguno</span>
+              </div>
+              <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:9px">
+                <input type="file" id="cb-qr-file" accept="image/png,image/jpeg,image/webp" style="display:none"
+                       onchange="subirQrCobro(this)">
+                <button class="a-btn" onclick="document.getElementById('cb-qr-file').click()" id="cb-qr-btn">Subir imagen del QR</button>
+                <button class="a-btn" id="cb-qr-quitar" onclick="quitarQrCobro()" style="display:none;color:#DC2626">Quitar el QR</button>
+                <div style="font-size:12px;color:#94A3B8;line-height:1.55">PNG, JPG o WEBP · máximo 2 MB.<br>
+                  Toma la captura del QR desde la app de tu banco.</div>
+                <div id="cb-qr-estado" style="font-size:12.5px;color:#64748B"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="a-card">
+            <div class="a-card-head"><div>
+              <div class="a-card-title">Así lo va a ver</div>
+              <div class="a-card-sub">Exactamente lo que aparece en la pantalla de registro.</div>
+            </div></div>
+            <div style="padding:18px">
+              <div id="cb-vista" style="border:1px solid #ECEEF2;border-radius:12px;padding:16px;max-width:420px;background:#F8FAFC"></div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </main>
@@ -334,7 +416,7 @@
 <script src="pos-core.js?v=1791745000"></script>
   <script src="pos-plan.js?v=1791810000"></script>
 <script src="pos-brand.js?v=1790530000"></script>
-<script src="admin-reg.js?v=1792060000"></script>
+<script src="admin-reg.js?v=1792080000"></script>
   <script src="admin-tutoriales.js?v=1789830000"></script>
   <!-- Editor de módulo / video. Panel propio y no el modal de confirmar, que
        es de una sola pregunta. -->
