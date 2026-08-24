@@ -3,6 +3,38 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 El precio sin empaque, por TERCERA vez (v376) — 23-ago-2026
+
+Fabián Sánchez, 8:29 pm: *"Me regala por favor una premium mixta personal, de
+35.000"*. Paco: *"Premium personal cuesta $34.000"*. **El cliente tenía razón**:
+por el chat todo pedido va empacado, así que su precio es $34.000 + $1.000.
+
+`precioPuntual` leía el precio pelado del catálogo. Y el cálculo bueno YA
+existía —dentro de `buildMenuText`, con el caso del 22-ago documentado al lado—
+pero vivía **encerrado ahí**, así que cada sitio que cotizaba por su cuenta lo
+volvía a hacer mal:
+
+| | qué pasó |
+|---|---|
+| 22-ago | *"una tradicional de 26.000"* → Paco: *"$25.000"* |
+| 23-ago | *"¿cuánto es?"* daba $27.000 y el resumen $28.000 (`calcularPreciosPedido`) |
+| 23-ago 8:29pm | Fabián: *"de 35.000"* → Paco: *"$34.000"* (`precioPuntual`) |
+
+El arreglo no es el tercer parche: el cálculo salió a **una sola función**,
+`precioParaElCliente`, y la usan la carta, el "¿cuánto es?" y la cotización
+suelta. Con la nota escrita al lado: si aparece un cuarto sitio que diga
+precios, que llame ahí y no vuelva a inventarse el cálculo.
+
+Probado en el banco con el mensaje de Fabián tal cual: *"Premium personal cuesta
+$35.000"*, y pidiéndolo como él lo pidió, Paco ya ni corrige — acepta y sigue.
+
+> El resto de esa conversación estuvo bien: el relevo a persona lo disparó la
+> FOTO que mandó (Paco no lee imágenes salvo comprobantes), y a partir de ahí se
+> calló, que es lo correcto. Su pregunta *"¿cuánto es lo del domi y la
+> ranchera?"* llegó después del relevo y la contestó Sergio.
+
+---
+
 ## 🔴→🟢 DOS COPIAS DE PACO A LA VEZ: la raíz de todo lo raro (v375) — 23-ago-2026
 
 Sergio, 8:45 pm: *"En estos dos clientes Paco atendió de una manera muy extraña,

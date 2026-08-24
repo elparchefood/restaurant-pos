@@ -9777,10 +9777,21 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
        presentacion sino en la variante (la Premium cuesta segun sea carne,
        pollo o mixta). Sin esto, sus presentaciones valen 0 — y Paco le dijo a
        un cliente "Premium cuesta: familiar $0 y personal $0" (17-ago). */
+    /* EL EMPAQUE, IGUAL QUE EN LA CARTA (23-ago-2026). Aqui se leia el precio
+       pelado del catalogo, y por eso a Fabian Sanchez —que pidio "una premium
+       mixta personal DE 35.000"— Paco le contesto "cuesta $34.000",
+       contradiciendo a un cliente que tenia razon. Los ids viajan para poder
+       cobrar el empaque con las mismas reglas de la caja. */
+    const opEmpP = await (async () => {
+      try {
+        const oR = await sbGet(`/rest/v1/branches?id=eq.${branchId}&select=operacion_config&limit=1`) as Array<Record<string, unknown>> | null;
+        return (oR?.[0]?.operacion_config as Record<string, unknown>) || null;
+      } catch (_e) { return null; }
+    })();
     const prods = preguntaAdicion ? [] : await sbGet(
-      `/rest/v1/pos_products?branch_id=eq.${branchId}&select=name,price,presentations,variables&limit=200`,
-    ) as Array<{ name?: string; price?: number | string;
-                 presentations?: Array<{ name?: string; price?: number }>;
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&select=id,name,price,presentations,variables,category_id&limit=200`,
+    ) as Array<{ id?: string; name?: string; price?: number | string; category_id?: unknown;
+                 presentations?: Array<{ id?: string; name?: string; price?: number }>;
                  variables?: Array<{ name?: string; options?: Array<{ name?: string; price?: number; prices?: number[] }> }> }> | null;
 
     // Producto: gana el nombre MÁS LARGO que aparezca (completo o su primera palabra)
@@ -9824,11 +9835,16 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
           // Todas iguales: se puede decir sin preguntar nada.
           return valores.every(v => v === valores[0]) ? valores[0] : 0;
         };
+        /* El precio se dice YA con el empaque: es el que el cliente ve en la
+           carta y el que va a pagar. Misma funcion que la carta y la caja. */
+        const conEmpP = (v: number, presId: unknown) =>
+          precioParaElCliente(v, opEmpP, p.id, p.category_id, presId);
         mejor = {
           name: String(p.name).trim(),
-          price: Number(p.price) || 0,
+          price: conEmpP(Number(p.price) || 0, null),
           pres: listaPres
-            .map((x, i) => ({ name: String(x?.name || "").trim(), price: precioDeIdx(i, Number(x?.price) || 0) }))
+            .map((x, i) => ({ name: String(x?.name || "").trim(),
+                              price: conEmpP(precioDeIdx(i, Number(x?.price) || 0), (x as {id?: string})?.id) }))
             .filter(x => x.name && x.name.toLowerCase() !== "unico" && x.name.toLowerCase() !== "único"),
         };
       }
@@ -9926,6 +9942,43 @@ async function cargarCombos(branchId: string): Promise<void> {
   }
 }
 
+/* ══ EL PRECIO QUE VE EL CLIENTE ═════════════════════════════════════════
+
+   Un precio de catalogo NO es el precio de un cliente del chat: por el chat
+   todo pedido va empacado —domicilio o recogido—, asi que el empaque siempre
+   entra. Regla de Sergio: se dice YA sumado y SIN desglosarlo.
+
+   Esto vivia SOLO dentro de buildMenuText, y por eso la carta que lee Paco
+   salia bien pero cada sitio que cotizaba por su cuenta salia mal. Ha costado
+   el mismo error tres veces:
+     · 22-ago — "una tradicional de 26.000" y Paco: "cuesta $25.000".
+     · 23-ago — "¿cuanto es?" daba $27.000 y el resumen $28.000 (era
+       calcularPreciosPedido, arreglado el mismo dia).
+     · 23-ago, 8:29 pm, Fabian Sanchez — "una premium mixta personal DE
+       35.000" y Paco: "Premium personal cuesta $34.000". El cliente tenia
+       razon las tres veces.
+
+   Ahora es UNA funcion y la usan todos. Si aparece un cuarto sitio que diga
+   precios, que llame aqui y no vuelva a inventar el calculo.
+
+   No se hornea cuando el empaque esta apagado, ni cuando se cobra por PEDIDO
+   completo: repartir entre los platos seria inventarse un numero. */
+function precioParaElCliente(
+  precio: number,
+  opEmp: Record<string, unknown> | null,
+  prodId?: unknown, catId?: unknown, presId?: unknown,
+): number {
+  const horneable = !!opEmp && opEmp.empaquesActivo === true
+    && (opEmp.empaqueModo === "especifico" || opEmp.empaqueBase !== "pedido");
+  if (!horneable || !(precio > 0)) return precio;
+  return precio + calcularEmpaque(opEmp, [{
+    cantidad: 1, precio,
+    producto_id: prodId ? String(prodId) : null,
+    categoria_id: catId ? String(catId) : null,
+    presentacion_id: presId ? String(presId) : null,
+  }], true);
+}
+
 async function buildMenuText(branchId: string): Promise<string> {
   const rows = await sbGet(
     `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true` +
@@ -9954,17 +10007,8 @@ async function buildMenuText(branchId: string): Promise<string> {
     const oR = await sbGet(`/rest/v1/branches?id=eq.${branchId}&select=operacion_config&limit=1`) as Array<Record<string, unknown>> | null;
     opEmp = (oR?.[0]?.operacion_config as Record<string, unknown>) || null;
   } catch (_e) { /* sin config no se hornea nada */ }
-  const horneable = !!opEmp && opEmp.empaquesActivo === true
-    && (opEmp.empaqueModo === "especifico" || opEmp.empaqueBase !== "pedido");
-  const conEmp = (precio: number, prodId: unknown, catId: unknown, presId: unknown): number => {
-    if (!horneable || !(precio > 0)) return precio;
-    return precio + calcularEmpaque(opEmp, [{
-      cantidad: 1, precio,
-      producto_id: prodId ? String(prodId) : null,
-      categoria_id: catId ? String(catId) : null,
-      presentacion_id: presId ? String(presId) : null,
-    }], true);
-  };
+  const conEmp = (precio: number, prodId: unknown, catId: unknown, presId: unknown): number =>
+    precioParaElCliente(precio, opEmp, prodId, catId, presId);
 
   const byCategory: Record<string, Array<Record<string, unknown>>> = {};
   for (const p of rows) {
