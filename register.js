@@ -223,15 +223,27 @@ async function enviarSolicitud() {
   setLoading(true);
   try {
     // 1. Subir comprobante a Storage
-    var ext      = SELECTED_FILE.name.split('.').pop();
-    var filename = Date.now() + '-' + email.replace(/[^a-z0-9]/gi, '_') + '.' + ext;
+    /* EL NOMBRE DEL ARCHIVO NO LLEVA EL CORREO. Antes era
+       `<fecha>-<correo>.<ext>`, y esa cadena viajaba dentro de la direccion
+       guardada en la base: el correo de cada restaurante que se registra
+       quedaba escrito en una URL. Ahora es al azar, sin nada que identifique a
+       nadie. Quien lo tiene que abrir es el administrador, y lo encuentra por
+       la solicitud, no por el nombre del archivo. */
+    var ext = String(SELECTED_FILE.name || '').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+    var azar = (crypto && crypto.randomUUID) ? crypto.randomUUID()
+             : String(Date.now()) + '-' + Math.floor(Math.random() * 1e9);
+    var filename = azar + '.' + ext;
     var uploadRes = await sb.storage.from('comprobantes').upload(filename, SELECTED_FILE, {
       contentType: SELECTED_FILE.type,
       upsert: false
     });
     if (uploadRes.error) throw uploadRes.error;
 
-    var compUrl = sb.storage.from('comprobantes').getPublicUrl(filename).data.publicUrl;
+    /* Se guarda la RUTA, no una direccion publica. El bucket dejo de ser
+       publico (24-ago): un comprobante lleva datos bancarios y no puede quedar
+       abierto a quien acierte la direccion. La consola de solicitudes pide una
+       direccion firmada, que caduca. */
+    var compUrl = filename;
 
     // 2. Insertar solicitud en pos_registrations
     var total = calcTotal(PLAN, BRANCHES);

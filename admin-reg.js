@@ -421,16 +421,43 @@ function renderSolicitudes() {
   }).join('');
 }
 
-function viewComprobante(id, negocio, url) {
+/* EL COMPROBANTE YA NO SE ABRE POR UNA DIRECCION PUBLICA (24-ago-2026).
+   El bucket se cerro: lleva datos bancarios de quien se registra y estaba
+   abierto a cualquiera que acertara la direccion — que ademas se armaba con su
+   correo. Ahora se pide una direccion FIRMADA, que caduca a los 5 minutos y
+   solo la consigue quien es administrador de la plataforma (lo comprueba la
+   politica de Storage con `es_admin_plataforma`).
+
+   Las solicitudes viejas guardaron una direccion completa en vez de la ruta;
+   esas se abren como antes. Se distingue por si empieza por `http`. */
+async function viewComprobante(id, negocio, url) {
   document.getElementById('modal-comp-title').textContent = 'Comprobante — '+negocio;
   var body = document.getElementById('modal-comp-body');
-  if (!url) { body.textContent = 'Sin comprobante adjunto.'; }
-  else if (url.match(/\.(jpg|jpeg|png|gif|webp)/i)) {
-    body.innerHTML = '<img src="'+url+'" class="a-modal-img" alt="Comprobante">';
-  } else {
-    body.innerHTML = '<a href="'+url+'" target="_blank" style="color:#5B6BFF;font-weight:600">'+url+'</a>';
-  }
   document.getElementById('modal-comprobante').classList.add('show');
+
+  if (!url) { body.textContent = 'Sin comprobante adjunto.'; return; }
+
+  var abrir = url;
+  if (url.indexOf('http') !== 0) {
+    body.textContent = 'Abriendo el comprobante…';
+    try {
+      var f = await sb.storage.from('comprobantes').createSignedUrl(url, 300);
+      if (f.error || !f.data || !f.data.signedUrl) {
+        body.textContent = 'No se pudo abrir el comprobante: ' + ((f.error && f.error.message) || 'sin permiso');
+        return;
+      }
+      abrir = f.data.signedUrl;
+    } catch (e) {
+      body.textContent = 'No se pudo abrir el comprobante: ' + (e.message || e);
+      return;
+    }
+  }
+
+  if (/\.(jpg|jpeg|png|gif|webp)/i.test(url)) {
+    body.innerHTML = '<img src="'+abrir+'" class="a-modal-img" alt="Comprobante">';
+  } else {
+    body.innerHTML = '<a href="'+abrir+'" target="_blank" style="color:#5B6BFF;font-weight:600">Abrir el comprobante</a>';
+  }
 }
 
 // ────────────────────── CLIENTES ──────────────────────
