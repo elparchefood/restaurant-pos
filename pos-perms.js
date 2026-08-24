@@ -328,20 +328,21 @@
       var entered = (inp.value || '').trim();
       if (!entered) { err.textContent = 'Ingresa el PIN'; err.style.display = 'block'; return; }
       if (!sb) { err.textContent = 'Error de conexión'; err.style.display = 'block'; return; }
-      try {
-        var ur = await sb.auth.getSession();
-        var _u = ur && ur.data && ur.data.session && ur.data.session.user;
-        var tenantId = _u && _u.user_metadata && _u.user_metadata.tenant_id;
-        var branchId = _u && _u.user_metadata && _u.user_metadata.branch_id;
-        var q = sb.from('pos_users').select('pin').eq('is_authorized_admin', true).limit(1);
-        if (branchId) q = q.eq('branch_id', branchId);
-        else if (tenantId) q = q.eq('tenant_id', tenantId);
-        var res = await q.maybeSingle();
-        var row = res.data;
-        if (!row || row.pin === null || row.pin === undefined || row.pin === '') {
+        /* EL PIN NO BAJA AL COMPUTADOR (24-ago-2026). Antes esta pantalla se
+           traia el PIN y lo comparaba aqui mismo, asi que cualquiera con la
+           consola del navegador podia leerlo — y todos los empleados podian,
+           porque la unica regla de `pos_users` deja ver la ficha de los demas.
+           Ahora se le manda al servidor lo que escribieron y responde si o no.
+           El servidor guarda solo una HUELLA del PIN: ni leyendo la base se
+           puede saber cual es. Y lleva freno: 5 fallos por hora y se bloquea. */
+        try {
+        var hay = await sb.rpc('fn_pin_existe');
+        if (!hay.error && hay.data === false) {
           err.textContent = 'No hay PIN configurado. Ve a Configuración → Operación.'; err.style.display = 'block'; return;
         }
-        if (String(row.pin).trim() !== entered) {
+        var r = await sb.rpc('fn_pin_verificar', { p_pin: entered, p_accion: 'pantalla' });
+        if (r.error) { err.textContent = 'Error al verificar el PIN'; err.style.display = 'block'; return; }
+        if (r.data !== true) {
           err.textContent = 'PIN incorrecto'; err.style.display = 'block'; inp.value = ''; inp.focus(); return;
         }
         cerrar();

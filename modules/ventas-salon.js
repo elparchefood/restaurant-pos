@@ -199,15 +199,19 @@
     var branchId = window._pos && window._pos.state && window._pos.state.branchId;
     if (!sbRef) { if(errEl){errEl.textContent='Error de conexion';errEl.style.display='block';} return; }
     try {
-      var q = sbRef.from('pos_users').select('pin').eq('is_authorized_admin', true).limit(1);
-      if (branchId) q = q.eq('branch_id', branchId);
-      var res = await q.maybeSingle();
-      var row = res.data;
-      if (!row || row.pin === null) {
+      /* Igual que en el otro candado: el PIN no baja, se comprueba en el
+         servidor contra una huella. Ver la nota larga de mas abajo. */
+      var hay = await sbRef.rpc('fn_pin_existe');
+      if (!hay.error && hay.data === false) {
         if(errEl){errEl.textContent='PIN no configurado. Ve a Configuracion para establecerlo.';errEl.style.display='block';}
         return;
       }
-      if (String(row.pin).trim() !== String(entered).trim()) {
+      var r = await sbRef.rpc('fn_pin_verificar', { p_pin: String(entered).trim(), p_accion: 'moneda' });
+      if (r.error) {
+        if(errEl){errEl.textContent='Error al verificar el PIN';errEl.style.display='block';}
+        return;
+      }
+      if (r.data !== true) {
         if(errEl){errEl.textContent='PIN incorrecto';errEl.style.display='block';}
         pinEl.value='';
         return;
@@ -3334,15 +3338,21 @@
       var branchId = window._pos && window._pos.state && window._pos.state.branchId;
       if (!sbRef) { err.textContent = 'Error de conexion'; err.style.display = 'block'; return; }
       try {
-        var q = sbRef.from('pos_users').select('pin').eq('is_authorized_admin', true).limit(1);
-        if (branchId) q = q.eq('branch_id', branchId);
-        var res = await q.maybeSingle();
-        var row = res.data;
-        if (!row || row.pin === null) {
+        /* EL PIN NO BAJA AL COMPUTADOR (24-ago-2026). Antes esta pantalla se
+           traia el PIN y lo comparaba aqui mismo, asi que cualquiera con la
+           consola del navegador podia leerlo — y todos los empleados podian,
+           porque la unica regla de `pos_users` deja ver la ficha de los demas.
+           Ahora se le manda al servidor lo que escribieron y responde si o no.
+           El servidor guarda solo una HUELLA del PIN: ni leyendo la base se
+           puede saber cual es. Y lleva freno: 5 fallos por hora y se bloquea. */
+        var hay = await sbRef.rpc('fn_pin_existe');
+        if (!hay.error && hay.data === false) {
           err.textContent = 'No hay PIN configurado. Ve a Configuracion → Operacion.';
           err.style.display = 'block'; return;
         }
-        if (String(row.pin).trim() !== entered) {
+        var r = await sbRef.rpc('fn_pin_verificar', { p_pin: entered, p_accion: 'autorizacion', p_motivo: motivo || null });
+        if (r.error) { err.textContent = 'Error al verificar el PIN'; err.style.display = 'block'; return; }
+        if (r.data !== true) {
           err.textContent = 'PIN incorrecto'; err.style.display = 'block'; inp.value = ''; inp.focus(); return;
         }
         cerrar();

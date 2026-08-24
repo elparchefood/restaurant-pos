@@ -132,7 +132,8 @@
       s.from('pos_tables').select('id', { count: 'exact', head: true }).eq('branch_id', b),
       s.from('ia_config').select('pagos,horarios,domicilios').eq('branch_id', b).maybeSingle(),
       s.from('branches').select('address,phone,operacion_config').eq('id', b).maybeSingle(),
-      s.from('pos_users').select('id,pin,is_authorized_admin').eq('tenant_id', t),
+      s.from('pos_users').select('id,is_authorized_admin').eq('tenant_id', t),
+      s.rpc('fn_pin_existe'),
       s.from('pos_products').select('id', { count: 'exact', head: true }).eq('tenant_id', t).not('photo_url', 'is', null),
       s.from('pos_modifier_groups').select('id', { count: 'exact', head: true }).eq('tenant_id', t),
       s.from('pos_printers').select('id', { count: 'exact', head: true }).eq('branch_id', b),
@@ -158,9 +159,11 @@
       direccion: !!String(sede.address || '').trim(),
       telefono: !!String(sede.phone || '').trim(),
       sinSalon: opc.sin_salon === true,
-      /* El PIN es el del ADMINISTRADOR, no el de cualquiera: es el que
-         autoriza. Un mesero con PIN no resuelve este paso. */
-      pin: users.some(function (u) { return u.is_authorized_admin && String(u.pin || '').trim(); }),
+      /* Lo responde el SERVIDOR: desde el 24-ago el PIN no vive en `pos_users`
+         ni baja al navegador. `fn_pin_existe` dice si hay o no, y ya comprueba
+         por dentro que sea el del ADMINISTRADOR — un mesero con PIN no
+         resuelve este paso. */
+      pin: (function () { var x = ok(8); return !!(x && x.data === true); })(),
       usuarios: users.length,
       horarios: !!(cfg.horarios && Object.keys(cfg.horarios).length),
       zonas: (Array.isArray(dom.zonas) ? dom.zonas : []).length,

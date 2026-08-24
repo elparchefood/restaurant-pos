@@ -2191,7 +2191,7 @@ var OP_KEY = 'pos.config.operacion.v1';
 var _cfgBranchId = null; // se rellena al cargar el usuario
 var OP_DEFAULTS = {
   entregaMin: 12, cocinaMax: 20, propinaPct: 10, propinaObligatoria: false,
-  metaDiaria: 1500000, cobroAdelantado: false, aceptaReservas: false, pin: '',
+  metaDiaria: 1500000, cobroAdelantado: false, aceptaReservas: false, tienePin: false,
   // Impuestos: APAGADO por defecto. Un restaurante pequeño en Colombia suele
   // ser "no responsable" de impoconsumo y no cobra nada.
   impuestos: { activo: false, tipo: 'inc', pct: 8, incluido: true, nit: '', razon_social: '', resolucion: '' },
@@ -2297,6 +2297,29 @@ function opSave(data) {
 function opInit() {
   _opSaved = opLoad();
   _opDraft = JSON.parse(JSON.stringify(_opSaved));  // clon PROFUNDO (empaqueCatCfg/packs son objetos)
+
+  /* ── EL PIN VIEJO SE BORRA DE ESTE EQUIPO ────────────────────────────
+     Hasta el 24-ago-2026 el PIN se guardaba en el almacenamiento del navegador,
+     en texto plano. Protegerlo en el servidor no sirve de nada si la copia
+     vieja sigue aqui: se borra en el primer arranque, de todos los equipos
+     donde alguien abra Configuracion. */
+  if (_opSaved && _opSaved.pin !== undefined) {
+    delete _opSaved.pin; delete _opDraft.pin;
+    try { opSave(_opSaved); } catch (e) {}
+  }
+
+  /* Si hay PIN puesto lo dice el SERVIDOR, no lo guardado: es lo unico que
+     queda de el por aqui, y aun asi es solo un si/no. */
+  try {
+    if (typeof sb !== 'undefined') {
+      sb.rpc('fn_pin_existe').then(function (r) {
+        if (r.error) return;
+        _opDraft.tienePin = r.data === true;
+        _opSaved.tienePin = r.data === true;
+        try { opRender(); } catch (e) {}
+      });
+    }
+  } catch (e) {}
   opRender();          // render inmediato desde local (sin esperar la red)
   opBindEvents();
   opSyncCobroDesdeBranch();  // corrige el toggle con la columna autoritativa
@@ -2389,7 +2412,7 @@ function opPintarResumenes() {
     meta:     [money(d.metaDiaria), null],
     acceso:   [[d.cobroAdelantado ? 'Cobro adelantado' : null,
                 d.aceptaReservas ? 'Reservas' : null,
-                String(d.pin || '').length === 4 ? 'PIN' : null]
+                d.tienePin ? 'PIN' : null]
                 .filter(Boolean).join(' \u00b7 ') || 'Nada activo', null],
     recibos:  ['', null],
     empaques: [empaque || 'Apagado', d.empaquesActivo ? 'si' : 'no'],
@@ -2412,7 +2435,7 @@ function opPintarResumenes() {
       '<div class="op-res-l"><span>Cobro adelantado</span>' + si(d.cobroAdelantado) + '</div>'
     + '<div class="op-res-l"><span>Reservas</span>' + si(d.aceptaReservas) + '</div>'
     + '<div class="op-res-l"><span>PIN de administrador</span>'
-      + si(String(d.pin || '').length === 4, 'Sin poner') + '</div>'
+      + si(d.tienePin, 'Sin poner') + '</div>'
     + '<div class="op-res-l"><span>Empaques</span>' + si(d.empaquesActivo) + '</div>'
     + '<div class="op-res-l"><span>Etiquetas</span>' + si(d.etiquetasVRActivo) + '</div>'
     + '<div class="op-res-l"><span>Notas frecuentes</span>'
@@ -2442,7 +2465,7 @@ function opRender() {
   var warnEl = $('op-propina-warn');
   if (stEl) { stEl.textContent = d.propinaObligatoria ? 'Obligatoria' : 'Voluntaria'; stEl.className = 'op-state ' + (d.propinaObligatoria ? 'on' : 'off'); }
   if (hintEl) hintEl.textContent = d.propinaObligatoria ? 'El empleado necesita el PIN de administrador para desmarcarla durante el cobro.' : 'El cliente puede aceptar o rechazar la propina libremente.';
-  if (warnEl) warnEl.hidden = !(d.propinaObligatoria && !d.pin);
+  if (warnEl) warnEl.hidden = !(d.propinaObligatoria && !d.tienePin);
 
   // Meta diaria
   var elMeta = $('op-metaDiaria');
@@ -2460,7 +2483,7 @@ function opRender() {
   var pinSt = $('op-pin-status');
   var pinBtn = $('op-pin-btn-label');
   if (pinSt) {
-    if (d.pin) {
+    if (d.tienePin) {
       pinSt.className = 'pin-status ok';
       pinSt.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> PIN configurado';
     } else {
@@ -2468,7 +2491,7 @@ function opRender() {
       pinSt.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Sin PIN configurado';
     }
   }
-  if (pinBtn) pinBtn.textContent = d.pin ? 'Cambiar PIN' : 'Establecer PIN';
+  if (pinBtn) pinBtn.textContent = d.tienePin ? 'Cambiar PIN' : 'Establecer PIN';
 
   // C3b — Empaques toggle + cuerpo
   opSetToggle('op-sw-empaques', d.empaquesActivo);
@@ -2853,22 +2876,28 @@ function opBindEvents() {
     pinSaveBtn.addEventListener('click', function() {
       var val = pinInput.value.trim();
       if (!/^\d{4}$/.test(val)) { opToast('El PIN debe tener exactamente 4 dígitos'); return; }
-      var wasPin = !!_opDraft.pin;
-      _opDraft.pin = val;
-      // El PIN se guarda de inmediato (igual que guardar todo)
-      _opSaved = Object.assign({}, _opDraft);
-      opSave(_opSaved);
-      // C1: Persistir PIN en Supabase (pos_users.pin)
-      if (_cfgBranchId && typeof sb !== 'undefined') {
-        sb.from('pos_users').update({ pin: val })
-          .eq('branch_id', _cfgBranchId)
-          .eq('is_authorized_admin', true)
-          .then(function(r){ if (r.error) console.warn('[cfg] pin sync error:', r.error); });
-      }
-      pinInput.value = '';
-      pinInput.type = 'password';
-      opRender();
-      opToast(wasPin ? 'PIN actualizado' : 'PIN establecido');
+      var wasPin = !!_opDraft.tienePin;
+      /* EL PIN NO SE GUARDA EN NINGUNA PARTE DE ESTE COMPUTADOR (24-ago-2026).
+         Antes se metia en `_opDraft`, que se escribe en el almacenamiento del
+         navegador, Y ADEMAS en `pos_users.pin`, que cualquier empleado podia
+         leer. Ahora se le manda al servidor, que guarda solo una huella; aqui
+         solo queda un si/no para saber si pintar "Cambiar" o "Establecer". */
+      pinInput.disabled = true;
+      sb.rpc('fn_pin_definir', { p_pin: val }).then(function (r) {
+        pinInput.disabled = false;
+        if (r.error || r.data !== true) {
+          opToast('No se pudo guardar el PIN' + (r.error ? ': ' + r.error.message : ''));
+          return;
+        }
+        _opDraft.tienePin = true;
+        delete _opDraft.pin;               // por si quedaba de una version vieja
+        _opSaved = Object.assign({}, _opDraft);
+        opSave(_opSaved);
+        pinInput.value = '';
+        pinInput.type = 'password';
+        opRender();
+        opToast(wasPin ? 'PIN actualizado' : 'PIN establecido');
+      });
     });
   }
 
