@@ -55,14 +55,27 @@
     return DESCARGAS.some(function (d) { return String(d.url || '').trim(); });
   }
 
-  /* Las pantallas de VENDER. El resto del sistema no se toca. */
-  var SOLO_APP = {
-    'ventas.html':       'el salón',
-    'tomar-pedido.html': 'tomar pedidos',
-    'venta-rapida.html': 'la venta rápida',
-    'pagos.html':        'cobrar',
-    'caja.html':         'la caja',
-  };
+  /* ⚠️ APAGADO A PROPOSITO — 24-ago-2026, en pleno servicio.
+
+     El bloqueo le cerro la puerta a la APK del mesero con un cliente en la
+     mesa. Intente reconocer la tablet por el navegador que dice ser y NO
+     BASTO: el aviso siguio saliendo. No se por que, y averiguarlo con Sergio
+     despachando no es una opcion.
+
+     Asi que se apaga entero. Es una funcion comoda, no una necesaria: nadie
+     pierde nada porque un dueño pueda vender desde su portatil. Lo que si se
+     pierde es una noche de trabajo si la tablet no deja tomar pedidos.
+
+     PARA VOLVER A ENCENDERLO hace falta, en este orden:
+       1. Leer el `navigator.userAgent` DE LA TABLET DE VERDAD. Hasta saber que
+          dice, cualquier deteccion es adivinar — y ya adivine una vez.
+       2. Probarlo EN LOS TRES SITIOS: navegador de escritorio, ejecutable y
+          tablet. Probar dos de tres fue exactamente el error.
+       3. Encenderlo fuera de horario de servicio, nunca antes de abrir.
+
+     Basta con devolverle las cinco entradas a esta lista. Todo lo demas
+     —el aviso, la marca del menu, las descargas— quedo escrito y funcionando. */
+  var SOLO_APP = {};
 
   /* ⚠️ LA TABLET TAMBIEN ES LA APP (24-ago-2026, en pleno servicio).
      La primera version solo miraba `electronPOS`, que inyecta el ejecutable de
