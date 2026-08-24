@@ -316,17 +316,32 @@ async function mandarCodigo(tenantId: string, telefono: string, codigo: string, 
    su historial. Paso de verdad con el primer cliente que intento recuperar su
    contraseña. Se compara por los ULTIMOS 10 DIGITOS, que es la identidad real
    del cliente en todo el sistema (misma regla que pos_tel10 en la base). */
-async function buscarCliente(tenantId: string, tel: string, campos = "id,nombre,direccion,barrio") {
-  const filas = await sbGet(
-    `/pos_clientes?tenant_id=eq.${tenantId}&telefono=like.*${tel}&select=${campos},telefono&limit=5`
-  ) as Array<Record<string, unknown>> | null;
-  const exacto = (filas || []).find((c) => tel10(c.telefono) === tel);
-  if (exacto) return exacto;
-  // Respaldo: alguna fila con separadores que el `like` no alcanzó.
-  const todas = await sbGet(
-    `/pos_clientes?tenant_id=eq.${tenantId}&select=${campos},telefono&limit=5000`
-  ) as Array<Record<string, unknown>> | null;
-  return (todas || []).find((c) => tel10(c.telefono) === tel) || null;
+/* AHORA LO BUSCA LA BASE, POR SU INDICE (24-ago-2026).
+
+   Antes se hacia en dos pasos y los dos costaban caro:
+     1. `telefono=like.*<tel>` — filtra en el servidor, si, pero un patron que
+        empieza por comodin NO puede usar indice: lee la tabla entera.
+     2. Si eso fallaba, `limit=5000` y buscar el telefono EN MEMORIA. Con los
+        222 clientes de hoy son 222 filas viajando por internet para encontrar
+        una. Y esto corre en CADA entrada y en cada comprobacion de sesion de
+        la app, asi que crece en linea recta con el exito.
+
+   El indice correcto YA EXISTIA (`ux_clientes_tel`, sobre tenant + los ultimos
+   10 digitos); lo que faltaba era poder filtrar por esa expresion, que desde la
+   API no se puede. Por eso ahora hay una funcion en la base,
+   `fn_cliente_por_tel`, con el WHERE escrito igual que el indice. Comprobado en
+   el plan: Index Scan using ux_clientes_tel.
+
+   Sigue buscando por los ULTIMOS 10 DIGITOS, que es lo que arreglo el incidente
+   del 15-ago: bastaba una fila guardada con indicativo o con un espacio para
+   que el cliente "no existiera" y la pagina lo mandara a registrarse de cero
+   teniendo sus puntos y su historial.
+
+   `campos` ya no se usa —la funcion devuelve la ficha entera— pero se conserva
+   en la firma para no tocar los tres sitios que llaman. */
+async function buscarCliente(tenantId: string, tel: string, _campos = "") {
+  const c = await sbRpc("fn_cliente_por_tel", { p_tenant: tenantId, p_tel: tel });
+  return (c && typeof c === "object") ? c as Record<string, unknown> : null;
 }
 
 // ── El restaurante, por su dirección ─────────────────────────────────
