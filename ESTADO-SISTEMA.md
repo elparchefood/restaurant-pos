@@ -3,6 +3,71 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 DOS COPIAS DE PACO A LA VEZ: la raíz de todo lo raro (v375) — 23-ago-2026
+
+Sergio, 8:45 pm: *"En estos dos clientes Paco atendió de una manera muy extraña,
+están viendo el número de cuenta de una manera que nunca lo había enviado…
+creo que se saltó el flujo, ni siquiera dijo el valor del pedido"*. Verónica
+(3107100401) y Sara (3169430151). Tuvo que tomar el control en los dos.
+
+**No eran tres fallos: era uno.** Mirando las horas, en los dos casos Paco
+contestó DOS veces con segundos de diferencia, y las dos respuestas se
+contradicen — una siguiendo el flujo (*"¿Para llevar o domicilio?"*) y otra
+conversando por su cuenta (*"Entonces queda una salchipapa mixta personal por
+$26.000"*). **Se estaban ejecutando dos copias del motor sobre la misma
+conversación.**
+
+### Por qué, y son dos sitios que se suman
+
+1. **`meta-webhook`** decide "¿es el primer mensaje de la tanda?" con una
+   LECTURA (`GET …processed=false`). Dos mensajes casi simultáneos ven los dos
+   que no hay nada pendiente, y los dos lanzan `delay-reply`.
+2. **`delay-reply`** leía su trabajo, **esperaba** los segundos que agrupan los
+   mensajes, y recién entonces lo marcaba como tomado — sin mirar el resultado.
+   Eso no es un candado, es un aviso: las dos copias esperan, las dos marcan y
+   las dos siguen.
+
+### Y de ahí sale TODO lo que vio Sergio
+
+Cada copia arma el pedido por su cuenta y lo guarda; la última pisa a la otra.
+Por eso no salió el resumen, ni el precio del domicilio, ni el total. Y el
+número de cuenta "de una manera que nunca lo había enviado" es una de las copias
+contestando en conversación libre: ahí Paco tiene la llave y el titular como
+DATOS DE REFERENCIA (`buildPagosText`) y los leyó en lista —*"Llave/número de
+pago digital: … Titular: …"*—. El mensaje de verdad, el del QR, sale por el paso
+de pago del flujo, que nunca llegó a correr.
+
+Comprobado en el banco: repitiendo la conversación de Verónica paso a paso, con
+una sola copia, **sale todo** — resumen con `Pedido: $26.000`, la línea del
+domicilio, y al decir "Transferencia" el QR con el texto exacto que Sergio manda
+a mano. No faltaba nada ni se había desconfigurado nada.
+
+### El arreglo
+
+El trabajo se toma **por su fila** y se comprueba si de verdad cambió:
+1 fila → esta copia ganó, sigue · 0 filas → otra se lo llevó, se retira en
+silencio (al cliente le contesta la que ganó) · error de red → **sigue igual**,
+porque contestar dos veces es feo pero dejar el negocio mudo es peor.
+
+### La prueba, y por qué la primera no valía
+
+`scripts/banco-carrera.py` lanza dos copias a la vez contra la misma
+conversación. **La primera versión daba BIEN incluso SIN el candado**: tenía el
+disparo puesto en "ya mismo", y así la carrera no ocurre — la primera copia
+marca al instante y la segunda encuentra la cola vacía y se va sola, que es un
+caso que el código viejo YA resolvía. La carrera solo existe DURANTE la espera.
+Con el disparo a 5 segundos (lo que pasa de verdad):
+
+| | sin candado | con candado |
+|---|---|---|
+| dos copias a la vez | **2 respuestas**, distintas | **1** |
+| una sola copia | 1 | **1** (no se queda muda) |
+
+Una prueba que no falla cuando el fallo está presente no prueba nada. Esa
+comprobación al revés es la que salvó este arreglo de subirse a ciegas.
+
+---
+
 ## 🔴→🟢 "No manejo el registro de puntos" — y el precio que se contradecía (v374) — 23-ago-2026
 
 Jennifer, 7:05 pm, justo después de confirmar: *"¿Los puntos quedan

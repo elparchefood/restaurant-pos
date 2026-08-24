@@ -1010,8 +1010,43 @@ async function processConversation(convId: string, relectura = false): Promise<v
     attempts++;
   }
 
-  // 3. Marcar como procesado
-  await sbPatch(`/rest/v1/chat_ai_queue?conversation_id=eq.${convId}&processed=eq.false`, { processed: true });
+  /* ══ 3. TOMAR EL TRABAJO — Y COMPROBAR QUE LO GANO ESTE HILO ══════════════
+
+     Esto era, hasta el 23-ago-2026:
+       await sbPatch(`...?conversation_id=eq.${convId}&processed=eq.false`,
+                     { processed: true });
+     y nadie miraba el resultado. No es un candado: es un aviso.
+
+     Entre leer el trabajo (paso 1) y marcarlo hay una ESPERA a proposito —la
+     que agrupa los mensajes de quien escribe de a poquitos—. Si el cliente
+     manda tres mensajes seguidos, arrancan dos copias del motor, las dos leen
+     el trabajo, las dos esperan, las dos marcan y LAS DOS SIGUEN.
+
+     Lo que pasa entonces esta en las conversaciones de Veronica (3107100401) y
+     Sara (3169430151) del 23-ago a las 7:45 y 8:01 pm: Paco contesto DOS veces
+     con segundos de diferencia y las dos respuestas se contradicen — una
+     siguiendo el flujo ("¿Para llevar o domicilio?") y otra conversando por su
+     cuenta ("Entonces queda una salchipapa mixta personal por $26.000").
+     Cada copia arma el pedido aparte y lo guarda; la ultima pisa a la otra. Por
+     eso el flujo "se salta": no sale el resumen, ni el precio del domicilio, ni
+     el total. Y por eso salio la llave de pago en crudo ("Llave/numero de pago
+     digital: ... Titular: ...") — eso es el modelo LEYENDO sus datos de
+     referencia, porque el paso de pago del flujo, que es el que manda el QR,
+     nunca llego a correr. A Sergio le toco tomar el control en los dos.
+
+     Ahora se toma POR SU FILA y se mira si cambio. Tres respuestas posibles:
+       · 1 fila  -> este hilo lo gano, sigue.
+       · 0 filas -> otro se lo llevo (o llego un mensaje nuevo y esta fila ya
+                    no vale). Se sale en silencio: al cliente le contesta el
+                    que gano, no se queda sin respuesta.
+       · null    -> la peticion fallo. Se SIGUE: contestar dos veces es feo,
+                    pero dejar el negocio mudo por un fallo de red es peor. */
+  const tomado = await sbPatchFilas(
+    `/rest/v1/chat_ai_queue?id=eq.${entry.id}&processed=eq.false`, { processed: true });
+  if (tomado && tomado.length === 0) {
+    console.log(`[cola] ${convId}: otro hilo ya tomo este trabajo, este se retira`);
+    return;
+  }
 
   // 4. Leer datos del batch
   const batchStart  = entry.batch_start as string;
@@ -10546,6 +10581,24 @@ async function sbPost(path: string, data: Record<string, unknown>): Promise<void
     headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
     body: JSON.stringify(data),
   });
+}
+
+/* COMO sbPatch, pero DEVUELVE las filas que cambio. Hace falta para poder
+   preguntar "¿de verdad la cambie yo?", que es la unica forma de que dos hilos
+   no se queden los dos con el mismo trabajo. Devuelve null si la peticion
+   fallo — que no es lo mismo que cambiar 0 filas, y quien lo llama tiene que
+   distinguirlo. */
+async function sbPatchFilas(path: string, data: Record<string, unknown>): Promise<Array<Record<string, unknown>> | null> {
+  try {
+    const r = await fetch(`${SUPABASE_URL}${path}`, {
+      method: "PATCH",
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", "Prefer": "return=representation" },
+      body: JSON.stringify(data),
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return Array.isArray(d) ? d as Array<Record<string, unknown>> : null;
+  } catch { return null; }
 }
 
 async function sbPatch(path: string, data: Record<string, unknown>): Promise<void> {
