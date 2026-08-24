@@ -3,6 +3,74 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 "No manejo el registro de puntos" — y el precio que se contradecía (v374) — 23-ago-2026
+
+Jennifer, 7:05 pm, justo después de confirmar: *"¿Los puntos quedan
+registrados?"*. Paco: *"Que pena contigo, no manejo el registro de puntos"*.
+Sergio tuvo que contestarle a mano y mandarle la respuesta rápida.
+
+**No era que Paco no supiera: era que no le preguntaron con las palabras**
+previstas. La rama de puntos se abría con un regex de cuatro formas
+(`cuantos… puntos`, `mis puntos`, `puntos tengo`, `como van mis puntos`) y esa
+pregunta no es ninguna. El mensaje se iba al camino general, que no tenía ni un
+dato de puntos, y el modelo hizo lo único que podía.
+
+### Lo que se hizo
+
+**Paco lleva los puntos SIEMPRE en su contexto**, como ya lleva los horarios,
+los pagos y las zonas de domicilio (`buildPuntosText`). Con las tres cifras que
+pidió Sergio: los que tiene, los que le da este pedido y con cuántos queda.
+Añadir más formas a la lista solo aplazaba el problema — siempre falta la
+siguiente. Se pasa como parámetro a los 8 sitios que le piden texto al modelo,
+nunca por una variable compartida: dos clientes pueden estar escribiendo a la
+vez y ver el saldo del otro sería mucho peor que no ver ninguno.
+
+**La redención también dejó de cazarse por palabras.** En el banco,
+*"¿qué me puedo ganar con los puntos que llevo?"* no encajaba en
+`redimir|canjear|premios|catalogo`. Ahora lo decide el modelo y lo avisa
+terminando su mensaje con `[[APP]]`; la marca la recoge **`sendWaAndSave`** —el
+único sitio por donde pasan las respuestas de los 8 caminos— y manda detrás la
+respuesta rápida del restaurante. El regex se queda de atajo rápido.
+
+**Y la respuesta rápida se lee de la configuración, no del código.** Es la que
+Sergio tiene escrita (`Registro app`, con su promoción de $5.000 y su botón).
+Escribirla aquí significaba que el día que él cambiara la promoción, Paco
+seguiría prometiendo la vieja.
+
+### El fallo aparte que destapó la prueba, y es peor
+
+Al cuadrar los números salió que el resumen decía **Pedido: $28.000** y los
+puntos decían **27**. La causa: **`calcularPreciosPedido` no sumaba el
+empaque** — y esa es la función con la que Paco contesta *"¿cuánto es?"*.
+
+O sea que hasta hoy, quien preguntaba el precio antes del resumen recibía
+**$27.000**, y dos mensajes después el resumen le decía **$28.000**. Paco se
+contradecía solo con el precio. Es el mismo fallo que ya costó una corrección el
+22-ago (los precios sin empaque), en otro sitio del motor.
+
+Ahora usa `calcularEmpaque`, la MISMA de la caja y del resumen. Comprobado en el
+banco: Pedido $28.000 → 28 puntos, los dos números del mismo cálculo.
+
+> Se falló una vez por el camino: se arregló el cálculo pero no se le pasaba la
+> configuración del empaque, así que seguía dando 27. El banco lo cazó.
+
+### Lo que queda, y es decisión de Sergio
+
+*"¿Qué puedo pedir con lo que tengo acumulado?"* sigue contestando *"¿qué se te
+antoja?"*. **No es el lector: ese mensaje nunca le llega.** Lo intercepta antes
+la rama de "pide la carta", que se dispara con "qué puedo pedir" y manda las
+fotos del menú. El arreglo es una línea —que esa rama no se quede el mensaje
+cuando la persona habla de sus puntos— pero toca el envío de la carta, que es de
+lo más usado, y se encontró a las 8 pm en pleno servicio. No se tocó sin su
+visto bueno.
+
+También sigue faltando: `calcularPreciosPedido` no suma las **adiciones**
+cobradas (el resumen sí). Con adiciones, "¿cuánto es?" y los puntos se quedan
+cortos. Es el mismo arreglo de hoy pero con la maquinaria de los grupos de
+modificadores; se deja para fuera de servicio.
+
+---
+
 ## 🔴→🟢 La nota del pedido: se guardó la frase de relleno y se perdió la real (v373) — 23-ago-2026
 
 Pedido de Jennifer, 573202822376, 7:05 pm. La comanda salió con la nota

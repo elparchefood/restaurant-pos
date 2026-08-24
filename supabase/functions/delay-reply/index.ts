@@ -2383,6 +2383,11 @@ INTENCION, no las palabras exactas.` },
   const horariosText   = buildHorariosText(horariosCfg, fmtHora);
   const pagosText      = buildPagosText(pagosCfg);
   const domiciliosText = buildDomiciliosText(domiciliosCfg);
+  /* Se arma una vez por mensaje y se le pasa a todas las respuestas. Sale del
+     telefono de QUIEN ESCRIBE, nunca de una variable compartida: dos clientes
+     pueden estar hablandole a Paco en el mismo instante y ver el saldo del
+     otro seria mucho peor que no ver ninguno. */
+  const puntosText = await buildPuntosText(tenantId, fromPhone, state, branchId, domiciliosCfg, cfg);
 
   /* ══ EL PEDIDO YA HECHO ES CONTEXTO VIVO (22-ago-2026, pedido de Sergio) ══
      David pregunto "¿cuanto se demora mi pedido?" UN minuto despues de
@@ -2564,38 +2569,49 @@ INTENCION, no las palabras exactas.` },
     }
   }
 
-  /* ── PREGUNTAS DE PUNTOS (20-ago-2026, version simplificada por Sergio) ──
-     "¿cuantos puntos tengo?" -> el saldo, directo. "¿como redimo / que
-     premios hay?" -> a la APP con un boton: alli se registra, ve sus puntos,
-     el catalogo y redime. Si el mensaje ADEMAS pide comida, se responde lo de
-     puntos y el flujo sigue (leccion de la carta: nada de returns a ciegas). */
+  /* ── PUNTOS: SOLO LA REDENCION SE ATIENDE AQUI (23-ago-2026) ─────────────
+
+     Antes esta rama tambien contestaba "¿cuantos puntos tengo?" con un
+     mensaje fijo, y para entrar exigia una de cuatro formas de preguntarlo.
+     Jennifer escribio "¿los puntos quedan registrados?" —que no es ninguna de
+     las cuatro— y Paco le contesto "no manejo el registro de puntos".
+
+     La informacion ya no se atiende aqui: los tres numeros (los que tiene,
+     los que le da este pedido y con cuantos queda) van en el contexto de Paco
+     en CADA respuesta (buildPuntosText), asi que contesta pregunte como
+     pregunte, sin que nadie tenga que adivinar la forma. Es la regla de
+     Sergio: entender la intencion, no cazar palabras.
+
+     Lo que SI se queda aqui es REDIMIR, y por un motivo tecnico: hay que
+     mandarle el boton que lo lleva a la app, y un boton de WhatsApp no lo
+     puede escribir el modelo — es otro tipo de mensaje. */
   {
     const tNormP = normalizarTexto(clienteTexto);
-    const pideSaldoPts = /\b(cuantos?|cuanto)\b[^.]*\bpuntos\b|\bmis puntos\b|\bpuntos tengo\b|\bcomo van mis puntos\b/.test(tNormP);
     const pideRedimir = /\b(redimir|redimo|canjear|canjeo|reclamar|reclamo)\b|\bpremios?\b|\bcatalogo\b/.test(tNormP)
       && !/\bpremio\s*1\b/.test(tNormP);
-    if ((pideSaldoPts || pideRedimir) && !(state as unknown as Record<string, unknown>).saldo_pago) {
-      const tel10P = String(fromPhone || "").replace(/\D/g, "").slice(-10);
-      const urlAppP = await urlAppDR(tenantId);
-      let respondido = false;
-      /* El verbo de REDIMIR manda: "como redimo mis puntos" es la pregunta de
-         redimir aunque nombre sus puntos. */
-      if (pideRedimir) {
-        const msgR = "¡Los premios se redimen desde nuestra app! 🎁 Regístrate con este mismo número y ahí ves tus puntos, el catálogo completo de premios y los rediemes tú mismo, facilito.";
-        if (urlAppP) await sendWaBotonApp(convId, tenantId, msgR, `Abrir la app${emo()}`, urlAppP, fromPhone, phoneId, accessToken);
-        else await sendWaAndSave(convId, tenantId, msgR, fromPhone, phoneId, accessToken);
-        respondido = true;
-      } else if (pideSaldoPts) {
-        const f = await sbGet(`/rest/v1/pos_puntos?tenant_id=eq.${tenantId}&telefono=eq.${tel10P}&select=puntos&limit=1`);
-        const pts = Math.round(Number(f?.[0]?.puntos) || 0);
-        const msgP = pts > 0
-          ? `Tienes ${pts.toLocaleString("es-CO")} puntos 🎉 En nuestra app los ves al día, sigues tu progreso y los rediemes por premios.`
-          : "Aún no tienes puntos registrados 😊 En cada compra ganas 1 punto por cada $1.000 — da tu número al pedir y empiezas a acumular. En nuestra app los ves y los rediemes.";
-        if (urlAppP) await sendWaBotonApp(convId, tenantId, msgP, `Abrir la app${emo()}`, urlAppP, fromPhone, phoneId, accessToken);
-        else await sendWaAndSave(convId, tenantId, msgP, fromPhone, phoneId, accessToken);
-        respondido = true;
-      }
-      if (respondido) {
+    if (pideRedimir && !(state as unknown as Record<string, unknown>).saldo_pago) {
+      /* SE MANDA LA RESPUESTA RAPIDA DEL RESTAURANTE, no un texto escrito aqui
+         (pedido de Sergio, 23-ago). El la tiene armada en Configuracion con su
+         redaccion, su promocion y su boton — la de El Parche se llama
+         "Registro app" y regala $5.000 por instalarla. Escribir el mensaje en
+         el codigo significaba que el dia que el cambiara la promocion, Paco
+         seguiria prometiendo la vieja. Se busca por nombre, sin distinguir
+         mayusculas ni tildes; si el restaurante no la tiene, se cae al texto
+         de siempre y nadie se queda sin respuesta. */
+      const rrs = Array.isArray(cfg.respuestas_rapidas)
+        ? (cfg.respuestas_rapidas as Array<Record<string, unknown>>) : [];
+      const rrApp = rrs.find(r => normalizarTexto(String(r.k || "")) === "registro app");
+      const btnRR = (rrApp?.btn || null) as Record<string, unknown> | null;
+      const urlRR = btnRR && String(btnRR.tipo || "") === "url" ? String(btnRR.url || "") : "";
+      const urlAppP = urlRR || (await urlAppDR(tenantId)) || "";
+      const msgR = String(rrApp?.t || "").trim()
+        || "¡Los premios se redimen desde nuestra app! 🎁 Regístrate con este mismo número y ahí ves tus puntos, el catálogo completo de premios y los rediemes tú mismo, facilito.";
+      const txtBtn = String(btnRR?.texto_boton || "").trim() || `Abrir la app${emo()}`;
+      if (urlAppP) await sendWaBotonApp(convId, tenantId, msgR, txtBtn, urlAppP, fromPhone, phoneId, accessToken);
+      else await sendWaAndSave(convId, tenantId, msgR, fromPhone, phoneId, accessToken);
+      /* Ya se contesto lo de redimir. Falta decidir si el mensaje traia
+         ademas un pedido. */
+      {
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: "(puntos)", last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
         /* Si el mensaje era SOLO la pregunta, aqui se acaba; si ademas trae
            pedido, el flujo sigue y lo captura. OJO: "premio" tambien es la
@@ -2657,7 +2673,7 @@ INTENCION, no las palabras exactas.` },
           bienvenida = await buildConversationResponse(
             clienteTexto, histCtx, state,
             { id: "saludo", campo: "saludo", modo: "conversacional", guia: flujoSaludo.guia },
-            cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, null,
+            cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, puntosText, null,
             true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
           );
         } catch (_) { /* cae a los siguientes niveles */ }
@@ -2707,7 +2723,7 @@ INTENCION, no las palabras exactas.` },
     const histCerrado = (histCtx || []).filter(h => h.direction === "in").slice(-6);
     const reply = await buildConversationResponse(
       clienteTexto, histCerrado, state, null, cfg, frasesCfg,
-      menuText, horariosText, pagosText, domiciliosText, currentProductData,
+      menuText, horariosText, pagosText, domiciliosText, puntosText, currentProductData,
       false, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
     );
     await sendWaAndSave(convId, tenantId, reply, fromPhone, phoneId, accessToken);
@@ -3030,7 +3046,7 @@ INTENCION, no las palabras exactas.` },
         if (faltaPost && faltaPost.despues_resumen) {
           const pregunta = await buildConversationResponse(
             clienteTexto, histCtx, state, faltaPost,
-            cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, currentProductData,
+            cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, puntosText, currentProductData,
             true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
           );
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -3243,7 +3259,7 @@ INTENCION, no las palabras exactas.` },
     // Respuesta conversacional (incluye correcciones con contexto y mensajes sin slot)
     const replyWait = await buildConversationResponse(
       clienteTexto, histCtx, state, Object.keys(correctedSlots).length > 0 ? findNextStep(state, pasos, false, domiciliosCfg) : null,
-      cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, currentProductData,
+      cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, puntosText, currentProductData,
       true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
     );
     await sendWaAndSave(convId, tenantId, replyWait, fromPhone, phoneId, accessToken);
@@ -3924,7 +3940,7 @@ INTENCION, no las palabras exactas.` },
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
       const reply = await buildConversationResponse(
         clienteTexto, histCtx, state, findNextStep(state, pasos, false, domiciliosCfg),
-        cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, currentProductData,
+        cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, puntosText, currentProductData,
         true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
       );
       await sendWaAndSave(convId, tenantId, reply, fromPhone, phoneId, accessToken);
@@ -4094,7 +4110,7 @@ INTENCION, no las palabras exactas.` },
         CUANTO_RE.test(clienteTexto) && !(extractPago(clienteTexto, pagosCfg) || pagoPorIntencion())) {
       const stepAhora = findNextStep(state, pasos, false, domiciliosCfg);
       if (stepAhora) {
-        const precios = await calcularPreciosPedido(state, branchId, domiciliosCfg);
+        const precios = await calcularPreciosPedido(state, branchId, domiciliosCfg, cfg._operacion as Record<string, unknown> | null);
         const pedidoStr = precios.pedido > 0 ? fmtCOP(precios.pedido) : "a confirmar";
         const domiStr = precios.esLlevar ? "Para llevar"
           : precios.domi === null ? "a confirmar"
@@ -4139,7 +4155,7 @@ INTENCION, no las palabras exactas.` },
         if (n) mix = { metodo: esperandoMonto, montoDigital: n, montoEfectivo: null, mitad: false };
       }
       if (mix) {
-        const precios = await calcularPreciosPedido(state, branchId, domiciliosCfg);
+        const precios = await calcularPreciosPedido(state, branchId, domiciliosCfg, cfg._operacion as Record<string, unknown> | null);
         const total = precios.pedido > 0
           ? precios.pedido + (precios.esLlevar ? 0 : (precios.domi || 0))
           : 0;
@@ -4253,7 +4269,7 @@ INTENCION, no las palabras exactas.` },
     // Saludo/charla u otra cosa sin intención clara → respuesta conversacional (GPT)
     const reply = await buildConversationResponse(
       clienteTexto, histCtx, state, null, cfg, frasesCfg,
-      menuText, horariosText, pagosText, domiciliosText, currentProductData,
+      menuText, horariosText, pagosText, domiciliosText, puntosText, currentProductData,
       true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
     );
     await sendWaAndSave(convId, tenantId, reply, fromPhone, phoneId, accessToken);
@@ -4404,7 +4420,7 @@ INTENCION, no las palabras exactas.` },
         const reply = await buildConversationResponse(
           clienteTexto, histCtx, state,
           findNextStep(state, pasos, false, domiciliosCfg),
-          cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, currentProductData,
+          cfg, frasesCfg, menuText, horariosText, pagosText, domiciliosText, puntosText, currentProductData,
           true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
         );
         await sendWaAndSave(convId, tenantId, reply, fromPhone, phoneId, accessToken);
@@ -4717,7 +4733,7 @@ INTENCION, no las palabras exactas.` },
     : clienteTexto;
   const reply = await buildConversationResponse(
     textoParaModelo, histCtx, state, nextStep, cfg, frasesCfg,
-    menuText, horariosText, pagosText, domiciliosText, currentProductData,
+    menuText, horariosText, pagosText, domiciliosText, puntosText, currentProductData,
     true, nombreParaBot, colTimeStr, colDayStr, horaAperturaHoy, horaCierreHoy, proxDia, !!nombreKnown,
   );
   await sendWaAndSave(convId, tenantId, reply, fromPhone, phoneId, accessToken);
@@ -7908,6 +7924,7 @@ async function buildConversationResponse(
   horariosText: string,
   pagosText: string,
   domiciliosText: string,
+  puntosText: string,
   productData: ProductData | null,
   restauranteAbierto: boolean,
   senderName: string,
@@ -8283,6 +8300,12 @@ async function buildConversationResponse(
   if (conectado("horarios")   && horariosText)   sysLines.push("", horariosText);
   if (conectado("pagos")      && pagosText)      sysLines.push("", pagosText);
   if (conectado("domicilios") && domiciliosText) sysLines.push("", domiciliosText);
+  /* LOS PUNTOS VAN SIEMPRE, sin interruptor que los apague: no son una
+     opinion del restaurante sino el saldo real de quien esta escribiendo, y
+     el dia que falte Paco vuelve a decir "no manejo puntos" —que es como
+     empezo esto—. Si el restaurante los tiene apagados, buildPuntosText
+     devuelve vacio y aqui no se pinta nada. */
+  if (puntosText) sysLines.push("", puntosText);
 
   const messages: Array<{ role: string; content: string }> = [
     { role: "system", content: sysLines.join("\n") },
@@ -8742,6 +8765,87 @@ async function buildSummaryFromState(
 
 // ── buildOrderArgs ────────────────────────────────────────────────────────────
 
+/* ══ LO QUE PACO SABE DE LOS PUNTOS DE ESTE CLIENTE ══════════════════════
+
+   El 23-ago Jennifer pregunto "¿los puntos quedan registrados?" y Paco
+   contesto "que pena contigo, no manejo el registro de puntos". No era que no
+   supiera: era que la rama de puntos se abria con un REGEX
+     /\b(cuantos?|cuanto)\b[^.]*\bpuntos\b|\bmis puntos\b|\bpuntos tengo\b/
+   y esa pregunta no encajaba en ninguna de las formas previstas. El mensaje
+   se iba al camino general, que no tenia ni un dato de puntos, y el modelo
+   hizo lo unico que podia: decir que no sabe.
+
+   La salida no es agregar mas formas a la lista —siempre faltara la
+   siguiente— sino que Paco LO SEPA SIEMPRE. Este bloque entra en su contexto
+   en cada respuesta, como ya entran los horarios, los pagos y las zonas de
+   domicilio. Con el dato delante, contesta pregunte como pregunte, que es la
+   regla que puso Sergio: entender la intencion, no cazar palabras.
+
+   Lleva las TRES cifras que pidio: los que tiene, los que le da este pedido y
+   con cuantos queda. Los puntos de este pedido se calculan sobre la COMIDA
+   —el domicilio no da puntos— con la misma regla de la base
+   (fn_puntos_regla: branches.operacion_config.puntos.pesos_por_punto, $1.000
+   por defecto), para que lo que Paco promete y lo que el trigger acredita
+   sean el mismo numero.                                                    */
+async function buildPuntosText(
+  tenantId: string,
+  telefono: string,
+  state: PacoState,
+  branchId: string,
+  domiciliosCfg: Record<string, unknown> | null | undefined,
+  cfg: Record<string, unknown>,
+): Promise<string> {
+  try {
+    const tel10 = String(telefono || "").replace(/\D/g, "").slice(-10);
+    if (!tel10) return "";
+
+    const op = (cfg._operacion || {}) as Record<string, unknown>;
+    const puntosCfg = (op.puntos || {}) as Record<string, unknown>;
+    /* Si el restaurante los apago, Paco no promete nada. */
+    if (puntosCfg.activo === false) return "";
+    const porPunto = Number(puntosCfg.pesos_por_punto) > 0
+      ? Number(puntosCfg.pesos_por_punto) : 1000;
+
+    const f = await sbGet(`/rest/v1/pos_puntos?tenant_id=eq.${tenantId}&telefono=eq.${tel10}&select=puntos&limit=1`);
+    const tiene = Math.round(Number((f as Array<Record<string, unknown>> | null)?.[0]?.puntos) || 0);
+
+    const L: string[] = ["PUNTOS DE ESTE CLIENTE (datos reales, de la base — úsalos para contestar CUALQUIER pregunta sobre puntos, pregunte como pregunte):"];
+    L.push(`- Regla: 1 punto por cada ${fmtCOP(porPunto)} de comida. El domicilio NO da puntos.`);
+    L.push(tiene > 0
+      ? `- Tiene ahora: ${tiene.toLocaleString("es-CO")} puntos.`
+      : "- Tiene ahora: 0 puntos (todavía no ha acumulado).");
+
+    /* Los de ESTE pedido, solo si ya hay algo pedido. */
+    let gana = 0;
+    if (state.producto || (state.items || []).length > 0) {
+      const pr = await calcularPreciosPedido(state, branchId, domiciliosCfg, op);
+      if (pr.pedido > 0) {
+        gana = Math.floor(pr.pedido / porPunto);
+        L.push(`- Este pedido le daría ${gana.toLocaleString("es-CO")} puntos (sobre ${fmtCOP(pr.pedido)} de comida).`);
+        L.push(`- Quedaría con ${(tiene + gana).toLocaleString("es-CO")} puntos en total.`);
+      }
+    }
+
+    L.push("- SÍ, los puntos quedan registrados solos al confirmar el pedido, atados a su número de celular. No tiene que hacer nada.");
+    L.push("- Si pregunta cuántos tiene, cuántos gana o si le quedan registrados, CONTÉSTALE con estos números. Nunca digas que no manejas puntos.");
+    /* REDIMIR NO SE CAZA POR PALABRAS. La rama rapida de mas arriba busca
+       "redimir|canjear|premios|catalogo", y con eso "¿que puedo pedir con lo
+       que tengo acumulado?" se le escapaba —comprobado en el banco: Paco
+       contesto "¿que se te antoja?"—. Aqui lo decide el modelo, que es quien
+       entiende la intencion, y avisa poniendo una marca al final. La marca la
+       recoge sendWaAndSave y manda detras la respuesta rapida del restaurante
+       con su boton, que es lo que pidio Sergio. */
+    L.push("- Para VER el detalle al día, el catálogo de premios y REDIMIR, eso se hace en la app. NUNCA inventes premios ni catálogo.");
+    L.push("- Si te pregunta por redimir, canjear, qué premios hay, qué se gana o para qué le alcanza con lo que tiene: dile en UNA frase corta que eso se hace desde la app, y termina tu mensaje con [[APP]]. Escribe [[APP]] tal cual, una sola vez y al final; no lo expliques ni lo menciones.");
+    /* "¿Que puedo pedir con lo que tengo acumulado?" se le escapo en el banco:
+       el modelo leyo "pedir" como pedir comida y contesto "¿que se te
+       antoja?". Es ambiguo de verdad —"pedir" son las dos cosas— asi que se le
+       enseña a desempatar por lo que va DESPUES del verbo, no por la frase. */
+    L.push("- OJO con \"pedir\": si dice CON QUÉ paga (con mis puntos, con lo que tengo acumulado, con lo que llevo), está preguntando por REDIMIR aunque use la palabra pedir. Si no nombra sus puntos ni lo acumulado, entonces sí quiere comida.");
+    return L.join("\n");
+  } catch (e) { console.error("buildPuntosText:", e); return ""; }
+}
+
 // ── calcularPreciosPedido — desglose de precios del pedido en curso ──────────────
 // Misma lógica de precios que el resumen/creación de pedidos (presentaciones + matriz
 // de variantes + domicilio por zona). Usada por el caso "¿cuánto es?" del paso de pago.
@@ -8749,11 +8853,15 @@ async function calcularPreciosPedido(
   state: PacoState,
   branchId: string,
   domiciliosCfg: Record<string, unknown> | null | undefined,
+  /* La configuracion de operacion, donde vive el empaque. Opcional para no
+     romper a quien ya llamaba a esta funcion sin ella. */
+  opCfg?: Record<string, unknown> | null,
 ): Promise<{ pedido: number; domi: number | null; esLlevar: boolean }> {
   let pedido = 0;
+  const itemsEmpaque: ItemEmpaque[] = [];
   try {
     const allProducts = await sbGet(
-      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables,category_id(name)`
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables,category_id(id,name)`
     ) as Array<Record<string, unknown>> | null;
     const allItems: SlotItem[] = [
       ...(state.items || []),
@@ -8776,12 +8884,30 @@ async function calcularPreciosPedido(
           else if (varOpt.price > 0) price = varOpt.price;
         }
       }
-      pedido += price * Math.max(1, Number(item.cantidad) || 1);
+      const cant = Math.max(1, Number(item.cantidad) || 1);
+      pedido += price * cant;
+      itemsEmpaque.push({
+        cantidad: cant,
+        precio: price * cant,
+        producto_id: String(matched.id || ""),
+        categoria_id: String((matched.category_id as Record<string, unknown> | null)?.id || ""),
+        presentacion_id: presMatch ? String(presMatch.id || "") : null,
+      });
     }
   } catch (err) { console.error("calcularPreciosPedido error:", err); }
   const esLlevar = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
+  /* EL EMPAQUE TAMBIEN AQUI (23-ago-2026). Esta funcion es la que contesta
+     "¿cuanto es?", y no lo sumaba: Paco decia $27.000 y el resumen, que si lo
+     suma, decia $28.000 — se contradecia solo. Es el mismo fallo que ya costo
+     una correccion el 22-ago con los precios sin empaque, en otro sitio.
+     Y ahora ademas importa para los puntos: la base que acredita la base de
+     datos es comida + empaque, asi que si aqui faltara, Paco prometeria menos
+     puntos de los que el cliente recibe.
+     Se usa calcularEmpaque, la MISMA de la caja y del resumen — nada de un
+     calculo "parecido". */
+  const empaque = calcularEmpaque(opCfg, itemsEmpaque, !esLlevar);
   const domi = esLlevar ? 0 : (state.direccion ? lookupDomiPrice(ubicacionPedido(state), domiciliosCfg) : null);
-  return { pedido, domi, esLlevar };
+  return { pedido: pedido + empaque, domi, esLlevar };
 }
 
 function buildOrderArgs(state: PacoState, domiPrecio: number): Record<string, unknown> {
@@ -9319,12 +9445,59 @@ async function enviarPidiendoTelefono(
   }
 }
 
+/* LA RESPUESTA RAPIDA QUE LLEVA A LA APP.
+   La escribe el restaurante en Configuracion, con su redaccion, su promocion
+   y su boton — la de El Parche se llama "Registro app" y regala $5.000 por
+   instalarla. Se manda tal cual y no un texto escrito en el codigo: el dia que
+   Sergio cambie la promocion, Paco tiene que prometer la nueva.
+   Si el restaurante no la tiene, se cae a un texto propio para que nadie se
+   quede sin respuesta. */
+async function mandarRespuestaApp(
+  convId: string, tenantId: string, fromPhone: string, phoneId: string, accessToken: string,
+): Promise<void> {
+  try {
+    const c = await sbGet(`/rest/v1/ia_config?tenant_id=eq.${tenantId}&select=respuestas_rapidas&limit=1`) as Array<Record<string, unknown>> | null;
+    const rrs = Array.isArray(c?.[0]?.respuestas_rapidas)
+      ? (c![0].respuestas_rapidas as Array<Record<string, unknown>>) : [];
+    const rr = rrs.find(r => normalizarTexto(String(r.k || "")) === "registro app");
+    const btn = (rr?.btn || null) as Record<string, unknown> | null;
+    const url = (btn && String(btn.tipo || "") === "url" ? String(btn.url || "") : "")
+      || (await urlAppDR(tenantId)) || "";
+    const texto = String(rr?.t || "").trim()
+      || "En la app ves tus puntos al día, el catálogo de premios y los redimes tú mismo 🎁";
+    const boton = String(btn?.texto_boton || "").trim() || "Abrir la app";
+    if (url) await sendWaBotonApp(convId, tenantId, texto, boton, url, fromPhone, phoneId, accessToken);
+    else await sendWaAndSave(convId, tenantId, texto, fromPhone, phoneId, accessToken);
+  } catch (e) { console.error("mandarRespuestaApp:", e); }
+}
+
 async function sendWaAndSave(
   convId: string, tenantId: string, msg: string,
   fromPhone: string, phoneId: string, accessToken: string,
   /* true = lo manda el SISTEMA, no Paco: va sin etiqueta. */
   sinEtiqueta = false,
 ): Promise<void> {
+  /* ══ LA MARCA [[APP]] ══════════════════════════════════════════════════
+     Cuando el modelo entiende que el cliente pregunta por REDIMIR sus puntos,
+     termina su mensaje con [[APP]] (se lo pide buildPuntosText). Aqui se le
+     quita la marca y se manda DETRAS la respuesta rapida del restaurante con
+     su boton a la app.
+
+     Por que en el enviador y no donde se arma la respuesta: hay OCHO sitios
+     que le piden un texto al modelo, y todos terminan pasando por aqui. Poner
+     la marca en un solo sitio y recogerla en ocho es como se olvidan siete.
+
+     Y por que no basta el regex de "redimir|canjear|premios" que ya existe
+     mas arriba: en el banco, "¿que puedo pedir con lo que tengo acumulado?" no
+     encajaba en ninguna de esas palabras y Paco contesto "¿que se te antoja?".
+     El regex se queda como atajo rapido; quien de verdad decide es el modelo. */
+  const MARCA_APP = "[[APP]]";
+  let mandarApp = false;
+  if (msg.includes(MARCA_APP)) {
+    mandarApp = true;
+    msg = msg.split(MARCA_APP).join("").replace(/[ 	]+$/gm, "").trim();
+  }
+
   msg = sinEtiqueta ? msg : conEtiqueta(msg);
 
   /* Instagram y Messenger: se guarda el mensaje PRIMERO y luego meta-send lo
@@ -9365,6 +9538,10 @@ async function sendWaAndSave(
       console.error(`[${canal}] no salio:`, String(e).slice(0, 200));
       if (msgId) await sbPatch(`/rest/v1/chat_messages?id=eq.${msgId}`, { delivery_status: "failed" });
     }
+    /* En Instagram y Messenger este camino termina aqui, asi que la respuesta
+       rapida se manda ANTES de salir. Sin esto, a quien escriba por redes se
+       le quitaria la marca del texto y nunca le llegaria el boton. */
+    if (mandarApp) await mandarRespuestaApp(convId, tenantId, fromPhone, phoneId, accessToken);
     return;
   }
   const waRes = await enviarAMeta(convId, phoneId, accessToken, { messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "text", text: { body: msg } });
@@ -9378,6 +9555,11 @@ async function sendWaAndSave(
     // falla, el operador debe poder ver en Cobra qué intentó decir el bot
     await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot", body: msg, delivery_status: "failed", external_id: null, sent_at: new Date().toISOString() });
   }
+
+  /* Y detras, la respuesta rapida con el boton. Va DESPUES del texto a
+     proposito: primero Paco le contesta lo que pregunto, y luego llega el
+     boton — que es el orden en que lo hizo Sergio a mano el 23-ago. */
+  if (mandarApp) await mandarRespuestaApp(convId, tenantId, fromPhone, phoneId, accessToken);
 }
 
 // ── Dirección: clasificación y lookup ────────────────────────────────────────
