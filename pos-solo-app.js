@@ -64,9 +64,30 @@
     'caja.html':         'la caja',
   };
 
-  /* En el ejecutable, `electronPOS` lo inyecta el propio programa. Es el mismo
-     detector que ya usan las impresoras y el chat: no se inventa otro. */
-  function enLaApp() { return !!w.electronPOS; }
+  /* ⚠️ LA TABLET TAMBIEN ES LA APP (24-ago-2026, en pleno servicio).
+     La primera version solo miraba `electronPOS`, que inyecta el ejecutable de
+     Windows. Pero la APK del mesero es un WebView de Android que carga ESTAS
+     MISMAS pantallas y NO inyecta nada — asi que el sistema la tomo por un
+     navegador y le dijo "esto se hace en el programa" cuando Sergio iba a tomar
+     un pedido en la mesa.
+
+     No hay marcador que buscar, asi que se le da la vuelta al criterio: lo que
+     se bloquea es el NAVEGADOR DE ESCRITORIO. Un telefono o una tablet es la
+     app, por definicion — nadie administra Cobra desde un celular.
+
+     Y el sentido del bloqueo se conserva entero: la regla era "no vendas desde
+     tu portatil, instala el programa". Un portatil sigue bloqueado. */
+  function enLaApp() {
+    if (w.electronPOS) return true;                    // el ejecutable de Windows
+    try {
+      var ua = navigator.userAgent || '';
+      if (/Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua)) return true;
+      /* iPad moderno miente y dice ser un Mac de escritorio. Se delata porque
+         tiene pantalla tactil, cosa que un Mac no. */
+      if (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) return true;
+    } catch (e) {}
+    return false;
+  }
 
   function aqui() {
     return (location.pathname || '').split('/').pop() || 'dashboard.html';
