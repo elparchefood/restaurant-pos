@@ -648,12 +648,18 @@
       });
     }
 
-        var campoFoto = $('pf-foto');
+    var campoFoto = $('pf-foto');
     if (campoFoto) {
       campoFoto.addEventListener('change', function () {
         if (this.files && this.files[0]) guardarFoto(this.files[0]);
         this.value = '';   // para poder escoger la MISMA foto otra vez
       });
+    }
+    /* El boton nuevo abre el MISMO campo escondido que el circulo: una sola
+       forma de escoger la foto, dos maneras de llegar a ella. */
+    var btnFoto = $('pf-foto-btn');
+    if (btnFoto && campoFoto) {
+      btnFoto.addEventListener('click', function () { campoFoto.click(); });
     }
     document.querySelectorAll('[data-menu]').forEach(function (b) {
       b.addEventListener('click', menuCuenta);
@@ -3043,18 +3049,33 @@
     var tel = String(c.telefono || '');
     return encabezado('Perfil', 'Tu cuenta') +
       '<div class="ep-perfil-hd">' +
+        /* LA CAMARITA SE FUE, Y AHORA HAY UN BOTON (23-ago-2026, Sergio:
+           "no se entiende qué botón hay que tocar para cambiar la foto").
+           Ese circulito dorado en la esquina de la foto se leia como una
+           insignia de la foto, no como algo que se toca — y era la unica
+           pista de que el circulo entero era el boton.
+           El circulo SIGUE funcionando al tocarlo: quien ya le cogio el truco
+           lo conserva, y sin la insignia ya no promete nada que confunda. */
         '<label class="ep-avatar-g ep-avatar-sub" title="Cambiar mi foto">' +
           (c.foto ? '<img src="' + esc(c.foto) + '" alt="">' : esc(iniciales(c.nombre))) +
           '<input type="file" id="pf-foto" accept="image/*" hidden>' +
-          '<span class="ep-avatar-cam">' + ico('camara', 15) + '</span>' +
         '</label>' +
         '<div class="ep-perfil-n">' + esc(c.nombre || '') + '</div>' +
         '<div class="ep-perfil-t">' + esc(tel.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3')) + '</div>' +
-        /* "Eres cliente Estandar" y no solo "Estandar" (20-ago, Sergio): la
-           palabra sola no dice nada, y el cliente no tiene por que adivinar que
-           es una categoria suya. */
-        (n ? '<span class="ep-chip-rango" style="color:' + esc(n.color || '') + '">Eres cliente ' +
-          esc(n.nombre) + '</span>' : '') +
+        /* El chip y el boton comparten fila para no gastar una linea entera
+           (idea de Sergio). Medido en 375px: ocupan 297 de 315 disponibles, y
+           en una pantalla de 320px el boton se baja solo a la linea de abajo
+           en vez de apretarse — de eso se encarga el flex-wrap. */
+        '<div class="ep-perfil-fila">' +
+          /* "Eres cliente Estandar" y no solo "Estandar" (20-ago, Sergio): la
+             palabra sola no dice nada, y el cliente no tiene por que adivinar
+             que es una categoria suya. */
+          (n ? '<span class="ep-chip-rango" style="color:' + esc(n.color || '') + '">Eres cliente ' +
+            esc(n.nombre) + '</span>' : '') +
+          '<button class="ep-btn ep-btn--ghost ep-btn--foto" id="pf-foto-btn" type="button">' +
+            ico('camara', 15) + (c.foto ? 'Cambiar mi foto' : 'Poner mi foto') +
+          '</button>' +
+        '</div>' +
       '</div>' +
 
       (n ? bloqueNivel(n) : '') +

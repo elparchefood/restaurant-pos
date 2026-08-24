@@ -772,19 +772,13 @@ html.tema-claro .ep-seg-full button.on { color: #fff; }
 .ep-avatar img, .ep-avatar-g img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ep-avatar, .ep-avatar-g { overflow: hidden; }
 
-/* Tocar la foto del perfil la cambia: el campo va escondido adentro, sin un
-   boton aparte que haya que explicar. */
+/* Tocar la foto del perfil tambien la cambia. Ya NO lleva el circulito dorado
+   de la camara en la esquina: se leia como una insignia de la foto y no como un
+   boton, y era la unica pista que habia (lo vio Sergio el 23-ago). Ahora la
+   pista es el boton de abajo; el circulo se queda como atajo silencioso.
+   Su regla se borro: no la usaba nadie mas — comprobado en todo el proyecto
+   antes de quitarla. */
 .ep-avatar-sub { position: relative; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.ep-avatar-cam {
-  position: absolute; right: 0; bottom: 0;
-  width: 26px; height: 26px; border-radius: 999px;
-  /* Dorado de la marca, no vino (20-ago). En rojo sobre la foto parecia un
-     aviso de error dentro de la cara del cliente: lo primero que se preguntaba
-     al abrir el perfil era que estaba mal. */
-  background: var(--accent); color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 2px 6px rgba(0,0,0,.22); border: 2px solid var(--surf);
-}
 .ep-avatar-g.cargando { opacity: .5; pointer-events: none; }
 .ep-side-logo { overflow: hidden; }
 
@@ -2692,4 +2686,25 @@ html.tema-claro .ep-tuto-bono {
 .ep-ico-compartir {
   width: 14px; height: 14px; display: inline-block; vertical-align: -2px;
   margin-left: 1px; color: var(--oro-tx);
+}
+
+/* ── EL BOTON DE LA FOTO, al lado del chip de cliente ──────────────────────
+   Antes la unica pista de que la foto se podia cambiar era un circulito
+   dorado con una camara en la esquina de la propia foto. Sergio: "no se
+   entiende qué botón hay que tocar". Y tenia razon: eso se lee como una
+   insignia de la foto, no como un boton.
+
+   Va al lado del chip y no en una linea propia (idea suya) para no gastar
+   una fila entera. Medido en 375px de ancho: chip 142 + boton 147 + 8 de
+   hueco = 297 de los 315 disponibles, justo pero entra. En una pantalla de
+   320px ya no cabe, y entonces el `flex-wrap` lo baja solo a la linea de
+   abajo en vez de apretar los dos. Comprobado en las dos medidas. */
+.ep-perfil-fila {
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; flex-wrap: wrap;
+}
+.ep-btn--foto {
+  width: auto;                 /* del ancho de su texto, no de la pantalla */
+  padding: 6px 13px; border-radius: 999px; font-size: 12.5px;
+  display: inline-flex; align-items: center; gap: 8px;
 }
