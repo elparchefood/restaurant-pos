@@ -48,6 +48,99 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json(405, { error: "method not allowed" });
 
+  let body: Record<string, unknown>;
+  try { body = await req.json(); } catch { return json(400, { error: "body inválido" }); }
+  const action = String(body.action || "");
+
+  /* REGISTRARSE ES LA UNICA ACCION SIN SESION, y tiene que serlo: quien se
+     registra todavia no tiene cuenta. Por eso se atiende AQUI, antes de exigir
+     token. Todo lo de abajo —aprobar, crear negocio, clave nueva— sigue
+     comprobando quien llama contra el servidor, nunca contra el body. */
+  if (action === "registrar") {
+    try {
+    /* ── REGISTRARSE ──────────────────────────────────────────────────────
+         Sergio, 24-ago-2026: *"yo nunca generare una contrasena para el usuario.
+         El usuario la coloca desde que se registra"*.
+
+         Y tiene razon de sobra: una clave que el sistema inventa hay que
+         mandarsela por WhatsApp o por correo, y ahi se queda escrita para
+         siempre en una conversacion que cualquiera puede abrir.
+
+         ── POR QUE LA CUENTA SE CREA AQUI Y NO AL APROBAR ──────────────────
+         Entre que alguien se registra y que Sergio aprueba pueden pasar horas.
+         Si la clave se guardara para usarla despues, habria una contrasena en
+         texto plano esperando en la base — exactamente lo que se acaba de
+         corregir con el PIN. Creando la cuenta ya, la clave se la queda el
+         sistema de acceso cifrada y nosotros no la vemos nunca.
+
+         El restaurante NO se crea todavia: eso sigue pasando al aprobar. Hasta
+         entonces la cuenta existe pero no tiene restaurante, y la pantalla de
+         entrar le dice que su solicitud esta en revision.
+
+         NO PIDE SESION a proposito: quien se registra todavia no tiene. */
+
+        const email    = String(body.email || "").trim().toLowerCase();
+        const clave    = String(body.clave || "");
+        const nombre   = String(body.nombre || "").trim();
+        const negocio  = String(body.negocio || "").trim();
+
+        if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: "correo invalido" });
+        if (clave.length < 8) return json(400, { error: "la contrasena debe tener al menos 8 caracteres" });
+        if (!nombre || !negocio) return json(400, { error: "faltan datos" });
+
+        /* Si ya hay una solicitud sin resolver con ese correo, no se crea otra:
+           Sergio se encontraria dos filas del mismo negocio sin saber cual
+           aprobar. */
+        const yaPide = await sbAdmin("GET", `/rest/v1/pos_registrations?email=eq.${encodeURIComponent(email)}&status=eq.pending&select=id&limit=1`);
+        if (Array.isArray(yaPide.data) && yaPide.data.length) {
+          return json(409, { error: "Ya tienes una solicitud en revision con ese correo. Te avisamos apenas quede lista." });
+        }
+
+        /* Y si ya tiene cuenta, tampoco: o ya es cliente, o pidio antes. Se le
+           dice que entre, en vez de dejarlo intentando registrarse otra vez. */
+        const uEx = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?filter=${encodeURIComponent(email)}`, {
+          headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}` },
+        });
+        const uList = await uEx.json().catch(() => ({})) as Record<string, unknown>;
+        const yaHay = (uList.users as Array<Record<string, unknown>> | undefined)?.find(
+          (x) => String(x.email || "").toLowerCase() === email);
+        if (yaHay) {
+          return json(409, { error: "Ese correo ya tiene una cuenta. Entra con tu contrasena, o usa 'olvide mi contrasena'." });
+        }
+
+        const auRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+          method: "POST",
+          headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email, password: clave, email_confirm: true,
+            user_metadata: { nombre, negocio, estado: "pendiente" },
+          }),
+        });
+        const auData = await auRes.json() as Record<string, unknown>;
+        if (!auRes.ok) return json(500, { error: "no se pudo crear la cuenta: " + JSON.stringify(auData).slice(0, 200) });
+
+        const reg = await sbAdmin("POST", "/rest/v1/pos_registrations", {
+          nombre, negocio, email,
+          plan: String(body.plan || "pro"),
+          sucursales: Number(body.sucursales || 1),
+          monto_total: Number(body.monto_total || 0),
+          comprobante_url: String(body.comprobante_url || "") || null,
+          status: "pending",
+        });
+        if (!reg.ok) {
+          /* La solicitud es lo que Sergio ve. Sin ella, la cuenta quedaria
+             creada y nadie sabria que hay alguien esperando: se deshace. */
+          const uid = String((auData.id as string) || ((auData.user as Record<string, unknown>)?.id as string) || "");
+          if (uid) await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${uid}`, {
+            method: "DELETE", headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}` } });
+          return json(500, { error: "no se pudo guardar la solicitud" });
+        }
+
+        return json(200, { ok: true });
+
+    } catch (e) { return json(500, { error: String(e).slice(0, 200) }); }
+  }
+
   // 1. Resolver el usuario que llama a partir de SU token (jamás confiar en el body)
   const authHeader = req.headers.get("Authorization") || "";
   const uRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
@@ -55,10 +148,6 @@ Deno.serve(async (req) => {
   });
   if (!uRes.ok) return json(401, { error: "no autenticado" });
   const user = await uRes.json() as { id: string; email?: string; user_metadata?: Record<string, unknown> };
-
-  let body: Record<string, unknown>;
-  try { body = await req.json(); } catch { return json(400, { error: "body inválido" }); }
-  const action = String(body.action || "");
 
   try {
     // ── ONBOARDING: el usuario crea SU propio negocio (una sola vez) ──────────
@@ -117,6 +206,8 @@ Deno.serve(async (req) => {
 
       return json(200, { ok: true, tenant_id: tenant.id, brand_id: brand.id, branch_id: branch.id });
     }
+
+
 
     /* ── CLAVE NUEVA para un cliente que ya existe ────────────────────────
        Hacia falta porque la clave temporal no se guarda: si Sergio cierra la

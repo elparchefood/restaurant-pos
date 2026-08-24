@@ -205,6 +205,26 @@
             <input type="email" id="inp-email" placeholder="tucorreo@ejemplo.com" autocomplete="email">
           </div>
         </div>
+        <!-- LA CONTRASENA LA PONE EL DUENO, AQUI (24-ago-2026).
+             Antes el sistema le inventaba una temporal y Sergio se la mandaba.
+             Sergio: "yo nunca generare una contrasena para el usuario". Y tiene
+             razon: una clave que viaja por WhatsApp o correo se queda escrita
+             en la conversacion para siempre. -->
+        <div class="field-wrap">
+          <div class="field-label">Tu contraseña</div>
+          <div class="field">
+            <span class="field-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+            <input type="password" id="inp-clave" placeholder="Mínimo 8 caracteres" autocomplete="new-password">
+          </div>
+          <div class="field-hint" id="clave-pista" style="font-size:12px;color:#94A3B8;margin-top:5px">Con esta entras a Cobra POS. Guárdala.</div>
+        </div>
+        <div class="field-wrap">
+          <div class="field-label">Repite la contraseña</div>
+          <div class="field">
+            <span class="field-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+            <input type="password" id="inp-clave2" placeholder="La misma de arriba" autocomplete="new-password">
+          </div>
+        </div>
         <div class="field-wrap">
           <div class="field-label">Teléfono (opcional)</div>
           <div class="field">
@@ -364,7 +384,7 @@
 <script src="pos-core.js?v=1791745000"></script>
   <script src="pos-plan.js?v=1791810000"></script>
 <script src="pos-brand.js?v=1790530000"></script>
-<script src="register.js?v=1792080000"></script>
+<script src="register.js?v=1792120000"></script>
 
 <!-- El QR a pantalla completa: se escanea desde OTRO telefono, asi que tiene
      que verse grande y sobre blanco. Un QR pequeno o sobre color se lee mal. -->

@@ -163,6 +163,14 @@ function validateStep2() {
   if (!nombre)  { showError('Ingresa tu nombre completo.'); return; }
   if (!negocio) { showError('Ingresa el nombre de tu negocio.'); return; }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError('Ingresa un correo válido.'); return; }
+
+  /* La contrasena se comprueba AQUI y no al enviar: si el error saliera en el
+     paso 3, la persona ya subio su comprobante y tendria que volver atras sin
+     entender por que. */
+  var clave  = ((document.getElementById('inp-clave')  || {}).value || '');
+  var clave2 = ((document.getElementById('inp-clave2') || {}).value || '');
+  if (clave.length < 8) { showError('La contraseña debe tener al menos 8 caracteres.'); return; }
+  if (clave !== clave2) { showError('Las dos contraseñas no son iguales.'); return; }
   goStep(3);
 }
 
@@ -309,19 +317,28 @@ async function enviarSolicitud() {
        direccion firmada, que caduca. */
     var compUrl = filename;
 
-    // 2. Insertar solicitud en pos_registrations
+    /* 2. La solicitud Y la cuenta, en una sola llamada al servidor.
+       Antes esta pantalla insertaba la solicitud directamente y la cuenta se
+       creaba al aprobar, con una clave que el sistema inventaba. Ahora la
+       clave la escoge el dueno aqui mismo, asi que la cuenta se crea YA:
+       guardarla para usarla en unas horas seria dejar una contrasena en texto
+       plano esperando en la base.
+
+       Va por el servidor y no desde aqui porque crear cuentas necesita
+       permisos que ninguna pantalla puede tener. */
     var total = calcTotal(PLAN, BRANCHES);
-    var insertRes = await sb.from('pos_registrations').insert({
-      nombre:          nombre,
-      negocio:         negocio,
-      email:           email,
-      plan:            PLAN,
-      sucursales:      BRANCHES,
-      monto_total:     total,
-      comprobante_url: compUrl,
-      status:          'pending'
+    var clave = ((document.getElementById('inp-clave') || {}).value || '');
+    var reg = await fetch(SUPABASE_URL + '/functions/v1/provision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+      body: JSON.stringify({
+        action: 'registrar', nombre: nombre, negocio: negocio, email: email,
+        clave: clave, plan: PLAN, sucursales: BRANCHES,
+        monto_total: total, comprobante_url: compUrl,
+      })
     });
-    if (insertRes.error) throw insertRes.error;
+    var rd = await reg.json().catch(function () { return {}; });
+    if (!reg.ok || !rd.ok) throw new Error(rd.error || 'No se pudo completar el registro.');
 
     // 3. Mostrar confirmación
     setConfirmData(negocio, email, total);
