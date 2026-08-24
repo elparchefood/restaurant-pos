@@ -87,8 +87,17 @@
 
   /* Las columnas son la UNIÓN de lo que piden las pantallas de turno. Se pide
      una vez lo que antes se pedía cuatro veces con recortes distintos. */
-  var COLS_PROD = 'id,name,price,price_mode,category_id,photo_url,available,'
-                + 'presentations,variables,mod_group_ids,mod_group_pres,sort_order';
+  /* TODAS las columnas de `pos_products`, a proposito. Dos de las tres
+     pantallas de venta piden `select('*')`, asi que si aqui se guardara un
+     recorte, cambiarlas por lo guardado les quitaria columnas en silencio: no
+     dan error, simplemente dejan de pintar una medalla o de cobrar un
+     impuesto. Escritas una por una y no como `*` para que se vea que se
+     compararon con la tabla — si manana se agrega una columna, hay que
+     anadirla aqui (y el dia que falte, se nota leyendo esta linea). */
+  var COLS_PROD = 'id,category_id,name,description,price,image_url,available,'
+                + 'sort_order,branch_id,tenant_id,photo_url,presentations,variables,'
+                + 'mod_group_ids,price_mode,mod_group_pres,impuesto_pct,brand_id,'
+                + 'medalla,agotado,carta_grande,medalla_valor';
 
   async function traer() {
     var s = sb(), st = estado();
@@ -227,8 +236,62 @@
   }
   arrancar();
 
+  /* ── LA CARTA, LISTA PARA PINTAR ────────────────────────────────────────
+     Las tres pantallas de venta pedian lo mismo con recortes y ordenes
+     ligeramente distintos. Aqui se devuelve ya filtrado y ordenado como cada
+     una lo espera, para que ninguna tenga que acordarse.
+
+     Devuelve null si no hay nada guardado: entonces la pantalla pregunta a la
+     base como siempre. NUNCA devuelve una carta a medias.
+
+     opts:
+       activas: true  -> solo categorias con `active` (lo que pide Venta rapida)
+       orden:  'sort' -> por sort_order y luego nombre  (Tomar pedido, Venta rapida)
+               'nombre' -> por nombre                    (Domicilios)
+
+     OJO CON EL ORDEN. Los productos NO se reordenan: vienen de la base ya
+     pedidos por nombre, asi que conservan su intercalacion exacta. Las
+     categorias si se ordenan aqui, con `localeCompare('es')`, que es lo mas
+     parecido a lo que hace la base. Comprobado contra las 7 categorias y los
+     54 productos reales: mismo orden por los dos caminos. Si algun dia una
+     categoria se acomoda sola en un sitio raro, mirar aqui primero. */
+  function carta(opts) {
+    if (!memoria || !memoria.productos || !memoria.productos.length) return null;
+    opts = opts || {};
+
+    var cats = (memoria.categorias || []).slice();
+    /* Igualdad ESTRICTA, no `!== false`. La base filtraba con `active = true`,
+       y eso deja fuera tambien las que estan vacias. Con `!== false` una fila
+       vacia aparecería aqui y no en el camino de la base: la misma pantalla
+       mostraria una categoria distinta segun si alcanzo a guardar o no. Hoy no
+       hay ninguna vacia (0 de 17), pero el que se comporten igual no puede
+       depender de eso. */
+    if (opts.activas) cats = cats.filter(function (c) { return c.active === true; });
+    if (opts.orden === 'nombre') {
+      cats.sort(function (a, b) { return String(a.name||'').localeCompare(String(b.name||''), 'es'); });
+    } else {
+      cats.sort(function (a, b) {
+        /* `nullsFirst:false`: las que no tienen posicion van al final. */
+        var sa = (a.sort_order == null) ? Infinity : a.sort_order;
+        var sb2 = (b.sort_order == null) ? Infinity : b.sort_order;
+        if (sa !== sb2) return sa - sb2;
+        return String(a.name||'').localeCompare(String(b.name||''), 'es');
+      });
+    }
+
+    return {
+      categorias: cats,
+      /* `available` se filtra aqui y no al traerlo: si se guardara ya
+         filtrado, activar un producto obligaria a volver a bajar la carta
+         entera en vez de leerlo de lo que ya esta en el equipo. */
+      productos:  (memoria.productos || []).filter(function (p) { return p.available === true; }),
+      adiciones:  memoria.adiciones || [],
+    };
+  }
+
   w.posDatos = {
     cargar:     cargar,
+    carta:      carta,
     invalidar:  invalidar,
     listo:      function () { return !!memoria; },
     productos:  parte('productos', []),

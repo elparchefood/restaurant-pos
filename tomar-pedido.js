@@ -229,14 +229,29 @@ async function _catalogFetch(cacheKey, isBackground) {
   // lectura puede fallar transitoriamente — no dejar el catálogo vacío por eso.
   for (var intento = 1; intento <= 3; intento++) {
     try {
-      const [catsRes, prodsRes] = await Promise.all([
-        sb.from('pos_categories').select('*').eq('tenant_id', S.tenantId)
-          .order('sort_order',{nullsFirst:false}).order('name'),
-        sb.from('pos_products')  .select('*').eq('tenant_id', S.tenantId).eq('available', true).order('name'),
-      ]);
-      if (catsRes.error) throw catsRes.error;
-      if (prodsRes.error) throw prodsRes.error;
-      const cats = catsRes.data, prods = prodsRes.data;
+      /* LA CARTA, DE LO QUE YA ESTA EN EL EQUIPO. La trajo `posDatos` una sola
+         vez al abrir el programa; aqui no se vuelve a preguntar. Son tres
+         viajes menos cada vez que se abre esta pantalla —categorias,
+         productos y adiciones— por datos que no cambian en todo un turno.
+         Si no hay nada guardado se pregunta a la base, igual que siempre. */
+      let cats = null, prods = null, modsGuardadas = null;
+      if (window.posDatos) {
+        try {
+          await posDatos.cargar();
+          const _c = posDatos.carta({ orden: 'sort' });
+          if (_c) { cats = _c.categorias; prods = _c.productos; modsGuardadas = _c.adiciones; }
+        } catch (e) { console.warn('[carta] guardada:', e && e.message); }
+      }
+      if (!prods) {
+        const [catsRes, prodsRes] = await Promise.all([
+          sb.from('pos_categories').select('*').eq('tenant_id', S.tenantId)
+            .order('sort_order',{nullsFirst:false}).order('name'),
+          sb.from('pos_products')  .select('*').eq('tenant_id', S.tenantId).eq('available', true).order('name'),
+        ]);
+        if (catsRes.error) throw catsRes.error;
+        if (prodsRes.error) throw prodsRes.error;
+        cats = catsRes.data; prods = prodsRes.data;
+      }
       S.cats = (cats || []).map((c, i) => ({
         ...c,
         color: c.color || CAT_PALETTE[i % CAT_PALETTE.length].color,
@@ -249,8 +264,8 @@ async function _catalogFetch(cacheKey, isBackground) {
         mod_group_ids: Array.isArray(p.mod_group_ids) ? p.mod_group_ids : [],
         mod_group_pres: (p.mod_group_pres && typeof p.mod_group_pres === 'object') ? p.mod_group_pres : {},
       }));
-      const { data: mods } = await sb.from('pos_modifier_groups')
-        .select('id,name,rule,multi,options').eq('tenant_id', S.tenantId);
+      const mods = modsGuardadas || (await sb.from('pos_modifier_groups')
+        .select('id,name,rule,multi,options').eq('tenant_id', S.tenantId)).data;
       S.modGroups = (mods || []).map(g => ({
         id:g.id, name:g.name, rule:g.rule||'opcional', multi:!!g.multi,
         options: Array.isArray(g.options) ? g.options : [],

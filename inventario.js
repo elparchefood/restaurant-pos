@@ -43,6 +43,16 @@ let ventaSinInvOn = false; // política: ¿permitir vender productos con insumos
 // ═══════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════
+/* Las recetas y la identidad de los insumos las leen las pantallas de VENTA
+   desde lo guardado en el equipo (`datos.turno`, de pos-datos.js) para no
+   pedir 374 recetas cada vez que se abren. Si se cambia una receta aqui y no
+   se avisa, el detector de agotados seguiria con la receta vieja hasta que
+   alguien reabra el programa: podria dejar vender un plato cuyo insumo nuevo
+   esta en cero. El STOCK no entra en esto — ese siempre se pide en vivo. */
+function ivAvisarCambio() {
+  try { if (window.posCache) posCache.borrar('datos.turno'); } catch (e) {}
+}
+
 function ivCOP(n) {
   if (isNaN(n) || n === null) return '$0';
   return '$' + Math.round(n).toLocaleString('es-CO');
@@ -1047,6 +1057,7 @@ async function toggleVisible(prodId, btn) {
   const label = btn.querySelector('.iv-switch-label');
   if (label) label.textContent = prod.visible ? 'Visible al mesero' : 'Oculto al mesero';
   await iv_sb.from('pos_products').update({ available: prod.visible }).eq('id', prodId);
+  ivAvisarCambio();
   showToast(prod.nombre + (prod.visible ? ' visible al mesero' : ' ocultado al mesero'));
 }
 
@@ -1352,6 +1363,7 @@ async function guardarRecetaEdit() {
       .eq('mod_option_id', prod.modOptionId).eq('tenant_id', tenantId).eq(brandId ? 'brand_id' : 'branch_id', brandId || branchId);
   } else {
     await iv_sb.from('iv_recetas').delete().eq('product_id', prodId);
+    ivAvisarCambio();
   }
   if (lines.length) {
     const rows = lines.map(l => {
@@ -1374,6 +1386,7 @@ async function guardarRecetaEdit() {
     });
     rows.forEach(function (r) { r.brand_id = brandId; });   // la receta es de la marca
     const { error } = await iv_sb.from('iv_recetas').insert(rows);
+    ivAvisarCambio();
     if (error) {
       console.error('[receta-edit] guardar:', error);
       showToast('No se pudo guardar la receta: ' + (error.message || error.code || 'error desconocido'));
@@ -2387,6 +2400,7 @@ async function guardarInsumo() {
     // Se guarda EXACTAMENTE igual que siempre. Lo único nuevo viene después.
     const _stockAntes = (function(){ const p=insumos.find(i=>i.id===editId); return p ? (parseFloat(p.stock)||0) : null; })();
     await iv_sb.from('iv_insumos').update(payload).eq('id',editId);
+    ivAvisarCambio();
     const ins=insumos.find(i=>i.id===editId);
     if (ins) Object.assign(ins,{nombre,cat,catColor,prep:togglePrepOn,controlManual:toggleManualOn,agotadoManual:agotadoManualFinal,buyUnit,useUnit,precio,conversion,stock,min,...extra});
     // NUEVO (aditivo, no cambia nada de lo anterior): si el stock quedó distinto
@@ -2418,6 +2432,7 @@ async function eliminarInsumo() {
   const editId=document.getElementById('ins-edit-id').value;
   if (!editId||!confirm('¿Eliminar este insumo?')) return;
   await iv_sb.from('iv_insumos').update({activo:false}).eq('id',editId);
+  ivAvisarCambio();
   insumos=insumos.filter(i=>i.id!==editId);
   closePanel('panel-insumo'); showToast('Insumo eliminado');
   renderInsumos(); updateKPIs();
@@ -3231,6 +3246,7 @@ async function iaGuardarReceta() {
 
   // Borrar receta anterior si existía
   await iv_sb.from('iv_recetas').delete().eq('product_id', iaState.prodId);
+  ivAvisarCambio();
 
   // Insertar nuevas líneas de receta
   const recetaRows = recetaLinks.map(l => ({
@@ -3246,6 +3262,7 @@ async function iaGuardarReceta() {
   if (recetaRows.length) {
     recetaRows.forEach(function (r) { r.brand_id = brandId; });
     const { error } = await iv_sb.from('iv_recetas').insert(recetaRows);
+    ivAvisarCambio();
     if (error) { console.error('[IA] guardar receta:', error); showToast('Error al guardar receta'); return; }
   }
 

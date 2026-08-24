@@ -208,7 +208,16 @@ async function saveModGroupToSupabase(g) {
 async function deleteCategoryFromSupabase(id){try{await sb.from('pos_categories').delete().eq('id',id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();}catch(e){}}
 async function deleteProductFromSupabase(id){try{await sb.from('pos_products').delete().eq('id',id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();}catch(e){}}
 async function deleteComboFromSupabase(id){try{await sb.from('pos_combos').delete().eq('id',id).eq('tenant_id',S.tenantId);}catch(e){}}
-function _invalidateCatalogCache(){try{['v2','v3','v4'].forEach(function(v){localStorage.removeItem('pos.catalog.'+v+'.'+S.tenantId);});}catch(e){}}
+/* Al guardar un cambio en la carta hay que tirar DOS cosas: lo que guarda esta
+   pantalla para si misma, y la carta que las pantallas de VENTA leen del equipo
+   (`datos.turno`, de pos-datos.js). Sin lo segundo, Sergio cambiaria un precio
+   aqui, se iria a Ventas y seguiria viendo el viejo hasta reabrir el programa.
+   Se borra la llave en vez de llamar a `posDatos.invalidar()` porque este
+   modulo no carga pos-datos.js — no lo necesita, solo tiene que avisar. */
+function _invalidateCatalogCache(){
+  try{['v2','v3','v4'].forEach(function(v){localStorage.removeItem('pos.catalog.'+v+'.'+S.tenantId);});}catch(e){}
+  try{ if(window.posCache) posCache.borrar('datos.turno'); }catch(e){}
+}
 async function deleteModGroupFromSupabase(id){try{await sb.from('pos_modifier_groups').delete().eq('id',id).eq('tenant_id',S.tenantId);_invalidateCatalogCache();}catch(e){}}
 
 // ── Auth ──────────────────────────────────────────────────────────────────
@@ -592,6 +601,7 @@ async function toggleProduct(id){
   const p=S.products.find(x=>x.id===id);if(!p)return;
   p.active=!p.active;
   await sb.from('pos_products').update({available:p.active}).eq('id',id).eq('tenant_id',S.tenantId);
+  _invalidateCatalogCache();   // encender/apagar un producto SI se ve en Ventas
   _invalidateCatalogCache();
   renderBody();
 }
@@ -750,6 +760,7 @@ async function catDragFin(){
   try{
     const r = await Promise.all(cambios.map(x =>
       sb.from('pos_categories').update({sort_order:x.n}).eq('id',x.c.id).eq('tenant_id',S.tenantId)));
+  _invalidateCatalogCache();   // el orden de las categorias tambien
     const err = r.find(x=>x && x.error);
     if(err) throw err.error;
     if(combosMovio){

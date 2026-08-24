@@ -847,12 +847,25 @@ async function loadCatalog() {
         {color:'#10B981',tint:'#ECFDF5',ring:'#A7F3D0'},
         {color:'#0EA5E9',tint:'#F0F9FF',ring:'#BAE6FD'},
       ];
-      const [{ data: cats }, { data: prods }, { data: mods }] = await Promise.all([
-        sb.from('pos_categories').select('id,name,color,color_tint,color_ring,image_url,comanda_alias').eq('active', true).eq('tenant_id', S.tenantId)
-          .order('sort_order',{nullsFirst:false}).order('name'),
-        sb.from('pos_products').select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids,mod_group_pres').eq('available', true).eq('tenant_id', S.tenantId).order('name'),
-        sb.from('pos_modifier_groups').select('id,name,rule,multi,options').eq('tenant_id', S.tenantId),
-      ]);
+      /* De lo guardado (`posDatos`). `activas: true` porque esta pantalla, a
+         diferencia de las otras dos, solo muestra las categorias encendidas. */
+      let cats = null, prods = null, mods = null;
+      if (window.posDatos) {
+        try {
+          await posDatos.cargar();
+          const _c = posDatos.carta({ orden: 'sort', activas: true });
+          if (_c) { cats = _c.categorias; prods = _c.productos; mods = _c.adiciones; }
+        } catch (e) { console.warn('[carta] guardada:', e && e.message); }
+      }
+      if (!prods) {
+        const _r = await Promise.all([
+          sb.from('pos_categories').select('id,name,color,color_tint,color_ring,image_url,comanda_alias').eq('active', true).eq('tenant_id', S.tenantId)
+            .order('sort_order',{nullsFirst:false}).order('name'),
+          sb.from('pos_products').select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids,mod_group_pres').eq('available', true).eq('tenant_id', S.tenantId).order('name'),
+          sb.from('pos_modifier_groups').select('id,name,rule,multi,options').eq('tenant_id', S.tenantId),
+        ]);
+        cats = _r[0].data; prods = _r[1].data; mods = _r[2].data;
+      }
       S.categories = (cats || []).map((c, i) => ({
         ...c,
         color: c.color      || PALETA[i % PALETA.length].color,

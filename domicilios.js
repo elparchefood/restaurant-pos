@@ -433,20 +433,32 @@ async function loadCatalog() {
 async function _catalogFetch(cacheKey, isBackground) {
   for (let intento = 1; intento <= 3; intento++) {
   try {
-    const [catsRes, prodsRes, modsRes] = await Promise.all([
-      sb.from('pos_categories')
-        .select('id,name,color,color_tint,color_ring,image_url,comanda_alias')
-        .eq('tenant_id', S.tenantId).order('name'),
-      sb.from('pos_products')
-        .select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids,mod_group_pres')
-        .eq('tenant_id', S.tenantId).eq('available', true).order('name'),
-      sb.from('pos_modifier_groups')
-        .select('id,name,rule,multi,options')
-        .eq('tenant_id', S.tenantId),
-    ]);
-    if (catsRes.error) throw catsRes.error;
-    if (prodsRes.error) throw prodsRes.error;
-    const cats = catsRes.data, prods = prodsRes.data, mods = modsRes.data;
+    /* De lo que ya esta en el equipo (`posDatos`, traido una vez al abrir).
+       Tres viajes menos por cada apertura. Sin nada guardado, a la base. */
+    let cats = null, prods = null, mods = null;
+    if (window.posDatos) {
+      try {
+        await posDatos.cargar();
+        const _c = posDatos.carta({ orden: 'nombre' });
+        if (_c) { cats = _c.categorias; prods = _c.productos; mods = _c.adiciones; }
+      } catch (e) { console.warn('[carta] guardada:', e && e.message); }
+    }
+    if (!prods) {
+      const [catsRes, prodsRes, modsRes] = await Promise.all([
+        sb.from('pos_categories')
+          .select('id,name,color,color_tint,color_ring,image_url,comanda_alias')
+          .eq('tenant_id', S.tenantId).order('name'),
+        sb.from('pos_products')
+          .select('id,name,price,price_mode,category_id,photo_url,available,presentations,variables,mod_group_ids,mod_group_pres')
+          .eq('tenant_id', S.tenantId).eq('available', true).order('name'),
+        sb.from('pos_modifier_groups')
+          .select('id,name,rule,multi,options')
+          .eq('tenant_id', S.tenantId),
+      ]);
+      if (catsRes.error) throw catsRes.error;
+      if (prodsRes.error) throw prodsRes.error;
+      cats = catsRes.data; prods = prodsRes.data; mods = modsRes.data;
+    }
     /* LA CARTA ES DE LA MARCA, con ajustes por local: si esta sucursal tiene
        un precio propio para un producto, es ESE el que se cobra. pos-carta
        resuelve la herencia en un solo sitio para que ninguna pantalla la
