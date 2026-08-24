@@ -438,6 +438,7 @@
       asegurarPush();
       ofrecerInstalar();
       ofrecerNotificar();
+      ofrecerFoto();
     }
     asegurarPedidoVivo();
     var c = S.cliente || {};
@@ -588,7 +589,8 @@
       pfA.disabled = true; pfA.textContent = 'Un momento…';
       try {
         var permiso = await Notification.requestPermission();
-        try { localStorage.setItem('ep-notif-pedido', '1'); } catch (e) {}
+        /* Ya no se apunta "ya se le pidio": nadie lo lee y ademas era lo que
+           dejaba a la gente sin avisos para siempre (ver tocaNotificar). */
         if (permiso === 'granted') {
           await suscribirPush();
           aviso('Listo, te avisaremos de tu pedido', 'bien');
@@ -2553,29 +2555,111 @@
     function cerrar() { cap.remove(); }
     cap.querySelector('.ep-not-no').onclick = function () {
       /* Un "ahora no" NO se le pregunta al navegador: asi el permiso queda
-         intacto y se le puede volver a ofrecer mas adelante. */
-      try { localStorage.setItem('ep-notif-no', String(Date.now())); } catch (e) {}
+         intacto y se le puede volver a ofrecer la proxima vez que entre.
+         Ya no se apunta la fecha: Sergio pidio que se ofrezca en cada visita
+         mientras no lo haya negado de verdad. */
       cerrar();
     };
     cap.querySelector('.ep-not-si').onclick = async function () {
       cerrar();
       try {
         var permiso = await Notification.requestPermission();
-        try { localStorage.setItem('ep-notif-pedido', '1'); } catch (e) {}
+        /* Aqui se guardaba "ya se le pidio" y con eso la app se callaba para
+           siempre — aunque el cuadro de Apple no hubiera concedido nada. Ese
+           es exactamente el limbo en el que quedo Camerón. Ahora no se guarda
+           nada: si el permiso sigue en "default", en la proxima visita se le
+           vuelve a ofrecer. */
         if (permiso === 'granted') await suscribirPush();
       } catch (e) { console.error('[notif]', e); }
     };
   }
 
+  /* SE OFRECE EN CADA VISITA, NO UNA VEZ (23-ago-2026, pedido de Sergio).
+
+     El caso que lo destapo: Camerón (3044868407) instalo la app en su iPhone,
+     Sergio la acompaño a hacerlo, y ella quedo convencida de que habia
+     activado los avisos. En la base: cero suscripciones. En iPhone son DOS
+     pasos —nuestra tarjeta y despues el cuadro de Apple— y es facilisimo
+     quedarse a medias creyendo que ya esta.
+
+     Antes, con una sola negativa ("ahora no") la app se callaba 14 dias, y
+     con `ep-notif-pedido` se callaba PARA SIEMPRE — bastaba con que el cuadro
+     de Apple se hubiera abierto una vez, aunque no se hubiera concedido nada.
+     Asi es como alguien se queda meses sin avisos sin enterarse.
+
+     La UNICA razon para no volver a ofrecerlo es que el cliente lo haya
+     NEGADO de verdad (permission === "denied"): ahi el navegador ya no vuelve
+     a mostrar el cuadro, asi que insistir solo seria molestar sin que pueda
+     pasar nada. Si esta concedido, tampoco: de eso se encarga asegurarPush,
+     que lo repara solo. */
+  /* ══ LA FOTO DE PERFIL: SE INVITA DOS VECES ═══════════════════════════
+     Pedido de Sergio (23-ago-2026). Dos veces y no siempre: a la tercera ya
+     no es una invitacion, es insistencia — y quien no quiere poner foto no la
+     va a poner por verlo una vez mas.
+
+     No se le ofrece a quien YA tiene foto: seria pedirle algo que ya hizo.
+     Y la cuenta se lleva por CLIENTE, no por aparato, para que quien entre en
+     el celular de otro no se gaste las dos veces del dueño.
+
+     Va despues del aviso de instalar y del de avisos a proposito: esos dos
+     sirven para que le lleguen sus pedidos; la foto es lo bonito. Si los tres
+     tocan la misma visita, primero lo que importa. */
+  function llaveFoto() {
+    var c = S.cliente || {};
+    return 'ep-foto-invit-' + (c.id || c.telefono || '');
+  }
+  function vecesFoto() {
+    try { return Number(localStorage.getItem(llaveFoto()) || 0); } catch (e) { return 99; }
+  }
+
+  function ofrecerFoto() {
+    var c = S.cliente || {};
+    if (c.foto) return;                         // ya la tiene
+    if (vecesFoto() >= 2) return;
+    /* Con calma: si se abre encima de los otros avisos, se pisan. */
+    setTimeout(pantallaFoto, 6000);
+  }
+
+  function pantallaFoto() {
+    /* Si en estos segundos se abrio otro aviso, este se espera a la proxima
+       visita en vez de taparlo. */
+    if (document.querySelector('.ep-aviso-cap')) return;
+    var c = S.cliente || {};
+    if (c.foto) return;
+    /* LA CUENTA SE APUNTA AQUI Y NO AL PROGRAMARLA: si se apuntara antes, una
+       invitacion que nunca llego a verse —porque habia otro aviso encima— se
+       habria gastado igual, y al cliente le quedaria una sola oportunidad
+       real de las dos que pidio Sergio. */
+    if (vecesFoto() >= 2) return;
+    try { localStorage.setItem(llaveFoto(), String(vecesFoto() + 1)); } catch (e) {}
+    var cap = document.createElement("div");
+    cap.className = "ep-aviso-cap";
+    cap.innerHTML =
+      '<div class="ep-aviso-box ep-inst" role="dialog" aria-modal="true" aria-label="Tu foto de perfil">' +
+        '<div class="ep-inst-cab">' +
+          /* `flex:0 0 auto` porque la fila es flex y le aplastaba el circulo
+             (medido: salia 45x50 en vez de redondo). */
+          '<span class="ep-avatar-g" style="flex:0 0 auto;width:50px;height:50px;font-size:18px">' +
+            esc(iniciales(c.nombre)) + '</span>' +
+          '<div><div class="ep-inst-tit">Ponle tu foto</div>' +
+            '<div class="ep-inst-sub">Para que te reconozcamos cuando pidas 😊</div></div>' +
+        '</div>' +
+        '<button class="ep-btn gold big ep-foto-si" type="button">Poner mi foto</button>' +
+        '<button class="ep-btn ep-btn--ghost ep-foto-no" type="button">Ahora no</button>' +
+      '</div>';
+    document.body.appendChild(cap);
+    function cerrar() { cap.remove(); }
+    cap.querySelector('.ep-foto-no').onclick = cerrar;
+    cap.addEventListener("click", function (ev) { if (ev.target === cap) cerrar(); });
+    cap.querySelector('.ep-foto-si').onclick = function () {
+      cerrar();
+      irA('perfil');
+    };
+  }
+
   function tocaNotificar() {
     if (!puedeAvisos()) return false;   // en iPhone hace falta instalarla; en Android no
-    if (Notification.permission !== 'default') return false;   // ya decidio
-    try {
-      if (localStorage.getItem('ep-notif-pedido')) return false;
-      var v = Number(localStorage.getItem('ep-notif-no') || 0);
-      if (v && (Date.now() - v) < 14 * 864e5) return false;
-    } catch (e) {}
-    return true;
+    return Notification.permission === 'default';
   }
   function ofrecerNotificar() {
     if (!tocaNotificar()) return;
