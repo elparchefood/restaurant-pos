@@ -849,7 +849,7 @@
     try {
       var cajaStart = await getCajaSessionStart();
       var q = sb.from('pos_orders')
-        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, waiter_id, domiciliario, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at, cliente_id, notes, domi_movil')
+        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, waiter_id, domiciliario, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at, cliente_id, notes, domi_movil, origen')
         .eq('channel', 'domicilio')
         .not('status', 'eq', 'cancelled')
         .gte('created_at', cajaStart)
@@ -899,6 +899,10 @@
           // `waiter_name` es quien TOMO el pedido (cajero o Chat IA), no quien
           // reparte. Estaban confundidos y la tarjeta decia "Domiciliario: Chat IA".
           cajero:       r.waiter_name || _vsUsr[r.waiter_id] || '',
+          /* DE DONDE VINO EL PEDIDO. Los que hace el cliente solo, desde la
+             app, no tienen cajero — y el espacio donde iria su nombre quedaba
+             vacio. Con esto se puede decir quien lo tomo de verdad: la app. */
+          origen:       r.origen || '',
           domiciliario: r.domiciliario || '',
           /* El movil de la empresa externa, si el despacho lo anoto
              (20-ago). El nombre de la empresa sale de la lista que cada
@@ -1705,7 +1709,18 @@
      bajo la etiqueta "Domiciliario", que ademas mostraba "Chat IA" cuando el
      pedido entraba por el bot. El domiciliario solo sale si es interno: del
      externo no sabemos ni el nombre. */
-  function vsQuienRow(cajero, domiciliario, chipHtml) {
+  /* EL LOGO Y EL NOMBRE DEL RESTAURANTE, para los pedidos de la app.
+     Los guarda pos-brand.js en este equipo, asi que no hay que salir a la red
+     para pintarlos. Si todavia no estan (equipo recien estrenado), se cae al
+     nombre de la sucursal y a la letra inicial, que es lo que ya hacia. */
+  function _appMarca() {
+    var logo = "", nom = "";
+    try { logo = localStorage.getItem("pos.brand.logo") || ""; } catch (e) {}
+    try { nom  = localStorage.getItem("pos.brand.restaurante") || ""; } catch (e) {}
+    return { logo: logo, nombre: nom };
+  }
+
+  function vsQuienRow(cajero, domiciliario, chipHtml, origen) {
     const limpio = function (s) {
       const t = String(s == null ? '' : s).trim();
       if (!t || t === '—' || t === 'Externo' || t.indexOf('@') >= 0) return '';
@@ -1720,6 +1735,24 @@
         + '<div class="vs-mesero-name">' + _esc(nombre) + '</div></div>'
         + (chip || '') + '</div>';
     };
+    /* PEDIDO HECHO DESDE LA APP (23-ago-2026, pedido de Sergio). Aqui no hay
+       cajero porque no lo tomo nadie: lo hizo el cliente solo. Antes el hueco
+       quedaba vacio y no se sabia de donde habia salido el pedido; ahora dice
+       el restaurante con su logo, en el mismo sitio donde iria el cajero. */
+    if (!caj && String(origen || "") === "web") {
+      var m = _appMarca();
+      var nombreApp = m.nombre || "la app";
+      var icono = m.logo
+        ? '<img src="' + _esc(m.logo) + '" alt="" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit">'
+        : _esc(nombreApp[0].toUpperCase());
+      var filaApp = '<div class="vs-mesero-row">'
+        + '<div class="lm-avatar lm-avatar-md" style="overflow:hidden;padding:0">' + icono + '</div>'
+        + '<div class="vs-mesero-spacer"><div class="vs-mesero-label">Pedido por la app</div>'
+        + '<div class="vs-mesero-name">' + _esc(nombreApp) + '</div></div>'
+        + (chipHtml || '') + '</div>';
+      return filaApp + (dom ? fila('Domiciliario', dom, '') : '');
+    }
+
     if (!caj && !dom) {
       // Sin ningun nombre no se pinta la banda: quedaba un recuadro gris vacio
       // con el chip flotando dentro. Solo el chip, alineado a la derecha.
@@ -1893,7 +1926,7 @@
           </div>
         </div>
         ${vsQuienRow(d.cajero, d.domiciliario,
-            '<span style="font-size:11px;font-weight:600;color:'+payColor+';background:'+payBg+';padding:3px 8px;border-radius:6px">'+payLabel+'</span>')}
+            '<span style="font-size:11px;font-weight:600;color:'+payColor+';background:'+payBg+';padding:3px 8px;border-radius:6px">'+payLabel+'</span>', d.origen)}
         ${(function () {
           /* EL MOVIL SE ANOTA AQUI MISMO (20-ago, Sergio despacha desde esta
              pantalla): un toque abre el campo, Enter o salir guarda en
