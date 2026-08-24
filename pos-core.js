@@ -410,3 +410,34 @@ window.posPuntosFrase = function () {
   var m = '$ ' + Math.round(r.pesosPorPunto).toLocaleString('es-CO');
   return '1 punto por cada ' + m;
 };
+
+
+/* ══════════════════════════════════════════════════════════════════
+   LA LLAVE DEL PLANO DEL SALON — UNA SOLA, Y POR SEDE
+   ──────────────────────────────────────────────────────────────────
+   El plano se guardaba en `pos.config.salon.v1`, sin decir de que
+   restaurante era, y esa misma cadena estaba escrita a mano en CUATRO
+   archivos: ventas, configuracion, onboarding y tomar pedido.
+
+   El 24-ago-2026, en pleno servicio, Sergio vio 16 mesas donde tiene 8, con
+   la 01, 02, 03 y 04 repetidas: habia entrado al restaurante de pruebas en
+   el mismo computador y el plano de aquel se quedo guardado. El salon junto
+   los dos.
+
+   Nadie lo habia visto porque hasta ese dia solo existia un restaurante por
+   equipo. Se rompio justo cuando hubo dos.
+
+   Aqui queda UNA sola funcion. Cuatro copias de la misma cadena es como se
+   desincronizan las cosas: si manana alguien la cambia en un archivo, los
+   otros tres siguen leyendo la vieja y la pantalla se queda en blanco sin
+   decir por que.
+   ══════════════════════════════════════════════════════════════════ */
+window.posLlaveSalon = function () {
+  var b = '';
+  try { b = (window._pos && window._pos.state && window._pos.state.branchId) || ''; } catch (e) {}
+  if (!b) { try { b = localStorage.getItem('pos.contexto.sucursal') || ''; } catch (e) {} }
+  /* La vieja se borra al pasar: dejarla ahi es guardar basura que ademas
+     confunde a quien la encuentre buscando este mismo fallo. */
+  try { localStorage.removeItem('pos.config.salon.v1'); } catch (e) {}
+  return 'pos.config.salon.v1.' + (b || 'sin-sede');
+};

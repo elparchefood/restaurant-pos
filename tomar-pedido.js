@@ -112,7 +112,7 @@ async function loadTable() {
       paintTableInfo(data);
     } else {
       // Fallback: leer de localStorage (configuracion.js guarda mesas ahí)
-      const local = JSON.parse(localStorage.getItem('pos.config.salon.v1') || '{}');
+      const local = JSON.parse(localStorage.getItem(window.posLlaveSalon ? window.posLlaveSalon() : 'pos.config.salon.v1') || '{}');
       const t = (local.tables || []).find(t => t.id === S.tableId);
       if (t) {
         S.table = t;
@@ -122,7 +122,7 @@ async function loadTable() {
   } catch(e) {
     // Intentar localStorage si Supabase falla
     try {
-      const local = JSON.parse(localStorage.getItem('pos.config.salon.v1') || '{}');
+      const local = JSON.parse(localStorage.getItem(window.posLlaveSalon ? window.posLlaveSalon() : 'pos.config.salon.v1') || '{}');
       const t = (local.tables || []).find(t => t.id === S.tableId);
       if (t) { S.table = t; paintTableInfo(t); }
     } catch(_) {}

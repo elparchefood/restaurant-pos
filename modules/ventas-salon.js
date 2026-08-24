@@ -70,7 +70,20 @@
   }
 
   const CHIP_ORDER_KEY = 'pos.ventas.chipOrder';
-  const CONFIG_KEY = 'pos.config.salon.v1';
+  /* ⚠️ EL PLANO GUARDADO ES POR SEDE (24-ago-2026, en pleno servicio).
+     Era `pos.config.salon.v1` a secas, sin decir de que restaurante. En cuanto
+     alguien entro a DOS restaurantes en el mismo computador, el plano del
+     primero se quedo guardado y el salon empezo a pintar las mesas de los dos:
+     Sergio vio 16 mesas donde tiene 8, con la 01, 02, 03 y 04 repetidas.
+
+     Nadie lo habia visto porque hasta hoy solo existia un restaurante por
+     equipo. Se rompio el dia que hubo un restaurante de pruebas.
+
+     La llave lleva la sede. Y la vieja se borra al pasar: si se quedara ahi,
+     seguiria ocupando espacio y confundiendo al que la encuentre. */
+  /* La llave la arma `pos-core` (posLlaveSalon): es la MISMA para las cuatro
+     pantallas que guardan o leen el plano. Ver la nota larga alli. */
+  const CONFIG_KEY = (window.posLlaveSalon ? window.posLlaveSalon() : 'pos.config.salon.v1');
   const COBRO_KEY = 'pos.config.cobro_adelantado';
   const CURRENCY_KEY = 'pos.ventas.currency';
 
@@ -530,9 +543,24 @@
           state.zones = Object.values(freshZonesMap);
         }
 
-        // Mesas: combinar localStorage + Supabase (Supabase puede tener mesas nuevas)
+        /* Mesas: combinar lo guardado + Supabase (Supabase puede tener mesas nuevas)
+
+           ⚠️ PERO LO GUARDADO NO PUEDE INVENTAR MESAS. Si una mesa guardada en
+           este computador ya no existe en la base, es basura de otro
+           restaurante o de un plano viejo — y colarla pinta mesas que no
+           existen. Fue exactamente lo que paso el 24-ago: 16 mesas donde hay 8.
+
+           Solo se descarta cuando la base SI respondio. Si no llegaron filas
+           —sin internet— se conserva lo guardado, que es justo para lo que
+           sirve. */
         const mergedMap = {};
-        baseTables.forEach(function(t){ mergedMap[t.id] = t; });
+        const idsReales = {};
+        (sbRows || []).forEach(function(r){ idsReales[r.id] = 1; });
+        const hayRespuesta = !!(sbRows && sbRows.length);
+        baseTables.forEach(function(t){
+          if (hayRespuesta && !idsReales[t.id]) return;   // mesa fantasma: se ignora
+          mergedMap[t.id] = t;
+        });
         (sbRows || []).forEach(function(r) {
           var lsT = mergedMap[r.id];
           mergedMap[r.id] = {

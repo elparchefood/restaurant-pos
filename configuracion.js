@@ -2,7 +2,11 @@
 /* Depende de: pos-core.js (sb, $) */
 
 // ── Estado ──────────────────────────────────────────────
-var STORAGE_KEY = 'pos.config.salon.v1';
+/* Por SEDE. Ver la nota de `posLlaveSalon` en pos-core: sin la sede en la
+   llave, el plano de un restaurante se le aparecia a otro en el mismo
+   computador. Esta pantalla es la que ESCRIBE el plano, asi que si se queda
+   con la llave vieja, el salon nunca lo encuentra. */
+var STORAGE_KEY = (window.posLlaveSalon ? window.posLlaveSalon() : 'pos.config.salon.v1');
 
 // Semilla mínima y genérica — SOLO se usa cuando un negocio nuevo no tiene
 // NINGÚN dato ni en la base ni en la caché local. (Antes traía "Barra" y
