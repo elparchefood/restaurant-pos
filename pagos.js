@@ -290,7 +290,14 @@ function calc() {
   const vuelto   = _esEfectivo()
     ? vueltoGuardado + Math.max(0, SP.entry - falta)   // exceso ya guardado + lo que se está digitando de más
     : vueltoGuardado + Math.max(0, paid - total);
-  const cubierto = paid >= total && total > 0;
+  /* Un pedido cubierto entero con puntos (o con un descuento del 100%) deja
+     el total en 0. Con `total > 0` el boton de Finalizar quedaba bloqueado
+     para siempre y la venta no se podia cerrar: le paso a Sandra el 24-ago
+     pagando una salsa de $2.000 con 100 puntos.
+     Lo que NO se debe poder cerrar es una cuenta VACIA, asi que la condicion
+     pasa a ser "hay algo que cobrar" en vez de "el total es mayor que cero". */
+  const hayAlgo  = (SP.items && SP.items.length > 0) || total > 0;
+  const cubierto = hayAlgo && paid >= total;
   return { subtotal, empaque, domi, tipAmt, total, paid, falta, vuelto, cubierto, canjeValor };
 }
 
@@ -894,7 +901,13 @@ async function cobrarDespues() {
     // Siempre en minusculas: convivian 'Efectivo' (61 pedidos) y 'efectivo'
     // (6) como si fueran metodos distintos. Quien lo muestre le pone la
     // mayuscula; quien lo agrupa necesita un solo valor.
-    const payMethod   = SP.payments.length === 1 ? String(SP.payments[0].method || '').toLowerCase() : 'multiple';
+    /* Sin ningun pago en dinero pero con canje, el metodo es 'puntos'.
+       Antes caia en 'multiple' y el informe mostraba un pago multiple que
+       nunca existio. */
+    const payMethod   = SP.payments.length === 1
+      ? String(SP.payments[0].method || '').toLowerCase()
+      : (SP.payments.length === 0 && SP.canje && SP.canje.puntos > 0) ? 'puntos'
+      : 'multiple';
     const vueltoTotal = SP.payments.reduce((s, p) => s + Math.max(0, (p.received || p.amount) - p.amount), 0);
     const now         = new Date().toISOString();
 
