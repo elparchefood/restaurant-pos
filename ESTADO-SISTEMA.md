@@ -14069,3 +14069,89 @@ sabiéndolo: "no todos los días la gente redime".
 ### Lo que sigue
 Que Sergio cree la plantilla en Meta y encienda el interruptor. Hasta entonces
 el canje avisa por SMS y por la app, no por WhatsApp.
+
+---
+
+## 184. Pantalla de cocina (`cocina.html`) — 25-ago-2026
+
+Las comandas en vivo en una tablet colgada en la cocina. Va a ser también una
+APK: las apps de Cobra son una cáscara que abre una dirección, así que la de
+cocina es cambiar una línea del `capacitor.config.json`.
+
+### Lo que ya existía y NO se rehizo
+
+- **`pos_orders.visible_cocina`** ya se pone en `true` al enviar la comanda —
+  lo hacen el salón, el bot y el chat, y es lo que usa `pos-print-listener`
+  para decidir qué imprimir. Ese es el filtro de la pantalla. No se inventó
+  una señal nueva.
+- **El tiempo real ya estaba encendido** en `pos_orders`, `pos_order_items` y
+  `pos_tables`. No hizo falta tocar la publicación.
+- **El rol `cocina` ya existía** en `mesero-login.js`, enrutado a
+  `mesero-turno.html` con el comentario *"hasta que exista su propia
+  pantalla"*. Ahora apunta a `cocina.html`.
+
+### Las decisiones de Sergio, y por qué
+
+**El color va en degradado, no en bloque.** Cinco vueltas de diseño. El patrón
+final es el de las tarjetas de domicilios: tinte + borde + punto, con los
+tríos `color/tint/ring` de `STATE_META`. Dos correcciones suyas por el camino:
+la primera versión era oscura (*"el sistema es blanco"*) y la franja de color
+era una línea fina que *"de lejos no se nota"*.
+
+**El tinte va en el tono 300, no en el 50.** Medido: `#FFF7ED` está a 19
+puntos de distancia del gris del panel — de lejos se veía todo blanco.
+`#FDBA74` está a 146. El borde es de 1 px, el de `.lm-mesa`.
+
+**El nombre del producto es el texto más grande de la tarjeta**, por encima
+del nombre de la mesa. Se mira desde dos metros: lo primero que hay que leer
+es qué cocinar.
+
+**"Pendiente de pago" NO es universal** (corrección de Sergio):
+- Domicilio → **nunca**. Se paga al recibir.
+- Salón → **solo si `branches.cobro_adelantado` está encendido**. Con el cobro
+  al final, todas las mesas saldrían rojas siempre y el color no diría nada.
+- Venta rápida → sí.
+
+**El tiempo es una señal APARTE del color.** Casi todas las comandas están en
+preparación; si el tiempo usara el mismo canal, el color dejaría de distinguir
+nada. Va como marco rojo a los 15 minutos.
+
+**"Listo" se escribe en `pos_orders.estado`**, el mismo campo de los
+domicilios. En una mesa ese campo estaba sin usar y el plano del salón no lo
+lee (usa `pos_tables.status`), así que marcar listo desde cocina no mueve
+ninguna mesa. La comanda se queda 30 s con **Deshacer** y se va sola: sin
+ventana de confirmación, porque en una cocina nadie confirma nada.
+
+### Dos fallos hallados al probar contra datos reales
+
+1. **`delivered_at` en nulo no basta.** Hay pedidos `paid`/`completed` sin
+   marcar entregado desde hace **50 días**: con el filtro inicial habrían
+   salido en cocina para siempre. Se añadió ventana de 8 h, se excluye
+   `completed` y los estados `listo`/`en_camino`/`entregado`. **`paid` NO se
+   excluye**: una venta rápida se paga antes de cocinarse.
+2. **El reloj cuenta desde `kitchen_printed_at`, no desde `created_at`.** Lo
+   destapó el banco de pruebas, cuyo escenario "todas tarde" solo marcaba una.
+
+### Lo que NO va en la pantalla
+
+Ni precios, ni totales, ni teléfono, ni dirección. De los domicilios va solo
+el **barrio** (se extrae de `notes` con `[barrio:...]`), que sirve para saber
+si hay que empacar para viaje. Es una pantalla colgada en la pared que ve todo
+el que pasa. Tampoco hay anular, editar ni cobrar: un toque sin querer no
+puede tumbar una venta.
+
+### Banco de pruebas
+
+`tests/ver-cocina.html` corre **cocina.js de verdad** con comandas inventadas
+y la base tapada. Se abre con doble clic, no necesita sesión y no toca nada.
+Tiene escenarios: turno normal, sin comandas, todas tarde, cobro adelantado y
+conexión caída. Comprobado: 3 zonas, barrio en vez de dirección, 0 domicilios
+en rojo, 5 de 6 en marco rojo al forzar el retraso, y el aviso de sin conexión.
+
+### Lo que sigue
+
+Que Sergio decida: **el aviso automático al cliente** al marcar listo (hoy no
+está: son mensajes que salen a sus clientes y prefirió verlo funcionar antes)
+y si la carta lleva **campo de estación** para separar bebidas en otra
+pantalla — se decide antes de construirlo, porque después obliga a volver a
+tocar la carta entera. Después: la APK.

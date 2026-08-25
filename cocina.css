@@ -1,0 +1,245 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   COBRA POS · PANTALLA DE COCINA
+   Aprobada por Sergio el 25-ago-2026 después de cinco vueltas. Lo que quedó
+   decidido y NO se cambia sin decírselo:
+
+   · Tema CLARO, el del sistema. La primera versión era oscura y no se parecía
+     a Cobra: "el sistema es blanco y aquí lo estás poniendo sobre fondo azul".
+   · El color va en DEGRADADO, no en bloque sólido — el patrón de las tarjetas
+     de domicilios. Los tríos color/tint/ring salen de STATE_META en
+     ventas-salon.js, para que cocina y salón hablen el mismo idioma.
+   · El tinte va en el tono 300, no en el 50. El 50 (#FFF7ED) está a 19 puntos
+     de distancia del gris del panel: de lejos se veía todo blanco. El 300
+     está a 146 — casi ocho veces más— sin volver al bloque sólido.
+   · El borde es de 1 px, el mismo de `.lm-mesa`. Con el tinte fuerte el color
+     lo carga el relleno; el borde solo cierra la forma.
+   · El nombre del producto es el texto MÁS GRANDE de la tarjeta, por encima
+     del nombre de la mesa. Es una pantalla que se mira desde dos metros: lo
+     primero que hay que leer es qué cocinar.
+   · El texto del estado va en un tono OSCURO del color (#7C2D12, #7F1D1D,
+     #4C1D95). El color vivo sobre su propio tinte no llega a 3 de contraste.
+   · El botón NO lleva el color del estado: va en el azul de la marca, como
+     todos los botones del sistema. La acción es siempre la misma.
+
+   Todo se mide en cqw (porcentaje del ancho de la pantalla), así que se ve
+   igual de proporcionado en una tablet de 8" que en un monitor de 24".
+   ══════════════════════════════════════════════════════════════════════════ */
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;}
+body{
+  background:#FAFAFB; color:#0F172A;
+  font-family:'DM Sans',system-ui,-apple-system,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  /* Una pantalla de pared: nadie debe poder seleccionar texto ni hacer zoom
+     sin querer con las manos grasosas. */
+  user-select:none; -webkit-user-select:none; touch-action:manipulation;
+}
+button{font-family:inherit;cursor:pointer;}
+svg{display:block;}
+
+.k-app{
+  height:100%; display:flex; flex-direction:column;
+  container-type:inline-size;
+}
+
+/* ── Barra de arriba ────────────────────────────────────────────────────── */
+.k-top{
+  flex:0 0 auto; display:flex; align-items:center; gap:1.2cqw;
+  padding:1cqw 1.5cqw; background:#FFF; border-bottom:1px solid #ECEEF2;
+}
+.k-marca{
+  width:2.8cqw; height:2.8cqw; border-radius:.7cqw; flex:0 0 auto;
+  background:linear-gradient(135deg,#5B6BFF,#8B5CF6); color:#fff;
+  font-size:1.7cqw; font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+}
+.k-sede{font-size:1.55cqw;font-weight:800;letter-spacing:-.01em;line-height:1.15;}
+.k-sede span{
+  display:block; font-size:.9cqw; font-weight:700; letter-spacing:.14em;
+  text-transform:uppercase; color:#94A3B8; margin-top:.15cqw;
+}
+.k-cuenta{margin-left:auto;display:flex;align-items:center;gap:1.2cqw;}
+.k-pastilla{
+  display:flex; align-items:baseline; gap:.5cqw; background:#F1F5F9;
+  border-radius:999px; padding:.45cqw 1.2cqw; font-size:.95cqw; font-weight:700;
+  letter-spacing:.1em; text-transform:uppercase; color:#64748B;
+}
+.k-pastilla b{font-size:1.6cqw;color:#0F172A;font-weight:800;letter-spacing:0;}
+.k-vivo{
+  display:flex; align-items:center; gap:.55cqw; font-size:.95cqw; font-weight:700;
+  letter-spacing:.1em; text-transform:uppercase; color:#16A34A;
+}
+.k-punto{
+  width:.75cqw; height:.75cqw; border-radius:50%; background:#16A34A;
+  box-shadow:0 0 0 .3cqw rgba(22,163,74,.16);
+}
+.k-reloj{font-size:1.6cqw;font-weight:700;font-variant-numeric:tabular-nums;color:#475569;}
+
+/* ── Sin conexión ───────────────────────────────────────────────────────────
+   Una pantalla de cocina que deja de actualizarse EN SILENCIO es peor que no
+   tener pantalla: la gente le cree y se queda esperando comandas que ya
+   entraron. Por eso el aviso es rojo, ancho y arriba del todo. */
+.k-caida{
+  flex:0 0 auto; background:#DC2626; color:#fff; padding:.9cqw 1.5cqw;
+  display:flex; align-items:center; gap:1cqw;
+}
+.k-caida b{font-size:1.6cqw;font-weight:800;}
+.k-caida span{font-size:1.1cqw;font-weight:600;opacity:.92;}
+.k-app.sinRed .k-zonas{opacity:.45;filter:grayscale(.5);}
+.k-app.sinRed .k-vivo{display:none;}
+
+/* ── Las tres zonas ─────────────────────────────────────────────────────────
+   Cada canal en su panel. Se distinguen por SITIO, no por color: el color ya
+   significa "estado", y darle un segundo significado sería quitarle el primero. */
+.k-zonas{
+  flex:1; min-height:0; padding:1cqw 1.2cqw;
+  display:grid; grid-template-columns:repeat(3,1fr); gap:1cqw;
+}
+.zona{
+  background:#F1F5F9; border:1px solid #E2E8F0; border-radius:1cqw;
+  display:flex; flex-direction:column; min-height:0; overflow:hidden;
+}
+.zona-cab{
+  display:flex; align-items:center; gap:.7cqw; padding:.7cqw 1cqw;
+  background:#FFF; border-bottom:1px solid #E2E8F0;
+}
+.zona-cab h2{
+  margin:0; font-size:1.35cqw; font-weight:800; letter-spacing:.09em;
+  text-transform:uppercase; color:#334155;
+}
+.zona-cab b{
+  margin-left:auto; font-size:1.4cqw; font-weight:800; color:#0F172A;
+  background:#F1F5F9; border-radius:999px; min-width:2.8cqw;
+  text-align:center; padding:.1cqw .7cqw;
+}
+.zona-cab svg{width:1.5cqw;height:1.5cqw;flex:0 0 auto;color:#94A3B8;}
+.zona-lista{
+  flex:1; min-height:0; padding:.8cqw; display:flex; flex-direction:column;
+  gap:.8cqw; overflow-y:auto;
+}
+.zona-vacia{
+  margin:auto; font-size:1.15cqw; font-weight:700; color:#94A3B8;
+  letter-spacing:.08em; text-transform:uppercase;
+}
+
+/* ── Una comanda ────────────────────────────────────────────────────────── */
+.tk{
+  border-radius:.9cqw; overflow:hidden; display:flex; flex-direction:column;
+  border:1px solid #E2E8F0; background:#fff; flex:0 0 auto;
+  box-shadow:0 .3cqw .9cqw -.45cqw rgba(15,23,42,.14);
+}
+.tk-cab{padding:.8cqw 1cqw .2cqw;display:flex;align-items:flex-start;gap:.8cqw;}
+.tk-quien{min-width:0;}
+.tk-estado{
+  display:flex; align-items:center; gap:.5cqw; font-size:1.05cqw;
+  font-weight:800; letter-spacing:.04em; margin-bottom:.45cqw;
+}
+.tk-estado i{width:.85cqw;height:.85cqw;border-radius:50%;flex:0 0 auto;}
+.tk-de{font-size:2.4cqw;font-weight:800;letter-spacing:-.03em;line-height:1;color:#0F172A;}
+.tk-canal{
+  display:inline-block; font-size:1cqw; font-weight:700; letter-spacing:.02em;
+  margin-top:.5cqw; color:#475569; background:rgba(255,255,255,.72);
+  border-radius:999px; padding:.2cqw .8cqw;
+}
+.tk-min{
+  margin-left:auto; flex:0 0 auto; display:flex; align-items:center; gap:.4cqw;
+  background:rgba(255,255,255,.78); border-radius:999px; padding:.35cqw .85cqw;
+  font-size:1.35cqw; font-weight:800; color:#1E293B; font-variant-numeric:tabular-nums;
+}
+.tk-min svg{width:1.2cqw;height:1.2cqw;flex:0 0 auto;opacity:.6;}
+
+/* Los tríos color/tint/ring de STATE_META, en degradado hacia el tono claro */
+.tk.prep {border-color:#FB923C;background:linear-gradient(180deg,#FDBA74 0%,#FFEDD5 52%,#FFF7ED 100%);}
+.tk.pago {border-color:#F87171;background:linear-gradient(180deg,#FCA5A5 0%,#FEE2E2 52%,#FEF2F2 100%);}
+.tk.listo{border-color:#A78BFA;background:linear-gradient(180deg,#C4B5FD 0%,#EDE9FE 52%,#F5F3FF 100%);}
+.tk.prep  .tk-estado{color:#7C2D12;} .tk.prep  .tk-estado i{background:#EA580C;}
+.tk.pago  .tk-estado{color:#7F1D1D;} .tk.pago  .tk-estado i{background:#DC2626;}
+.tk.listo .tk-estado{color:#4C1D95;} .tk.listo .tk-estado i{background:#7C3AED;}
+
+/* Los productos: el texto más grande de la tarjeta */
+.tk-items{flex:1;padding:.7cqw 1cqw .4cqw;display:flex;flex-direction:column;gap:.8cqw;}
+.it{display:flex;gap:.8cqw;align-items:center;}
+.it-foto{
+  flex:0 0 auto; width:6.6cqw; height:6.6cqw; border-radius:.7cqw;
+  object-fit:cover; display:block; background:#E2E8F0;
+}
+.it-nofoto{
+  flex:0 0 auto; width:6.6cqw; height:6.6cqw; border-radius:.7cqw;
+  background:repeating-linear-gradient(135deg,#EEF1F5 0 .55cqw,#F8FAFC .55cqw 1.1cqw);
+  display:flex; align-items:center; justify-content:center; text-align:center;
+  font-size:.95cqw; font-weight:800; letter-spacing:.06em; color:#94A3B8; line-height:1.25;
+}
+.it-n{
+  flex:0 0 auto; min-width:2.5cqw; height:2.5cqw; border-radius:.5cqw;
+  background:#0F172A; color:#fff; font-size:1.5cqw; font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+}
+.it-tx{font-size:2.7cqw;font-weight:800;line-height:1.12;letter-spacing:-.025em;color:#0F172A;min-width:0;}
+/* Las adiciones en verde y las notas en ámbar, en renglón aparte: una nota
+   metida dentro del nombre del plato es un plato devuelto. */
+.it-tx em{display:block;font-style:normal;font-size:1.75cqw;font-weight:700;color:#15803D;margin-top:.25cqw;letter-spacing:-.01em;}
+.it-tx i {display:block;font-style:normal;font-size:1.75cqw;font-weight:800;color:#B45309;margin-top:.25cqw;letter-spacing:-.01em;}
+
+.tk-pie{padding:.5cqw 1cqw .9cqw;}
+.tk-btn{
+  width:100%; border:none; border-radius:.6cqw; padding:.9cqw;
+  font-size:1.7cqw; font-weight:800; background:#5B6BFF; color:#fff;
+  box-shadow:0 .2cqw .6cqw -.2cqw rgba(91,107,255,.55);
+}
+.tk-btn:active{transform:translateY(1px);}
+
+/* Va tarde — señal APARTE del color. Casi todas las comandas están en
+   preparación; si el tiempo usara el mismo canal, el color dejaría de
+   distinguir nada justo cuando más se necesita. */
+.tk.tarde{border-color:#DC2626;box-shadow:0 0 0 .25cqw #DC2626,0 .3cqw .9cqw -.45cqw rgba(15,23,42,.14);}
+.tk.tarde .tk-min{background:#FEE2E2;color:#B91C1C;}
+.tk.tarde .tk-min svg{opacity:1;}
+
+/* Recién llegada: parpadea hasta que alguien la toca. El sonido suena UNA vez
+   — en una cocina, un aviso que insiste se termina apagando. */
+.tk.nueva{animation:kPulso 1.5s ease-in-out infinite;}
+@keyframes kPulso{
+  0%,100%{box-shadow:0 0 0 0 rgba(91,107,255,.6),0 .3cqw .9cqw -.45cqw rgba(15,23,42,.14);}
+  50%    {box-shadow:0 0 0 .9cqw rgba(91,107,255,0),0 .3cqw .9cqw -.45cqw rgba(15,23,42,.14);}
+}
+@media (prefers-reduced-motion:reduce){.tk.nueva{animation:none;}}
+
+/* Marcada lista: se va sola, con deshacer. Sin ventana de confirmación —
+   en una cocina nadie confirma nada, por eso el arrepentimiento va DESPUÉS. */
+.tk.listo .tk-items{opacity:.45;}
+.tk-listo{display:flex;align-items:center;gap:.8cqw;padding:.5cqw 1cqw .9cqw;}
+.tk-listo b{font-size:1.7cqw;font-weight:800;color:#6D28D9;}
+.tk-desh{
+  margin-left:auto; border:1px solid #DDD6FE; background:#F5F3FF; color:#6D28D9;
+  border-radius:.6cqw; padding:.6cqw 1.1cqw; font-size:1.25cqw; font-weight:800;
+}
+
+/* ── La leyenda ─────────────────────────────────────────────────────────────
+   Un cocinero nuevo aprende los colores sin que nadie se los explique. */
+.k-pie{
+  flex:0 0 auto; display:flex; gap:1.8cqw; align-items:center;
+  padding:.7cqw 1.5cqw; background:#FFF; border-top:1px solid #ECEEF2;
+}
+.lg{
+  display:flex; align-items:center; gap:.55cqw; font-size:.95cqw; font-weight:800;
+  letter-spacing:.09em; text-transform:uppercase; color:#64748B;
+}
+.lg i{width:1.5cqw;height:1cqw;border-radius:.2cqw;display:block;}
+.k-salir{
+  margin-left:auto; border:1px solid #ECEEF2; background:#fff; color:#64748B;
+  border-radius:.5cqw; padding:.45cqw 1.1cqw; font-size:.95cqw; font-weight:700;
+}
+
+/* ── Cargando ── */
+.k-cargando{
+  position:fixed; inset:0; background:#FAFAFB; display:flex; align-items:center;
+  justify-content:center; flex-direction:column; gap:1.5cqw; z-index:50;
+}
+.k-spin{
+  width:3.5cqw; height:3.5cqw; border-radius:50%;
+  border:.35cqw solid #E2E8F0; border-top-color:#5B6BFF;
+  animation:kSpin .8s linear infinite;
+}
+@keyframes kSpin{to{transform:rotate(360deg);}}
+.k-cargando p{margin:0;font-size:1.2cqw;font-weight:700;color:#64748B;letter-spacing:.06em;text-transform:uppercase;}

@@ -23,7 +23,7 @@ const ROLE_ROUTES = {
   mesero: 'mesero-turno.html',
   cajero: 'mesero-turno.html',   // hasta que exista su propia pantalla
   admin:  'mesero-turno.html',
-  cocina: 'mesero-turno.html',
+  cocina: 'cocina.html',   // 25-ago-2026: ya existe su propia pantalla
 };
 
 /* Nombre viejo guardado en la cuenta → clave interna. Las cuentas que ya

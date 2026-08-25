@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Banco de pruebas · Pantalla de cocina</title>
+<!--
+  BANCO DE PRUEBAS DE LA PANTALLA DE COCINA
+
+  Por qué existe: la pantalla solo se puede ver con comandas vivas, y fuera del
+  turno no hay ninguna. Sin esto habría que esperar al servicio para saber si
+  se ve bien — o peor, meter pedidos de prueba en producción.
+
+  Qué hace: carga cocina.js de verdad (la misma lógica que corre en la cocina),
+  le tapa el acceso a la base y le mete comandas inventadas. Todo lo demás
+  —cómo decide el estado, cómo calcula el tiempo, cómo pinta— es el código real.
+
+  Se abre con doble clic. No toca la base ni necesita sesión.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../cocina.css">
+<style>
+  body{overflow:auto;}
+  .banco{max-width:1180px;margin:0 auto;padding:24px 20px 60px;font-family:'DM Sans',sans-serif;}
+  .banco h1{font-size:26px;font-weight:800;margin:0 0 6px;letter-spacing:-.02em;}
+  .banco p{color:#475569;font-size:14px;margin:0 0 18px;max-width:70ch;}
+  .mandos{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
+  .mandos button{border:1px solid #ECEEF2;background:#fff;border-radius:9px;
+    padding:9px 14px;font-size:13px;font-weight:700;color:#475569;cursor:pointer;}
+  .mandos button.on{background:#5B6BFF;border-color:#5B6BFF;color:#fff;}
+  .pantalla{aspect-ratio:16/10;border-radius:14px;overflow:hidden;
+    box-shadow:0 20px 50px -26px rgba(15,23,42,.45),0 0 0 1px rgba(15,23,42,.1);}
+  .pantalla .k-app{height:100%;}
+  #salida{margin-top:18px;font:12.5px/1.7 ui-monospace,Menlo,monospace;color:#475569;
+    background:#F8FAFC;border:1px solid #ECEEF2;border-radius:10px;padding:14px 16px;white-space:pre-wrap;}
+</style>
+</head>
+<body>
+<div class="banco">
+  <h1>Banco de pruebas · Pantalla de cocina</h1>
+  <p>Corre <b>cocina.js de verdad</b> con comandas inventadas. Sirve para ver la pantalla
+     fuera del turno sin meter pedidos de prueba en producción.</p>
+
+  <div class="mandos">
+    <button id="b-turno" class="on">Turno normal</button>
+    <button id="b-vacia">Sin comandas</button>
+    <button id="b-tarde">Todas tarde</button>
+    <button id="b-adel">Cobro adelantado</button>
+    <button id="b-red">Tumbar la conexión</button>
+  </div>
+
+  <div class="pantalla" id="marco"></div>
+  <div id="salida">—</div>
+</div>
+
+<script>
+/* ── El doble: cocina.js espera un cliente de Supabase. Aquí se le da uno que
+      no habla con nadie, para que la lógica corra sin tocar la base. ── */
+window.supabase = {
+  createClient: () => ({
+    auth: {
+      getSession: async () => ({ data: { session: { user: { id: 'banco' } } } }),
+      signOut: async () => {},
+    },
+    from: () => {
+      const q = {
+        select: () => q, eq: () => q, or: () => q, gte: () => q, is: () => q,
+        not: () => q, in: () => q, order: () => q, update: () => q,
+        maybeSingle: async () => ({ data: BASE.sucursal }),
+        then: (res) => res({ data: [] }),
+      };
+      return q;
+    },
+    channel: () => ({ on(){return this;}, subscribe(){return this;} }),
+  })
+};
+
+const AHORA = Date.now();
+const hace = m => new Date(AHORA - m * 60000).toISOString();
+
+const BASE = { sucursal: { name:'Principal', cobro_adelantado:false, brands:{ name:'El Parche Food' } } };
+
+const MESAS = [['m7','Mesa 7'],['m4','Mesa 4'],['m2','Mesa 2']];
+const FOTOS = [['p1','https://tblujfduscslxjmrjbdr.supabase.co/storage/v1/object/public/chat-media/products/x.jpg']];
+
+function pedidos(tarde) {
+  const t = tarde ? 22 : 0;
+  return [
+    { id:'o1', channel:'salon',     status:'open', estado:null, table_id:'m7',
+      total:26000, total_final:26000, paid_amount:0, created_at:hace(0.4+t), notes:null },
+    { id:'o2', channel:'salon',     status:'open', estado:null, table_id:'m4',
+      total:48000, total_final:48000, paid_amount:0, created_at:hace(3.3+t), notes:null },
+    { id:'o3', channel:'rapido',    status:'open', estado:null, turno:12,
+      total:17000, total_final:17000, paid_amount:0, created_at:hace(4+t), notes:null },
+    { id:'o4', channel:'rapido',    status:'paid', estado:null, turno:13,
+      total:17000, total_final:17000, paid_amount:17000, created_at:hace(1.2+t), notes:null },
+    { id:'o5', channel:'domicilio', status:'open', estado:null,
+      total:42000, total_final:42000, paid_amount:0, created_at:hace(16.5+t),
+      notes:'Cra 9 #63-58 [barrio:BELLAVISTA] [tel:3244756271]' },
+    { id:'o6', channel:'salon',     status:'open', estado:'listo', table_id:'m2',
+      total:26000, total_final:26000, paid_amount:0, created_at:hace(6.2+t), notes:null },
+  ];
+}
+
+/* Los productos se mueven CON el pedido: el reloj de la comanda cuenta desde
+   que el producto se envió a cocina (kitchen_printed_at), no desde que se
+   creó el pedido. Si aquí no se desplazan, el escenario "todas tarde" no
+   prueba nada. */
+function items(tarde) {
+  const t = tarde ? 22 : 0;
+  return {
+    o1:[{ id:'i1', order_id:'o1', product_id:'p1', product_name:'Personal · MAICITOS', quantity:1, kitchen_printed_at:hace(0.4+t) },
+        { id:'i2', order_id:'o1', product_id:'pz', product_name:'Personal · COCA COLA', quantity:2, kitchen_printed_at:hace(0.4+t) }],
+    o2:[{ id:'i3', order_id:'o2', product_id:'p1', product_name:'Personal · Premium · Mixta', quantity:2,
+          notes:'Sin cebolla en una', kitchen_printed_at:hace(3.3+t),
+          selections:JSON.stringify([{ opciones:[{ nombre:'Ajo · Salsa' }] }]) }],
+    o3:[{ id:'i4', order_id:'o3', product_id:'pz', product_name:'Familiar · Premium · Mixta', quantity:1,
+          notes:'Papas bien doraditas', kitchen_printed_at:hace(4+t) }],
+    o4:[{ id:'i5', order_id:'o4', product_id:'pz', product_name:'Personal · RANCHERA', quantity:1, kitchen_printed_at:hace(1.2+t) }],
+    o5:[{ id:'i6', order_id:'o5', product_id:'p1', product_name:'HAWAIANO CON POLLO', quantity:3, kitchen_printed_at:hace(16.5+t) }],
+    o6:[{ id:'i7', order_id:'o6', product_id:'p1', product_name:'Personal · Mixta', quantity:1, kitchen_printed_at:hace(6.2+t) }],
+  };
+}
+</script>
+
+<script>
+/* cocina.js ya definió S, pintar(), etc. Aquí se le mete el escenario. */
+let TARDE = false, VACIA = false;
+
+function escenario() {
+  S.branchId = 'banco'; S.arrancando = false;
+  S.mesas = new Map(MESAS);
+  S.fotos = new Map();                       // sin fotos reales: sale el recuadro rayado
+  S.vistas = new Set(); S.listas = new Map();
+  const ped = VACIA ? [] : pedidos(TARDE);
+  S.orders = new Map(ped.map(o => [o.id, o]));
+  const its = items(TARDE);
+  S.items = new Map(ped.map(o => [o.id, its[o.id] || []]));
+  pintar();
+  informe(ped);
+}
+
+function informe(ped) {
+  const l = [];
+  l.push('cobro adelantado: ' + (S.cobroAdelantado ? 'ENCENDIDO' : 'apagado'));
+  ped.forEach(o => {
+    l.push('  ' + (o.table_id ? S.mesas.get(o.table_id) : (o.turno ? '#'+o.turno : o.channel))
+      + '  canal=' + o.channel
+      + '  zona=' + zonaDe(o)
+      + '  estado=' + estadoDe(o)
+      + '  min=' + minutosDe(o).toFixed(1)
+      + (minutosDe(o) >= 15 && estadoDe(o) !== 'listo' ? '  ← TARDE' : ''));
+  });
+  const rojas = ped.filter(o => estadoDe(o) === 'pago').length;
+  l.push('');
+  l.push('comandas en rojo (pendiente de pago): ' + rojas);
+  l.push('domicilios en rojo: ' + ped.filter(o => zonaDe(o)==='domicilio' && estadoDe(o)==='pago').length
+         + '   ← debe ser 0 SIEMPRE: el domicilio se paga al recibir');
+  document.getElementById('salida').textContent = l.join('\n');
+}
+
+const B = id => document.getElementById(id);
+B('b-turno').onclick = () => { TARDE=false; VACIA=false; marcar('b-turno'); escenario(); };
+B('b-vacia').onclick = () => { VACIA=true;  marcar('b-vacia'); escenario(); };
+B('b-tarde').onclick = () => { TARDE=true;  VACIA=false; marcar('b-tarde'); escenario(); };
+B('b-adel').onclick  = () => { S.cobroAdelantado = !S.cobroAdelantado;
+                               B('b-adel').classList.toggle('on', S.cobroAdelantado); escenario(); };
+B('b-red').onclick   = () => { marcarRed(S.online === false); B('b-red').classList.toggle('on', !S.online); };
+function marcar(id){ ['b-turno','b-vacia','b-tarde'].forEach(x => B(x).classList.toggle('on', x===id)); }
+
+/* Se trae el HTML REAL de cocina.html en vez de copiarlo aquí: si mañana
+   cambia la pantalla, el banco la sigue mostrando tal cual. */
+(async function arrancar(){
+  const txt  = await (await fetch('../cocina.html')).text();
+  const doc  = new DOMParser().parseFromString(txt, 'text/html');
+  const app  = doc.getElementById('app');
+  const carg = doc.getElementById('cargando');
+  document.getElementById('marco').appendChild(app);
+  document.body.appendChild(carg);
+
+  await new Promise(ok => {
+    const sc = document.createElement('script');
+    sc.src = '../cocina.js'; sc.onload = ok; sc.onerror = ok;
+    document.body.appendChild(sc);
+  });
+
+  setTimeout(() => {
+    const c = document.getElementById('cargando');
+    if (c) c.hidden = true;
+    escenario();
+  }, 250);
+})();
+</script>
+</body>
+</html>
