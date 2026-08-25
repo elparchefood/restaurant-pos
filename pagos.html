@@ -12,9 +12,45 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="pagos.css?v=1790470000">
+<link rel="stylesheet" href="pagos.css?v=1792170000">
 </head>
-<body>
+<body class="pg-abriendo">
+<!-- ⚠️ EL VELO. Pedido de Sergio, 24-ago-2026: "cuando abro la pantalla de pago
+     primero abre algo antiguo... me aparece 1 segundo y luego se reemplaza por
+     los datos reales".
+
+     El HTML de abajo trae una pantalla ENTERA de relleno —"Consumidor final",
+     "0 items", todo en $0, "Cuenta solicitada"— que se ve un segundo antes de
+     que lleguen los datos. No parece que este cargando: parece una venta real y
+     vacia, y un cajero podria tocar algo ahi.
+
+     La clase `pg-abriendo` la quita `pagos.js` cuando ya hay datos, con un tope
+     de 4 segundos por si algo falla: un velo que se puede quedar pegado es peor
+     que el parpadeo que vino a tapar. -->
+<div class="pg-velo" id="pg-velo" aria-hidden="true">
+  <div class="pg-velo-caja">
+    <div class="pg-velo-giro"></div>
+    <div class="pg-velo-txt">Abriendo la cuenta…</div>
+  </div>
+</div>
+<script>
+/* LA RED DE SEGURIDAD DEL VELO. Va AQUI DENTRO, escrita en la propia pagina, y
+   no en pagos.js ni en el CSS. Las tres razones, todas comprobadas:
+
+     · Si fuera en `pagos.js` y ese archivo no cargara —un fallo de red justo
+       al pedirlo— no habria nadie para quitar el velo y la pantalla de cobro
+       seria un fondo gris para siempre, con un cliente esperando.
+     · Con una animacion de CSS no funciona: `display` no se puede animar.
+     · Y aunque se animara `opacity`, las animaciones se FRENAN cuando la
+       pestaña queda de fondo. Justo cuando el cajero se fue a otra ventana.
+
+   Escrito aqui no puede fallar: llega con la pagina. A los 6 segundos el velo
+   se va pase lo que pase. En el caso normal lo quita `pagos.js` mucho antes,
+   en cuanto la cuenta esta lista. */
+setTimeout(function () {
+  try { document.body.classList.remove('pg-abriendo'); } catch (e) {}
+}, 6000);
+</script>
 <div class="pg-root">
 
   <!-- ════ SIDEBAR ════ -->
@@ -319,7 +355,7 @@
 <script src="pos-puntos.js?v=1789750000"></script>
 <script src="pos-nfc.js?v=1791470000"></script>
 <script src="pos-saldo.js?v=1790470001"></script>
-<script src="pagos.js?v=1791810000"></script>
+<script src="pagos.js?v=1792170000"></script>
 
   <!-- ════ MODAL: DESCUENTO ════ -->
   <div class="pg-overlay" id="discount-modal" hidden>

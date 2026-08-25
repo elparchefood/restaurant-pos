@@ -1449,6 +1449,22 @@ function closePaymentsModal() {
   document.getElementById('payments-modal').hidden = true;
 }
 
+/* Quita el velo de apertura. Se puede llamar las veces que haga falta.
+
+   EL TOPE DE TIEMPO NO ES ADORNO: si `init` revienta a mitad —sin internet, un
+   pedido que no existe, un permiso— el velo se quedaria puesto y la pantalla
+   de cobro seria un fondo gris para siempre. Eso es MUCHO peor que el parpadeo
+   que vino a tapar. A los 4 segundos se cae solo, pase lo que pase. */
+function pgQuitarVelo() {
+  try { document.body.classList.remove('pg-abriendo'); } catch (e) {}
+}
+setTimeout(pgQuitarVelo, 4000);
+
+/* Si algo revienta en cualquier punto del arranque, el velo se cae igual. Sin
+   esto, un fallo de red dejaria la pantalla tapada sin decir por que. */
+window.addEventListener('error', pgQuitarVelo);
+window.addEventListener('unhandledrejection', pgQuitarVelo);
+
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Auth
   const { data: { user } } = await sb.auth.getUser();
@@ -1528,6 +1544,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 6. Render inicial
   renderItems();
   renderAll();
+
+  /* AQUI, y no antes: la cuenta ya esta cargada y pintada con sus datos. Se
+     quita despues de `renderAll` para que lo primero que se vea sea lo
+     definitivo, no un intermedio. */
+  pgQuitarVelo();
 });
 
 // ════════ MODAL DESCUENTO ════════════════════════════════════════════════

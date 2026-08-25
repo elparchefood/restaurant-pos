@@ -999,3 +999,41 @@ svg { display: block; }
 .pg-canje-row{ align-items:flex-start; background:#F5F3FF; border:1px solid #DDD6FE;
   border-radius:9px; padding:8px 11px; margin-top:8px; }
 .pg-canje-row > span:first-child{ font-size:12.5px; color:#5B21B6; font-weight:600; }
+
+/* ── EL VELO DE APERTURA ────────────────────────────────────────────────
+   Tapa el relleno del HTML hasta que los datos son de verdad. Ver la nota en
+   pagos.html.
+
+   EL CONTENIDO NO SE ESCONDE: el velo lo TAPA. Primero lo escondia con
+   `visibility` y la red de seguridad de abajo no podia devolverlo, porque
+   `display` y `visibility` no se pueden animar con un `@keyframes` de forma
+   fiable — se comprobo en el navegador y no funcionaba. Tapar es mas simple y
+   ademas atrapa los clics, que es justo lo que se quiere: que nadie toque una
+   pantalla que todavia no es real. */
+.pg-velo { display: none; }
+body.pg-abriendo .pg-velo {
+  display: flex; position: fixed; inset: 0; z-index: 9000;
+  align-items: center; justify-content: center;
+  background: #FAFAFB;
+
+  /* La red de seguridad NO esta aqui. Llegue a ponerla como una animacion de
+     CSS que desvanecia el velo a los 6 segundos, y esta mal por dos razones:
+     `display` no se puede animar (primer intento, no hacia nada), y una
+     animacion se FRENA cuando la pestaña queda de fondo — justo el momento en
+     que el cajero se fue a otra ventana y vuelve.
+
+     Va en un guion escrito DENTRO de pagos.html, que no se puede caer porque
+     no es un archivo aparte. Ver la nota alli. */
+}
+
+.pg-velo-caja { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.pg-velo-giro {
+  width: 30px; height: 30px; border-radius: 999px;
+  border: 3px solid #E8EAEF; border-top-color: #5B6BFF;
+  animation: pgVelo .8s linear infinite;
+}
+.pg-velo-txt { font-size: 13px; color: #64748B; font-weight: 600; }
+@keyframes pgVelo { to { transform: rotate(360deg); } }
+/* Quien pidio no ver animaciones no ve el giro; el velo y su red de seguridad
+   siguen funcionando igual. */
+@media (prefers-reduced-motion: reduce) { .pg-velo-giro { animation: none; } }

@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>El velo de la pantalla de cobro</title>
+<link rel="stylesheet" href="../pagos.css?v=1787616821">
+<style>body{margin:0;font-family:'DM Sans',system-ui,sans-serif}
+ .barra{position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#0F172A;color:#fff;
+   padding:10px 14px;display:flex;gap:10px;align-items:center;font-size:13px}
+ .barra button{padding:7px 12px;border-radius:8px;border:none;background:#5B6BFF;color:#fff;
+   font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer}</style>
+<body class="pg-abriendo">
+<div class="pg-velo" id="pg-velo" aria-hidden="true">
+  <div class="pg-velo-caja"><div class="pg-velo-giro"></div>
+  <div class="pg-velo-txt">Abriendo la cuenta…</div></div>
+</div>
+<script>
+setTimeout(function () {
+  try { document.body.classList.remove('pg-abriendo'); } catch (e) {}
+}, 6000);
+</script>
+<aside class="pg-side" style="padding:20px;background:#fff">
+  <b>Barra lateral</b> — esto es lo que se tapa
+</aside>
+<main class="pg-main" style="padding:20px">
+  <div style="font-size:20px;font-weight:800">Consumidor final · 0 ítems · $0</div>
+  <div style="color:#64748B;margin-top:8px">Este es el relleno que Sergio veia un segundo.</div>
+</main>
+<div class="barra">
+  <span id="est">velo puesto</span>
+  <button onclick="poner()">Poner el velo</button>
+  <button onclick="quitar()">Quitar (como al cargar)</button>
+</div>
+<script>
+function quitar(){ document.body.classList.remove('pg-abriendo');
+  document.getElementById('est').textContent='velo quitado — se ve el contenido'; }
+function poner(){ document.body.classList.add('pg-abriendo');
+  document.getElementById('est').textContent='velo puesto'; }
+</script>
