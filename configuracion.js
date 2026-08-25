@@ -4291,10 +4291,17 @@ async function estadosCfgInit() {
   function puntosBlock() {
     var p = cfg.puntos || {};
     var catNom = { MARKETING: 'Marketing', UTILITY: 'Utilidad', AUTHENTICATION: 'Autenticación' };
-    var opts = waTpls.map(function (t) {
-      return '<option value="' + escT(t.name) + '" data-lang="' + escT(t.language || 'es') + '"' + (t.name === (p.plantilla || '') ? ' selected' : '') + '>'
-        + escT(t.name) + ' · ' + (catNom[t.category] || t.category) + '</option>';
-    }).join('');
+    /* El mismo desplegable sirve para los dos avisos (ganar y redimir); lo
+       unico que cambia es cual queda seleccionada. Antes estaba escrito en
+       linea y habria que duplicarlo. */
+    function opcionesPara(sel) {
+      return waTpls.map(function (t) {
+        return '<option value="' + escT(t.name) + '" data-lang="' + escT(t.language || 'es') + '"' + (t.name === (sel || '') ? ' selected' : '') + '>'
+          + escT(t.name) + ' · ' + (catNom[t.category] || t.category) + '</option>';
+      }).join('');
+    }
+    var opts = opcionesPara(p.plantilla);
+    var pcj  = cfg.puntos_canje || {};
     return '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">'
       + '<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Gana puntos</div>'
       + '<div style="font-size:12.5px;color:var(--text-3);margin-bottom:10px">Cuando un pago hace efectivos los puntos, el cliente recibe esta plantilla de WhatsApp. Los datos que van en cada espacio se configuran en <b>Difusión → plantillas</b>.</div>'
@@ -4305,6 +4312,24 @@ async function estadosCfgInit() {
           + '<select id="pt-plantilla" style="' + inpSt + ';width:auto;min-width:220px">' + opts + '</select>'
           + '</div>'
         : '<div style="font-size:13px;color:var(--text-3)">Conecta WhatsApp en esta sucursal para poder elegir una plantilla.</div>')
+      /* ── Redime puntos ───────────────────────────────────────────────────
+         Aviso aparte del de arriba, con su propio interruptor y su propia
+         plantilla: son mensajes opuestos (ganar vs. gastar) y confundirlos le
+         diria al cliente que gano lo que acaba de gastar.
+         El SMS NO se configura aqui a proposito: sale siempre, porque es
+         justamente la red de seguridad para cuando esta plantilla no existe
+         o Meta la rechaza. */
+      + '<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">'
+      + '<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Redime puntos</div>'
+      + '<div style="font-size:12.5px;color:var(--text-3);margin-bottom:10px">Cuando el cliente paga con puntos, recibe esta plantilla con lo que redimio, cuantos puntos uso y cuantos le quedan. <b>El mensaje de texto sale siempre</b>, tenga o no plantilla.</div>'
+      + (waTpls.length
+        ? '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+          + '<label style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;cursor:pointer">'
+          + '<input type="checkbox" id="pc-activo"' + (pcj.activo === true ? ' checked' : '') + '> Avisar por WhatsApp los canjes</label>'
+          + '<select id="pc-plantilla" style="' + inpSt + ';width:auto;min-width:220px">' + opcionesPara(pcj.plantilla) + '</select>'
+          + '</div>'
+        : '')
+      + '</div>'
       + '</div>';
   }
 
@@ -4335,6 +4360,12 @@ async function estadosCfgInit() {
     if (ptOn && ptSel) {
       var lang = (ptSel.selectedOptions && ptSel.selectedOptions[0] && ptSel.selectedOptions[0].dataset.lang) || 'es';
       out.puntos = { activo: !!ptOn.checked, plantilla: ptSel.value || '', idioma: lang };
+    }
+    // Y el aviso de canje, con su propia plantilla.
+    var pcOn = document.getElementById('pc-activo'), pcSel = document.getElementById('pc-plantilla');
+    if (pcOn && pcSel) {
+      var lang2 = (pcSel.selectedOptions && pcSel.selectedOptions[0] && pcSel.selectedOptions[0].dataset.lang) || 'es';
+      out.puntos_canje = { activo: !!pcOn.checked, plantilla: pcSel.value || '', idioma: lang2 };
     }
     try {
       await sb.from('ia_config').update({ estados_config: out }).eq('branch_id', _cfgBranchId);

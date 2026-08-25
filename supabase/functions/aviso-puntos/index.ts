@@ -56,6 +56,58 @@ function textoLegible(cuerpo: string | undefined, params: string[]): string {
   return cuerpo.replace(/\{\{(\d+)\}\}/g, (_m, n) => params[parseInt(n, 10) - 1] ?? "");
 }
 
+/* ── EL SMS ────────────────────────────────────────────────────────────────
+   Pedido de Sergio el 24-ago: que el aviso del canje salga por WhatsApp Y por
+   SMS. No es redundancia por gusto: el de WhatsApp depende de una plantilla
+   aprobada por Meta, y mientras no exista (o si Meta la rechaza) el cliente no
+   se entera de que le descontaron puntos. El SMS no depende de nadie.
+
+   SIN TILDES NI EMOJIS. Un SMS con acentos cambia de codificacion y pasa de
+   160 a 70 caracteres: el mensaje se parte en dos y se cobra doble. Misma
+   regla que ya sigue web-acceso con los codigos de acceso.
+
+   OJO CON EL SALDO: sale del mismo Twilio con el que salen los codigos de
+   registro. Si se agota, ningun cliente nuevo se puede registrar. Hay un
+   vigilante diario (revisar-saldo-sms) que avisa en la campanita bajo US$5. */
+const TWILIO_SID   = Deno.env.get("TWILIO_SID")   || "";
+const TWILIO_TOKEN = Deno.env.get("TWILIO_TOKEN") || "";
+const TWILIO_FROM  = Deno.env.get("TWILIO_FROM")  || "";
+
+function sinTildes(t: string): string {
+  return t.normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")   // los acentos, ya separados por NFD
+          .replace(/[^\x20-\x7E]/g, "")      // emojis y todo lo que no sea ASCII
+          .replace(/\s+/g, " ").trim();
+}
+
+/* El texto del SMS. `premio` se recorta: un nombre largo empujaria el mensaje
+   por encima de 160 y se cobraria doble por decir lo mismo. */
+function textoSms(negocio: string, premio: string, usados: number, quedan: number): string {
+  let pr = sinTildes(premio || "tu premio");
+  if (pr.length > 40) pr = pr.slice(0, 39) + ".";
+  const t = `Redimiste tus puntos en ${sinTildes(negocio)}. Producto: ${pr}. `
+          + `Usaste ${usados} puntos y te quedan ${quedan}. Gracias por preferirnos.`;
+  return t.length > 160 ? t.slice(0, 157) + "..." : t;
+}
+
+async function mandarSms(tel: string, texto: string): Promise<{ ok: boolean; error?: string }> {
+  if (!TWILIO_SID || !TWILIO_TOKEN || !TWILIO_FROM) return { ok: false, error: "Twilio no configurado" };
+  try {
+    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`, {
+      method: "POST",
+      headers: {
+        "Authorization": "Basic " + btoa(`${TWILIO_SID}:${TWILIO_TOKEN}`),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({ To: "+" + tel, From: TWILIO_FROM, Body: texto }).toString(),
+    });
+    if (r.ok) return { ok: true };
+    return { ok: false, error: (await r.text()).slice(0, 300) };
+  } catch (e) {
+    return { ok: false, error: String(e).slice(0, 200) };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
@@ -65,11 +117,11 @@ Deno.serve(async (req) => {
     // viejo confunde); se cierran como 'vencido' para que no se reintenten.
     const hace48h = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
     await sbPatch(
-      `/rest/v1/pos_puntos_movimientos?tipo=in.(acumulacion,regalo)&aviso=is.null&created_at=lt.${hace48h}`,
-      { aviso: "vencido" },
+      `/rest/v1/pos_puntos_movimientos?tipo=in.(acumulacion,regalo,canje)&aviso=is.null&created_at=lt.${hace48h}`,
+      { aviso: "vencido", aviso_sms: "vencido" },
     );
     const cola = (await sbPatch(
-      `/rest/v1/pos_puntos_movimientos?tipo=in.(acumulacion,regalo)&aviso=is.null&created_at=gte.${hace48h}`,
+      `/rest/v1/pos_puntos_movimientos?tipo=in.(acumulacion,regalo,canje)&aviso=is.null&created_at=gte.${hace48h}`,
       { aviso: "enviando" },
       true,
     )) as Array<Record<string, unknown>> | null;
@@ -82,17 +134,30 @@ Deno.serve(async (req) => {
       token?: string; phoneId?: string; marca?: string; cuerpo?: string;
       direccion?: string; tiempoEntrega?: string; horarioHoy?: string;
     }> = {};
-    async function datosDe(branchId: string) {
-      if (porBranch[branchId]) return porBranch[branchId];
-      const d: typeof porBranch[string] = {
-        activo: false, plantilla: "puntos_ganados", idioma: "es",
-        // El orden por defecto es el de la plantilla original: {{1}} puntos
-        // ganados, {{2}} marca, {{3}} saldo. El dueño lo cambia desde
-        // Configuración → Estados de pedido y avisos → Gana puntos.
-        vars: ["puntos_ganados", "negocio", "puntos_total"],
-      };
+    /* GANAR y REDIMIR son dos avisos distintos, con su propia plantilla y su
+       propio interruptor. Comparten todo lo demas (token, marca, horario), pero
+       NO la configuracion: decir "ganaste 100 puntos" cuando en realidad los
+       gasto seria justo al reves de lo que paso. Por eso la cache se guarda por
+       sucursal Y por tipo. */
+    async function datosDe(branchId: string, esCanje: boolean) {
+      const llave = branchId + (esCanje ? "|canje" : "|gana");
+      if (porBranch[llave]) return porBranch[llave];
+      const d: typeof porBranch[string] = esCanje
+        ? {
+            activo: false, plantilla: "puntos_redimidos", idioma: "es",
+            // {{1}} negocio, {{2}} que redimio, {{3}} puntos usados, {{4}} saldo.
+            vars: ["negocio", "premio_canjeado", "puntos_redimidos", "puntos_total"],
+          }
+        : {
+            activo: false, plantilla: "puntos_ganados", idioma: "es",
+            // El orden por defecto es el de la plantilla original: {{1}} puntos
+            // ganados, {{2}} marca, {{3}} saldo. El dueño lo cambia desde
+            // Configuración → Estados de pedido y avisos → Gana puntos.
+            vars: ["puntos_ganados", "negocio", "puntos_total"],
+          };
       const cfgR = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&select=estados_config,plantillas_vars,horarios&limit=1`) as Array<Record<string, unknown>> | null;
-      const pc = ((cfgR?.[0]?.estados_config as Record<string, unknown>) || {}).puntos as Record<string, unknown> | undefined;
+      const ec = (cfgR?.[0]?.estados_config as Record<string, unknown>) || {};
+      const pc = (esCanje ? ec.puntos_canje : ec.puntos) as Record<string, unknown> | undefined;
       if (pc && pc.activo === true) {
         d.activo = true;
         if (pc.plantilla) d.plantilla = String(pc.plantilla);
@@ -135,13 +200,18 @@ Deno.serve(async (req) => {
           d.cuerpo = tpl?.components?.find(c => c.type === "BODY")?.text;
         }
       } catch { /* sin cuerpo, la copia sale generica */ }
-      porBranch[branchId] = d;
+      porBranch[llave] = d;
       return d;
     }
 
     // Resuelve cada variable del mapeo a su valor real para ESTE movimiento.
     async function valorDe(key: string, m: Record<string, unknown>, d: typeof porBranch[string], tel10: string): Promise<string> {
-      if (key === "puntos_ganados") return String(m.puntos ?? "");
+      /* En un canje `puntos` viene NEGATIVO (asi lo guarda fn_puntos_consumir).
+         Ninguna de estas dos debe mostrar el signo: el cliente lee "usaste 100
+         puntos", no "usaste -100". */
+      if (key === "puntos_ganados") return String(Math.max(0, Number(m.puntos) || 0));
+      if (key === "puntos_redimidos") return String(Math.abs(Number(m.puntos) || 0));
+      if (key === "premio_canjeado") return String(m.detalle || "tu premio");
       if (key === "puntos_total") return String(m.saldo_despues ?? "");
       if (key === "negocio") return d.marca || "";
       if (key === "direccion_negocio") return d.direccion || "-";
@@ -160,9 +230,10 @@ Deno.serve(async (req) => {
       return "-";
     }
 
-    let enviados = 0, fallidos = 0, apagados = 0;
+    let enviados = 0, fallidos = 0, apagados = 0, sms = 0, smsFallidos = 0;
     for (const m of cola) {
       const id = m.id;
+      const esCanje = String(m.tipo) === "canje";
       const marcar = (campos: Record<string, unknown>) =>
         sbPatch(`/rest/v1/pos_puntos_movimientos?id=eq.${id}`, campos);
       /* EL AVISO EN LA APP (20-ago, Sergio: "cualquier punto que ingrese
@@ -177,20 +248,53 @@ Deno.serve(async (req) => {
           method: "POST", headers: H,
           body: JSON.stringify({
             tipo: "puntos", tenant_id: m.tenant_id, telefono: m.telefono,
-            puntos: m.puntos, total: m.saldo_despues, motivo: m.tipo,
+            /* En un canje `puntos` viene negativo: se manda en positivo y el
+               `motivo` es el que decide el texto ("redimiste", no "ganaste"). */
+            puntos: Math.abs(Number(m.puntos) || 0), total: m.saldo_despues,
+            motivo: m.tipo, premio: m.detalle || "",
           }),
         }).catch(() => {});
       } catch (_e) { /* nunca estorba al aviso por WhatsApp */ }
 
       try {
-        const d = await datosDe(String(m.branch_id));
-        if (!d.activo) { await marcar({ aviso: "apagado" }); apagados++; continue; }
-        if (!d.token || !d.phoneId) { await marcar({ aviso: "fallido", aviso_error: "WhatsApp no conectado" }); fallidos++; continue; }
+        const d = await datosDe(String(m.branch_id), esCanje);
 
-        // 10 dígitos guardados sin indicativo → se antepone 57 para Meta.
+        // 10 dígitos guardados sin indicativo → se antepone 57 para Meta y Twilio.
         let tel = String(m.telefono || "").replace(/\D/g, "");
         if (tel.length === 10) tel = "57" + tel;
-        if (tel.length < 11) { await marcar({ aviso: "fallido", aviso_error: "teléfono inválido: " + tel }); fallidos++; continue; }
+        if (tel.length < 11) {
+          await marcar({ aviso: "fallido", aviso_error: "teléfono inválido: " + tel, aviso_sms: "fallido" });
+          fallidos++; continue;
+        }
+
+        /* ── EL SMS DEL CANJE ────────────────────────────────────────────
+           Va ANTES de mirar la plantilla de WhatsApp, y esa es toda la
+           gracia: hoy no hay plantilla aprobada para canjes, asi que el
+           WhatsApp se marca "apagado" y hace `continue`. Si el SMS
+           estuviera despues, no saldria nunca.
+           Solo en canjes: para los puntos ganados el aviso por WhatsApp ya
+           funciona y pagar un SMS por cada compra si seria caro. */
+        if (esCanje && m.aviso_sms == null) {
+          const texto = textoSms(
+            d.marca || "tu restaurante",
+            String(m.detalle || ""),
+            Math.abs(Number(m.puntos) || 0),
+            Number(m.saldo_despues) || 0,
+          );
+          const rs = await mandarSms(tel, texto);
+          if (rs.ok) {
+            await marcar({ aviso_sms: "enviado", aviso_sms_at: new Date().toISOString(), aviso_sms_error: null });
+            sms++;
+          } else {
+            await marcar({ aviso_sms: "fallido", aviso_sms_error: rs.error || "sin detalle" });
+            smsFallidos++;
+          }
+        } else if (!esCanje) {
+          await marcar({ aviso_sms: "apagado" });
+        }
+
+        if (!d.activo) { await marcar({ aviso: "apagado" }); apagados++; continue; }
+        if (!d.token || !d.phoneId) { await marcar({ aviso: "fallido", aviso_error: "WhatsApp no conectado" }); fallidos++; continue; }
 
         // Los parametros salen del mapeo configurado: la posicion i del
         // arreglo alimenta el hueco {{i+1}} de la plantilla.
@@ -273,7 +377,7 @@ Deno.serve(async (req) => {
       await sleep(300);
     }
 
-    return json({ ok: true, enviados, fallidos, apagados, total: cola.length });
+    return json({ ok: true, enviados, fallidos, apagados, sms, smsFallidos, total: cola.length });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

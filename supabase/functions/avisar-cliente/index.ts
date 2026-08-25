@@ -62,6 +62,10 @@ const DE_FABRICA: Record<string, { titulo: string; cuerpo: string }> = {
      no motiva, lo que motiva es ver el acumulado crecer. */
   puntos_ganados:   { titulo: "+{puntos} puntos 🎁", cuerpo: "Ya tienes {total} puntos en {negocio}. Mira por qué los puedes cambiar." },
   puntos_regalo:    { titulo: "Te regalamos {puntos} puntos 🎁", cuerpo: "Ya tienes {total} puntos en {negocio}. Un detalle de parte nuestra." },
+  /* El canje NO se celebra como una ganancia: el cliente acaba de GASTAR
+     sus puntos. El titulo dice que salio bien y el cuerpo confirma con que
+     se quedo y cuanto le queda, que es lo unico que va a querer verificar. */
+  puntos_canje:     { titulo: "Redimiste {puntos} puntos", cuerpo: "Cambiaste {premio} en {negocio}. Te quedan {total} puntos." },
   /* SALDO REGALADO (20-ago, Sergio: que el regalo de saldo avise igual que el
      de puntos). Distinto de la recarga: esto no lo pago el cliente. */
   saldo_regalo:     { titulo: "Te regalamos {monto} 🎁", cuerpo: "Ya tienes {saldo} en tu billetera de {negocio}. Un detalle de parte nuestra." },
@@ -246,9 +250,11 @@ Deno.serve(async (req: Request) => {
        lea como una compra. */
     if (tipo === "puntos") {
       const ganados = Math.round(Number(b.puntos || 0));
-      /* Solo cuando SUMAN. Un canje tambien deja movimiento, y avisar "usaste
-         200 puntos" con la misma alegria seria burlarse del cliente. */
-      if (ganados <= 0 && !soloVer) return json({ ok: true, razon: "no_suma" });
+      const esCanje = String(b.motivo || "") === "canje";
+      /* Un canje tambien avisa, pero con su propio texto: celebrar "+200
+         puntos" cuando el cliente los acaba de GASTAR seria burlarse de el.
+         Fuera de los canjes sigue avisando solo cuando SUMAN. */
+      if (ganados <= 0 && !esCanje && !soloVer) return json({ ok: true, razon: "no_suma" });
 
       let clienteP = String(b.cliente_id || "");
       let tenantP  = String(b.tenant_id || "");
@@ -269,16 +275,22 @@ Deno.serve(async (req: Request) => {
       }
 
       const propiosP = tenantP ? await avisosDe(tenantP) : null;
-      const clave = String(b.motivo || "") === "regalo" ? "puntos_regalo" : "puntos_ganados";
+      const motivoP = String(b.motivo || "");
+      const clave = esCanje ? "puntos_canje"
+                  : motivoP === "regalo" ? "puntos_regalo"
+                  : "puntos_ganados";
       const t = textoDe(clave, propiosP, {
-        puntos: String(ganados),
+        puntos: String(Math.abs(ganados)),
         total: String(Math.round(Number(b.total || 0))),
         negocio: String(b.negocio || "tu restaurante"),
+        premio: String(b.premio || "tu premio"),
       });
       if (soloVer) return json({ ok: true, previsualizacion: t });
       /* Etiqueta fija: si gana puntos dos veces seguidas, el segundo aviso pisa
          al primero — y el bueno es el ultimo, que trae el total al dia. */
-      const r = await enviar(clienteP, t.titulo, t.cuerpo, "puntos");
+      /* Etiqueta distinta para el canje: si no, el aviso de "redimiste"
+         pisaria al de los puntos que gano con esa misma compra. */
+      const r = await enviar(clienteP, t.titulo, t.cuerpo, esCanje ? "puntos_canje" : "puntos");
       return json({ ok: true, ...r });
     }
 

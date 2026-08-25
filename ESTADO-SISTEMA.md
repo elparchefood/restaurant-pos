@@ -13995,3 +13995,66 @@ al marcar uno como entregado en caja baja a $30.000. Todo lo PRUEBA borrado.
 Pantallas de Cobra (usuarios con los campos nuevos + interruptor del dinero ·
 empresas externas · el modal de "¿quien lo lleva?" al marcar EN CAMINO · el
 bloque de efectivo en caja) y despues la APK.
+
+---
+
+## 183. El aviso de canje: WhatsApp + SMS (`aviso-puntos` v15) — 25-ago-2026
+
+**Qué pasó.** La noche del 24, Sandra redimió 100 puntos por una salsa de
+$2.000 — el **primer canje real** del sistema. Aparecieron dos cosas:
+
+1. **No se podía cerrar el pago.** `pagos.js` habilitaba Finalizar con
+   `paid >= total && total > 0`. Al cubrir el pedido entero con puntos el total
+   queda en 0, así que `total > 0` nunca se cumplía. Ahora la condición es *hay
+   algo que cobrar* (hay ítems, o el total es mayor que cero): una cuenta vacía
+   sigue bloqueada, una cuenta de cero no. Le habría pasado igual al primer
+   descuento del 100%.
+   De paso, sin ningún pago en dinero el método se guardaba como `multiple`;
+   ahora, si no hay pagos pero sí canje, se guarda como `puntos`.
+
+2. **No le llegó nada al cliente.** El barrido solo miraba `acumulacion` y
+   `regalo`.
+
+**Cómo quedó.** `aviso-puntos` también barre `canje`, y avisa por **dos
+canales independientes**:
+
+| Canal | De qué depende | Columna |
+|---|---|---|
+| WhatsApp | Plantilla aprobada por Meta + interruptor | `aviso` |
+| SMS (Twilio) | Nada. Sale siempre en canjes | `aviso_sms` |
+
+**Por qué el SMS va ANTES de mirar la plantilla.** Sin plantilla aprobada el
+WhatsApp se marca `apagado` y hace `continue`. Con el SMS después, no saldría
+nunca — que es justamente el caso del día que se escribió esto.
+
+**Por qué dos columnas y no una.** Con una sola, marcar el WhatsApp como
+apagado daría la fila por cerrada. Y "enviado" significaría cosas distintas
+según el día: nadie podría saber después si el cliente recibió uno, otro o los
+dos.
+
+**El signo.** `fn_puntos_consumir` guarda los puntos en NEGATIVO. Ni el mensaje
+ni el aviso de la app muestran el signo: `puntos_redimidos` usa el valor
+absoluto y `puntos_ganados` recorta a cero por si acaso.
+
+**El aviso dentro de la app** (`avisar-cliente` v15) tenía un candado
+explícito: rechazaba los movimientos que no sumaran, para no celebrar un gasto
+como una ganancia. Se mantiene el criterio y se le da al canje su propio texto
+—"Redimiste 100 puntos · Cambiaste Ajo · Salsa. Te quedan 42"— con etiqueta
+propia, para que no pise al aviso de los puntos que ganó con esa misma compra.
+
+**Configuración.** `ia_config.estados_config.puntos_canje`
+(`{activo, plantilla, idioma}`), en la misma pantalla que *Gana puntos*
+(Configuración → Estados de pedido y avisos). El SMS **no** se configura ahí a
+propósito: es la red de seguridad para cuando la plantilla no existe.
+
+**Plantilla a crear en Meta** (`puntos_redimidos`, Utilidad, es):
+`{{1}}` negocio · `{{2}}` qué redimió · `{{3}}` puntos usados · `{{4}}` saldo.
+
+**Costo.** Cada SMS ~US$0,05, del **mismo saldo de Twilio con el que salen los
+códigos de acceso**. Si se agota, ningún cliente nuevo se puede registrar.
+`revisar-saldo-sms` ya avisa en la campanita bajo US$5. Sergio lo aprobó
+sabiéndolo: "no todos los días la gente redime".
+
+### Lo que sigue
+Que Sergio cree la plantilla en Meta y encienda el interruptor. Hasta entonces
+el canje avisa por SMS y por la app, no por WhatsApp.
