@@ -60,8 +60,26 @@ const $ = id => document.getElementById(id);
 const esc = t => String(t == null ? '' : t)
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+/* Una pantalla de cocina NUNCA se puede quedar girando en silencio: el
+   cocinero se queda mirando un circulito y nadie sabe por que. Cualquier
+   fallo del arranque se muestra en pantalla, con el motivo. */
+function morir(motivo, detalle) {
+  const c = document.getElementById('cargando');
+  if (!c) return;
+  c.innerHTML =
+    '<p style="font-size:1.6cqw;color:#B91C1C">' + motivo + '</p>' +
+    (detalle ? '<p style="font-size:1.1cqw;color:#94A3B8;max-width:60ch;text-align:center">'
+      + String(detalle).slice(0,300) + '</p>' : '') +
+    '<button onclick="location.reload()" style="margin-top:1cqw;border:none;border-radius:.6cqw;'
+    + 'background:#5B6BFF;color:#fff;padding:1cqw 2.5cqw;font-size:1.3cqw;font-weight:800;'
+    + 'font-family:inherit;cursor:pointer">Reintentar</button>';
+}
+addEventListener('error',  e => morir('La pantalla no pudo abrir.', e.message));
+addEventListener('unhandledrejection', e => morir('La pantalla no pudo abrir.', e.reason && e.reason.message));
+
 /* ── Arranque ───────────────────────────────────────────────────────────── */
 (async function iniciar() {
+  try {
   const { data:{ session } } = await sb.auth.getSession();
   if (!session) { location.href = 'mesero-login.html'; return; }
 
@@ -91,6 +109,10 @@ const esc = t => String(t == null ? '' : t)
   reloj(); setInterval(reloj, 10000);
   vigilarRed();
   mantenerDespierta();
+  } catch (e) {
+    console.error('[cocina] no arrancó:', e);
+    morir('La pantalla no pudo abrir.', e && e.message);
+  }
 })();
 
 /* Datos que no cambian durante el turno */
