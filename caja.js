@@ -838,7 +838,19 @@ function renderDesglosePago(orders) {
   const pagos   = S.pagosMetodo || {};       // { metodo_en_minuscula : monto }
   const methods = S.payMethods || [];
   const used = {};
-  const rows = methods.map(function(m){ used[m.key]=true; return { nombre:m.nombre, tipo:m.tipo, amt: pagos[m.key]||0 }; });
+  const rows = methods.map(function(m){
+    used[m.key] = true;
+    /* PUNTOS: una sola fila, y en puntos.
+       Salia DOS VECES —el metodo configurado, en $0, y mas abajo la fila real
+       en pts—. No era un descuido de la fila de abajo: es que un metodo
+       llamado "Puntos" no puede llevar plata NUNCA (la parte en dinero de un
+       canje mixto viaja en su metodo real), asi que su $0 no informaba nada.
+       Se marca aqui y mas abajo se le mete la cantidad. */
+    if (String(m.tipo || '').toLowerCase() === 'puntos') {
+      return { nombre: m.nombre, tipo: 'puntos', amt: 0, pts: 0, esPuntos: true };
+    }
+    return { nombre:m.nombre, tipo:m.tipo, amt: pagos[m.key]||0 };
+  });
   // "Otros": pagos cuyo método no coincide con ninguno configurado (históricos, etc.)
   let otros = 0;
   Object.keys(pagos).forEach(function(k){ if(!used[k]) otros += pagos[k]||0; });
@@ -877,17 +889,26 @@ function renderDesglosePago(orders) {
     var _neg = (_u && _u.user_metadata && _u.user_metadata.negocio) || '';
     rows.push({ nombre: _neg ? ('Saldo ' + _neg) : 'Saldo del cliente', tipo:'saldo', amt:saldoUsado });
   }
-  if (puntos > 0) rows.push({ nombre:'Puntos', tipo:'puntos', amt:0, pts:puntos });
+  /* Si el restaurante tiene "Puntos" entre sus metodos, la cantidad va en ESA
+     fila. Si no lo tiene configurado pero alguien redimio, se agrega: el dato
+     no se puede perder solo porque el metodo no este en la lista. */
+  var filaPts = null;
+  for (var _i = 0; _i < rows.length; _i++) { if (rows[_i].esPuntos) { filaPts = rows[_i]; break; } }
+  if (filaPts) filaPts.pts = puntos;
+  else if (puntos > 0) rows.push({ nombre:'Puntos', tipo:'puntos', amt:0, pts:puntos });
   if (!rows.length) { cont.innerHTML = '<div class="cj-empty-row" style="padding:16px 0">Configura tus métodos en <strong>Métodos de pago</strong></div>'; return; }
   cont.innerHTML = rows.map(function(r){
     const color = _DP_COLOR[r.tipo] || _DP_COLOR.otro;
     const tint  = _DP_TINT[r.tipo]  || _DP_TINT.otro;
     const icon  = _DP_ICON[r.tipo]  || _DP_ICON.otro;
     /* La barra de los puntos va llena: no compite con los pesos, solo dice
-       cuantos se redimieron. */
+       cuantos se redimieron. Vacia si nadie redimio — una barra llena con
+       "0 pts" al lado se lee como un error. */
     const esPts = r.pts != null;
     const esAparte = r.aparte != null;
-    const pct   = (esPts || esAparte) ? 100 : (total>0 ? (r.amt/total*100) : 0);
+    const pct   = esPts ? (Number(r.pts) > 0 ? 100 : 0)
+                : esAparte ? 100
+                : (total>0 ? (r.amt/total*100) : 0);
     const valor = esPts ? (Number(r.pts).toLocaleString('es-CO') + ' pts')
                 : esAparte ? COPF(r.aparte) : COPF(r.amt);
     return '<div class="cj-method-row">'
