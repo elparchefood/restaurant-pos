@@ -1,0 +1,23 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Salir del modo seleccion</title>
+<style>body{margin:0;padding:20px;font-family:system-ui,sans-serif;background:#F8FAFC}
+ #convList{background:#fff;border:1px solid #ECEEF2;border-radius:10px;padding:12px;width:280px}
+ #selBar{background:#EEF2FF;padding:8px;border-radius:8px;width:280px;margin-bottom:8px}
+ .etq-overlay{position:absolute;top:20px;left:340px;background:#fff;border:2px solid #5B6BFF;
+   padding:14px;border-radius:10px}
+ #fuera{margin-top:20px;padding:30px;background:#E2E8F0;border-radius:10px;width:280px}
+ pre{font-size:12px;background:#0F172A;color:#A7F3D0;padding:10px;border-radius:8px;margin-top:14px}</style>
+<body>
+<div id="selBar">barra de seleccion <button id="selAllBtn">Todos</button></div>
+<div id="convList"><div class="chat">Chat 1</div><div class="chat">Chat 2</div></div>
+<button id="selModeBtn">Modo seleccion</button>
+<div class="etq-overlay" id="etqAssignModal" style="display:none">Modal de etiquetas</div>
+<div id="fuera">ZONA DE AFUERA — tocar aqui debe salir</div>
+<pre id="log"></pre>
+<script>
+var S = { selMode:true, selIds:['a'] };
+function renderConvList(){}
+function salirSelMode(){ S.selMode=false; S.selIds=[]; renderConvList(); }
+</script>
+<script src="../chat-ia-seleccion-test.js"></script>

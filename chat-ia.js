@@ -3664,6 +3664,55 @@ function salirSelMode(){
   S.selMode = false; S.selIds = [];
   renderConvList();
 }
+
+/* ── DOS SALIDAS MAS DEL MODO SELECCION (24-ago-2026) ────────────────────
+   Sergio: *"al acabar de etiquetarlos se queda dentro del modo seleccion y no
+   hay manera de salir de ahi"*.
+
+   Salida SI habia —el boton "Cancelar" al final de la barra— pero es pequeño,
+   va despues de otros tres botones y se pierde. Que exista no basta: si el
+   dueño no lo encuentra, para el esta atrapado.
+
+   Se le agregan las dos salidas que la gente prueba por instinto: Escape, y
+   tocar fuera de la lista. El boton se queda donde esta.
+
+   NO se sale solo despues de etiquetar, a proposito: es normal poner una
+   etiqueta y querer poner otra a los mismos chats. Salir solo obligaria a
+   volver a marcarlos todos. */
+(function () {
+  function hayModalAbierto() {
+    /* Si hay un modal encima, Escape es SUYO: cerrar la seleccion por debajo
+       dejaria el modal huerfano, hablando de unos chats ya desmarcados. */
+    var m = document.querySelectorAll('.etq-overlay, .ci-modal, .modal-overlay');
+    for (var i = 0; i < m.length; i++) {
+      var v = m[i].style.display;
+      if (v && v !== 'none') return true;
+    }
+    return false;
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (!S.selMode) return;
+    if (hayModalAbierto()) return;
+    e.preventDefault();
+    salirSelMode();
+  });
+
+  /* Tocar fuera. La lista y su barra NO cuentan: ahi dentro se marca y se
+     desmarca, que es justo lo que se esta haciendo. */
+  document.addEventListener('click', function (e) {
+    if (!S.selMode) return;
+    if (hayModalAbierto()) return;
+    var t = e.target;
+    if (!t || !t.closest) return;
+    if (t.closest('#convList')) return;      // marcando chats
+    if (t.closest('#selBar')) return;        // usando la barra
+    if (t.closest('#selModeBtn')) return;    // el boton que entra y sale
+    if (t.closest('.etq-overlay, .ci-modal, .modal-overlay')) return;
+    salirSelMode();
+  }, true);
+})();
 function toggleSelConv(id){
   if(!id) return;
   S.selIds = S.selIds || [];
