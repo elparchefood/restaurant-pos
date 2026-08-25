@@ -248,7 +248,11 @@
         pesos += Number(ch.dataset.pesos) || 0;
         dinero += Number(ch.dataset.dinero) || 0;
         var it = filas[Number(ch.dataset.i)].it;
-        nombres.push(it.name); ids.push(it.id);
+        /* Con la CANTIDAD delante ("1x Ajo · Salsa"). El aviso del canje se
+           arma con este texto, y "redimiste tus puntos por Ajo · Salsa" no dice
+           si fue una o fueron tres. Se escribe una sola vez aqui y sale igual
+           en el SMS, en el WhatsApp y en la pantalla de cobro. */
+        nombres.push((Number(it.qty) || 1) + 'x ' + it.name); ids.push(it.id);
       });
       cerrar();
       /* itemIds: la pantalla los necesita para SACAR esos productos del total.

@@ -85,7 +85,7 @@ function sinTildes(t: string): string {
 function textoSms(negocio: string, premio: string, usados: number, quedan: number): string {
   let pr = sinTildes(premio || "tu premio");
   if (pr.length > 40) pr = pr.slice(0, 39) + ".";
-  const t = `Redimiste tus puntos en ${sinTildes(negocio)}. Producto: ${pr}. `
+  const t = `Redimiste exitosamente tus puntos por ${pr} en ${sinTildes(negocio)}. `
           + `Usaste ${usados} puntos y te quedan ${quedan}. Gracias por preferirnos.`;
   return t.length > 160 ? t.slice(0, 157) + "..." : t;
 }
@@ -145,8 +145,11 @@ Deno.serve(async (req) => {
       const d: typeof porBranch[string] = esCanje
         ? {
             activo: false, plantilla: "puntos_redimidos", idioma: "es",
-            // {{1}} negocio, {{2}} que redimio, {{3}} puntos usados, {{4}} saldo.
-            vars: ["negocio", "premio_canjeado", "puntos_redimidos", "puntos_total"],
+            /* Mismo orden que el SMS, para que los dos canales digan exactamente
+               lo mismo: {{1}} que redimio, {{2}} negocio, {{3}} usados, {{4}} saldo.
+               Meta rechaza las plantillas que ARRANCAN con un hueco, por eso el
+               cuerpo empieza con "Redimiste exitosamente tus puntos por...". */
+            vars: ["premio_canjeado", "negocio", "puntos_redimidos", "puntos_total"],
           }
         : {
             activo: false, plantilla: "puntos_ganados", idioma: "es",

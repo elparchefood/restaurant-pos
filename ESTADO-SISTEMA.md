@@ -14047,8 +14047,19 @@ propia, para que no pise al aviso de los puntos que ganó con esa misma compra.
 (Configuración → Estados de pedido y avisos). El SMS **no** se configura ahí a
 propósito: es la red de seguridad para cuando la plantilla no existe.
 
-**Plantilla a crear en Meta** (`puntos_redimidos`, Utilidad, es):
-`{{1}}` negocio · `{{2}}` qué redimió · `{{3}}` puntos usados · `{{4}}` saldo.
+**El texto** (Sergio lo escribió así, 25-ago): *"Redimiste exitosamente tus
+puntos por 1x Ajo Salsa en El Parche Food. Usaste 100 puntos y te quedan 42.
+Gracias por preferirnos."* — 128 caracteres, un solo SMS.
+
+La **cantidad** ("1x") se agregó en el origen (`pos-puntos.js`), no en el
+mensaje: así sale igual en el SMS, en el WhatsApp y en la pantalla de cobro.
+Sin ella, "redimiste tus puntos por Ajo · Salsa" no dice si fue una o tres.
+
+**Plantilla a crear en Meta** (`puntos_redimidos`, Utilidad, es), con el
+MISMO texto del SMS para que los dos canales digan lo mismo:
+`{{1}}` qué redimió · `{{2}}` negocio · `{{3}}` puntos usados · `{{4}}` saldo.
+El cuerpo NO puede arrancar con un hueco — Meta rechaza esas plantillas —,
+por eso empieza con "Redimiste exitosamente tus puntos por...".
 
 **Costo.** Cada SMS ~US$0,05, del **mismo saldo de Twilio con el que salen los
 códigos de acceso**. Si se agota, ningún cliente nuevo se puede registrar.
