@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Las dos columnas del escritorio</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../dashboard.css">
+<style>body{margin:0;padding:24px;background:#FAFAFB;font-family:'DM Sans',system-ui,sans-serif}</style>
+<body>
+<div class="section-wrap">
+  <div class="two-col">
+    <div>
+      <div class="section-header" style="margin-bottom:0">
+        <div><span class="eyebrow">Distribucion · Hoy</span><h3 class="section-title">Canal de venta</h3></div>
+      </div>
+      <div class="canal-grid" id="canal-grid">
+        <div class="canal-card"><b>Salones</b><div>$0 · 0 ventas</div></div>
+        <div class="canal-card"><b>Venta rapida</b><div>$60.000 · 2 ventas</div></div>
+        <div class="canal-card"><b>Domicilio</b><div>$80.000 · 2 ventas</div></div>
+        <div class="canal-card"><b>Reservacion</b><div>$0 · 0 ventas</div></div>
+      </div>
+    </div>
+    <div>
+      <div class="section-header" style="margin-bottom:14px">
+        <div><span class="eyebrow">Comportamiento · Hoy</span><h3 class="section-title">Ticket promedio por hora</h3></div>
+        <div class="segmented-sm">
+          <button class="seg-sm active">Concurrencia</button><button class="seg-sm">Cantidad</button>
+        </div>
+      </div>
+      <div class="card">
+        <div style="height:220px;background:#F1F5F9;border-radius:8px"></div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid #ECEEF2">
+          <div><b>$140k</b><br><small>Pico</small></div><div><b>$140k</b><br><small>Minimo</small></div>
+          <div><b>$140k</b><br><small>Promedio</small></div><div><b>+0%</b><br><small>Variacion</small></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

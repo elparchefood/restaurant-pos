@@ -314,3 +314,47 @@
 .ntf-btn-ok:hover { background: #4453d6; }
 .ntf-btn-ok:disabled { opacity: .6; cursor: default; }
 .ntf-modal-nota { margin-top: 11px; font-size: 11.5px; color: #94A3B8; text-align: center; }
+
+/* ── LAS DOS COLUMNAS, A LA MISMA ALTURA ────────────────────────────────
+   Pedido de Sergio, 24-ago-2026: "los bloques del lado izquierdo son mas
+   cortos que el bloque del lado derecho y se ve un poco extraño".
+
+   Pasaba por `align-items: flex-start`: cada columna crecia por su cuenta.
+   La de la derecha —la grafica de 220px mas sus cuatro cifras— es mas alta que
+   cuatro tarjetas de canal, y quedaba un hueco abajo a la izquierda.
+
+   Se arregla en tres pasos, y los tres hacen falta:
+     1. Que las columnas se estiren a la misma altura (`stretch`).
+     2. Que cada columna sea una pila vertical, para que su contenido pueda
+        crecer. Sin esto, estirar la columna no estira lo de dentro.
+     3. Que la cuadricula de canales OCUPE lo que sobra y reparta la altura
+        entre sus dos filas.
+   ─────────────────────────────────────────────────────────────────────── */
+.two-col { align-items: stretch; }
+.two-col > div { display: flex; flex-direction: column; }
+
+/* Los titulos de las dos columnas a la misma altura: el de la derecha lleva
+   los botones de Concurrencia/Cantidad y es mas alto, asi que sin esto las
+   tarjetas de abajo arrancarian a distinta altura y el arreglo se notaria a
+   medias. */
+.two-col > div > .section-header { min-height: 46px; align-items: flex-end; }
+
+.two-col .canal-grid {
+  flex: 1;                       /* ocupa todo lo que sobre */
+  grid-template-rows: 1fr 1fr;   /* y lo reparte entre las dos filas */
+  align-content: stretch;
+}
+/* El contenido de cada tarjeta se separa en vez de amontonarse arriba cuando
+   la tarjeta crece. */
+.two-col .canal-card { display: flex; flex-direction: column; justify-content: space-between; }
+
+/* La tarjeta de la grafica tambien ocupa su columna entera, si algun dia la de
+   la izquierda fuera la mas alta. */
+.two-col > div > .card { flex: 1; display: flex; flex-direction: column; }
+
+/* NO lleva regla para pantalla angosta. La puse y la quite: daba por hecho que
+   `.two-col` se apilaba en pantallas pequeñas, y NO lo hace — se queda en dos
+   columnas a cualquier ancho. Esa regla solo habria conseguido que por debajo
+   de 900px volvieran a quedar desiguales, o sea el fallo original de vuelta en
+   media pantalla. Igualar la altura funciona igual de bien a cualquier ancho.
+*/
