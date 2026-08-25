@@ -880,8 +880,13 @@
     var branchId = window._pos && window._pos.state && window._pos.state.branchId;
     try {
       var cajaStart = await getCajaSessionStart();
+      /* Las empresas de domicilio, de una vez: la banda de "quien lo llevo"
+         necesita su NOMBRE para pintarse, y si llegaran despues se veria un
+         instante "Movil 52" a secas y luego "Rappi Service · Movil 52". Se
+         piden una sola vez por pantalla y quedan guardadas. */
+      try { await vsEmpresas(); } catch (e) {}
       var q = sb.from('pos_orders')
-        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, waiter_id, domiciliario, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at, cliente_id, notes, domi_movil, origen')
+        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, waiter_id, domiciliario, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at, cliente_id, notes, domi_movil, domi_empresa_id, origen')
         .eq('channel', 'domicilio')
         .not('status', 'eq', 'cancelled')
         .gte('created_at', cajaStart)
@@ -942,6 +947,9 @@
              "Rapid" a fuego, que es la que usa El Parche, y se le mostraba
              a todos los restaurantes del sistema. */
           movil: r.domi_movil || '',
+          /* QUE EMPRESA lo llevo. No es lo mismo el movil 28 de Rappi que el
+             28 de Inter Domiciliarios: el numero solo no identifica a nadie. */
+          empresaId: r.domi_empresa_id || '',
           clienteId: r.cliente_id || null,
           min: mins,                 // en el estado actual
           minTotal: minsTotal,       // desde que entro el pedido
@@ -1710,33 +1718,90 @@
     out[n - 1] += fee - out.reduce(function (a, b) { return a + b; }, 0);
     return out;
   }
-  /* Editor del movil de la empresa externa, en el panel del domicilio. */
-  window.vsMovilEditar = function (btn, orderId) {
+  /* ── QUIEN LLEVO EL DOMICILIO: empresa + movil ──────────────────────────
+     Pedido de Sergio, 24-ago-2026: *"no es lo mismo el movil 28 de Rappi que
+     el movil 28 de Inter Domiciliarios"*. Antes solo se guardaba el numero, y
+     un numero suelto no identifica a nadie: dos empresas pueden tener el mismo.
+
+     El color pasa a morado, el de los puntos (#7C3AED sobre #F5F3FF). Antes
+     era verde azulado y no pegaba con nada mas del panel. */
+
+  var _vsEmpresas = null;      // se piden una sola vez por pantalla
+
+  async function vsEmpresas() {
+    if (_vsEmpresas) return _vsEmpresas;
+    try {
+      var sbRef = (window._pos && window._pos.sb) || window.sb;
+      var t = window._pos && window._pos.state && window._pos.state.tenantId;
+      if (!sbRef || !t) return (_vsEmpresas = []);
+      var r = await sbRef.from('pos_domi_empresas').select('id,nombre')
+        .eq('tenant_id', t).eq('activa', true).order('nombre');
+      _vsEmpresas = (r && r.data) || [];
+    } catch (e) { _vsEmpresas = []; }
+    return _vsEmpresas;
+  }
+
+  /* Lo que se ve en la banda cuando NO se esta editando. */
+  window.vsMovilTexto = function (d) {
+    if (!d || !d.movil) return '+ Quién lo llevó';
+    var e = (_vsEmpresas || []).find(function (x) { return String(x.id) === String(d.empresaId); });
+    return e ? (_esc(e.nombre) + ' · Móvil ' + _esc(d.movil)) : ('Lo llevó el Móvil ' + _esc(d.movil));
+  };
+
+  window.vsMovilEditar = async function (btn, orderId) {
     if (btn.querySelector('input')) return;
     var d = (state.deliveries || []).find(function (x) { return String(x.id) === String(orderId); });
     var actual = (d && d.movil) || '';
-    btn.style.background = '#F1F5F9';
-    btn.innerHTML = 'Móvil <input inputmode="numeric" maxlength="6" value="' + _esc(actual) + '"'
-      + ' style="width:56px;border:1px solid #ECEEF2;border-radius:6px;background:#fff;font:inherit;color:#0F172A;outline:none;padding:2px 6px" placeholder="27">';
+    var empActual = (d && d.empresaId) || '';
+    var empresas = await vsEmpresas();
+
+    btn.style.background = '#F5F3FF';
+    var opciones = '<option value="">Empresa…</option>' + empresas.map(function (e) {
+      return '<option value="' + _esc(e.id) + '"' + (String(e.id) === String(empActual) ? ' selected' : '') + '>'
+        + _esc(e.nombre) + '</option>';
+    }).join('');
+
+    var caja = 'border:1px solid #DDD6FE;border-radius:6px;background:#fff;font:inherit;'
+             + 'color:#0F172A;outline:none;padding:2px 6px';
+    btn.innerHTML = (empresas.length
+        ? '<select style="' + caja + ';max-width:120px;margin-right:6px">' + opciones + '</select>'
+        : '')
+      + 'Móvil <input inputmode="numeric" maxlength="6" value="' + _esc(actual) + '"'
+      + ' style="' + caja + ';width:56px" placeholder="27">';
+
     var inp = btn.querySelector('input');
+    var sel = btn.querySelector('select');
     inp.focus(); inp.select();
+
     var guardado = false;
     async function guardar() {
       if (guardado) return; guardado = true;
       var v = (inp.value || '').replace(/[^0-9a-zA-Z]/g, '').slice(0, 6);
-      if (d) d.movil = v;
-      btn.innerHTML = v ? 'Lo llevó el Móvil ' + _esc(v) : '+ Móvil del domiciliario';
-      btn.style.color = v ? '#0F766E' : '#94A3B8';
-      btn.style.background = v ? '#CCFBF1' : '#F1F5F9';
+      var emp = sel ? (sel.value || '') : empActual;
+      if (d) { d.movil = v; d.empresaId = emp; }
+      btn.innerHTML = window.vsMovilTexto(d || { movil: v, empresaId: emp });
+      btn.style.color = v ? '#7C3AED' : '#94A3B8';
+      btn.style.background = v ? '#F5F3FF' : '#F1F5F9';
       try {
         var sbRef = (window._pos && window._pos.sb) || window.sb;
-        var r = await sbRef.from('pos_orders').update({ domi_movil: v || null }).eq('id', orderId);
+        var r = await sbRef.from('pos_orders')
+          .update({ domi_movil: v || null, domi_empresa_id: emp || null })
+          .eq('id', orderId);
         if (r && r.error) console.error('[ventas] movil:', r.error.message);
       } catch (e) { console.error('[ventas] movil:', e); }
     }
+    /* Se guarda al salir del ULTIMO campo, no del primero: si guardara al salir
+       del desplegable, elegir la empresa y pasar al numero cerraria la edicion
+       antes de escribirlo. */
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); guardar(); } });
     inp.addEventListener('blur', guardar);
     inp.addEventListener('click', function (e) { e.stopPropagation(); });
+    if (sel) {
+      sel.addEventListener('click', function (e) { e.stopPropagation(); });
+      /* Al elegir empresa, el foco pasa solo al numero: es lo siguiente que
+         hay que escribir. */
+      sel.addEventListener('change', function () { inp.focus(); inp.select(); });
+    }
   };
 
   // Adiciones del ítem (selections.mods) → [{name, price, qty}]
@@ -1979,8 +2044,10 @@
              pos_orders.domi_movil. El mismo dato que el chip del monitor. */
           return '<button type="button" onclick="window.vsMovilEditar(this, &quot;' + d.id + '&quot;)"'
             + ' style="margin:4px 0 0;border:none;cursor:pointer;font-size:12px;font-weight:700;padding:4px 10px;border-radius:8px;font-family:inherit;'
-            + (d.movil ? 'color:#0F766E;background:#CCFBF1' : 'color:#94A3B8;background:#F1F5F9') + '">'
-            + (d.movil ? 'Lo llevó el Móvil ' + _esc(d.movil) : '+ Móvil del domiciliario') + '</button>';
+            /* Morado, el mismo de los puntos. Antes era verde azulado y no
+               pegaba con nada mas del panel. */
+            + (d.movil ? 'color:#7C3AED;background:#F5F3FF' : 'color:#94A3B8;background:#F1F5F9') + '">'
+            + window.vsMovilTexto(d) + '</button>';
         })()}
 
       </div>
