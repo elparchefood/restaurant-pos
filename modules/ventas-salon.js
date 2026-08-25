@@ -1749,29 +1749,55 @@
   };
 
   window.vsMovilEditar = async function (btn, orderId) {
-    if (btn.querySelector('input')) return;
+    if (btn.dataset.editando === '1') return;
     var d = (state.deliveries || []).find(function (x) { return String(x.id) === String(orderId); });
     var actual = (d && d.movil) || '';
     var empActual = (d && d.empresaId) || '';
     var empresas = await vsEmpresas();
 
-    btn.style.background = '#F5F3FF';
-    var opciones = '<option value="">Empresa…</option>' + empresas.map(function (e) {
-      return '<option value="' + _esc(e.id) + '"' + (String(e.id) === String(empActual) ? ' selected' : '') + '>'
-        + _esc(e.nombre) + '</option>';
-    }).join('');
+    /* ⚠️ EL DESPLEGABLE NO PUEDE IR DENTRO DEL BOTON.
+       Asi lo hice primero y no funcionaba: un <select> dentro de un <button>
+       es HTML invalido, y el navegador se traga la interaccion — ni salia la
+       manito ni se abria la lista; el clic lo atrapaba el boton y cerraba el
+       panel. Lo reporto Sergio.
 
-    var caja = 'border:1px solid #DDD6FE;border-radius:6px;background:#fff;font:inherit;'
-             + 'color:#0F172A;outline:none;padding:2px 6px';
-    btn.innerHTML = (empresas.length
-        ? '<select style="' + caja + ';max-width:120px;margin-right:6px">' + opciones + '</select>'
-        : '')
-      + 'Móvil <input inputmode="numeric" maxlength="6" value="' + _esc(actual) + '"'
-      + ' style="' + caja + ';width:56px" placeholder="27">';
+       Ahora el boton se ESCONDE y en su lugar se pone un <div> hermano con los
+       dos campos. Al guardar, el div se va y el boton vuelve. */
+    var caja = document.createElement('div');
+    caja.style.cssText = 'display:inline-flex;align-items:center;gap:6px;margin:4px 0 0;'
+      + 'padding:4px 10px;border-radius:8px;background:#F5F3FF;font-size:12px;font-weight:700;'
+      + 'color:#7C3AED;font-family:inherit';
 
-    var inp = btn.querySelector('input');
-    var sel = btn.querySelector('select');
+    var campo = 'border:1px solid #DDD6FE;border-radius:6px;background:#fff;font:inherit;'
+              + 'font-weight:600;color:#0F172A;outline:none;padding:3px 6px;cursor:pointer';
+    var partes = '';
+    if (empresas.length) {
+      partes += '<select style="' + campo + ';max-width:130px">'
+        + '<option value="">Empresa…</option>'
+        + empresas.map(function (e) {
+            return '<option value="' + _esc(e.id) + '"'
+              + (String(e.id) === String(empActual) ? ' selected' : '') + '>' + _esc(e.nombre) + '</option>';
+          }).join('')
+        + '</select>';
+    }
+    partes += '<span>Móvil</span><input inputmode="numeric" maxlength="6" value="' + _esc(actual) + '"'
+      + ' style="' + campo + ';width:54px;cursor:text" placeholder="27">';
+    caja.innerHTML = partes;
+
+    btn.dataset.editando = '1';
+    btn.style.display = 'none';
+    btn.parentNode.insertBefore(caja, btn);
+
+    var inp = caja.querySelector('input');
+    var sel = caja.querySelector('select');
     inp.focus(); inp.select();
+
+    /* Nada de lo que pase aqui dentro llega al panel: sin esto, cualquier clic
+       —incluido abrir la lista— lo cierra. Se frena tambien `mousedown`,
+       porque es el que dispara el cierre ANTES de que llegue el clic. */
+    ['click', 'mousedown', 'touchstart'].forEach(function (ev) {
+      caja.addEventListener(ev, function (e) { e.stopPropagation(); });
+    });
 
     var guardado = false;
     async function guardar() {
@@ -1779,9 +1805,14 @@
       var v = (inp.value || '').replace(/[^0-9a-zA-Z]/g, '').slice(0, 6);
       var emp = sel ? (sel.value || '') : empActual;
       if (d) { d.movil = v; d.empresaId = emp; }
+
+      caja.remove();
+      btn.style.display = '';
+      delete btn.dataset.editando;
       btn.innerHTML = window.vsMovilTexto(d || { movil: v, empresaId: emp });
       btn.style.color = v ? '#7C3AED' : '#94A3B8';
       btn.style.background = v ? '#F5F3FF' : '#F1F5F9';
+
       try {
         var sbRef = (window._pos && window._pos.sb) || window.sb;
         var r = await sbRef.from('pos_orders')
@@ -1790,18 +1821,24 @@
         if (r && r.error) console.error('[ventas] movil:', r.error.message);
       } catch (e) { console.error('[ventas] movil:', e); }
     }
-    /* Se guarda al salir del ULTIMO campo, no del primero: si guardara al salir
-       del desplegable, elegir la empresa y pasar al numero cerraria la edicion
-       antes de escribirlo. */
-    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); guardar(); } });
-    inp.addEventListener('blur', guardar);
-    inp.addEventListener('click', function (e) { e.stopPropagation(); });
-    if (sel) {
-      sel.addEventListener('click', function (e) { e.stopPropagation(); });
-      /* Al elegir empresa, el foco pasa solo al numero: es lo siguiente que
-         hay que escribir. */
-      sel.addEventListener('change', function () { inp.focus(); inp.select(); });
+
+    /* Se guarda al salir de TODA la caja, no de un campo: pasar del
+       desplegable al numero no puede cerrar la edicion. El respiro de 120 ms
+       deja que el foco aterrice en el otro campo antes de decidir. */
+    function quizaGuardar() {
+      setTimeout(function () {
+        if (!caja.isConnected) return;
+        if (caja.contains(document.activeElement)) return;   // sigue adentro
+        guardar();
+      }, 120);
     }
+    inp.addEventListener('blur', quizaGuardar);
+    if (sel) sel.addEventListener('blur', quizaGuardar);
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); guardar(); }
+      if (e.key === 'Escape') { guardado = true; caja.remove(); btn.style.display = ''; delete btn.dataset.editando; }
+    });
+    if (sel) sel.addEventListener('change', function () { inp.focus(); inp.select(); });
   };
 
   // Adiciones del ítem (selections.mods) → [{name, price, qty}]
