@@ -53,6 +53,9 @@ const S = {
   online:true, arrancando:true,
 };
 
+/* Abierta desde el menu del escritorio (`?volver=1`) o colgada en la pared. */
+const VOLVER = new URLSearchParams(location.search).get('volver') === '1';
+
 const $ = id => document.getElementById(id);
 const esc = t => String(t == null ? '' : t)
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -79,6 +82,8 @@ const esc = t => String(t == null ? '' : t)
   S.arrancando = false;      // a partir de aquí, lo nuevo suena
   pintar();
   $('cargando').hidden = true;
+
+  if (VOLVER) $('salir').textContent = 'Volver al escritorio';
 
   suscribir();
   setInterval(cargarComandas, REFRESCO_MS);
@@ -307,6 +312,11 @@ document.addEventListener('click', async ev => {
   if (bl) return marcarListo(bl.getAttribute('data-listo'), bl);
   if (bd) return deshacer(bd.getAttribute('data-desh'));
   if (ev.target.closest('#salir')) {
+    /* DOS SALIDAS DISTINTAS, y confundirlas cierra la sesion del dueno.
+       Con `?volver=1` la pantalla se abrio desde el menu del escritorio: se
+       vuelve, no se cierra sesion. Sin el parametro es la tablet de la pared,
+       y ahi salir SI es cerrar sesion. */
+    if (VOLVER) { location.href = 'dashboard.html'; return; }
     await sb.auth.signOut();
     location.href = 'mesero-login.html';
   }

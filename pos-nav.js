@@ -50,7 +50,11 @@
       i: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>' },
     { t: 'Clientes', h: 'clientes.html',
       i: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>' },
-    { t: 'Cocina', h: 'index.html?rol=kitchen', archivo: 'index.html',
+    /* 25-ago-2026: apuntaba a `index.html?rol=kitchen`, un marcador de
+       posicion que nunca existio — el boton no abria nada. `?volver=1` hace
+       que la pantalla ofrezca "Volver al escritorio" en vez de "Salir": si
+       el dueno entra desde aqui y toca Salir, se cerraria SU sesion. */
+    { t: 'Cocina', h: 'cocina.html?volver=1', archivo: 'cocina.html',
       i: '<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>' },
     { t: 'Productos', h: 'catalogo-productos.html',
       i: '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>' },
@@ -66,8 +70,8 @@
       i: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' },
   ];
 
-  /* Cuál está abierta. Se compara solo el nombre del archivo: "Cocina" apunta a
-     `index.html?rol=kitchen` y con la query completa nunca coincidiría. */
+  /* Cuál está abierta. Se compara solo el nombre del archivo: "Cocina" lleva
+     `?volver=1` y con la query completa nunca coincidiría. */
   function aqui() {
     var p = (location.pathname || '').split('/').pop();
     return p || 'dashboard.html';
