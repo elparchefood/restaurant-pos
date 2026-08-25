@@ -6768,6 +6768,21 @@ var WTP_DATOS = [
   { k: 'horario_hoy',       n: 'Horario de hoy' },
   { k: 'tiempo_entrega',    n: 'Tiempo de entrega' },
   { k: 'nombre_cliente',    n: 'Nombre del cliente' },
+  /* ── DATOS DEL PEDIDO (24-ago-2026) ────────────────────────────────────
+     Sergio veia `pedido_confirmado` con sus cuatro huecos en rojo, como si
+     estuviera rota, cuando por dentro funciona: una clienta pidio por la app y
+     recibio su confirmacion bien.
+
+     Pasaba que los unicos datos ofrecidos eran del cliente o del negocio, y
+     esta plantilla necesita datos DEL PEDIDO. Solo quedaba "Se llena al
+     enviar", que puesto tres veces seguidas no dice cual es cual.
+
+     Los rellena `web-pagar` en el momento, en este orden: lo que pidio, el
+     total y a donde va. Nombrarlos es lo que hace que la tarjeta se entienda
+     y deje de parecer un error. */
+  { k: 'pedido_resumen',    n: 'Lo que pidió' },
+  { k: 'pedido_total',      n: 'Total del pedido' },
+  { k: 'pedido_destino',    n: 'A dónde va' },
   { k: 'libre',             n: 'Se llena al enviar' },
 ];
 WTP.vars = {};
