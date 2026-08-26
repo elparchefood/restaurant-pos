@@ -14165,10 +14165,28 @@ que se configura por categoría y por producto (`empaqueCatCfg`/`empaqueProdCfg`
 y reutiliza el mismo cargador de catálogo (`_empLoadCatalog`). Todo en una
 pantalla en vez de repartido en dos. Sin migración: ni tabla ni columna nuevas.
 
-**Las tres reglas de lo ajeno**, decisión de Sergio de que fuera configurable:
-`igual` (por defecto — el que hace cócteles no quiere achicar nada), `pequeno`
-(sin foto, letra a un tercio, junto y al final tras una línea punteada) y
-`esconder`.
+**Dos preguntas separadas, y esto fue una corrección en caliente.** Primero
+até el tamaño al área: cada área decía qué hacer con «lo que no es de aquí»
+(igual / pequeño / esconder). Sergio abrió la pantalla y **no encontró el
+ajuste**: con una sola área ese selector no aparecía, así que para achicar las
+bebidas tenía que inventarse una Barra que no tiene — justo lo contrario de lo
+que había pedido (*"yo solo tengo cocina, pero le disminuiría el tamaño a las
+bebidas"*). Eran dos cosas distintas enredadas en una:
+
+| Pregunta | Dónde se marca | Cuándo aplica |
+|---|---|---|
+| **¿Dónde se prepara?** → qué pantalla lo ve | columna «Se prepara en» | solo con 2 áreas o más |
+| **¿Qué tan grande se lee?** → Normal / Pequeño | columna «Tamaño» | **siempre**, también con una sola área |
+
+La tabla de categorías se pinta SIEMPRE (antes solo con dos áreas o más), y
+`tamCatCfg` es una llave aparte de `areaCatCfg`. Pequeño = sin foto, letra a un
+tercio, junto y al final tras una línea punteada. Desaparece el selector
+«lo que no es de aquí» de cada área: era la costura del enredo.
+
+**Y una regla que salió probando:** un producto marcado pequeño **nunca** va
+pequeño en la pantalla de su propia área. Con Bebidas en pequeño y mandadas a
+Barra, la pantalla de la barra mostraba su propio trabajo diminuto. Pequeño
+significa "esto aquí no se cocina", y en la barra sí se prepara.
 
 **Compatibilidad, que es lo delicado.** Dos reglas sostienen que nadie que ya
 opera note un cambio que no pidió:

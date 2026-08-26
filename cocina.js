@@ -71,7 +71,7 @@ const S = {
   /* ÁREAS DE PREPARACIÓN (26-ago-2026). Sin áreas definidas todo es cocina y
      la pantalla se comporta EXACTAMENTE como antes: es la regla que hace que
      ningún restaurante que ya opera note un cambio que no pidió. */
-  areas:[], areaCat:{}, areaProd:{}, area:null, areasVisibles:[],
+  areas:[], areaCat:{}, areaProd:{}, tamCat:{}, area:null, areasVisibles:[],
   orders:new Map(), items:new Map(), mesas:new Map(), fotos:new Map(),
   /* categoria de cada producto: es por donde se resuelve su area */
   catDe:new Map(),
@@ -235,6 +235,10 @@ async function cargarBase() {
   S.areas    = Array.isArray(op.areas) ? op.areas.filter(a => a && a.id) : [];
   S.areaCat  = op.areaCatCfg  || {};
   S.areaProd = op.areaProdCfg || {};
+  /* El tamaño NO depende del área: un restaurante con un solo sitio de
+     preparación puede querer las bebidas pequeñas igual. Son dos preguntas
+     distintas y se leen por separado. */
+  S.tamCat   = op.tamCatCfg   || {};
   await resolverArea();
 }
 
@@ -306,22 +310,34 @@ function areaDeItem(i) {
   return S.areas.length ? S.areas[0].id : null;
 }
 
-/* Lo que esta pantalla tiene que mostrar de una comanda: lo suyo primero y,
-   según la regla del área, lo ajeno detrás o nada. Un solo sitio para que la
-   tarjeta y el conteo no puedan decir cosas distintas. */
-function repartoDe(its) {
-  const regla = reglaAjeno();
-  const mios = [], ajenos = [];
-  (its || []).forEach(i => {
-    if (!S.area || areaDeItem(i) === S.area) mios.push(i);
-    else if (regla !== 'esconder') ajenos.push(i);
-  });
-  return { mios, ajenos, regla };
+/* Qué muestra esta pantalla de una comanda. Dos filtros independientes:
+     · EL ÁREA decide si el producto es de esta pantalla. Con un solo sitio de
+       preparación no filtra nada.
+     · EL TAMAÑO decide cómo se lee. Marcar «Bebidas: pequeño» funciona
+       tengas barra o no.
+   Un solo sitio donde se decide, para que la tarjeta y el conteo no puedan
+   decir cosas distintas. */
+function esMini(i) {
+  const pid = i.product_id;
+  const cid = pid ? S.catDe.get(pid) : null;
+  if (!cid || S.tamCat[cid] !== 'mini') return false;
+  /* En la pantalla de SU PROPIA area nunca va pequeno: ahi ese producto es el
+     trabajo, no un anadido. Salio probando — con Bebidas marcadas pequenas y
+     mandadas a Barra, la pantalla de la barra mostraba su propio trabajo
+     diminuto. "Pequeno" significa "esto aqui no se cocina", y en la barra si
+     se prepara. */
+  if (S.areas.length >= 2 && areaDeItem(i) === S.area) return false;
+  return true;
 }
 
-function reglaAjeno() {
-  const a = S.areas.find(x => x.id === S.area);
-  return (a && a.ajeno) || 'igual';
+function repartoDe(its) {
+  const mios = [], minis = [];
+  (its || []).forEach(i => {
+    const deAqui = S.areas.length < 2 || !S.area || areaDeItem(i) === S.area;
+    if (!deAqui) return;
+    if (esMini(i)) minis.push(i); else mios.push(i);
+  });
+  return { mios, ajenos: minis };
 }
 
 /* ── El turno de caja, calcado de `getCajaSessionStart()` de ventas-salon ──
@@ -564,12 +580,12 @@ function tarjeta(o) {
   const nueva = est === 'prep' && mins < 1;
   const its  = S.items.get(o.id) || [];
 
-  /* Lo que se prepara aquí y lo que no. La regla la pone el restaurante en
-     Configuración, área por área: dejarlo igual, achicarlo o esconderlo. */
+  /* Lo que se prepara aquí, y de eso, lo que va en pequeño. Las dos cosas se
+     marcan en Configuración: el área dice de qué pantalla es, el tamaño dice
+     qué tan grande se lee. */
   const rep_   = repartoDe(its);
-  const regla  = rep_.regla;
   const mios   = rep_.mios;
-  const ajenos = rep_.ajenos;
+  const ajenos = rep_.ajenos;   // los marcados como pequeños
 
   function renglon(i, mini) {
     const nombre = i.product_name || i.name || 'Producto';
@@ -586,12 +602,10 @@ function tarjeta(o) {
       + '</span></div>';
   }
 
-  /* Lo ajeno va JUNTO Y AL FINAL, no intercalado: si la gaseosa se mete entre
-     dos platos, el cocinero la lee igual y no se ahorró nada. */
+  /* Lo pequeño va JUNTO Y AL FINAL, no intercalado: si la gaseosa se mete
+     entre dos platos, el cocinero la lee igual y no se ahorró nada. */
   const cuerpo = (mios.map(i => renglon(i, false)).join('')
-    + (ajenos.length && regla === 'pequeno'
-        ? '<div class="it-otros">' + ajenos.map(i => renglon(i, true)).join('') + '</div>'
-        : ajenos.map(i => renglon(i, false)).join('')))
+    + (ajenos.length ? '<div class="it-otros">' + ajenos.map(i => renglon(i, true)).join('') + '</div>' : ''))
     || '<div class="zona-vacia" style="padding:1cqw 0">Sin productos enviados</div>';
 
   const accion = est === 'listo'

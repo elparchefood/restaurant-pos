@@ -2282,6 +2282,11 @@ var OP_DEFAULTS = {
   areas: [],                 // [{id, nombre, ajeno:'igual'|'pequeno'|'esconder'}]
   areaCatCfg: {},            // {catId: areaId}   — ausente = la primera área
   areaProdCfg: {},           // {prodId: areaId}  — ausente = hereda categoría
+  /* TAMAÑO EN LA COMANDA, aparte del área a propósito. Sergio quería las
+     bebidas pequeñas SIN tener barra: atar el tamaño al área le obligaba a
+     inventarse un sitio que no existe. Son dos preguntas distintas —dónde se
+     prepara y qué tan grande se lee— y ahora se responden por separado. */
+  tamCatCfg: {},             // {catId: 'mini'}   — ausente = tamaño normal
   // C9 — Tiempos de automatización de mesa
   mesaT1: 10,  // min → primera notificación
   mesaT2: 5,   // min → re-notificación tras "No"
@@ -2450,9 +2455,10 @@ function opPintarResumenes() {
   var d = _opDraft || _opSaved; if (!d) return;
   var _ar = Array.isArray(d.areas) ? d.areas : [];
   var _arSum = $('accsum-areas');
-  if (_arSum) _arSum.textContent = _ar.length < 2
-    ? 'Solo Cocina'
-    : _ar.map(function (a) { return a.nombre || a.id; }).join(' · ');
+  var _nMini = Object.keys(d.tamCatCfg || {}).length;
+  if (_arSum) _arSum.textContent =
+    (_ar.length < 2 ? 'Solo Cocina' : _ar.map(function (a) { return a.nombre || a.id; }).join(' · '))
+    + (_nMini ? ' · ' + _nMini + (_nMini === 1 ? ' en pequeño' : ' en pequeño') : '');
   var money = function (n) { return '$' + Math.round(Number(n) || 0).toLocaleString('es-CO'); };
   var min = function (v) { return (Number(v) || 0) + ' min'; };
 
@@ -2639,12 +2645,6 @@ var _etqForm = false;      // formulario inline "Crear etiqueta" abierto
    Por eso no se puede borrar — sin ella no habría dónde mandar lo demás. */
 var _areaForm = false;   // formulario inline abierto (nada de cuadros del navegador)
 
-var AREA_AJENO = [
-  { v:'igual',    t:'Igual que lo demás' },
-  { v:'pequeno',  t:'Más pequeño, al final' },
-  { v:'esconder', t:'No mostrarlo' }
-];
-
 function opAreasLista() {
   var d = _opDraft || _opSaved || {};
   return Array.isArray(d.areas) ? d.areas : [];
@@ -2671,17 +2671,10 @@ function opRenderAreas() {
      es AÑADIR un sitio, no empezar de cero. (Sergio, 26-ago-2026.)
      Y con un solo sitio no se pregunta qué hacer con «lo que no es de aquí»:
      no hay nada ajeno. El selector aparece con la segunda área. */
-  var pintables = areas.length ? areas : [{ id:'cocina', nombre:'Cocina', ajeno:'igual', _fantasma:true }];
-  var conSelector = areas.length > 1;
+  var pintables = areas.length ? areas : [{ id:'cocina', nombre:'Cocina', _fantasma:true }];
 
   cont.innerHTML = pintables.map(function (a, i) {
-    var sel = !conSelector ? '' :
-      '<span style="font-size:11.5px;color:#94A3B8;white-space:nowrap">Lo que no es de aquí:</span>'
-      + '<select data-area-ajeno="' + _empEsc(a.id) + '" style="font-family:inherit;font-size:12px;border:1px solid #E2E8F0;border-radius:8px;padding:6px 8px;color:#0F172A;background:#fff">'
-      + AREA_AJENO.map(function (x) {
-          return '<option value="' + x.v + '"' + ((a.ajeno || 'igual') === x.v ? ' selected' : '') + '>' + x.t + '</option>';
-        }).join('')
-      + '</select>';
+    var sel = '';
     var borrar = i === 0
       ? '<span style="width:26px;flex-shrink:0"></span>'
       : '<button type="button" data-area-del="' + _empEsc(a.id) + '" title="Quitar esta área" style="width:26px;height:26px;border:1px solid #ECEEF2;background:#fff;border-radius:8px;color:#94A3B8;cursor:pointer;font-size:15px;line-height:1;flex-shrink:0">&times;</button>';
@@ -2692,12 +2685,6 @@ function opRenderAreas() {
       + sel + borrar + '</div>';
   }).join('');
 
-  cont.querySelectorAll('[data-area-ajeno]').forEach(function (s) {
-    s.addEventListener('change', function () {
-      var a = opAreasLista().find(function (x) { return x.id === s.dataset.areaAjeno; });
-      if (a) { a.ajeno = s.value; opCheckDirty(); opPintarResumenes(); }
-    });
-  });
   cont.querySelectorAll('[data-area-del]').forEach(function (b) {
     b.addEventListener('click', function () {
       var id = b.dataset.areaDel;
@@ -2726,7 +2713,7 @@ function opRenderAreas() {
     if (bn) bn.onclick = function () {
       /* La primera vez se siembra Cocina sola: sin ella la nueva área sería
          la de por defecto y todo lo que no diga nada se iría para allá. */
-      if (!opAreasLista().length) d.areas = [{ id:'cocina', nombre:'Cocina', ajeno:'igual' }];
+      if (!opAreasLista().length) d.areas = [{ id:'cocina', nombre:'Cocina' }];
       _areaForm = true; opRenderAreas();
       var i = $('op-area-nombre'); if (i) i.focus();
     };
@@ -2736,7 +2723,7 @@ function opRenderAreas() {
       var nom = i ? i.value.trim() : '';
       if (!nom) { if (i) i.focus(); return; }
       var lista = opAreasLista();
-      lista.push({ id:_areaId(nom, lista.map(function (x) { return x.id; })), nombre:nom, ajeno:'igual' });
+      lista.push({ id:_areaId(nom, lista.map(function (x) { return x.id; })), nombre:nom });
       d.areas = lista;
       _areaForm = false; opRenderAreas(); opCheckDirty(); opPintarResumenes();
     };
@@ -2752,40 +2739,63 @@ function opRenderAreas() {
   opRenderAreasCats();
 }
 
-/* Dónde se prepara cada categoría. Solo tiene sentido con dos áreas o más:
-   con una sola, preguntar dónde se prepara algo es preguntar por preguntar. */
+/* Cómo sale cada categoría en la comanda. SIEMPRE se pinta, aunque haya un
+   solo sitio de preparación: el tamaño no depende de tener barra. La columna
+   del área solo aparece cuando hay dos o más, porque con una sola preguntar
+   dónde se prepara algo es preguntar por preguntar. */
 function opRenderAreasCats() {
   var wrap = $('op-areas-cats'); if (!wrap) return;
   var d = _opDraft; if (!d) return;
   var areas = opAreasLista();
-  if (areas.length < 2) { wrap.innerHTML = ''; return; }
+  var conArea = areas.length > 1;
   if (!_empCatalog) {
     wrap.innerHTML = '<div style="font-size:12.5px;color:#94A3B8">Cargando la carta…</div>';
     _empLoadCatalog().then(function () { opRenderAreasCats(); });
     return;
   }
-  var opciones = function (val) {
+  var selArea = function (val) {
     return areas.map(function (a) {
       return '<option value="' + _empEsc(a.id) + '"' + (val === a.id ? ' selected' : '') + '>' + _empEsc(a.nombre || a.id) + '</option>';
     }).join('');
   };
   wrap.innerHTML =
-    '<div style="font-size:12.5px;font-weight:800;color:#0F172A;margin-bottom:3px">Dónde se prepara cada categoría</div>'
-    + '<div style="font-size:11.5px;color:#94A3B8;margin-bottom:10px">Se marca por categoría, no producto por producto: son unas pocas y se hace en un minuto.</div>'
+    '<div style="font-size:12.5px;font-weight:800;color:#0F172A;margin-bottom:3px">Cómo sale cada categoría en la comanda</div>'
+    + '<div style="font-size:11.5px;color:#94A3B8;margin-bottom:10px">Lo que no hay que cocinar —una gaseosa, un empaque— puede ir en pequeño para que no le robe sitio a los platos. Se marca por categoría: son unas pocas y se hace en un minuto.</div>'
     + '<div style="border:1px solid #ECEEF2;border-radius:10px;overflow:hidden">'
+    + '<div style="display:flex;align-items:center;gap:9px;padding:7px 12px;background:#F8FAFC;border-bottom:1px solid #ECEEF2">'
+    +   '<span style="flex:1;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#94A3B8">Categoría</span>'
+    +   (conArea ? '<span style="width:120px;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#94A3B8">Se prepara en</span>' : '')
+    +   '<span style="width:120px;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#94A3B8">Tamaño</span>'
+    + '</div>'
     + _empCatalog.cats.map(function (c, i) {
-        var val = (d.areaCatCfg || {})[c.id] || areas[0].id;
+        var val = (d.areaCatCfg || {})[c.id] || (areas[0] && areas[0].id);
+        var tam = (d.tamCatCfg || {})[c.id] === 'mini' ? 'mini' : 'normal';
+        var estilo = 'font-family:inherit;font-size:11.5px;border:1px solid #E2E8F0;border-radius:7px;padding:4px 7px;color:#0F172A;background:#fff;width:120px';
         return '<div style="display:flex;align-items:center;gap:9px;padding:9px 12px;' + (i ? 'border-top:1px solid #F1F5F9;' : '') + '">'
           + '<span style="flex:1;min-width:0;font-size:12.5px;font-weight:700;color:#0F172A">' + _empEsc(c.name) + '</span>'
-          + '<select data-area-cat="' + _empEsc(c.id) + '" style="font-family:inherit;font-size:11.5px;border:1px solid #E2E8F0;border-radius:7px;padding:4px 7px;color:#0F172A;background:#fff">'
-          + opciones(val) + '</select></div>';
+          + (conArea
+              ? '<select data-area-cat="' + _empEsc(c.id) + '" style="' + estilo + '">' + selArea(val) + '</select>'
+              : '')
+          + '<select data-tam-cat="' + _empEsc(c.id) + '" style="' + estilo + '">'
+          +   '<option value="normal"' + (tam === 'normal' ? ' selected' : '') + '>Normal</option>'
+          +   '<option value="mini"' + (tam === 'mini' ? ' selected' : '') + '>Pequeño</option>'
+          + '</select></div>';
       }).join('')
     + '</div>';
+
   wrap.querySelectorAll('[data-area-cat]').forEach(function (s) {
     s.addEventListener('change', function () {
       if (!d.areaCatCfg) d.areaCatCfg = {};
       if (s.value === areas[0].id) delete d.areaCatCfg[s.dataset.areaCat];
       else d.areaCatCfg[s.dataset.areaCat] = s.value;
+      opCheckDirty(); opPintarResumenes();
+    });
+  });
+  wrap.querySelectorAll('[data-tam-cat]').forEach(function (s) {
+    s.addEventListener('change', function () {
+      if (!d.tamCatCfg) d.tamCatCfg = {};
+      if (s.value === 'mini') d.tamCatCfg[s.dataset.tamCat] = 'mini';
+      else delete d.tamCatCfg[s.dataset.tamCat];
       opCheckDirty(); opPintarResumenes();
     });
   });
