@@ -3,16 +3,29 @@
    Las comandas en vivo, en una tablet colgada en la pared.
 
    ── DE DÓNDE SALEN LAS COMANDAS ─────────────────────────────────────────
-   De `pos_orders.visible_cocina` MÁS los pedidos de salón en curso. Las dos
-   cosas, y esto costó un fallo: `visible_cocina` NO es "está en cocina",
-   es "se puede imprimir". `tomar-pedido.js` lo pone en `!cobro_adelantado`,
-   así que en una sucursal que cobra por adelantado se queda en `false` hasta
-   que alguien toque «Cobrar mesa» — y cobrar en caja no lo toca.
-   Medido en la base el 26-ago-2026: de los 125 pedidos de salón de El Parche
-   en 30 días, **cero** llegaron a tener `visible_cocina = true`. La pantalla
-   funcionaba; simplemente el salón nunca iba a aparecer en ella.
-   Por eso el salón entra por su propio estado (`in_progress` / `paid`), que
-   es lo que de verdad significa "esta mesa ya mandó su comanda".
+   REGLA DE SERGIO (26-ago-2026), y es la que manda sobre todo lo demás:
+   *"no importa de cuándo sean; siempre y cuando en la pantalla de ventas
+   esté y se pueda visualizar, también se debe poder visualizar en cocina.
+   Tendría que copiar los mismos estados de la pantalla de ventas."*
+
+   Así que esta pantalla NO tiene criterio propio. Usa, literalmente, las dos
+   señales de `ventas-salon.js`:
+
+     · EL SALÓN sale de `pos_tables` — la mesa ocupada del plano, con su
+       `status` (`pendiente_pago` / `esperando` / `comiendo`). Es lo mismo que
+       pinta el plano de mesas, así que lo que se ve allá se ve aquí.
+     · EL RESTO (venta rápida, domicilios, chat) sale de `visible_cocina`
+       dentro del TURNO DE CAJA, con el mismo `getCajaSessionStart()` que usan
+       las listas de ventas: desde que se cerró la caja anterior. Ni ventana de
+       horas ni inventos.
+
+   Lo que había antes y por qué estaba mal: se filtraba SOLO por
+   `visible_cocina`, que no significa "está en cocina" sino "se puede
+   imprimir". `tomar-pedido.js` lo pone en `!cobro_adelantado`, así que en una
+   sucursal que cobra por adelantado nace en `false` y solo lo enciende el
+   botón «Cobrar mesa»; cobrar en caja no lo toca. Medido en la base: de los
+   125 pedidos de salón de El Parche en 30 días, **cero** llegaron a tenerlo
+   en `true`. El salón no iba a aparecer nunca.
 
    ── EL ESTADO "LISTO" ───────────────────────────────────────────────────
    Se escribe en `pos_orders.estado`, el mismo campo que ya usan los
@@ -53,6 +66,8 @@ const REFRESCO_MS = 20000; // la red por si se cae un evento en vivo
 
 const S = {
   branchId:null, tenantId:null, negocio:'', cobroAdelantado:false, avisarCliente:false,
+  /* estado de la mesa por id de pedido: la señal del plano de ventas */
+  mesaEstado:new Map(),
   orders:new Map(), items:new Map(), mesas:new Map(), fotos:new Map(),
   vistas:new Set(),          // comandas que ya sonaron
   listas:new Map(),          // id -> hora en que se marcó lista (para el deshacer)
@@ -189,42 +204,92 @@ async function cargarBase() {
   (prods.data || []).forEach(p => { if (p.photo_url) S.fotos.set(p.id, p.photo_url); });
 }
 
+/* ── El turno de caja, calcado de `getCajaSessionStart()` de ventas-salon ──
+   No es "las últimas N horas": es el turno. Y arranca donde CERRÓ el turno
+   anterior, no donde abrió el actual — decisión de Sergio del 19-ago, porque
+   con el hueco entre el cierre de anoche y la apertura de hoy se le perdieron
+   $246.000 de las pantallas y del arqueo. Si no hay caja anterior, desde su
+   propia apertura; si no hay caja ninguna, desde medianoche. */
+let _cajaDesde = null, _cajaAl = 0;
+async function inicioCaja() {
+  if (_cajaDesde && (Date.now() - _cajaAl) < 60000) return _cajaDesde;
+  let inicio = null;
+  try {
+    const r = await conTope(sb.from('pos_sessions')
+      .select('opened_at').eq('branch_id', S.branchId).eq('status', 'open')
+      .order('opened_at', { ascending: false }).limit(1), 12, 'el turno de caja');
+    if (r.data && r.data.length && r.data[0].opened_at) {
+      inicio = r.data[0].opened_at;
+      try {
+        const ant = await conTope(sb.from('pos_sessions')
+          .select('closed_at').eq('branch_id', S.branchId)
+          .not('closed_at', 'is', null).lte('closed_at', inicio)
+          .order('closed_at', { ascending: false }).limit(1), 12, 'el turno anterior');
+        if (ant.data && ant.data.length && ant.data[0].closed_at) inicio = ant.data[0].closed_at;
+      } catch (e) { /* se queda con la apertura */ }
+    }
+  } catch (e) { /* abajo cae a medianoche */ }
+  if (!inicio) { const t = new Date(); t.setHours(0,0,0,0); inicio = t.toISOString(); }
+  _cajaDesde = inicio; _cajaAl = Date.now();
+  return inicio;
+}
+
 /* ── Las comandas ───────────────────────────────────────────────────────── */
 async function cargarComandas() {
   try {
-    /* VENTANA DE 8 HORAS, no de 12. Un turno dura cuatro; ocho es holgado.
-       Y hace falta un tope: hay pedidos con `delivered_at` en nulo desde hace
-       cincuenta dias — nadie los marco entregado y sin tope saldrian en
-       cocina para siempre. */
-    const desde = new Date(Date.now() - 8 * 3600 * 1000).toISOString();
-    const { data:ords, error } = await conTope(sb.from('pos_orders')
-      .select('id, channel, status, estado, table_id, turno, customer_name, notes, total, total_final, paid_amount, created_at, delivered_at, visible_cocina')
+    const CAMPOS = 'id, channel, status, estado, table_id, turno, customer_name, notes, total, total_final, paid_amount, created_at, delivered_at, visible_cocina';
+    /* `completed` es un pedido TERMINADO (verificado en la base: los completed
+       ya estan cobrados y entregados). `paid` NO se excluye: una venta rapida
+       se paga ANTES de cocinarse y tiene que seguir en pantalla. */
+    const FUERA = '("cancelled","abandoned","completed")';
+
+    /* (A) LAS MESAS OCUPADAS DEL PLANO. La misma tabla que pinta el salon en
+       ventas, sin filtro de tiempo: si la mesa esta ocupada alla, su comanda
+       esta aqui. Cuando el mesero libera la mesa, desaparece sola de las dos
+       pantallas — por eso no hace falta ningun tope de horas. */
+    const { data:mesas } = await conTope(sb.from('pos_tables')
+      .select('id, name, status, current_order_id')
       .eq('branch_id', S.branchId)
-      /* Dos puertas de entrada, no una:
-         · `visible_cocina` → domicilios, chat, venta rápida y el salón con
-           cobro al final. Es la señal que ya usaba el sistema.
-         · salón `in_progress`/`paid` → la mesa que ya mandó su comanda. Con
-           cobro adelantado esa es la ÚNICA señal que existe, porque
-           `visible_cocina` se queda en false hasta que se cobre.
-         Lo que queda fuera por sí solo es el salón en `open`: un pedido que
-         todavía se está escribiendo y aún no se ha enviado. */
-      .or('visible_cocina.eq.true,and(channel.eq.salon,status.in.(in_progress,paid))')
-      .gte('created_at', desde)
-      .is('delivered_at', null)
-      /* `completed` es un pedido TERMINADO (verificado en la base: los
-         completed ya estan cobrados y entregados). `paid` NO se excluye: una
-         venta rapida se paga ANTES de cocinarse y tiene que seguir en pantalla. */
-      .not('status', 'in', '("cancelled","abandoned","completed")')
-      .order('created_at', { ascending: true }), 15, 'las comandas');
-    if (error) throw error;
+      .neq('status', 'libre')
+      .not('current_order_id', 'is', null), 12, 'las mesas ocupadas');
+    S.mesaEstado = new Map();
+    const idsMesa = [];
+    (mesas || []).forEach(m => {
+      S.mesas.set(m.id, m.name);
+      S.mesaEstado.set(String(m.current_order_id), m.status);
+      idsMesa.push(String(m.current_order_id));
+    });
+
+    /* (B) EL RESTO, dentro del turno de caja — el mismo corte de las listas de
+       ventas rapida y domicilios. */
+    const desde = await inicioCaja();
+    const consultas = [
+      conTope(sb.from('pos_orders').select(CAMPOS)
+        .eq('branch_id', S.branchId)
+        .eq('visible_cocina', true)
+        .gte('created_at', desde)
+        .is('delivered_at', null)
+        .not('status', 'in', FUERA)
+        .order('created_at', { ascending: true }), 15, 'las comandas')
+    ];
+    if (idsMesa.length) {
+      consultas.push(conTope(sb.from('pos_orders').select(CAMPOS)
+        .in('id', idsMesa)
+        .is('delivered_at', null)
+        .not('status', 'in', FUERA), 15, 'las comandas de las mesas'));
+    }
+    const partes = await Promise.all(consultas);
+    const porId = new Map();
+    partes.forEach(r => {
+      if (r.error) throw r.error;
+      (r.data || []).forEach(x => porId.set(x.id, x));
+    });
+    const ords = [...porId.values()].sort((a,b) => String(a.created_at).localeCompare(String(b.created_at)));
 
     const vivos = (ords || []).filter(o => {
-      /* Un salón `paid` significa cosas OPUESTAS según el modo de cobro:
-         · cobro adelantado → pagó ANTES de cocinar: está en preparación.
-         · cobro al final   → pagó al irse: ya comió, no tiene nada que hacer
-           en cocina. Sin esta línea la pantalla se llenaría de mesas que ya
-           se fueron. */
-      if (zonaDe(o) === 'salon' && o.status === 'paid' && !S.cobroAdelantado) return false;
+      /* Del salón solo entra la mesa que el plano tiene ocupada. Si el mesero
+         la liberó, la comanda se va de las dos pantallas a la vez. */
+      if (zonaDe(o) === 'salon' && !S.mesaEstado.has(o.id)) return false;
       /* Los estados que ya pasaron por cocina no vuelven a entrar. */
       if (['en_camino','entregado'].indexOf(o.estado) >= 0) return false;
       /* Una comanda lista se queda 30 segundos y se va sola, con deshacer. */
@@ -292,8 +357,15 @@ function debePagar(o) {
   const canal = String(o.channel || '').toLowerCase();
   // El domicilio se paga al recibir: en cocina no va ningún dato de pago.
   if (canal === 'domicilio' || canal === 'whatsapp') return false;
-  // En salón solo aplica si la sucursal cobra por adelantado.
-  if (canal === 'salon' && !S.cobroAdelantado) return false;
+  /* En salón manda el estado DE LA MESA, el mismo que pinta el plano de
+     ventas: `pendiente_pago` es rojo allá y rojo aquí. No se recalcula a
+     partir de lo pagado, porque entonces las dos pantallas podrían decir
+     cosas distintas de la misma mesa. */
+  if (canal === 'salon') {
+    if (!S.cobroAdelantado) return false;
+    const est = S.mesaEstado.get(o.id);
+    if (est) return est === 'pendiente_pago';
+  }
   const total = parseFloat(o.total_final != null ? o.total_final : o.total) || 0;
   if (total <= 0) return false;
   return (parseFloat(o.paid_amount) || 0) < total - 1;
