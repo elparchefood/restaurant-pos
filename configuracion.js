@@ -324,6 +324,7 @@ function setSection(sec) {
       $('crumb').textContent = 'Usuarios y roles';
       _ciaToggleTopbar(false);
       if (!window._urLoaded) { urInit(); window._urLoaded = true; }
+      else urRefrescarMarca();   // por si renombro el restaurante hace un minuto
     }
   } else if (sec === 'chatia') {
     var screenChatia = $('screen-chatia');
@@ -1208,15 +1209,55 @@ function urRoleById(id) { return UR.roles.find(function(r){ return r.id===id; })
 function urUserById(id) { return UR.users.find(function(u){ return u.id===id; }); }
 var _uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function safeUUID(v) { return (_uuidRe.test(v) ? v : null); }
+/* EL @ DEL CORREO SALE DE LA BASE, NO DE LA SESION (26-ago-2026).
+   Antes se leia de `user_metadata.negocio`, que es una COPIA guardada en la
+   cuenta cuando se inicio sesion. Sergio renombro el restaurante y el
+   formulario seguia ofreciendo «@restaurante»: la copia no se entera de un
+   cambio hecho despues, y en las cuentas que nunca la tuvieron caia siempre
+   en el valor por defecto.
+   `UR_BRANDS` ya trae el nombre de verdad —se consulta en `urLoad()`— asi que
+   se usa ese, y la metadata queda solo de respaldo. */
 function slugNegocio() {
-  var meta = window._pos && window._pos.state && window._pos.state.negocio;
-  if (!meta) {
-    try { var u = JSON.parse(localStorage.getItem('sb-tblujfduscslxjmrjbdr-auth-token')||'{}');
-      meta = u.user && u.user.user_metadata && u.user.user_metadata.negocio; } catch(e){}
+  var nombre = '';
+  try {
+    if (UR_BRANDS && UR_BRANDS.length) {
+      /* Con varias marcas, la del restaurante en el que se esta trabajando. */
+      var mia = UR_BRANDS.find(function (m) {
+        return (m.sucursales || []).some(function (b) { return b.id === _cfgBranchId; });
+      });
+      nombre = (mia || UR_BRANDS[0]).name || '';
+    }
+  } catch (e) {}
+  if (!nombre) {
+    nombre = (window._pos && window._pos.state && window._pos.state.negocio) || '';
+    if (!nombre) {
+      try { var u = JSON.parse(localStorage.getItem('sb-tblujfduscslxjmrjbdr-auth-token')||'{}');
+        nombre = (u.user && u.user.user_metadata && u.user.user_metadata.negocio) || ''; } catch(e){}
+    }
   }
-  return (meta||'restaurante').toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+  return (nombre||'restaurante').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .replace(/[^a-z0-9]/g,'');
+}
+
+/* Vuelve a preguntar el nombre del restaurante y repinta lo que lo muestra.
+   Es una consulta minima: solo la tabla de marcas. */
+async function urRefrescarMarca() {
+  try {
+    var tid = (window._pos && window._pos.state && window._pos.state.tenantId) || null;
+    if (!tid) {
+      var user = await cfgUsuario();
+      tid = user && user.user_metadata && user.user_metadata.tenant_id;
+    }
+    if (!tid) return;
+    var r = await sb.from('brands').select('id,name').eq('tenant_id', tid);
+    if (!r || r.error || !r.data) return;
+    var porId = {};
+    r.data.forEach(function (m) { porId[m.id] = m.name; });
+    UR_BRANDS.forEach(function (m) { if (porId[m.id]) m.name = porId[m.id]; });
+    var lbl = $('ur-u-email-domain');
+    if (lbl) lbl.textContent = '@' + slugNegocio();
+  } catch (e) { /* se queda con lo que tenia */ }
 }
 
 function urShowToast(msg) {
