@@ -445,6 +445,11 @@ async function cargarBase() {
   S.sonTono = cn.tono || 'caja';
   S.sonVol  = (typeof cn.vol === 'number') ? cn.vol : 80;
   pintarSonido();
+  /* En la tablet se intenta abrir el audio de una, sin esperar a que alguien
+     toque nada: es una pantalla de pared y puede pasar la noche entera sin que
+     nadie la roce. Si el aparato no lo permite, el primer toque o la primera
+     tecla del control lo abren igual. */
+  if (sonidoEncendido()) { try { abrirAudio(); } catch (e) {} }
   await resolverArea();
 }
 
@@ -999,8 +1004,34 @@ let _audio = null;
    audio. Si naciera encendido, no sonaría y nadie sabría por qué. */
 const SONIDO_KEY = 'cobra.cocina.sonido';
 
+/* ¿ESTE APARATO ES LA TABLET DE LA COCINA O EL COMPUTADOR DEL DUEÑO?
+   Sergio pidió que en la APK naciera encendido sin tener que ir a buscarlo, y
+   que su computador siguiera callado. Son la MISMA pantalla, así que hace
+   falta distinguirlos, y hay dos señales fiables:
+
+     · La APK abre `mesero-login.html?app=cocina`, y eso deja una marca en el
+       aparato. Solo la tienen las tablets que entraron por la app.
+     · El escritorio la abre con `?volver=1` desde el menú lateral. Ese
+       parámetro significa literalmente «hay un escritorio al que volver», o
+       sea: esto no es una pantalla de pared.
+
+   Y por encima de todo manda lo que la persona haya elegido: si alguna vez
+   tocó el altavoz, se respeta y esto no vuelve a opinar. */
+function esLaTablet() {
+  try {
+    if (new URLSearchParams(location.search).get('volver')) return false;
+    if (new URLSearchParams(location.search).get('area')) return true;
+    return localStorage.getItem('cobra.app.destino') === 'cocina';
+  } catch (e) { return false; }
+}
+
 function sonidoEncendido() {
-  try { return localStorage.getItem(SONIDO_KEY) === '1'; } catch (e) { return false; }
+  try {
+    const v = localStorage.getItem(SONIDO_KEY);
+    if (v === '1') return true;
+    if (v === '0') return false;
+    return esLaTablet();      // nunca lo han tocado: la tablet suena, el PC no
+  } catch (e) { return false; }
 }
 
 function pintarSonido() {
@@ -1020,7 +1051,12 @@ function pintarSonido() {
    un «Listo» o mueve el control, ese gesto tambien deberia servir — y si no,
    la primera comanda de la noche entra en silencio y nadie entiende por que.
    Con el primer toque, sea el que sea, se abre el audio y se deja abierto. */
-let _audioAbierto = false;
+/* `var` y no `let` a proposito: esta bandera se declara en la linea 1054 pero
+   se usa desde el arranque, en la 452. Hoy funciona porque el arranque se
+   detiene en su primer `await` y da tiempo a que el archivo termine de
+   leerse — pero con `let`, el dia que alguien mueva una linea antes de ese
+   `await`, revienta con un error que no dice nada. */
+var _audioAbierto = false;
 function abrirAudio() {
   if (_audioAbierto) return;
   _audioAbierto = true;
