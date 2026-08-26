@@ -191,8 +191,29 @@ svg{display:block;}
 .tk.listo .tk-estado{color:#4C1D95;} .tk.listo .tk-estado i{background:#7C3AED;}
 
 /* Los productos: el texto más grande de la tarjeta */
-.tk-items{flex:1;padding:calc(var(--u) * .28) calc(var(--u) * .7) calc(var(--u) * .15);display:flex;flex-direction:column;gap:calc(var(--u) * .25);}
-.it{display:flex;gap:calc(var(--u) * .55);align-items:center;}
+/* ── SEPARAR UN PRODUCTO DE OTRO (Sergio, 26-ago-2026) ─────────────────────
+   Probó una comanda de cinco productos y el problema saltó: «no hay nada que
+   diferencie un producto de otro». Y era peor de lo que parecía — un nombre
+   largo ocupa tres renglones y PARECE tres productos, mientras que dos
+   productos cortos seguidos parecen uno solo.
+   Tres cosas lo arreglan, y las tres hacen falta:
+     1. FRANJAS ALTERNAS (la que eligió): uno sí y uno no sobre fondo blanco.
+        Se ve de lejos, que es donde fallan las líneas de un píxel — el mismo
+        error del borde de color que ya corrigió una vez.
+     2. La FOTO al primer renglón de su producto, no centrada: centrada al
+        lado de tres renglones no se sabía cuáles eran suyos.
+     3. Los renglones de un mismo nombre, MÁS JUNTOS entre sí (1.05) que la
+        distancia al siguiente producto. Eso es lo que hace que el nombre se
+        lea como una sola cosa.
+   Medido: la comanda normal de dos productos sube 10 px. Siguen cabiendo las
+   cuatro filas por columna y las 24 comandas en pantalla. */
+.tk-items{flex:1;padding:calc(var(--u) * .28) calc(var(--u) * .45) calc(var(--u) * .15);display:flex;flex-direction:column;gap:calc(var(--u) * .12);}
+.it{
+  display:flex; gap:calc(var(--u) * .55); align-items:flex-start;
+  padding:calc(var(--u) * .34) calc(var(--u) * .45);
+  border-radius:calc(var(--u) * .4);
+}
+.it:nth-child(odd){background:rgba(255,255,255,.7);}
 .it-foto{
   flex:0 0 auto; width:calc(var(--u) * 2.5); height:calc(var(--u) * 2.5); border-radius:calc(var(--u) * .4);
   object-fit:cover; display:block; background:#E2E8F0;
@@ -208,7 +229,7 @@ svg{display:block;}
   background:#0F172A; color:#fff; font-size:calc(var(--u) * 1.05); font-weight:800;
   display:flex; align-items:center; justify-content:center;
 }
-.it-tx{font-size:calc(var(--u) * 1.7);font-weight:800;line-height:1.12;letter-spacing:-.025em;color:#0F172A;min-width:0;}
+.it-tx{font-size:calc(var(--u) * 1.7);font-weight:800;line-height:1.05;letter-spacing:-.025em;color:#0F172A;min-width:0;}
 /* Las adiciones en verde y las notas en ámbar, en renglón aparte: una nota
    metida dentro del nombre del plato es un plato devuelto. */
 .it-tx em{display:block;font-style:normal;font-size:calc(var(--u) * 1.1);font-weight:700;color:#15803D;margin-top:calc(var(--u) * .15);letter-spacing:-.01em;}
