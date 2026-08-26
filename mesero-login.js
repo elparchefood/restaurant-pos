@@ -26,6 +26,46 @@ const ROLE_ROUTES = {
   cocina: 'cocina.html',   // 25-ago-2026: ya existe su propia pantalla
 };
 
+/* ── CADA APK ENTRA DIRECTO A LO SUYO ──────────────────────────────────────
+   Decisión de Sergio (26-ago-2026): *"al abrir la APK se dirige al escritorio
+   y el escritorio lo redirige... no quiero que sea así, que lo dirija
+   directamente al área que controla esa APK"*.
+
+   Cada APK es una cáscara que abre una dirección, y esa dirección ahora trae
+   `?app=`. La APK de cocina abre `mesero-login.html?app=cocina` y la de toma
+   de pedidos `?app=ventas`. Con eso el destino lo decide LA APP, no el rol:
+   quien entra por la app de cocina va a cocina y punto — sin pasar por el
+   escritorio, que en un teléfono o una tablet colgada en la pared no pinta
+   nada y encima obliga a un rebote más.
+
+   Se guarda en el aparato porque la dirección solo llega la PRIMERA vez: en
+   cuanto se navega a otra pantalla el `?app=` se pierde, y la próxima vez que
+   se abra la app hay que saber a dónde volver. */
+const APPS = {
+  cocina: 'cocina.html',
+  ventas: 'ventas.html',
+};
+const APP_KEY = 'cobra.app.destino';
+
+function appDeEstaApk() {
+  let id = '';
+  try { id = new URLSearchParams(location.search).get('app') || ''; } catch (e) {}
+  try {
+    if (id && APPS[id]) localStorage.setItem(APP_KEY, id);
+    else id = localStorage.getItem(APP_KEY) || '';
+  } catch (e) {}
+  return APPS[id] ? id : '';
+}
+
+function destinoDe(clave) {
+  const app = appDeEstaApk();
+  /* El domiciliario nunca entra por aquí, ni siquiera con una APK: tiene su
+     propia app y sus propios permisos. */
+  if (clave === 'domiciliario') return '';
+  if (app) return APPS[app];
+  return ROLE_ROUTES[clave] || '';
+}
+
 /* Nombre viejo guardado en la cuenta → clave interna. Las cuentas que ya
    existen tienen escrito el nombre en minusculas ('gerente', 'cajera'). */
 const ALIAS_ROL = {
@@ -57,9 +97,18 @@ const errorBanner = document.getElementById('login-error');
 
 
 // ── Guard: si ya hay sesión activa, saltar el login ──────
+/* Antes mandaba SIEMPRE a `mesero-turno.html`, sin mirar el rol: un cocinero
+   con la sesión viva caía en la pantalla del mesero, y un domiciliario entraba
+   a una app que el login por credenciales le niega en la cara. Ahora se
+   resuelve igual que después de escribir la contraseña. */
 (async function checkSession() {
   const { data: { session } } = await sb.auth.getSession();
-  if (session) window.location.href = 'mesero-turno.html';
+  if (!session) return;
+  const app = appDeEstaApk();
+  if (app) { window.location.href = APPS[app]; return; }
+  const clave = (session.user && session.user.user_metadata &&
+                 session.user.user_metadata.role) || '';
+  window.location.href = destinoDe(clave) || 'mesero-turno.html';
 })();
 
 // ── Toggle ver/ocultar contraseña ─────────────────────────
@@ -125,7 +174,7 @@ async function handleLogin() {
     const nombreRol   = (rolAsignado && rolAsignado.name) || profile.role || '';
     const clave = (rolAsignado && rolAsignado.clave) ||
                   ALIAS_ROL[(profile.role || '').toLowerCase().trim()] || '';
-    const route = ROLE_ROUTES[clave];
+    const route = destinoDe(clave);
 
     if (!route) {
       /* El domiciliario tiene SU PROPIA app: no se le deja entrar aqui por
