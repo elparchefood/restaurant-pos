@@ -47,52 +47,62 @@ svg{display:block;}
 
 .k-app{
   height:100%; display:flex; flex-direction:column;
-  container-type:inline-size;
+  container-type:size;
+  /* LA UNIDAD DE TODA LA PANTALLA, atada a la dimension MAS ESCASA.
+     Antes todo iba en % del ANCHO: en un monitor de 1917 px cada elemento
+     crecia un 50% respecto a la tablet para la que se diseno, y como las
+     comandas se apilan a lo ALTO, solo cabia UNA por columna.
+     min(ancho, alto) hace que en una pantalla ancha y baja la letra no se
+     dispare y quepan mas comandas. */
+  --u: min(1cqw, 1.55cqh);
 }
 
 /* ── Barra de arriba ────────────────────────────────────────────────────── */
+/* La barra de arriba es CONTEXTO, no trabajo: el nombre del restaurante no lo
+   lee nadie desde la cocina. Va pequeña para no robarle alto a las comandas,
+   que es lo único que de verdad se mira. */
 .k-top{
-  flex:0 0 auto; display:flex; align-items:center; gap:1.2cqw;
-  padding:1cqw 1.5cqw; background:#FFF; border-bottom:1px solid #ECEEF2;
+  flex:0 0 auto; display:flex; align-items:center; gap:calc(var(--u) * 1);
+  padding:calc(var(--u) * .6) calc(var(--u) * 1.2); background:#FFF; border-bottom:1px solid #ECEEF2;
 }
 .k-marca{
-  width:2.8cqw; height:2.8cqw; border-radius:.7cqw; flex:0 0 auto;
+  width:calc(var(--u) * 1.9); height:calc(var(--u) * 1.9); border-radius:calc(var(--u) * .45); flex:0 0 auto;
   background:linear-gradient(135deg,#5B6BFF,#8B5CF6); color:#fff;
-  font-size:1.7cqw; font-weight:800;
+  font-size:calc(var(--u) * 1.1); font-weight:800;
   display:flex; align-items:center; justify-content:center;
 }
-.k-sede{font-size:1.55cqw;font-weight:800;letter-spacing:-.01em;line-height:1.15;}
+.k-sede{font-size:calc(var(--u) * 1.05);font-weight:700;letter-spacing:-.01em;line-height:1.15;color:#475569;}
 .k-sede span{
-  display:block; font-size:.9cqw; font-weight:700; letter-spacing:.14em;
-  text-transform:uppercase; color:#94A3B8; margin-top:.15cqw;
+  display:block; font-size:calc(var(--u) * .62); font-weight:700; letter-spacing:.14em;
+  text-transform:uppercase; color:#94A3B8; margin-top:calc(var(--u) * .1);
 }
-.k-cuenta{margin-left:auto;display:flex;align-items:center;gap:1.2cqw;}
+.k-cuenta{margin-left:auto;display:flex;align-items:center;gap:calc(var(--u) * 1.2);}
 .k-pastilla{
-  display:flex; align-items:baseline; gap:.5cqw; background:#F1F5F9;
-  border-radius:999px; padding:.45cqw 1.2cqw; font-size:.95cqw; font-weight:700;
+  display:flex; align-items:baseline; gap:calc(var(--u) * .5); background:#F1F5F9;
+  border-radius:999px; padding:calc(var(--u) * .3) calc(var(--u) * .9); font-size:calc(var(--u) * .65); font-weight:700;
   letter-spacing:.1em; text-transform:uppercase; color:#64748B;
 }
-.k-pastilla b{font-size:1.6cqw;color:#0F172A;font-weight:800;letter-spacing:0;}
+.k-pastilla b{font-size:calc(var(--u) * 1.1);color:#0F172A;font-weight:800;letter-spacing:0;}
 .k-vivo{
-  display:flex; align-items:center; gap:.55cqw; font-size:.95cqw; font-weight:700;
+  display:flex; align-items:center; gap:calc(var(--u) * .45); font-size:calc(var(--u) * .65); font-weight:700;
   letter-spacing:.1em; text-transform:uppercase; color:#16A34A;
 }
 .k-punto{
-  width:.75cqw; height:.75cqw; border-radius:50%; background:#16A34A;
-  box-shadow:0 0 0 .3cqw rgba(22,163,74,.16);
+  width:calc(var(--u) * .55); height:calc(var(--u) * .55); border-radius:50%; background:#16A34A;
+  box-shadow:0 0 0 calc(var(--u) * .22) rgba(22,163,74,.16);
 }
-.k-reloj{font-size:1.6cqw;font-weight:700;font-variant-numeric:tabular-nums;color:#475569;}
+.k-reloj{font-size:calc(var(--u) * 1.15);font-weight:700;font-variant-numeric:tabular-nums;color:#334155;}
 
 /* ── Sin conexión ───────────────────────────────────────────────────────────
    Una pantalla de cocina que deja de actualizarse EN SILENCIO es peor que no
    tener pantalla: la gente le cree y se queda esperando comandas que ya
    entraron. Por eso el aviso es rojo, ancho y arriba del todo. */
 .k-caida{
-  flex:0 0 auto; background:#DC2626; color:#fff; padding:.9cqw 1.5cqw;
-  display:flex; align-items:center; gap:1cqw;
+  flex:0 0 auto; background:#DC2626; color:#fff; padding:calc(var(--u) * .9) calc(var(--u) * 1.5);
+  display:flex; align-items:center; gap:calc(var(--u) * 1);
 }
-.k-caida b{font-size:1.6cqw;font-weight:800;}
-.k-caida span{font-size:1.1cqw;font-weight:600;opacity:.92;}
+.k-caida b{font-size:calc(var(--u) * 1.6);font-weight:800;}
+.k-caida span{font-size:calc(var(--u) * 1.1);font-weight:600;opacity:.92;}
 .k-app.sinRed .k-zonas{opacity:.45;filter:grayscale(.5);}
 .k-app.sinRed .k-vivo{display:none;}
 
@@ -100,61 +110,61 @@ svg{display:block;}
    Cada canal en su panel. Se distinguen por SITIO, no por color: el color ya
    significa "estado", y darle un segundo significado sería quitarle el primero. */
 .k-zonas{
-  flex:1; min-height:0; padding:1cqw 1.2cqw;
-  display:grid; grid-template-columns:repeat(3,1fr); gap:1cqw;
+  flex:1; min-height:0; padding:calc(var(--u) * 1) calc(var(--u) * 1.2);
+  display:grid; grid-template-columns:repeat(3,1fr); gap:calc(var(--u) * 1);
 }
 .zona{
-  background:#F1F5F9; border:1px solid #E2E8F0; border-radius:1cqw;
+  background:#F1F5F9; border:1px solid #E2E8F0; border-radius:calc(var(--u) * 1);
   display:flex; flex-direction:column; min-height:0; overflow:hidden;
 }
 .zona-cab{
-  display:flex; align-items:center; gap:.7cqw; padding:.7cqw 1cqw;
+  display:flex; align-items:center; gap:calc(var(--u) * .7); padding:calc(var(--u) * .7) calc(var(--u) * 1);
   background:#FFF; border-bottom:1px solid #E2E8F0;
 }
 .zona-cab h2{
-  margin:0; font-size:1.35cqw; font-weight:800; letter-spacing:.09em;
+  margin:0; font-size:calc(var(--u) * 1.35); font-weight:800; letter-spacing:.09em;
   text-transform:uppercase; color:#334155;
 }
 .zona-cab b{
-  margin-left:auto; font-size:1.4cqw; font-weight:800; color:#0F172A;
-  background:#F1F5F9; border-radius:999px; min-width:2.8cqw;
-  text-align:center; padding:.1cqw .7cqw;
+  margin-left:auto; font-size:calc(var(--u) * 1.4); font-weight:800; color:#0F172A;
+  background:#F1F5F9; border-radius:999px; min-width:calc(var(--u) * 2.8);
+  text-align:center; padding:calc(var(--u) * .1) calc(var(--u) * .7);
 }
-.zona-cab svg{width:1.5cqw;height:1.5cqw;flex:0 0 auto;color:#94A3B8;}
+.zona-cab svg{width:calc(var(--u) * 1.5);height:calc(var(--u) * 1.5);flex:0 0 auto;color:#94A3B8;}
 .zona-lista{
-  flex:1; min-height:0; padding:.8cqw; display:flex; flex-direction:column;
-  gap:.8cqw; overflow-y:auto;
+  flex:1; min-height:0; padding:calc(var(--u) * .6); display:flex; flex-direction:column;
+  gap:calc(var(--u) * .6); overflow-y:auto;
 }
 .zona-vacia{
-  margin:auto; font-size:1.15cqw; font-weight:700; color:#94A3B8;
+  margin:auto; font-size:calc(var(--u) * 1.15); font-weight:700; color:#94A3B8;
   letter-spacing:.08em; text-transform:uppercase;
 }
 
 /* ── Una comanda ────────────────────────────────────────────────────────── */
 .tk{
-  border-radius:.9cqw; overflow:hidden; display:flex; flex-direction:column;
+  border-radius:calc(var(--u) * .9); overflow:hidden; display:flex; flex-direction:column;
   border:1px solid #E2E8F0; background:#fff; flex:0 0 auto;
-  box-shadow:0 .3cqw .9cqw -.45cqw rgba(15,23,42,.14);
+  box-shadow:0 calc(var(--u) * .3) calc(var(--u) * .9) -calc(var(--u) * .45) rgba(15,23,42,.14);
 }
-.tk-cab{padding:.8cqw 1cqw .2cqw;display:flex;align-items:flex-start;gap:.8cqw;}
+.tk-cab{padding:calc(var(--u) * .6) calc(var(--u) * .9) calc(var(--u) * .15);display:flex;align-items:flex-start;gap:calc(var(--u) * .8);}
 .tk-quien{min-width:0;}
 .tk-estado{
-  display:flex; align-items:center; gap:.5cqw; font-size:1.05cqw;
-  font-weight:800; letter-spacing:.04em; margin-bottom:.45cqw;
+  display:flex; align-items:center; gap:calc(var(--u) * .5); font-size:calc(var(--u) * 1.05);
+  font-weight:800; letter-spacing:.04em; margin-bottom:calc(var(--u) * .45);
 }
-.tk-estado i{width:.85cqw;height:.85cqw;border-radius:50%;flex:0 0 auto;}
-.tk-de{font-size:2.4cqw;font-weight:800;letter-spacing:-.03em;line-height:1;color:#0F172A;}
+.tk-estado i{width:calc(var(--u) * .85);height:calc(var(--u) * .85);border-radius:50%;flex:0 0 auto;}
+.tk-de{font-size:calc(var(--u) * 2.4);font-weight:800;letter-spacing:-.03em;line-height:1;color:#0F172A;}
 .tk-canal{
-  display:inline-block; font-size:1cqw; font-weight:700; letter-spacing:.02em;
-  margin-top:.5cqw; color:#475569; background:rgba(255,255,255,.72);
-  border-radius:999px; padding:.2cqw .8cqw;
+  display:inline-block; font-size:calc(var(--u) * 1); font-weight:700; letter-spacing:.02em;
+  margin-top:calc(var(--u) * .5); color:#475569; background:rgba(255,255,255,.72);
+  border-radius:999px; padding:calc(var(--u) * .2) calc(var(--u) * .8);
 }
 .tk-min{
-  margin-left:auto; flex:0 0 auto; display:flex; align-items:center; gap:.4cqw;
-  background:rgba(255,255,255,.78); border-radius:999px; padding:.35cqw .85cqw;
-  font-size:1.35cqw; font-weight:800; color:#1E293B; font-variant-numeric:tabular-nums;
+  margin-left:auto; flex:0 0 auto; display:flex; align-items:center; gap:calc(var(--u) * .4);
+  background:rgba(255,255,255,.78); border-radius:999px; padding:calc(var(--u) * .35) calc(var(--u) * .85);
+  font-size:calc(var(--u) * 1.35); font-weight:800; color:#1E293B; font-variant-numeric:tabular-nums;
 }
-.tk-min svg{width:1.2cqw;height:1.2cqw;flex:0 0 auto;opacity:.6;}
+.tk-min svg{width:calc(var(--u) * 1.2);height:calc(var(--u) * 1.2);flex:0 0 auto;opacity:.6;}
 
 /* Los tríos color/tint/ring de STATE_META, en degradado hacia el tono claro */
 .tk.prep {border-color:#FB923C;background:linear-gradient(180deg,#FDBA74 0%,#FFEDD5 52%,#FFF7ED 100%);}
@@ -165,41 +175,41 @@ svg{display:block;}
 .tk.listo .tk-estado{color:#4C1D95;} .tk.listo .tk-estado i{background:#7C3AED;}
 
 /* Los productos: el texto más grande de la tarjeta */
-.tk-items{flex:1;padding:.7cqw 1cqw .4cqw;display:flex;flex-direction:column;gap:.8cqw;}
-.it{display:flex;gap:.8cqw;align-items:center;}
+.tk-items{flex:1;padding:calc(var(--u) * .5) calc(var(--u) * .9) calc(var(--u) * .3);display:flex;flex-direction:column;gap:calc(var(--u) * .55);}
+.it{display:flex;gap:calc(var(--u) * .8);align-items:center;}
 .it-foto{
-  flex:0 0 auto; width:6.6cqw; height:6.6cqw; border-radius:.7cqw;
+  flex:0 0 auto; width:calc(var(--u) * 4.9); height:calc(var(--u) * 4.9); border-radius:calc(var(--u) * .6);
   object-fit:cover; display:block; background:#E2E8F0;
 }
 .it-nofoto{
-  flex:0 0 auto; width:6.6cqw; height:6.6cqw; border-radius:.7cqw;
-  background:repeating-linear-gradient(135deg,#EEF1F5 0 .55cqw,#F8FAFC .55cqw 1.1cqw);
+  flex:0 0 auto; width:calc(var(--u) * 4.9); height:calc(var(--u) * 4.9); border-radius:calc(var(--u) * .6);
+  background:repeating-linear-gradient(135deg,#EEF1F5 0 calc(var(--u) * .55),#F8FAFC calc(var(--u) * .55) calc(var(--u) * 1.1));
   display:flex; align-items:center; justify-content:center; text-align:center;
-  font-size:.95cqw; font-weight:800; letter-spacing:.06em; color:#94A3B8; line-height:1.25;
+  font-size:calc(var(--u) * .95); font-weight:800; letter-spacing:.06em; color:#94A3B8; line-height:1.25;
 }
 .it-n{
-  flex:0 0 auto; min-width:2.5cqw; height:2.5cqw; border-radius:.5cqw;
-  background:#0F172A; color:#fff; font-size:1.5cqw; font-weight:800;
+  flex:0 0 auto; min-width:calc(var(--u) * 2.5); height:calc(var(--u) * 2.5); border-radius:calc(var(--u) * .5);
+  background:#0F172A; color:#fff; font-size:calc(var(--u) * 1.5); font-weight:800;
   display:flex; align-items:center; justify-content:center;
 }
-.it-tx{font-size:2.7cqw;font-weight:800;line-height:1.12;letter-spacing:-.025em;color:#0F172A;min-width:0;}
+.it-tx{font-size:calc(var(--u) * 2.7);font-weight:800;line-height:1.12;letter-spacing:-.025em;color:#0F172A;min-width:0;}
 /* Las adiciones en verde y las notas en ámbar, en renglón aparte: una nota
    metida dentro del nombre del plato es un plato devuelto. */
-.it-tx em{display:block;font-style:normal;font-size:1.75cqw;font-weight:700;color:#15803D;margin-top:.25cqw;letter-spacing:-.01em;}
-.it-tx i {display:block;font-style:normal;font-size:1.75cqw;font-weight:800;color:#B45309;margin-top:.25cqw;letter-spacing:-.01em;}
+.it-tx em{display:block;font-style:normal;font-size:calc(var(--u) * 1.75);font-weight:700;color:#15803D;margin-top:calc(var(--u) * .25);letter-spacing:-.01em;}
+.it-tx i {display:block;font-style:normal;font-size:calc(var(--u) * 1.75);font-weight:800;color:#B45309;margin-top:calc(var(--u) * .25);letter-spacing:-.01em;}
 
-.tk-pie{padding:.5cqw 1cqw .9cqw;}
+.tk-pie{padding:calc(var(--u) * .35) calc(var(--u) * .9) calc(var(--u) * .7);}
 .tk-btn{
-  width:100%; border:none; border-radius:.6cqw; padding:.9cqw;
-  font-size:1.7cqw; font-weight:800; background:#5B6BFF; color:#fff;
-  box-shadow:0 .2cqw .6cqw -.2cqw rgba(91,107,255,.55);
+  width:100%; border:none; border-radius:calc(var(--u) * .55); padding:calc(var(--u) * .65);
+  font-size:calc(var(--u) * 1.5); font-weight:800; background:#5B6BFF; color:#fff;
+  box-shadow:0 calc(var(--u) * .2) calc(var(--u) * .6) -calc(var(--u) * .2) rgba(91,107,255,.55);
 }
 .tk-btn:active{transform:translateY(1px);}
 
 /* Va tarde — señal APARTE del color. Casi todas las comandas están en
    preparación; si el tiempo usara el mismo canal, el color dejaría de
    distinguir nada justo cuando más se necesita. */
-.tk.tarde{border-color:#DC2626;box-shadow:0 0 0 .25cqw #DC2626,0 .3cqw .9cqw -.45cqw rgba(15,23,42,.14);}
+.tk.tarde{border-color:#DC2626;box-shadow:0 0 0 calc(var(--u) * .25) #DC2626,0 calc(var(--u) * .3) calc(var(--u) * .9) -calc(var(--u) * .45) rgba(15,23,42,.14);}
 .tk.tarde .tk-min{background:#FEE2E2;color:#B91C1C;}
 .tk.tarde .tk-min svg{opacity:1;}
 
@@ -207,46 +217,46 @@ svg{display:block;}
    — en una cocina, un aviso que insiste se termina apagando. */
 .tk.nueva{animation:kPulso 1.5s ease-in-out infinite;}
 @keyframes kPulso{
-  0%,100%{box-shadow:0 0 0 0 rgba(91,107,255,.6),0 .3cqw .9cqw -.45cqw rgba(15,23,42,.14);}
-  50%    {box-shadow:0 0 0 .9cqw rgba(91,107,255,0),0 .3cqw .9cqw -.45cqw rgba(15,23,42,.14);}
+  0%,100%{box-shadow:0 0 0 0 rgba(91,107,255,.6),0 calc(var(--u) * .3) calc(var(--u) * .9) -calc(var(--u) * .45) rgba(15,23,42,.14);}
+  50%    {box-shadow:0 0 0 calc(var(--u) * .9) rgba(91,107,255,0),0 calc(var(--u) * .3) calc(var(--u) * .9) -calc(var(--u) * .45) rgba(15,23,42,.14);}
 }
 @media (prefers-reduced-motion:reduce){.tk.nueva{animation:none;}}
 
 /* Marcada lista: se va sola, con deshacer. Sin ventana de confirmación —
    en una cocina nadie confirma nada, por eso el arrepentimiento va DESPUÉS. */
 .tk.listo .tk-items{opacity:.45;}
-.tk-listo{display:flex;align-items:center;gap:.8cqw;padding:.5cqw 1cqw .9cqw;}
-.tk-listo b{font-size:1.7cqw;font-weight:800;color:#6D28D9;}
+.tk-listo{display:flex;align-items:center;gap:calc(var(--u) * .8);padding:calc(var(--u) * .5) calc(var(--u) * 1) calc(var(--u) * .9);}
+.tk-listo b{font-size:calc(var(--u) * 1.7);font-weight:800;color:#6D28D9;}
 .tk-desh{
   margin-left:auto; border:1px solid #DDD6FE; background:#F5F3FF; color:#6D28D9;
-  border-radius:.6cqw; padding:.6cqw 1.1cqw; font-size:1.25cqw; font-weight:800;
+  border-radius:calc(var(--u) * .6); padding:calc(var(--u) * .6) calc(var(--u) * 1.1); font-size:calc(var(--u) * 1.25); font-weight:800;
 }
 
 /* ── La leyenda ─────────────────────────────────────────────────────────────
    Un cocinero nuevo aprende los colores sin que nadie se los explique. */
 .k-pie{
-  flex:0 0 auto; display:flex; gap:1.8cqw; align-items:center;
-  padding:.7cqw 1.5cqw; background:#FFF; border-top:1px solid #ECEEF2;
+  flex:0 0 auto; display:flex; gap:calc(var(--u) * 1.8); align-items:center;
+  padding:calc(var(--u) * .7) calc(var(--u) * 1.5); background:#FFF; border-top:1px solid #ECEEF2;
 }
 .lg{
-  display:flex; align-items:center; gap:.55cqw; font-size:.95cqw; font-weight:800;
+  display:flex; align-items:center; gap:calc(var(--u) * .55); font-size:calc(var(--u) * .95); font-weight:800;
   letter-spacing:.09em; text-transform:uppercase; color:#64748B;
 }
-.lg i{width:1.5cqw;height:1cqw;border-radius:.2cqw;display:block;}
+.lg i{width:calc(var(--u) * 1.5);height:calc(var(--u) * 1);border-radius:calc(var(--u) * .2);display:block;}
 .k-salir{
   margin-left:auto; border:1px solid #ECEEF2; background:#fff; color:#64748B;
-  border-radius:.5cqw; padding:.45cqw 1.1cqw; font-size:.95cqw; font-weight:700;
+  border-radius:calc(var(--u) * .5); padding:calc(var(--u) * .45) calc(var(--u) * 1.1); font-size:calc(var(--u) * .95); font-weight:700;
 }
 
 /* ── Cargando ── */
 .k-cargando{
   position:fixed; inset:0; background:#FAFAFB; display:flex; align-items:center;
-  justify-content:center; flex-direction:column; gap:1.5cqw; z-index:50;
+  justify-content:center; flex-direction:column; gap:calc(var(--u) * 1.5); z-index:50;
 }
 .k-spin{
-  width:3.5cqw; height:3.5cqw; border-radius:50%;
-  border:.35cqw solid #E2E8F0; border-top-color:#5B6BFF;
+  width:calc(var(--u) * 3.5); height:calc(var(--u) * 3.5); border-radius:50%;
+  border:calc(var(--u) * .35) solid #E2E8F0; border-top-color:#5B6BFF;
   animation:kSpin .8s linear infinite;
 }
 @keyframes kSpin{to{transform:rotate(360deg);}}
-.k-cargando p{margin:0;font-size:1.2cqw;font-weight:700;color:#64748B;letter-spacing:.06em;text-transform:uppercase;}
+.k-cargando p{margin:0;font-size:calc(var(--u) * 1.2);font-weight:700;color:#64748B;letter-spacing:.06em;text-transform:uppercase;}
