@@ -14106,6 +14106,25 @@ puntos de distancia del gris del panel — de lejos se veía todo blanco.
 del nombre de la mesa. Se mira desde dos metros: lo primero que hay que leer
 es qué cocinar.
 
+**Dos subcolumnas por zona, 24 comandas a la vista** (26-ago-2026). La primera
+versión apilaba las comandas en una sola fila por zona: medido en la
+proporción real del monitor de la cocina (1917 × 1010), cabían **2 por zona y 6
+en toda la pantalla** — una tarjeta de 359 px de alto, con el nombre del
+producto a 42 px. Una pantalla de pared que toca desplazar a mano no sirve:
+el cocinero no la va a tocar con las manos ocupadas, y lo que no se ve, no
+existe.
+
+Cada `.zona-lista` pasa a `grid` de dos columnas y la tarjeta baja a **~200 px**:
+foto de 4.9u a 2.5u, cabecera y botón más apretados, nombre del producto de
+2.7u a 1.7u (**42 → 27 px**, que a 32" se sigue leyendo desde dos metros).
+Resultado medido: **8 por zona, 24 en pantalla**, comprobado con el peor caso
+normal — las 8 comandas con dos productos cada una. Una comanda de tres o más
+productos crece y empuja su fila; entonces esa zona sí se desplaza.
+
+El modelo que sirvió para medir vive en el scratchpad (`cuantas-caben.html`):
+embebe el `cocina.css` de verdad y se mide solo en pantalla, para que el
+número salga de la pantalla y no de una cuenta a mano.
+
 **"Pendiente de pago" NO es universal** (corrección de Sergio):
 - Domicilio → **nunca**. Se paga al recibir.
 - Salón → **solo si `branches.cobro_adelantado` está encendido**. Con el cobro
