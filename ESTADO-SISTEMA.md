@@ -14176,10 +14176,14 @@ bebidas"*). Eran dos cosas distintas enredadas en una:
 | Pregunta | Dónde se marca | Cuándo aplica |
 |---|---|---|
 | **¿Dónde se prepara?** → qué pantalla lo ve | columna «Se prepara en» | solo con 2 áreas o más |
-| **¿Qué tan grande se lee?** → Normal / Pequeño | columna «Tamaño» | **siempre**, también con una sola área |
+| **¿Cómo sale en la comanda?** → Normal / Pequeño / No mostrar | columna «En la comanda» | **siempre**, también con una sola área |
 
 La tabla de categorías se pinta SIEMPRE (antes solo con dos áreas o más), y
-`tamCatCfg` es una llave aparte de `areaCatCfg`. Pequeño = sin foto, letra a un
+`tamCatCfg` es una llave aparte de `areaCatCfg` y guarda `mini` u `oculto`.
+Las TRES opciones viven aquí, no en el área: en la primera pasada dejé solo
+Normal y Pequeño pensando que «esconder» ya lo resolvía mandar la categoría a
+otra área — pero eso obliga otra vez a crear una Barra que el restaurante no
+tiene. Reclamado por Sergio. Pequeño = sin foto, letra a un
 tercio, junto y al final tras una línea punteada. Desaparece el selector
 «lo que no es de aquí» de cada área: era la costura del enredo.
 

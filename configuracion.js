@@ -2286,7 +2286,7 @@ var OP_DEFAULTS = {
      bebidas pequeñas SIN tener barra: atar el tamaño al área le obligaba a
      inventarse un sitio que no existe. Son dos preguntas distintas —dónde se
      prepara y qué tan grande se lee— y ahora se responden por separado. */
-  tamCatCfg: {},             // {catId: 'mini'}   — ausente = tamaño normal
+  tamCatCfg: {},             // {catId: 'mini'|'oculto'} — ausente = normal
   // C9 — Tiempos de automatización de mesa
   mesaT1: 10,  // min → primera notificación
   mesaT2: 5,   // min → re-notificación tras "No"
@@ -2455,10 +2455,15 @@ function opPintarResumenes() {
   var d = _opDraft || _opSaved; if (!d) return;
   var _ar = Array.isArray(d.areas) ? d.areas : [];
   var _arSum = $('accsum-areas');
-  var _nMini = Object.keys(d.tamCatCfg || {}).length;
+  var _tc = d.tamCatCfg || {};
+  var _nMini = Object.keys(_tc).filter(function (k) { return _tc[k] === 'mini'; }).length;
+  var _nOc   = Object.keys(_tc).filter(function (k) { return _tc[k] === 'oculto'; }).length;
+  var _extra = [];
+  if (_nMini) _extra.push(_nMini + ' en pequeño');
+  if (_nOc)   _extra.push(_nOc + ' sin mostrar');
   if (_arSum) _arSum.textContent =
     (_ar.length < 2 ? 'Solo Cocina' : _ar.map(function (a) { return a.nombre || a.id; }).join(' · '))
-    + (_nMini ? ' · ' + _nMini + (_nMini === 1 ? ' en pequeño' : ' en pequeño') : '');
+    + (_extra.length ? ' · ' + _extra.join(' · ') : '');
   var money = function (n) { return '$' + Math.round(Number(n) || 0).toLocaleString('es-CO'); };
   var min = function (v) { return (Number(v) || 0) + ' min'; };
 
@@ -2760,16 +2765,17 @@ function opRenderAreasCats() {
   };
   wrap.innerHTML =
     '<div style="font-size:12.5px;font-weight:800;color:#0F172A;margin-bottom:3px">Cómo sale cada categoría en la comanda</div>'
-    + '<div style="font-size:11.5px;color:#94A3B8;margin-bottom:10px">Lo que no hay que cocinar —una gaseosa, un empaque— puede ir en pequeño para que no le robe sitio a los platos. Se marca por categoría: son unas pocas y se hace en un minuto.</div>'
+    + '<div style="font-size:11.5px;color:#94A3B8;margin-bottom:10px">Lo que no hay que cocinar —una gaseosa, un empaque— puede ir <b>pequeño</b>, para que no le robe sitio a los platos, o <b>no mostrarse</b> si en la cocina no pinta nada. Se marca por categoría: son unas pocas y se hace en un minuto.</div>'
     + '<div style="border:1px solid #ECEEF2;border-radius:10px;overflow:hidden">'
     + '<div style="display:flex;align-items:center;gap:9px;padding:7px 12px;background:#F8FAFC;border-bottom:1px solid #ECEEF2">'
     +   '<span style="flex:1;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#94A3B8">Categoría</span>'
     +   (conArea ? '<span style="width:120px;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#94A3B8">Se prepara en</span>' : '')
-    +   '<span style="width:120px;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#94A3B8">Tamaño</span>'
+    +   '<span style="width:120px;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#94A3B8">En la comanda</span>'
     + '</div>'
     + _empCatalog.cats.map(function (c, i) {
         var val = (d.areaCatCfg || {})[c.id] || (areas[0] && areas[0].id);
-        var tam = (d.tamCatCfg || {})[c.id] === 'mini' ? 'mini' : 'normal';
+        var tamG = (d.tamCatCfg || {})[c.id];
+        var tam = (tamG === 'mini' || tamG === 'oculto') ? tamG : 'normal';
         var estilo = 'font-family:inherit;font-size:11.5px;border:1px solid #E2E8F0;border-radius:7px;padding:4px 7px;color:#0F172A;background:#fff;width:120px';
         return '<div style="display:flex;align-items:center;gap:9px;padding:9px 12px;' + (i ? 'border-top:1px solid #F1F5F9;' : '') + '">'
           + '<span style="flex:1;min-width:0;font-size:12.5px;font-weight:700;color:#0F172A">' + _empEsc(c.name) + '</span>'
@@ -2779,6 +2785,7 @@ function opRenderAreasCats() {
           + '<select data-tam-cat="' + _empEsc(c.id) + '" style="' + estilo + '">'
           +   '<option value="normal"' + (tam === 'normal' ? ' selected' : '') + '>Normal</option>'
           +   '<option value="mini"' + (tam === 'mini' ? ' selected' : '') + '>Pequeño</option>'
+          +   '<option value="oculto"' + (tam === 'oculto' ? ' selected' : '') + '>No mostrar</option>'
           + '</select></div>';
       }).join('')
     + '</div>';
@@ -2794,7 +2801,7 @@ function opRenderAreasCats() {
   wrap.querySelectorAll('[data-tam-cat]').forEach(function (s) {
     s.addEventListener('change', function () {
       if (!d.tamCatCfg) d.tamCatCfg = {};
-      if (s.value === 'mini') d.tamCatCfg[s.dataset.tamCat] = 'mini';
+      if (s.value === 'mini' || s.value === 'oculto') d.tamCatCfg[s.dataset.tamCat] = s.value;
       else delete d.tamCatCfg[s.dataset.tamCat];
       opCheckDirty(); opPintarResumenes();
     });

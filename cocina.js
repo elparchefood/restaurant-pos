@@ -313,21 +313,22 @@ function areaDeItem(i) {
 /* Qué muestra esta pantalla de una comanda. Dos filtros independientes:
      · EL ÁREA decide si el producto es de esta pantalla. Con un solo sitio de
        preparación no filtra nada.
-     · EL TAMAÑO decide cómo se lee. Marcar «Bebidas: pequeño» funciona
-       tengas barra o no.
+     · EL TAMAÑO decide cómo se lee: normal, pequeño o no mostrarlo. Funciona
+       tengas barra o no — no hace falta crear un área para esconder algo.
    Un solo sitio donde se decide, para que la tarjeta y el conteo no puedan
    decir cosas distintas. */
-function esMini(i) {
+/* 'normal' | 'mini' | 'oculto' — cómo sale esta categoría en ESTA pantalla. */
+function tamañoDe(i) {
   const pid = i.product_id;
   const cid = pid ? S.catDe.get(pid) : null;
-  if (!cid || S.tamCat[cid] !== 'mini') return false;
-  /* En la pantalla de SU PROPIA area nunca va pequeno: ahi ese producto es el
+  const t = cid ? S.tamCat[cid] : null;
+  if (t !== 'mini' && t !== 'oculto') return 'normal';
+  /* En la pantalla de SU PROPIA area sale normal: ahi ese producto es el
      trabajo, no un anadido. Salio probando — con Bebidas marcadas pequenas y
      mandadas a Barra, la pantalla de la barra mostraba su propio trabajo
-     diminuto. "Pequeno" significa "esto aqui no se cocina", y en la barra si
-     se prepara. */
-  if (S.areas.length >= 2 && areaDeItem(i) === S.area) return false;
-  return true;
+     diminuto. Y con "no mostrar" seria peor: la barra no veria nada. */
+  if (S.areas.length >= 2 && areaDeItem(i) === S.area) return 'normal';
+  return t;
 }
 
 function repartoDe(its) {
@@ -335,7 +336,9 @@ function repartoDe(its) {
   (its || []).forEach(i => {
     const deAqui = S.areas.length < 2 || !S.area || areaDeItem(i) === S.area;
     if (!deAqui) return;
-    if (esMini(i)) minis.push(i); else mios.push(i);
+    const t = tamañoDe(i);
+    if (t === 'oculto') return;
+    if (t === 'mini') minis.push(i); else mios.push(i);
   });
   return { mios, ajenos: minis };
 }
