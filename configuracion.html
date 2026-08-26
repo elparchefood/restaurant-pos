@@ -882,6 +882,27 @@
           
             </div>
           </div>
+          <div class="op-acc" data-acc="areas">
+            <button type="button" class="op-acc-h" onclick="opAcc('areas')">
+              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="8" rx="1.5"/><path d="M14 15h7"/><path d="M14 19h7"/></svg></span>
+              <span class="op-acc-t">&#193;reas de preparaci&#243;n</span>
+              <span class="op-acc-sum" id="accsum-areas"></span>
+              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+            </button>
+            <div class="op-acc-b">
+            <div class="op-card-body">
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">D&#243;nde se prepara cada cosa</div>
+                  <div class="op-hint">Si preparas todo en un solo sitio, deja solo Cocina y no cambia nada. Crea Barra si las bebidas las hace otra persona &#8212; aunque no vayas a colgar una segunda pantalla.</div>
+                </div>
+              </div>
+              <div id="op-areas-list" style="display:flex;flex-direction:column;gap:8px;margin-top:2px"></div>
+              <div id="op-areas-nueva" style="margin-top:10px"></div>
+              <div id="op-areas-cats" style="margin-top:16px"></div>
+            </div>
+            </div>
+          </div>
           <div class="op-acc-grupo">Cobro</div>
           <div class="op-acc" data-acc="meta">
             <button type="button" class="op-acc-h" onclick="opAcc('meta')">
@@ -966,27 +987,6 @@
               </div>
             </div>
           
-            </div>
-          </div>
-          <div class="op-acc" data-acc="areas">
-            <button type="button" class="op-acc-h" onclick="opAcc('areas')">
-              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="8" rx="1.5"/><path d="M14 15h7"/><path d="M14 19h7"/></svg></span>
-              <span class="op-acc-t">&#193;reas de preparaci&#243;n</span>
-              <span class="op-acc-sum" id="accsum-areas"></span>
-              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
-            </button>
-            <div class="op-acc-b">
-            <div class="op-card-body">
-              <div class="op-row">
-                <div class="op-row-text">
-                  <div class="op-label">D&#243;nde se prepara cada cosa</div>
-                  <div class="op-hint">Si preparas todo en un solo sitio, deja solo Cocina y no cambia nada. Crea Barra si las bebidas las hace otra persona &#8212; aunque no vayas a colgar una segunda pantalla.</div>
-                </div>
-              </div>
-              <div id="op-areas-list" style="display:flex;flex-direction:column;gap:8px;margin-top:2px"></div>
-              <div id="op-areas-nueva" style="margin-top:10px"></div>
-              <div id="op-areas-cats" style="margin-top:16px"></div>
-            </div>
             </div>
           </div>
           <div class="op-acc" data-acc="recibos">
@@ -3214,7 +3214,7 @@
 <script src="pos-notify.js?v=1790370000"></script>
 <script src="pos-vars.js?v=1790460000"></script>
 <script src="pos-vars-ui.js?v=1790530000"></script>
-<script src="configuracion.js?v=1792300000"></script>
+<script src="configuracion.js?v=1792310000"></script>
 </body>
 </html>
 

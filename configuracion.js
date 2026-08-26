@@ -2451,7 +2451,7 @@ function opPintarResumenes() {
   var _ar = Array.isArray(d.areas) ? d.areas : [];
   var _arSum = $('accsum-areas');
   if (_arSum) _arSum.textContent = _ar.length < 2
-    ? 'Todo en un solo sitio'
+    ? 'Solo Cocina'
     : _ar.map(function (a) { return a.nombre || a.id; }).join(' · ');
   var money = function (n) { return '$' + Math.round(Number(n) || 0).toLocaleString('es-CO'); };
   var min = function (v) { return (Number(v) || 0) + ' min'; };
@@ -2665,8 +2665,19 @@ function opRenderAreas() {
   var cont = $('op-areas-list');
   if (!cont) return;
 
-  cont.innerHTML = areas.map(function (a, i) {
-    var sel = '<select data-area-ajeno="' + _empEsc(a.id) + '" style="font-family:inherit;font-size:12px;border:1px solid #E2E8F0;border-radius:8px;padding:6px 8px;color:#0F172A;background:#fff">'
+  /* Aunque no haya nada guardado, la cocina EXISTE: es donde se prepara todo
+     mientras no se diga otra cosa. Enseñarla —en vez de un cartel diciendo
+     que no hay nada— es lo que hace entender de un vistazo que crear un área
+     es AÑADIR un sitio, no empezar de cero. (Sergio, 26-ago-2026.)
+     Y con un solo sitio no se pregunta qué hacer con «lo que no es de aquí»:
+     no hay nada ajeno. El selector aparece con la segunda área. */
+  var pintables = areas.length ? areas : [{ id:'cocina', nombre:'Cocina', ajeno:'igual', _fantasma:true }];
+  var conSelector = areas.length > 1;
+
+  cont.innerHTML = pintables.map(function (a, i) {
+    var sel = !conSelector ? '' :
+      '<span style="font-size:11.5px;color:#94A3B8;white-space:nowrap">Lo que no es de aquí:</span>'
+      + '<select data-area-ajeno="' + _empEsc(a.id) + '" style="font-family:inherit;font-size:12px;border:1px solid #E2E8F0;border-radius:8px;padding:6px 8px;color:#0F172A;background:#fff">'
       + AREA_AJENO.map(function (x) {
           return '<option value="' + x.v + '"' + ((a.ajeno || 'igual') === x.v ? ' selected' : '') + '>' + x.t + '</option>';
         }).join('')
@@ -2676,11 +2687,10 @@ function opRenderAreas() {
       : '<button type="button" data-area-del="' + _empEsc(a.id) + '" title="Quitar esta área" style="width:26px;height:26px;border:1px solid #ECEEF2;background:#fff;border-radius:8px;color:#94A3B8;cursor:pointer;font-size:15px;line-height:1;flex-shrink:0">&times;</button>';
     return '<div style="display:flex;align-items:center;gap:10px;background:#FAFAFF;border:1px solid #ECEEF2;border-radius:10px;padding:10px 12px">'
       + '<span style="flex:1;min-width:0;font-size:13.5px;font-weight:800;color:#0F172A">' + _empEsc(a.nombre || a.id)
-      + (i === 0 ? '<span style="font-size:11px;font-weight:700;color:#94A3B8;margin-left:8px">por defecto</span>' : '')
+      + (i === 0 ? '<span style="font-size:11px;font-weight:700;color:#94A3B8;margin-left:8px">donde se prepara todo lo demás</span>' : '')
       + '</span>'
-      + '<span style="font-size:11.5px;color:#94A3B8;white-space:nowrap">Lo que no es de aquí:</span>'
       + sel + borrar + '</div>';
-  }).join('') || '<div style="font-size:12.5px;color:#94A3B8">Todo se prepara en un solo sitio.</div>';
+  }).join('');
 
   cont.querySelectorAll('[data-area-ajeno]').forEach(function (s) {
     s.addEventListener('change', function () {
