@@ -263,14 +263,6 @@ svg{display:block;}
   background:#0F172A; color:#fff; font-size:calc(var(--u) * 1.05); font-weight:800;
   display:flex; align-items:center; justify-content:center;
 }
-/* El tamaño (Personal / Familiar / 1.5 Litros), en su propio renglón chico
-   encima del plato. Antes iba dentro del nombre y se llevaba un renglón
-   entero de letra grande para decir una sola palabra. */
-.it-pres{
-  display:block; font-size:calc(var(--u) * .92); font-weight:800;
-  letter-spacing:.1em; text-transform:uppercase; color:#64748B;
-  line-height:1.2; margin-bottom:calc(var(--u) * .08);
-}
 .it-tx{font-size:calc(var(--u) * 1.7);font-weight:800;line-height:1.05;letter-spacing:-.025em;color:#0F172A;min-width:0;}
 /* Las adiciones en verde y las notas en ámbar, en renglón aparte: una nota
    metida dentro del nombre del plato es un plato devuelto. */
