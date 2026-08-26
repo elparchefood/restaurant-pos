@@ -591,7 +591,15 @@ function tarjeta(o) {
   const ajenos = rep_.ajenos;   // los marcados como pequeños
 
   function renglon(i, mini) {
-    const nombre = i.product_name || i.name || 'Producto';
+    let nombre = i.product_name || i.name || 'Producto';
+    const pres = presDe(i);
+    /* Solo se recorta si el nombre EMPIEZA por el tamaño: si el restaurante
+       lo escribió de otra forma, se deja tal cual y no se pierde nada. */
+    if (pres) {
+      const pega = pres + ' · ';
+      if (nombre.toLowerCase().indexOf(pega.toLowerCase()) === 0) nombre = nombre.slice(pega.length);
+    }
+    const etq = (pres && !mini && nombre) ? '<b class="it-pres">' + esc(pres) + '</b>' : '';
     const foto   = S.fotos.get(i.product_id);
     const img = mini ? ''
       : (foto ? '<img class="it-foto" src="' + esc(foto) + '" alt="" loading="lazy">'
@@ -599,7 +607,7 @@ function tarjeta(o) {
     const adic = adiciones(i);
     return '<div class="it' + (mini ? ' mini' : '') + '">' + img
       + '<span class="it-n">' + (parseInt(i.quantity,10) || 1) + '</span>'
-      + '<span class="it-tx">' + esc(nombre)
+      + '<span class="it-tx">' + etq + esc(nombre)
       + (adic ? '<em>+ ' + esc(adic) + '</em>' : '')
       + (i.notes ? '<i>' + esc(i.notes) + '</i>' : '')
       + '</span></div>';
@@ -623,6 +631,22 @@ function tarjeta(o) {
     + '<div class="tk-min">' + RELOJ_SVG + reloj_mmss(mins) + '</div></div>'
     + '<div class="tk-items">' + cuerpo + '</div>'
     + accion + '</article>';
+}
+
+/* EL TAMAÑO, FUERA DEL NOMBRE GRANDE (Sergio, 26-ago-2026: *"Familiar Premium
+   Mixta cabe en dos líneas, es innecesario 3"*).
+   El nombre llega pegado —«Familiar · Premium · Mixta»— y a 27 px en una
+   tarjeta de 298 px no cabe en dos renglones: solo «Familiar ·» ya se lleva
+   140 px de los 186 que tiene el texto. Pero el tamaño NO hay que adivinarlo:
+   viene aparte en `selections.pres`. Sacándolo, el plato queda en dos
+   renglones y el tamaño en uno chiquito encima, que además es más fácil de
+   cazar de lejos que perdido dentro de la frase. */
+function presDe(i) {
+  try {
+    const s = typeof i.selections === 'string' ? JSON.parse(i.selections) : i.selections;
+    const p = s && s.pres;
+    return p ? String(p).trim() : '';
+  } catch (e) { return ''; }
 }
 
 /* Las adiciones vienen dentro de `selections`, que es el mismo formato que

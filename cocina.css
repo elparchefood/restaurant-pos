@@ -217,13 +217,18 @@ svg{display:block;}
         lea como una sola cosa.
    Medido: la comanda normal de dos productos sube 10 px. Siguen cabiendo las
    cuatro filas por columna y las 24 comandas en pantalla. */
-.tk-items{flex:1;padding:calc(var(--u) * .28) calc(var(--u) * .45) calc(var(--u) * .15);display:flex;flex-direction:column;gap:calc(var(--u) * .12);}
+.tk-items{flex:1;padding:calc(var(--u) * .28) calc(var(--u) * .45) calc(var(--u) * .15);display:flex;flex-direction:column;gap:calc(var(--u) * .3);}
 .it{
   display:flex; gap:calc(var(--u) * .55); align-items:flex-start;
   padding:calc(var(--u) * .34) calc(var(--u) * .45);
   border-radius:calc(var(--u) * .4);
+  /* TODOS con su franja, no una si y una no (Sergio, 26-ago-2026: "te dije
+     solo franjas, no franjas intermedias"). Alternando, el primero y el
+     tercero comparten fondo y se emparejan entre si; con franja en todos, cada
+     producto es un bloque y de lejos se CUENTAN sin leer. El separador es el
+     hueco, que deja ver el color del estado por debajo. */
+  background:rgba(255,255,255,.72);
 }
-.it:nth-child(odd){background:rgba(255,255,255,.7);}
 
 /* ── LO QUE NO SE PREPARA EN ESTA ÁREA ─────────────────────────────────────
    Cuando el restaurante elige «pequeño»: sin foto, letra a un tercio y todo
@@ -257,6 +262,14 @@ svg{display:block;}
   flex:0 0 auto; min-width:calc(var(--u) * 1.75); height:calc(var(--u) * 1.75); border-radius:calc(var(--u) * .35);
   background:#0F172A; color:#fff; font-size:calc(var(--u) * 1.05); font-weight:800;
   display:flex; align-items:center; justify-content:center;
+}
+/* El tamaño (Personal / Familiar / 1.5 Litros), en su propio renglón chico
+   encima del plato. Antes iba dentro del nombre y se llevaba un renglón
+   entero de letra grande para decir una sola palabra. */
+.it-pres{
+  display:block; font-size:calc(var(--u) * .92); font-weight:800;
+  letter-spacing:.1em; text-transform:uppercase; color:#64748B;
+  line-height:1.2; margin-bottom:calc(var(--u) * .08);
 }
 .it-tx{font-size:calc(var(--u) * 1.7);font-weight:800;line-height:1.05;letter-spacing:-.025em;color:#0F172A;min-width:0;}
 /* Las adiciones en verde y las notas en ámbar, en renglón aparte: una nota
