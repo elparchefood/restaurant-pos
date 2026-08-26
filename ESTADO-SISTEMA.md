@@ -14141,6 +14141,43 @@ lee (usa `pos_tables.status`), así que marcar listo desde cocina no mueve
 ninguna mesa. La comanda se queda 30 s con **Deshacer** y se va sola: sin
 ventana de confirmación, porque en una cocina nadie confirma nada.
 
+### El salón NUNCA llegaba a la cocina (26-ago-2026)
+
+Sergio probó con el Restaurante de Prueba: caja abierta, una mesa pendiente de
+pago y otra en preparación, y **la pantalla en blanco**. No era la prueba: era
+la pantalla.
+
+**`visible_cocina` no significa "está en cocina", significa "se puede
+imprimir".** `tomar-pedido.js` lo pone en `!cobro_adelantado`, así que en una
+sucursal que cobra por adelantado nace en `false`. Lo único que lo pasa a
+`true` después es el botón «Cobrar mesa» de `ventas-salon.js`; cobrar en caja
+(`pagos.js`) no lo toca. Medido en la base: de los **125 pedidos de salón de
+El Parche en 30 días, CERO** tuvieron `visible_cocina = true`. La pantalla
+estaba bien construida sobre una señal que para el salón nunca se enciende.
+
+Arreglo: el salón entra por su propio estado, que es lo que de verdad
+significa "esta mesa ya mandó su comanda".
+
+```js
+.or('visible_cocina.eq.true,and(channel.eq.salon,status.in.(in_progress,paid))')
+```
+
+Y un salón `paid` significa lo contrario según el modo de cobro — con cobro
+adelantado pagó ANTES de cocinar (está en preparación), con cobro al final
+pagó al irse (ya comió) — así que en cobro al final se descarta en pantalla.
+El salón en `open` sigue fuera: es un pedido que todavía se está escribiendo.
+
+**Segundo fallo, debajo del primero: la comanda salía vacía.** Los productos
+se filtraban por `kitchen_printed_at`, que la pone la impresora de cocina. Los
+dos pedidos de la prueba tenían `impresos = 0`, así que aunque hubieran
+entrado habrían salido con la mesa y el reloj pero sin un solo producto. Y
+Cobra es para restaurantes que **no** tienen impresora — esta pantalla es
+justamente lo que la reemplaza. Ahora la regla es por pedido: si ningún ítem
+está marcado, la marca no quiere decir "no se ha enviado" sino "aquí nadie
+imprime", y se muestran todos. Si alguno sí está marcado, se muestran solo los
+marcados (un ítem agregado y sin enviar no debe aparecer). Y una comanda que
+se queda sin productos no se pinta: ocupa sitio y no dice nada.
+
 ### Dos fallos hallados al probar contra datos reales
 
 1. **`delivered_at` en nulo no basta.** Hay pedidos `paid`/`completed` sin

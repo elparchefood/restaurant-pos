@@ -3,10 +3,16 @@
    Las comandas en vivo, en una tablet colgada en la pared.
 
    ── DE DÓNDE SALEN LAS COMANDAS ─────────────────────────────────────────
-   De `pos_orders.visible_cocina`, que ya existía y ya se pone en `true` al
-   enviar la comanda — lo hacen el salón (ventas-salon.js), el bot y el chat.
-   No se inventó una señal nueva: esta es la que el sistema ya usa para
-   decidir qué se imprime en cocina.
+   De `pos_orders.visible_cocina` MÁS los pedidos de salón en curso. Las dos
+   cosas, y esto costó un fallo: `visible_cocina` NO es "está en cocina",
+   es "se puede imprimir". `tomar-pedido.js` lo pone en `!cobro_adelantado`,
+   así que en una sucursal que cobra por adelantado se queda en `false` hasta
+   que alguien toque «Cobrar mesa» — y cobrar en caja no lo toca.
+   Medido en la base el 26-ago-2026: de los 125 pedidos de salón de El Parche
+   en 30 días, **cero** llegaron a tener `visible_cocina = true`. La pantalla
+   funcionaba; simplemente el salón nunca iba a aparecer en ella.
+   Por eso el salón entra por su propio estado (`in_progress` / `paid`), que
+   es lo que de verdad significa "esta mesa ya mandó su comanda".
 
    ── EL ESTADO "LISTO" ───────────────────────────────────────────────────
    Se escribe en `pos_orders.estado`, el mismo campo que ya usan los
@@ -194,7 +200,15 @@ async function cargarComandas() {
     const { data:ords, error } = await conTope(sb.from('pos_orders')
       .select('id, channel, status, estado, table_id, turno, customer_name, notes, total, total_final, paid_amount, created_at, delivered_at, visible_cocina')
       .eq('branch_id', S.branchId)
-      .eq('visible_cocina', true)
+      /* Dos puertas de entrada, no una:
+         · `visible_cocina` → domicilios, chat, venta rápida y el salón con
+           cobro al final. Es la señal que ya usaba el sistema.
+         · salón `in_progress`/`paid` → la mesa que ya mandó su comanda. Con
+           cobro adelantado esa es la ÚNICA señal que existe, porque
+           `visible_cocina` se queda en false hasta que se cobre.
+         Lo que queda fuera por sí solo es el salón en `open`: un pedido que
+         todavía se está escribiendo y aún no se ha enviado. */
+      .or('visible_cocina.eq.true,and(channel.eq.salon,status.in.(in_progress,paid))')
       .gte('created_at', desde)
       .is('delivered_at', null)
       /* `completed` es un pedido TERMINADO (verificado en la base: los
@@ -205,6 +219,12 @@ async function cargarComandas() {
     if (error) throw error;
 
     const vivos = (ords || []).filter(o => {
+      /* Un salón `paid` significa cosas OPUESTAS según el modo de cobro:
+         · cobro adelantado → pagó ANTES de cocinar: está en preparación.
+         · cobro al final   → pagó al irse: ya comió, no tiene nada que hacer
+           en cocina. Sin esta línea la pantalla se llenaría de mesas que ya
+           se fueron. */
+      if (zonaDe(o) === 'salon' && o.status === 'paid' && !S.cobroAdelantado) return false;
       /* Los estados que ya pasaron por cocina no vuelven a entrar. */
       if (['en_camino','entregado'].indexOf(o.estado) >= 0) return false;
       /* Una comanda lista se queda 30 segundos y se va sola, con deshacer. */
@@ -224,15 +244,32 @@ async function cargarComandas() {
       const { data:its } = await conTope(sb.from('pos_order_items')
         .select('id, order_id, product_id, product_name, name, quantity, notes, selections, kitchen_printed_at')
         .in('order_id', ids), 15, 'los productos de las comandas');
+      /* `kitchen_printed_at` marca lo que YA se mandó a cocina: un ítem
+         recién agregado y todavía sin enviar no debe aparecer, porque el
+         cocinero lo empezaría antes de tiempo.
+         PERO esa marca la pone la impresora de cocina, y hay restaurantes
+         que no tienen impresora — esta pantalla es justamente lo que la
+         reemplaza. Si en un pedido NINGÚN ítem está marcado, la marca no
+         significa "no se ha enviado", significa "aquí nadie imprime": se
+         muestran todos. Sin esto la comanda salía vacía, con la mesa y el
+         reloj pero sin un solo producto. */
       const porOrden = new Map();
+      const crudos = new Map();
       (its || []).forEach(i => {
-        /* Solo lo que YA se mandó a cocina. Un ítem agregado y todavía no
-           enviado no debe aparecer: el cocinero lo empezaría antes de tiempo. */
-        if (!i.kitchen_printed_at) return;
-        if (!porOrden.has(i.order_id)) porOrden.set(i.order_id, []);
-        porOrden.get(i.order_id).push(i);
+        if (!crudos.has(i.order_id)) crudos.set(i.order_id, []);
+        crudos.get(i.order_id).push(i);
+      });
+      crudos.forEach((lista, oid) => {
+        const enviados = lista.filter(i => i.kitchen_printed_at);
+        porOrden.set(oid, enviados.length ? enviados : lista);
       });
       S.items = porOrden;
+
+      /* Una comanda sin un solo producto no es una comanda: es ruido que le
+         quita sitio a las que sí hay que cocinar. */
+      S.orders.forEach((ord, oid) => {
+        if (!(porOrden.get(oid) || []).length) S.orders.delete(oid);
+      });
     } else {
       S.items = new Map();
     }
