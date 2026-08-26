@@ -900,6 +900,22 @@
               <div id="op-areas-list" style="display:flex;flex-direction:column;gap:8px;margin-top:2px"></div>
               <div id="op-areas-nueva" style="margin-top:10px"></div>
               <div id="op-areas-cats" style="margin-top:16px"></div>
+              <div style="margin-top:20px;padding-top:18px;border-top:1px solid #F1F5F9">
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Sonido al entrar una comanda</div>
+                    <div class="op-hint">Se oye apenas lo tocas, para que escojas oyendo. <b>Encenderlo o apagarlo es de cada aparato</b>: se prende en la tablet de la cocina con el bot&#243;n del altavoz, y el computador del due&#241;o se queda callado.</div>
+                  </div>
+                </div>
+                <div id="op-cocina-tonos" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px"></div>
+                <div class="op-row" style="margin-top:12px">
+                  <div class="op-row-text"><div class="op-label">Volumen</div></div>
+                  <div class="op-control" style="display:flex;align-items:center;gap:10px">
+                    <input type="range" id="op-cocina-vol" min="0" max="100" step="5" style="width:170px">
+                    <span id="op-cocina-vol-val" style="font-size:12.5px;font-weight:700;color:#475569;min-width:38px;text-align:right">80%</span>
+                  </div>
+                </div>
+              </div>
             </div>
             </div>
           </div>
@@ -3211,10 +3227,10 @@
 <script src="configuracion-puntos.js?v=1791790000"></script>
 <!-- Es quien sabe tocar los tonos con el volumen configurado. Sin esto el
      boton Probar no sonaba: la funcion que llama no existia. -->
-<script src="pos-notify.js?v=1790370000"></script>
+<script src="pos-notify.js?v=1792360000"></script>
 <script src="pos-vars.js?v=1790460000"></script>
 <script src="pos-vars-ui.js?v=1790530000"></script>
-<script src="configuracion.js?v=1792360000"></script>
+<script src="configuracion.js?v=1792370000"></script>
 </body>
 </html>
 

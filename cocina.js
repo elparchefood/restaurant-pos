@@ -72,6 +72,7 @@ const S = {
      la pantalla se comporta EXACTAMENTE como antes: es la regla que hace que
      ningún restaurante que ya opera note un cambio que no pidió. */
   areas:[], areaCat:{}, areaProd:{}, tamCat:{}, area:null, areasVisibles:[],
+  sonTono:'alerta', sonVol:80,
   orders:new Map(), items:new Map(), mesas:new Map(), fotos:new Map(),
   /* categoria de cada producto: es por donde se resuelve su area */
   catDe:new Map(),
@@ -124,6 +125,17 @@ function conTope(promesa, seg, queEs) {
 }
 
 /* El conmutador solo existe cuando la persona tiene más de un área. */
+/* El interruptor del sonido. Al encenderlo suena una vez: así se comprueba
+   en el momento, sin esperar a que entre una comanda de verdad. */
+addEventListener('click', function (ev) {
+  const s = ev.target && ev.target.closest && ev.target.closest('#son');
+  if (!s) return;
+  const nuevo = !sonidoEncendido();
+  try { localStorage.setItem(SONIDO_KEY, nuevo ? '1' : '0'); } catch (e) {}
+  pintarSonido();
+  if (nuevo) { try { window.posTocarTono(S.sonTono, S.sonVol); } catch (e) {} }
+});
+
 addEventListener('click', function (ev) {
   const b = ev.target && ev.target.closest && ev.target.closest('[data-area]');
   if (!b) return;
@@ -254,6 +266,12 @@ async function cargarBase() {
      preparación puede querer las bebidas pequeñas igual. Son dos preguntas
      distintas y se leen por separado. */
   S.tamCat   = op.tamCatCfg   || {};
+  /* Qué tono suena al entrar una comanda. El TONO lo elige el dueño una vez
+     para todo el restaurante; ENCENDERLO O NO es de cada aparato. */
+  const cn = op.cocinaNotif || {};
+  S.sonTono = cn.tono || 'alerta';
+  S.sonVol  = (typeof cn.vol === 'number') ? cn.vol : 80;
+  pintarSonido();
   await resolverArea();
 }
 
@@ -793,7 +811,42 @@ function reloj() {
    perder. Suena UNA vez por comanda — en una cocina, un aviso que insiste se
    termina apagando. */
 let _audio = null;
+/* ── EL SONIDO DE COMANDA NUEVA ────────────────────────────────────────────
+   Decisión de Sergio (26-ago-2026): que suene en la tablet de la cocina y NO
+   en su computador. La pantalla es la misma en los dos, así que en vez de
+   adivinar con qué se abrió, el interruptor es DE CADA APARATO: se enciende
+   en la tablet y se deja apagado en el escritorio. Mañana pone una segunda
+   tablet, o quiere oírlo un día en el computador, y no depende de nada.
+
+   Nace APAGADO a propósito. Y eso resuelve de paso un problema que no se ve:
+   los navegadores no dejan sonar nada hasta que alguien toca la pantalla.
+   Como encenderlo ES un toque, el mismo gesto que lo activa desbloquea el
+   audio. Si naciera encendido, no sonaría y nadie sabría por qué. */
+const SONIDO_KEY = 'cobra.cocina.sonido';
+
+function sonidoEncendido() {
+  try { return localStorage.getItem(SONIDO_KEY) === '1'; } catch (e) { return false; }
+}
+
+function pintarSonido() {
+  const b = $('son');
+  if (!b) return;
+  const on = sonidoEncendido();
+  b.classList.toggle('on', on);
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  b.title = on ? 'Sonido encendido en este aparato' : 'Sonido apagado en este aparato';
+  b.innerHTML = on
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>';
+}
+
 function sonarUnaVez() {
+  if (!sonidoEncendido()) return;
+  try {
+    if (typeof window.posTocarTono === 'function') { window.posTocarTono(S.sonTono, S.sonVol); return; }
+  } catch (_) { /* abajo, el pitido de respaldo */ }
+  /* Respaldo por si el archivo de tonos no cargó: mejor un pitido feo que
+     una cocina que no se entera de que entró una comanda. */
   try {
     _audio = _audio || new (window.AudioContext || window.webkitAudioContext)();
     if (_audio.state === 'suspended') _audio.resume();

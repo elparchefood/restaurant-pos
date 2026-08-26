@@ -111,6 +111,14 @@ svg{display:block;}
   width:calc(var(--u) * .55); height:calc(var(--u) * .55); border-radius:50%; background:#16A34A;
   box-shadow:0 0 0 calc(var(--u) * .22) rgba(22,163,74,.16);
 }
+.k-son{
+  width:calc(var(--u) * 2.1); height:calc(var(--u) * 2.1); flex:0 0 auto;
+  border:1px solid #E2E8F0; background:#fff; color:#94A3B8;
+  border-radius:calc(var(--u) * .5); display:flex; align-items:center; justify-content:center;
+}
+.k-son svg{width:calc(var(--u) * 1.15);height:calc(var(--u) * 1.15);}
+.k-son.on{background:#EEF2FF;border-color:#C7D2FE;color:#4F5BE3;}
+
 .k-reloj{font-size:calc(var(--u) * 1.15);font-weight:700;font-variant-numeric:tabular-nums;color:#334155;}
 
 /* ── Sin conexión ───────────────────────────────────────────────────────────

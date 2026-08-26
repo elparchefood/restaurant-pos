@@ -2334,6 +2334,10 @@ var OP_DEFAULTS = {
      inventarse un sitio que no existe. Son dos preguntas distintas —dónde se
      prepara y qué tan grande se lee— y ahora se responden por separado. */
   tamCatCfg: {},             // {catId: 'mini'|'oculto'} — ausente = normal
+  /* Que suena en la cocina al entrar una comanda. El TONO lo elige el dueno
+     una vez para todo el restaurante; ENCENDERLO es de cada aparato, y eso
+     vive en el aparato, no aqui. */
+  cocinaNotif: { tono: 'alerta', vol: 80 },
   // C9 — Tiempos de automatización de mesa
   mesaT1: 10,  // min → primera notificación
   mesaT2: 5,   // min → re-notificación tras "No"
@@ -2508,6 +2512,8 @@ function opPintarResumenes() {
   var _extra = [];
   if (_nMini) _extra.push(_nMini + ' en pequeño');
   if (_nOc)   _extra.push(_nOc + ' sin mostrar');
+  var _cn = d.cocinaNotif || {};
+  if (_cn.tono) _extra.push('sonido ' + _cn.tono);
   if (_arSum) _arSum.textContent =
     (_ar.length < 2 ? 'Solo Cocina' : _ar.map(function (a) { return a.nombre || a.id; }).join(' · '))
     + (_extra.length ? ' · ' + _extra.join(' · ') : '');
@@ -2789,6 +2795,42 @@ function opRenderAreas() {
   }
 
   opRenderAreasCats();
+  opRenderCocinaSon();
+}
+
+/* Los tonos salen de `pos-notify.js`, que es donde estan afinados. Si algun dia
+   se agrega uno, aparece aqui solo. */
+function opRenderCocinaSon() {
+  var d = _opDraft; if (!d) return;
+  var caja = $('op-cocina-tonos'); if (!caja) return;
+  var cn = d.cocinaNotif || (d.cocinaNotif = { tono:'alerta', vol:80 });
+  var lista = (typeof window.posTonosDisponibles === 'function')
+    ? window.posTonosDisponibles()
+    : [{ id:'alerta', nombre:'Alerta' }];
+  caja.innerHTML = lista.map(function (t) {
+    return '<button type="button" class="cf-chip' + (cn.tono === t.id ? ' on' : '')
+      + '" data-cocina-tono="' + _empEsc(t.id) + '">' + _empEsc(t.nombre) + '</button>';
+  }).join('');
+  caja.querySelectorAll('[data-cocina-tono]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      cn.tono = b.dataset.cocinaTono;
+      opRenderCocinaSon(); opCheckDirty(); opPintarResumenes();
+      try { window.posTocarTono(cn.tono, cn.vol); } catch (e) {}
+    });
+  });
+  var sl = $('op-cocina-vol'), vl = $('op-cocina-vol-val');
+  if (sl) {
+    sl.value = cn.vol;
+    sl.oninput = function () {
+      cn.vol = parseInt(sl.value, 10) || 0;
+      if (vl) vl.textContent = cn.vol + '%';
+      opCheckDirty(); opPintarResumenes();
+    };
+    /* Se oye al SOLTAR, no mientras se arrastra: si sonara en cada paso de la
+       barra serian veinte pitidos seguidos. */
+    sl.onchange = function () { try { window.posTocarTono(cn.tono, cn.vol); } catch (e) {} };
+  }
+  if (vl) vl.textContent = (cn.vol || 0) + '%';
 }
 
 /* Cómo sale cada categoría en la comanda. SIEMPRE se pinta, aunque haya un

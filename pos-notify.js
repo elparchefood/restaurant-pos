@@ -9,6 +9,15 @@
      nada mientras se estaba en la pantalla del chat. */
   var enChat = location.pathname.indexOf('chat-ia') >= 0;
 
+  /* LA COCINA USA ESTE ARCHIVO SOLO POR EL SONIDO.
+     El banco de tonos y el reproductor viven aquí y están afinados a mano
+     (los pulsos del tono «alerta» duran más de lo que parece necesario porque
+     medían 4 dB menos que el resto). Duplicarlos en la pantalla de cocina
+     habría sido garantizar que un día suenen distinto. Así que la cocina carga
+     este archivo y usa `posTocarTono`, pero NO se suscribe al chat: un
+     cocinero no tiene por qué recibir avisos de WhatsApp en la pared. */
+  var enCocina = location.pathname.indexOf('cocina') >= 0;
+
   /* ¿ESTÁ ABIERTA LA VENTANA DEL CHAT?
 
      Sergio casi siempre trabaja con dos ventanas: el chat y otra pantalla.
@@ -252,9 +261,9 @@
     } catch (e) { bajando[clave] = false; }
   }
 
-  function beep(forzar) {
+  function beep(forzar, cfgDado) {
     try {
-      var cfg = cfgNotif();
+      var cfg = cfgDado || cfgNotif();
       /* `forzar` es para el botón Probar: deja oír el tono aunque el aviso esté
          apagado. Pero NO se salta el volumen en cero — barra en cero significa
          silencio, y un botón que suena con el volumen abajo confunde más de lo
@@ -341,15 +350,29 @@
     } catch (e) {}
   }
   // Para poder oírlo al configurarlo, aunque las notificaciones estén apagadas.
-  window.posNotifProbar = function (tono, vol) {
-    var prev = localStorage.getItem('pos.config.operacion.v1');
-    try {
-      var op = JSON.parse(prev || '{}');
-      op.notif = { activo: true, tono: tono, vol: vol };
-      localStorage.setItem('pos.config.operacion.v1', JSON.stringify(op));
-      beep(true);
-    } catch (e) {}
-    setTimeout(function () { if (prev !== null) localStorage.setItem('pos.config.operacion.v1', prev); }, 50);
+  /* Tocar un tono concreto, sin depender de lo que este guardado. Antes esto
+     escribia en localStorage, sonaba, y restauraba el valor 50 ms despues —un
+     truco que funcionaba para el boton Probar y que en la cocina, sonando
+     cada dos minutos, habria sido una fuente de sustos. */
+  window.posTocarTono = function (tono, vol) {
+    beep(true, {
+      activo: true,
+      tono: (TONOS[tono] || GRABADOS[tono]) ? tono : 'clasico',
+      vol: (typeof vol === 'number') ? Math.max(0, Math.min(100, vol)) : 60,
+    });
+  };
+  window.posNotifProbar = function (tono, vol) { window.posTocarTono(tono, vol); };
+
+  /* Los tonos que existen, para que las pantallas de configuracion los pinten
+     sin tener que repetir la lista. */
+  window.posTonosDisponibles = function () {
+    return [
+      { id:'suave',   nombre:'Suave' },
+      { id:'clasico', nombre:'Clasico' },
+      { id:'campana', nombre:'Campana' },
+      { id:'alerta',  nombre:'Alerta' },
+      { id:'caja',    nombre:'Caja registradora' },
+    ];
   };
 
   function notif(m) {
@@ -387,6 +410,6 @@
   // Solo para el banco de pruebas: permite disparar el aviso sin base de datos.
   window.__notifPrueba = notif;
 
-  if (enChat) return;   // en el chat, solo el sonido; el aviso flotante no
+  if (enChat || enCocina) return;   // ahi solo el sonido; el aviso flotante no
   if (document.readyState !== 'loading') start(); else document.addEventListener('DOMContentLoaded', start);
 })();
