@@ -161,6 +161,21 @@ addEventListener('unhandledrejection', e => morir('La pantalla no pudo abrir.', 
   S.branchId = perfil.branch_id;
   S.tenantId = perfil.tenant_id;
 
+  paso('Comprobando tus permisos…');
+  if (!(await puedeVerCocina())) {
+    $('cargando').innerHTML =
+      '<p style="font-size:1.6cqw;font-weight:800;color:#0F172A">Esta cuenta no tiene permiso para ver la cocina</p>'
+    + '<p style="font-size:1.1cqw;color:#64748B;max-width:60ch;text-align:center">'
+    + 'Pídele al administrador que active <b>«Ver la pantalla de cocina»</b> en el rol de esta cuenta, '
+    + 'en Configuración → Usuarios y roles.</p>'
+    + '<button id="salir2" style="margin-top:1cqw;border:1px solid #ECEEF2;border-radius:.6cqw;'
+    + 'background:#fff;color:#64748B;padding:.9cqw 2.2cqw;font-size:1.2cqw;font-weight:700;'
+    + 'font-family:inherit;cursor:pointer">Salir</button>';
+    const b = $('salir2');
+    if (b) b.onclick = async () => { await sb.auth.signOut(); location.href = 'mesero-login.html'; };
+    return;
+  }
+
   paso('Cargando la carta y las mesas…');
   await cargarBase();
   paso('Trayendo las comandas…');
@@ -240,6 +255,35 @@ async function cargarBase() {
      distintas y se leen por separado. */
   S.tamCat   = op.tamCatCfg   || {};
   await resolverArea();
+}
+
+/* ── ¿PUEDE ESTA CUENTA VER LA COCINA? ─────────────────────────────────────
+   `cocina.ver` es el permiso de ABRIR esta pantalla, distinto de
+   `pedidos.cocina`, que es MANDAR la comanda (el botón del mesero).
+
+   Se pregunta con las mismas dos llamadas que usa el resto del sistema, para
+   no inventar un segundo criterio que después se desincronice.
+
+   Y si NO SE PUEDE AVERIGUAR —se cayó la red, la consulta no contestó— se
+   deja entrar. Es a propósito: esto es una pantalla de pared en una cocina en
+   plena hora pico, y dejar al cocinero sin comandas por un problema de red
+   sería mucho peor que dejar entrar a alguien de más. El freno de verdad
+   contra el fraude es RLS, no esta comprobación. */
+async function puedeVerCocina() {
+  try {
+    const dueno = await conTope(sb.rpc('es_dueno'), 10, 'si eres el dueño');
+    if (dueno && dueno.data === true) return true;
+  } catch (e) { /* sigue abajo */ }
+  let permisos = null;
+  try {
+    const r = await conTope(sb.rpc('permisos_en_sucursal', { p_branch: S.branchId }), 10, 'tus permisos');
+    if (r && !r.error && Array.isArray(r.data)) permisos = r.data;
+  } catch (e) { /* no se pudo saber */ }
+  if (permisos === null) return true;                    // no se pudo saber: se entra
+  if (permisos.indexOf('cocina.ver') >= 0) return true;
+  /* Con varias áreas, tener una de ellas ya implica poder abrir la pantalla:
+     marcar «Ver la pantalla de Barra» y que no lo dejen entrar sería absurdo. */
+  return permisos.some(x => String(x).indexOf('prep.') === 0);
 }
 
 /* ── ÁREAS: cuál es esta pantalla y cuáles puede ver esta persona ──────────

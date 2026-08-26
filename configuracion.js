@@ -1147,6 +1147,12 @@ var UR_PERMS = [
   ]},
   { group: 'Pedidos', items: [
     { id: 'pedidos.crear',     label: 'Tomar pedidos',          desc: 'Abrir mesas y crear comandas' },
+    /* OJO, dos permisos parecidos y distintos:
+       · `pedidos.cocina` = MANDAR la comanda (el boton del mesero).
+       · `cocina.ver`     = ABRIR la pantalla de comandas.
+       Un mesero manda a cocina y no tiene por que ver la pantalla; un cocinero
+       ve la pantalla y no manda nada. */
+    { id: 'cocina.ver',           label: 'Ver la pantalla de cocina', desc: 'Abrir las comandas en vivo' },
     { id: 'pedidos.cocina',    label: 'Enviar a cocina',         desc: 'Mandar comandas a preparación' },
     { id: 'pedidos.cobrar',    label: 'Cobrar y procesar pagos', desc: 'Cerrar la cuenta y registrar el pago' },
     { id: 'pedidos.descuento', label: 'Aplicar descuentos',      desc: 'Modificar precios y dar cortesías' },

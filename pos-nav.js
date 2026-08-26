@@ -170,6 +170,16 @@
   function areasEnMenu() {
     var a = document.getElementById('nav-cocina');
     if (!a) return;
+    /* Sin permiso para ver la cocina, la entrada no se pinta. Primera vez que
+       este menu esconde algo por permiso: hasta hoy las 13 entradas las veia
+       todo el mundo y el freno llegaba al entrar, pidiendo el PIN. */
+    Promise.resolve(window.posPermsReady ? window.posPermsReady() : null).then(function () {
+      if (window.posHasPerm && !window.posHasPerm('cocina.ver')) {
+        var sigue = (window.posPerms && window.posPerms());
+        var porArea = Array.isArray(sigue) && sigue.some(function (x) { return String(x).indexOf('prep.') === 0; });
+        if (!porArea) { a.style.display = 'none'; }
+      }
+    });
     var sb  = (window._pos && window._pos.sb) || window.sb;
     var bid = window._pos && window._pos.state && window._pos.state.branchId;
     if (!sb || !bid) return;
