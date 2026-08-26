@@ -73,6 +73,8 @@ const S = {
      ningún restaurante que ya opera note un cambio que no pidió. */
   areas:[], areaCat:{}, areaProd:{}, tamCat:{}, area:null, areasVisibles:[],
   sonTono:'caja', sonVol:80,
+  /* En que comanda esta parada la marca del control remoto */
+  foco:null,
   orders:new Map(), items:new Map(), mesas:new Map(), fotos:new Map(),
   /* categoria de cada producto: es por donde se resuelve su area */
   catDe:new Map(),
@@ -125,6 +127,107 @@ function conTope(promesa, seg, queEs) {
 }
 
 /* El conmutador solo existe cuando la persona tiene más de un área. */
+/* ── EL CONTROL REMOTO ─────────────────────────────────────────────────────
+   Sergio probó con el control del Fire Stick y la marca «se devolvía»: bajaba
+   al botón Listo y al rato saltaba a otro lado.
+
+   La causa no era el control. Esta pantalla SE REDIBUJA ENTERA CADA SEGUNDO
+   para mover los relojes de las comandas: el botón donde estaba parada la
+   marca deja de existir —se crea uno nuevo, idéntico pero distinto— y el
+   navegador la pierde. La siguiente flecha arrancaba desde cero y saltaba a
+   donde él calculara.
+
+   Dos arreglos, y hacen falta los dos:
+     1. La marca se recuerda POR COMANDA, no por elemento, y se vuelve a poner
+        después de cada redibujado. Como se recuerda por el pedido, si una
+        comanda desaparece la marca pasa a la siguiente en vez de perderse.
+     2. Las flechas las manejamos NOSOTROS. El navegador las adivina por
+        geometría, y con tres columnas de tarjetas adivina mal. Aquí abajo y
+        arriba se mueven dentro de la zona, e izquierda y derecha saltan de
+        Mesas a Para llevar a Domicilios. Siempre lo mismo, siempre predecible.
+
+   Y la marca se ve: un aro azul grueso. Sin eso el cocinero aprieta a ciegas. */
+function tarjetas() { return [...document.querySelectorAll('.tk[data-tk]')]; }
+
+function ponerFoco(id, mover) {
+  const t = tarjetas();
+  if (!t.length) { S.foco = null; return; }
+  let el = id ? t.find(x => x.dataset.tk === id) : null;
+  if (!el) el = t[0];
+  S.foco = el.dataset.tk;
+  if (mover !== false) el.focus({ preventScroll: false });
+}
+
+/* Después de redibujar, la marca vuelve donde estaba. Solo si de verdad
+   estaba en una tarjeta: si el cocinero no ha tocado el control, no le
+   robamos el foco a nada. */
+function restaurarFoco() {
+  if (!S.foco) return;
+  const el = document.querySelector('.tk[data-tk="' + CSS.escape(S.foco) + '"]');
+  if (el) { if (document.activeElement !== el) el.focus({ preventScroll: true }); return; }
+  /* Esa comanda ya no está —la marcaron lista— así que la marca pasa a la
+     primera que quede, en vez de desaparecer. */
+  ponerFoco(null, true);
+}
+
+const ZONAS = ['salon', 'rapido', 'domicilio'];
+
+function moverFoco(dir) {
+  const t = tarjetas();
+  if (!t.length) return;
+  const actual = S.foco ? t.findIndex(x => x.dataset.tk === S.foco) : -1;
+  if (actual < 0) { ponerFoco(null); return; }
+
+  if (dir === 'abajo' || dir === 'arriba') {
+    /* Dentro de la misma zona: la lista de esa columna, en orden. */
+    const zona = t[actual].closest('.zona-lista');
+    const dentro = [...zona.querySelectorAll('.tk[data-tk]')];
+    const i = dentro.indexOf(t[actual]);
+    const j = dir === 'abajo' ? i + 1 : i - 1;
+    if (j >= 0 && j < dentro.length) ponerFoco(dentro[j].dataset.tk);
+    return;
+  }
+
+  /* Izquierda y derecha: a la zona de al lado, a la misma altura. Se saltan
+     las zonas vacías; si no, la flecha no haría nada y parecería trabada. */
+  const zonaActual = t[actual].closest('.zona-lista').id.replace('z-', '');
+  const dentro = [...t[actual].closest('.zona-lista').querySelectorAll('.tk[data-tk]')];
+  const altura = dentro.indexOf(t[actual]);
+  let k = ZONAS.indexOf(zonaActual);
+  const paso = dir === 'derecha' ? 1 : -1;
+  for (let n = 0; n < ZONAS.length; n++) {
+    k += paso;
+    if (k < 0 || k >= ZONAS.length) return;
+    const otra = document.getElementById('z-' + ZONAS[k]);
+    const lista = otra ? [...otra.querySelectorAll('.tk[data-tk]')] : [];
+    if (lista.length) {
+      ponerFoco(lista[Math.min(altura, lista.length - 1)].dataset.tk);
+      return;
+    }
+  }
+}
+
+addEventListener('keydown', function (ev) {
+  const k = ev.key;
+  if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'ArrowLeft' || k === 'ArrowRight') {
+    /* Se le quita el volante al navegador: si no, ademas de lo nuestro hace
+       lo suyo y la marca termina en dos sitios a la vez. */
+    ev.preventDefault();
+    if (!S.foco) { ponerFoco(null); return; }
+    moverFoco(k === 'ArrowDown' ? 'abajo' : k === 'ArrowUp' ? 'arriba'
+            : k === 'ArrowRight' ? 'derecha' : 'izquierda');
+    return;
+  }
+  if (k === 'Enter' || k === ' ' || k === 'Spacebar') {
+    const el = document.querySelector('.tk[data-tk="' + (S.foco ? CSS.escape(S.foco) : '') + '"]');
+    if (!el) return;
+    ev.preventDefault();
+    /* El OK hace lo que toque: marcar listo, o deshacer si ya estaba lista. */
+    const b = el.querySelector('[data-listo],[data-desh]');
+    if (b) b.click();
+  }
+});
+
 /* El interruptor del sonido. Al encenderlo suena una vez: así se comprueba
    en el momento, sin esperar a que entre una comanda de verdad. */
 addEventListener('click', function (ev) {
@@ -636,6 +739,7 @@ function pintar() {
 
   $('cuenta').textContent = aLaVista;
   if (sonar) sonarUnaVez();
+  restaurarFoco();
 }
 
 function tarjeta(o) {
@@ -679,10 +783,11 @@ function tarjeta(o) {
     || '<div class="zona-vacia" style="padding:1cqw 0">Sin productos enviados</div>';
 
   const accion = est === 'listo'
-    ? '<div class="tk-listo"><b>Listo</b><button class="tk-desh" data-desh="' + o.id + '">Deshacer</button></div>'
-    : '<div class="tk-pie"><button class="tk-btn" data-listo="' + o.id + '">Listo</button></div>';
+    ? '<div class="tk-listo"><b>Listo</b><button class="tk-desh" tabindex="-1" data-desh="' + o.id + '">Deshacer</button></div>'
+    : '<div class="tk-pie"><button class="tk-btn" tabindex="-1" data-listo="' + o.id + '">Listo</button></div>';
 
-  return '<article class="tk ' + est + (tarde ? ' tarde' : '') + (nueva ? ' nueva' : '') + '">'
+  return '<article class="tk ' + est + (tarde ? ' tarde' : '') + (nueva ? ' nueva' : '')
+    + '" tabindex="0" data-tk="' + o.id + '">'
     + '<div class="tk-cab"><div class="tk-quien">'
     +   '<div class="tk-estado"><i></i>' + ETIQUETA[est] + '</div>'
     +   '<div class="tk-de">' + esc(tituloDe(o)) + '</div>'

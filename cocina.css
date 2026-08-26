@@ -300,6 +300,23 @@ svg{display:block;}
 /* Va tarde — señal APARTE del color. Casi todas las comandas están en
    preparación; si el tiempo usara el mismo canal, el color dejaría de
    distinguir nada justo cuando más se necesita. */
+/* DONDE ESTA PARADO EL CONTROL REMOTO. Un aro grueso y azul, del color de la
+   marca. Tiene que verse desde dos metros: si el cocinero no sabe donde esta
+   parado, apretar OK es apostar. */
+.tk:focus{outline:none;}
+.tk:focus-visible,.tk:focus{
+  box-shadow:0 0 0 calc(var(--u) * .42) #5B6BFF,
+             0 calc(var(--u) * .3) calc(var(--u) * .9) rgba(15,23,42,.18);
+  border-color:#5B6BFF;
+}
+/* Enfocada Y tarde: manda el aro azul por fuera y el rojo queda por dentro,
+   para no perder ninguna de las dos senales. */
+.tk.tarde:focus{
+  box-shadow:0 0 0 calc(var(--u) * .25) #DC2626,
+             0 0 0 calc(var(--u) * .62) #5B6BFF;
+}
+.tk:focus .tk-btn{background:#4F5BE3;}
+
 .tk.tarde{border-color:#DC2626;box-shadow:0 0 0 calc(var(--u) * .25) #DC2626,0 calc(var(--u) * .3) calc(var(--u) * .9) -calc(var(--u) * .45) rgba(15,23,42,.14);}
 .tk.tarde .tk-min{background:#FEE2E2;color:#B91C1C;}
 .tk.tarde .tk-min svg{opacity:1;}
