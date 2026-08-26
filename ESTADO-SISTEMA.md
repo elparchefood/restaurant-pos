@@ -14072,6 +14072,66 @@ el canje avisa por SMS y por la app, no por WhatsApp.
 
 ---
 
+## 185. Las APK entran directo a lo suyo — 26-ago-2026
+
+Hasta hoy la APK abría `dashboard.html` y desde ahí rebotaba a la pantalla del
+rol. Sergio: *"al abrir la APK se dirige al escritorio y el escritorio lo
+redirige... quiero que lo dirija directamente al área que controla esa APK"*.
+En una tablet colgada en la pared o en un teléfono, ese rebote no aporta nada.
+
+### Cómo funciona ahora
+
+`mesero-login.html` acepta **`?app=cocina`** o **`?app=ventas`**, y el destino
+lo decide **la app, no el rol**. Se guarda en `localStorage` (`cobra.app.destino`)
+porque la dirección solo llega la PRIMERA vez: al navegar a otra pantalla el
+`?app=` se pierde, y la próxima apertura tiene que saber a dónde volver.
+
+Al cerrar sesión desde cocina se vuelve a `mesero-login.html` sin parámetro,
+pero la llave sigue en el aparato: se entra otra vez y va derecho a cocina.
+
+**Fallo que se arregló de paso:** al restaurar sesión, `mesero-login.js`
+mandaba SIEMPRE a `mesero-turno.html` sin mirar el rol. Un cocinero con la
+sesión viva caía en la pantalla del mesero, y un domiciliario entraba a una app
+que el login por credenciales le niega en la cara.
+
+### Las dos APK
+
+| | Cobra Cocina | Cobra POS |
+|---|---|---|
+| appId | `com.elparchefood.cobracocina` | `com.elparchefood.cobrappos` |
+| Proyecto | `C:\Prueba Claude Code\cobra-cocina-capacitor\` | `C:\Prueba Claude Code\cobra-pos-capacitor\` |
+| Abre | `mesero-login.html?app=cocina` | `mesero-login.html?app=ventas` |
+| Versión | 1.0 (code 1) | 1.3 (code 4) |
+| Orientación | horizontal | horizontal |
+
+La de cocina lleva `FLAG_KEEP_SCREEN_ON` en su `MainActivity`: es una pantalla
+de pared y dormirse a los dos minutos la deja negra justo cuando entra una
+comanda — nadie la va a despertar con las manos llenas de grasa.
+
+### Cómo se compilan
+
+```
+cd <proyecto>
+npx cap copy android            # ← SIN ESTO NO SIRVE DE NADA
+cd android
+JAVA_HOME="C:/Program Files/Android/Android Studio/jbr" ./gradlew assembleDebug
+```
+
+**La trampa que costó una compilación perdida:** editar el `capacitor.config.json`
+de la raíz **no basta**. El que la APK lee de verdad es la copia en
+`android/app/src/main/assets/capacitor.config.json`, y solo `npx cap copy` la
+actualiza. Sin ese paso se compila una APK con la dirección vieja y todo
+parece correcto. Se comprueba abriendo el APK como ZIP:
+`unzip -p app-debug.apk assets/capacitor.config.json`.
+
+Java **21** obligatorio (Capacitor 8); el 17 falla con `invalid source release: 21`.
+En esta máquina está en `C:\Program Files\Android\Android Studio\jbr` — ojo,
+`Android\Android Studio`, no `Android Studio` a secas. Y `local.properties` con
+**barras normales**.
+
+**Las dos siguen firmadas en debug**, o sea sideload. Para Play Store falta
+keystore y subir `targetSdk` (hoy 34).
+
 ## 184. Pantalla de cocina (`cocina.html`) — 25-ago-2026
 
 Las comandas en vivo en una tablet colgada en la cocina. Va a ser también una
