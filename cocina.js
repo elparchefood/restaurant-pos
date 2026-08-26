@@ -74,19 +74,44 @@ function morir(motivo, detalle) {
     + 'background:#5B6BFF;color:#fff;padding:1cqw 2.5cqw;font-size:1.3cqw;font-weight:800;'
     + 'font-family:inherit;cursor:pointer">Reintentar</button>';
 }
+/* QUE PASO SE ESTA HACIENDO. Se muestra debajo del circulito: si algo se
+   traba, en la pantalla se ve EN QUE, sin tener que abrir la consola.
+   Hizo falta porque la pantalla se quedaba girando en el equipo de Sergio y
+   funcionaba en el de prueba: sin esto no habia forma de saber donde. */
+let PASO = 'arrancando';
+function paso(t) {
+  PASO = t;
+  const p = document.querySelector('#cargando p');
+  if (p) p.textContent = t;
+}
+
+/* VIGILANTE: ninguna espera puede durar para siempre. Un `try/catch` NO atrapa
+   una consulta que sencillamente nunca contesta — y eso es exactamente lo que
+   deja el circulito girando. */
+function conTope(promesa, seg, queEs) {
+  return Promise.race([
+    promesa,
+    new Promise((_, no) => setTimeout(
+      () => no(new Error('No contestó en ' + seg + ' s: ' + queEs)), seg * 1000)),
+  ]);
+}
+
 addEventListener('error',  e => morir('La pantalla no pudo abrir.', e.message));
 addEventListener('unhandledrejection', e => morir('La pantalla no pudo abrir.', e.reason && e.reason.message));
 
 /* ── Arranque ───────────────────────────────────────────────────────────── */
 (async function iniciar() {
   try {
-  const { data:{ session } } = await sb.auth.getSession();
+  paso('Comprobando la sesión…');
+  const { data:{ session } } = await conTope(sb.auth.getSession(), 10, 'la sesión');
   if (!session) { location.href = 'mesero-login.html'; return; }
 
-  const { data:perfil } = await sb.from('pos_users')
+  paso('Buscando tu sucursal…');
+  const { data:perfil, error:errPerfil } = await conTope(sb.from('pos_users')
     .select('branch_id, tenant_id, name')
     .or(`auth_user_id.eq.${session.user.id},id.eq.${session.user.id}`)
-    .maybeSingle();
+    .maybeSingle(), 12, 'tu usuario');
+  if (errPerfil) throw new Error('Leyendo tu usuario: ' + errPerfil.message);
   if (!perfil || !perfil.branch_id) {
     $('cargando').innerHTML = '<p>Esta cuenta no tiene una sucursal asignada.</p>';
     return;
@@ -94,7 +119,9 @@ addEventListener('unhandledrejection', e => morir('La pantalla no pudo abrir.', 
   S.branchId = perfil.branch_id;
   S.tenantId = perfil.tenant_id;
 
+  paso('Cargando la carta y las mesas…');
   await cargarBase();
+  paso('Trayendo las comandas…');
   await cargarComandas();
 
   S.arrancando = false;      // a partir de aquí, lo nuevo suena
@@ -110,18 +137,24 @@ addEventListener('unhandledrejection', e => morir('La pantalla no pudo abrir.', 
   vigilarRed();
   mantenerDespierta();
   } catch (e) {
-    console.error('[cocina] no arrancó:', e);
-    morir('La pantalla no pudo abrir.', e && e.message);
+    console.error('[cocina] no arrancó en el paso "' + PASO + '":', e);
+    morir('Se trabó en: ' + PASO, e && e.message);
   }
 })();
 
 /* Datos que no cambian durante el turno */
 async function cargarBase() {
-  const [suc, mesas, prods] = await Promise.all([
-    sb.from('branches').select('name, cobro_adelantado, brands(name)').eq('id', S.branchId).maybeSingle(),
-    sb.from('pos_tables').select('id, name').eq('branch_id', S.branchId),
-    sb.from('pos_products').select('id, photo_url').eq('branch_id', S.branchId),
-  ]);
+  /* allSettled y no all: si una de las tres falla, la pantalla abre igual con
+     lo que sí llegó. Sin fotos o sin nombres de mesa se trabaja; sin pantalla
+     no. Y cada una con su tope: una que no conteste no puede colgar el resto. */
+  const [suc, mesas, prods] = await Promise.allSettled([
+    conTope(sb.from('branches').select('name, cobro_adelantado, brands(name)').eq('id', S.branchId).maybeSingle(), 12, 'la sucursal'),
+    conTope(sb.from('pos_tables').select('id, name').eq('branch_id', S.branchId), 12, 'las mesas'),
+    conTope(sb.from('pos_products').select('id, photo_url').eq('branch_id', S.branchId), 15, 'la carta'),
+  ]).then(rs => rs.map(r => {
+    if (r.status === 'rejected') { console.error('[cocina]', r.reason); return { data:null }; }
+    return r.value || { data:null };
+  }));
   const b = suc.data || {};
   const marca = b.brands && (Array.isArray(b.brands) ? b.brands[0] : b.brands);
   S.negocio = (marca && marca.name) || b.name || 'Cocina';
@@ -141,7 +174,7 @@ async function cargarComandas() {
        cincuenta dias — nadie los marco entregado y sin tope saldrian en
        cocina para siempre. */
     const desde = new Date(Date.now() - 8 * 3600 * 1000).toISOString();
-    const { data:ords, error } = await sb.from('pos_orders')
+    const { data:ords, error } = await conTope(sb.from('pos_orders')
       .select('id, channel, status, estado, table_id, turno, customer_name, notes, total, total_final, paid_amount, created_at, delivered_at, visible_cocina')
       .eq('branch_id', S.branchId)
       .eq('visible_cocina', true)
@@ -151,7 +184,7 @@ async function cargarComandas() {
          completed ya estan cobrados y entregados). `paid` NO se excluye: una
          venta rapida se paga ANTES de cocinarse y tiene que seguir en pantalla. */
       .not('status', 'in', '("cancelled","abandoned","completed")')
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true }), 15, 'las comandas');
     if (error) throw error;
 
     const vivos = (ords || []).filter(o => {
@@ -171,9 +204,9 @@ async function cargarComandas() {
 
     if (vivos.length) {
       const ids = vivos.map(o => o.id);
-      const { data:its } = await sb.from('pos_order_items')
+      const { data:its } = await conTope(sb.from('pos_order_items')
         .select('id, order_id, product_id, product_name, name, quantity, notes, selections, kitchen_printed_at')
-        .in('order_id', ids);
+        .in('order_id', ids), 15, 'los productos de las comandas');
       const porOrden = new Map();
       (its || []).forEach(i => {
         /* Solo lo que YA se mandó a cocina. Un ítem agregado y todavía no
