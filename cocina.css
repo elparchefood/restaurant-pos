@@ -217,10 +217,10 @@ svg{display:block;}
         lea como una sola cosa.
    Medido: la comanda normal de dos productos sube 10 px. Siguen cabiendo las
    cuatro filas por columna y las 24 comandas en pantalla. */
-.tk-items{flex:1;padding:calc(var(--u) * .28) calc(var(--u) * .45) calc(var(--u) * .15);display:flex;flex-direction:column;gap:calc(var(--u) * .3);}
+.tk-items{flex:1;padding:calc(var(--u) * .28) calc(var(--u) * .3) calc(var(--u) * .15);display:flex;flex-direction:column;gap:calc(var(--u) * .3);}
 .it{
-  display:flex; gap:calc(var(--u) * .55); align-items:flex-start;
-  padding:calc(var(--u) * .34) calc(var(--u) * .45);
+  display:flex; gap:calc(var(--u) * .45); align-items:flex-start;
+  padding:calc(var(--u) * .34) calc(var(--u) * .35);
   border-radius:calc(var(--u) * .4);
   /* TODOS con su franja, no una si y una no (Sergio, 26-ago-2026: "te dije
      solo franjas, no franjas intermedias"). Alternando, el primero y el
@@ -259,10 +259,28 @@ svg{display:block;}
   font-size:calc(var(--u) * .62); font-weight:800; letter-spacing:.04em; color:#94A3B8; line-height:1.2;
 }
 .it-n{
-  flex:0 0 auto; min-width:calc(var(--u) * 1.75); height:calc(var(--u) * 1.75); border-radius:calc(var(--u) * .35);
-  background:#0F172A; color:#fff; font-size:calc(var(--u) * 1.05); font-weight:800;
+  position:absolute; left:calc(var(--u) * .2); top:calc(var(--u) * .2);
+  min-width:calc(var(--u) * 1.5); height:calc(var(--u) * 1.5); padding:0 calc(var(--u) * .25);
+  border-radius:calc(var(--u) * .35);
+  background:rgba(15,23,42,.92); color:#fff; font-size:calc(var(--u) * 1.05); font-weight:800;
   display:flex; align-items:center; justify-content:center;
+  box-shadow:0 0 0 calc(var(--u) * .1) rgba(255,255,255,.55);
 }
+/* La foto y su cantidad, un solo bloque. */
+.it-img{position:relative;flex:0 0 auto;display:block;line-height:0;}
+/* En los renglones pequeños no hay foto, así que la cantidad vuelve a la fila. */
+.it.mini .it-n{
+  position:static; box-shadow:none; background:#475569;
+  min-width:calc(var(--u) * 1.15); height:calc(var(--u) * 1.15);
+  border-radius:calc(var(--u) * .25); font-size:calc(var(--u) * .75); padding:0 calc(var(--u) * .2);
+}
+/* LOS MARGENES DE ARRIBA ESTAN MEDIDOS, no elegidos a ojo. El nombre del
+   plato tenia 184 px de ancho y «Premium · Mixta» necesita 197: se partia en
+   dos renglones por TRECE pixeles, mientras que «Especial · Pollo» (178) si
+   cabia — que fue justo lo que Sergio vio y reclamo. Apretando los cuatro
+   margenes que se comen ese ancho (el de la lista, el de la franja y los dos
+   huecos de la foto y la cantidad) el texto pasa a ~202 px. Si alguien vuelve
+   a abrirlos, ese nombre se parte otra vez. */
 .it-tx{font-size:calc(var(--u) * 1.7);font-weight:800;line-height:1.05;letter-spacing:-.025em;color:#0F172A;min-width:0;}
 /* Las adiciones en verde y las notas en ámbar, en renglón aparte: una nota
    metida dentro del nombre del plato es un plato devuelto. */
