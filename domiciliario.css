@@ -16,15 +16,20 @@ a{color:var(--brand);text-decoration:none}a:hover{color:var(--brand-press)}
 ::-webkit-scrollbar{width:0}
 .tnum{font-variant-numeric:tabular-nums}
 .dev{width:100%;height:100dvh;min-height:100vh;background:#FCFCFD;overflow:hidden;display:flex;flex-direction:column;position:relative}
-/* La barra de estado simulada solo existia en la maqueta: en el celular ya
-   esta la de verdad, arriba. Se respeta la muesca con safe-area. */
-.sb{display:none}
+/* LA BARRA DE ESTADO FALSA YA NO EXISTE (26-ago-2026).
+   Era un dibujo de la maqueta —una hora fija «7:42», un «4G» y una pila— que
+   se coló a la app de verdad: en el celular ya esta la barra AUTENTICA justo
+   encima, asi que se veian dos, y la de abajo mentia.
+
+   Ya se habia intentado esconder con `.sb{display:none}`, pero esa linea
+   quedo ANTES de la regla que la pinta, y en CSS gana la ultima: la de
+   `display:flex` la volvia a mostrar. Un `display:none` que no esconde nada
+   es peor que no tenerlo, porque el siguiente que lea el archivo va a creer
+   que ya esta resuelto. Por eso se borra el dibujo entero en vez de taparlo.
+
+   Lo que si hacia falta se queda: respetar la muesca del telefono. */
 .top{padding-top:calc(4px + env(safe-area-inset-top))}
 .tabs{padding-bottom:env(safe-area-inset-bottom)}
-.sb{height:40px;flex-shrink:0;display:flex;align-items:flex-end;justify-content:space-between;padding:0 24px 5px;font-size:11.5px;font-weight:600;color:var(--ink-2)}
-.sb-r{display:flex;gap:6px;align-items:center}
-.sb-bar{width:17px;height:9px;border:1px solid var(--faint);border-radius:2.5px;position:relative}
-.sb-bar::after{content:'';position:absolute;inset:1.5px;right:5px;background:var(--ink-2);border-radius:1px}
 /* topbar */
 .top{display:flex;align-items:center;gap:10px;padding:4px 20px 14px;flex-shrink:0}
 .circ{width:40px;height:40px;border-radius:999px;background:var(--surface);border:1px solid #EFF0F4;display:flex;align-items:center;justify-content:center;color:var(--ink-2);flex-shrink:0;position:relative}
