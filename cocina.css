@@ -26,6 +26,13 @@
    ══════════════════════════════════════════════════════════════════════════ */
 
 *{box-sizing:border-box;}
+
+/* ESTA REGLA ES OBLIGATORIA Y SE ME OLVIDO. `hidden` solo funciona por la hoja
+   del navegador, y CUALQUIER regla propia con `display` la pisa: el velo de
+   carga tiene `display:flex`, asi que `cargando.hidden = true` no lo quitaba y
+   la pantalla se quedaba tapada para siempre. La pantalla SI cargaba debajo.
+   Vive en pos-core.css, que esta pantalla no carga por ser de pared. */
+[hidden]{display:none !important;}
 html,body{margin:0;padding:0;height:100%;overflow:hidden;}
 body{
   background:#FAFAFB; color:#0F172A;
