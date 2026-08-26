@@ -300,6 +300,14 @@ svg{display:block;}
 /* Va tarde — señal APARTE del color. Casi todas las comandas están en
    preparación; si el tiempo usara el mismo canal, el color dejaría de
    distinguir nada justo cuando más se necesita. */
+/* El aro tambien en el altavoz, las areas y Salir: si el control puede llegar
+   ahi, tiene que verse que llego. */
+.k-son:focus,.k-area:focus,.k-salir:focus{
+  outline:none;
+  box-shadow:0 0 0 calc(var(--u) * .3) #5B6BFF;
+  border-color:#5B6BFF;
+}
+
 /* DONDE ESTA PARADO EL CONTROL REMOTO. Un aro grueso y azul, del color de la
    marca. Tiene que verse desde dos metros: si el cocinero no sabe donde esta
    parado, apretar OK es apostar. */

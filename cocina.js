@@ -163,6 +163,11 @@ function ponerFoco(id, mover) {
    robamos el foco a nada. */
 function restaurarFoco() {
   if (!S.foco) return;
+  /* Si la persona esta en el altavoz o en Salir, la pantalla NO le quita la
+     marca de ahi al redibujarse. Solo se restaura cuando estaba en una
+     comanda, que es lo unico que el redibujado destruye. */
+  const a = document.activeElement;
+  if (a && a !== document.body && !a.classList.contains('tk')) return;
   const el = document.querySelector('.tk[data-tk="' + CSS.escape(S.foco) + '"]');
   if (el) { if (document.activeElement !== el) el.focus({ preventScroll: true }); return; }
   /* Esa comanda ya no está —la marcaron lista— así que la marca pasa a la
@@ -171,6 +176,36 @@ function restaurarFoco() {
 }
 
 const ZONAS = ['salon', 'rapido', 'domicilio'];
+
+/* LOS MANDOS DE ARRIBA Y DE ABAJO TAMBIEN SE ALCANZAN CON EL CONTROL.
+   Sergio: *"con el control solo puedo navegar entre los pedidos, no puedo
+   subir hasta activar el altavoz"*. Y tenia razon: hice que las flechas se
+   movieran solo entre comandas, asi que el altavoz —justo el que hace falta
+   para que suene— quedo fuera del alcance de un aparato que no tiene raton.
+
+   El recorrido es de tres pisos y se lee de arriba abajo:
+     ARRIBA   el altavoz, y los botones de area si hay mas de una
+     EN MEDIO las comandas
+     ABAJO    Salir
+   Arriba desde la primera comanda sube; abajo desde la ultima baja. */
+function mandosArriba() {
+  return [...document.querySelectorAll('#son, .k-area')].filter(x => x.offsetParent !== null);
+}
+function mandosAbajo() {
+  return [...document.querySelectorAll('#salir')].filter(x => x.offsetParent !== null);
+}
+function piso(el) {
+  if (!el) return null;
+  if (el.classList && el.classList.contains('tk')) return 'medio';
+  if (el.closest && el.closest('.k-top')) return 'arriba';
+  if (el.closest && el.closest('.k-pie')) return 'abajo';
+  return null;
+}
+function enfocar(el) {
+  if (!el) return;
+  if (el.classList && el.classList.contains('tk')) S.foco = el.dataset.tk;
+  el.focus({ preventScroll: false });
+}
 
 function moverFoco(dir) {
   const t = tarjetas();
@@ -209,23 +244,58 @@ function moverFoco(dir) {
 
 addEventListener('keydown', function (ev) {
   const k = ev.key;
-  if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'ArrowLeft' || k === 'ArrowRight') {
-    /* Se le quita el volante al navegador: si no, ademas de lo nuestro hace
-       lo suyo y la marca termina en dos sitios a la vez. */
+  const flecha = (k === 'ArrowDown' || k === 'ArrowUp' || k === 'ArrowLeft' || k === 'ArrowRight');
+  const ok = (k === 'Enter' || k === ' ' || k === 'Spacebar');
+  if (!flecha && !ok) return;
+
+  const act = document.activeElement;
+  const donde = piso(act);
+
+  if (ok) {
     ev.preventDefault();
-    if (!S.foco) { ponerFoco(null); return; }
-    moverFoco(k === 'ArrowDown' ? 'abajo' : k === 'ArrowUp' ? 'arriba'
-            : k === 'ArrowRight' ? 'derecha' : 'izquierda');
+    if (donde === 'medio') {
+      /* El OK hace lo que toque: marcar listo, o deshacer si ya estaba lista. */
+      const b = act.querySelector('[data-listo],[data-desh]');
+      if (b) b.click();
+    } else if (act && typeof act.click === 'function') {
+      act.click();          // el altavoz, un area, o Salir
+    }
     return;
   }
-  if (k === 'Enter' || k === ' ' || k === 'Spacebar') {
-    const el = document.querySelector('.tk[data-tk="' + (S.foco ? CSS.escape(S.foco) : '') + '"]');
-    if (!el) return;
-    ev.preventDefault();
-    /* El OK hace lo que toque: marcar listo, o deshacer si ya estaba lista. */
-    const b = el.querySelector('[data-listo],[data-desh]');
-    if (b) b.click();
+
+  /* Se le quita el volante al navegador: si no, ademas de lo nuestro hace lo
+     suyo y la marca termina en dos sitios a la vez. */
+  ev.preventDefault();
+  const tk = tarjetas();
+
+  if (donde === 'arriba') {
+    const m = mandosArriba();
+    const i = m.indexOf(act);
+    if (k === 'ArrowLeft'  && i > 0)            return enfocar(m[i - 1]);
+    if (k === 'ArrowRight' && i < m.length - 1) return enfocar(m[i + 1]);
+    if (k === 'ArrowDown') return enfocar(tk.find(x => x.dataset.tk === S.foco) || tk[0] || mandosAbajo()[0]);
+    return;
   }
+
+  if (donde === 'abajo') {
+    if (k === 'ArrowUp') {
+      const v = tk.find(x => x.dataset.tk === S.foco) || tk[tk.length - 1];
+      return enfocar(v || mandosArriba()[0]);
+    }
+    return;
+  }
+
+  if (donde !== 'medio') { enfocar(tk[0] || mandosArriba()[0]); return; }
+
+  /* Dentro de las comandas: al llegar al tope, se sale al piso de al lado. */
+  const zona = act.closest('.zona-lista');
+  const dentro = [...zona.querySelectorAll('.tk[data-tk]')];
+  const i = dentro.indexOf(act);
+  if (k === 'ArrowUp'   && i === 0)                 return enfocar(mandosArriba()[0]);
+  if (k === 'ArrowDown' && i === dentro.length - 1) return enfocar(mandosAbajo()[0] || act);
+
+  moverFoco(k === 'ArrowDown' ? 'abajo' : k === 'ArrowUp' ? 'arriba'
+          : k === 'ArrowRight' ? 'derecha' : 'izquierda');
 });
 
 /* El interruptor del sonido. Al encenderlo suena una vez: así se comprueba
