@@ -945,6 +945,33 @@ function pintarSonido() {
     : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>';
 }
 
+/* EL NAVEGADOR NO DEJA SONAR NADA HASTA QUE ALGUIEN TOCA LA PANTALLA.
+   Encender el altavoz ya es un toque y sirve, pero si el cocinero toca antes
+   un «Listo» o mueve el control, ese gesto tambien deberia servir — y si no,
+   la primera comanda de la noche entra en silencio y nadie entiende por que.
+   Con el primer toque, sea el que sea, se abre el audio y se deja abierto. */
+let _audioAbierto = false;
+function abrirAudio() {
+  if (_audioAbierto) return;
+  _audioAbierto = true;
+  try {
+    const C = window.AudioContext || window.webkitAudioContext;
+    if (!C) return;
+    _audio = _audio || new C();
+    if (_audio.state === 'suspended') _audio.resume();
+    /* Un sonido de cero volumen: no se oye, pero deja el audio despierto. */
+    const o = _audio.createOscillator(), g = _audio.createGain();
+    g.gain.value = 0;
+    o.connect(g); g.connect(_audio.destination);
+    o.start(); o.stop(_audio.currentTime + 0.01);
+  } catch (_) {}
+  /* Y el reproductor de las grabaciones, que tiene el suyo propio. */
+  try { if (typeof window.posTocarTono === 'function') window.posTocarTono(S.sonTono, 0); } catch (_) {}
+}
+['pointerdown', 'keydown', 'touchstart'].forEach(function (ev) {
+  addEventListener(ev, abrirAudio, { once: false, passive: true });
+});
+
 function sonarUnaVez() {
   if (!sonidoEncendido()) return;
   try {

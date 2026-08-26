@@ -3760,6 +3760,47 @@ agregarlo cuando haya volumen.
 
 ---
 
+## PENDIENTE — EL DOMICILIARIO LLEGA A LA PORTERÍA, NO A LA PUERTA — 26-ago-2026
+
+**Lo que YA funciona y no hay que construir:** la app del domiciliario tiene
+dos botones de «Ruta» (`verRuta()` en `domiciliario.js`) que abren **Google
+Maps con navegación paso a paso**. No es un mapa dibujado dentro de Cobra: es
+Google Maps de verdad, que es lo que un domiciliario ya sabe usar. Le manda
+`dirección + barrio + ciudad`, y la ciudad sale de `branches.city`
+(verificado: Popayán en El Parche — sin eso, Google lo mandaría a la misma
+dirección en otra ciudad).
+
+**El límite.** Se le manda a Google **la dirección escrita**, no el punto.
+Comprobado en la base: `pos_orders` **no guarda ninguna coordenada**, solo el
+texto dentro de `notes`. Con direcciones normales Google acierta:
+
+```
+Carrera 4B # 69N - 34 · LA PAZ · Popayán     →  bien
+Calle 25 N #1-84 · SOTARA · Popayán          →  bien
+```
+
+Con estas no, y son pedidos REALES de El Parche:
+
+```
+Ciudadela llanos de calibio, torre b apto 605
+Condominio mirador del Sol variante norte Apartamento 508 torre A
+```
+
+Google encuentra el conjunto pero no la torre ni el apartamento. El
+domiciliario llega a la portería y de ahí en adelante se las arregla — que es
+probablemente lo que pasa hoy sin que nadie lo haya medido.
+
+**La solución de fondo, y dónde decidirla.** Guardar **las coordenadas** cuando
+el cliente pide, no la frase. Eso encaja con la **página de clientes** que está
+en diseño: si el cliente marca su punto en un mapa al pedir, el domiciliario
+recibe el punto y llega a la torre, no a la portería.
+
+- [ ] Decidir esto **al diseñar la página de clientes**, no después: añadir el
+      punto a un pedido ya hecho es rehacer el flujo.
+- [ ] Columnas `lat`/`lng` en `pos_orders` (hoy no existen).
+- [ ] `verRuta()` usa el punto si lo hay, y la dirección escrita si no — nunca
+      dejar al domiciliario sin ruta por falta de coordenada.
+
 ## PENDIENTE — SUBIR LAS APK A LAS TIENDAS — Sergio 2026-08-26
 
 Decisión suya, para hacer **más adelante**, no ahora: *"lo vamos a hacer todo
