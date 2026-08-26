@@ -72,7 +72,7 @@ const S = {
      la pantalla se comporta EXACTAMENTE como antes: es la regla que hace que
      ningún restaurante que ya opera note un cambio que no pidió. */
   areas:[], areaCat:{}, areaProd:{}, tamCat:{}, area:null, areasVisibles:[],
-  sonTono:'alerta', sonVol:80,
+  sonTono:'caja', sonVol:80,
   orders:new Map(), items:new Map(), mesas:new Map(), fotos:new Map(),
   /* categoria de cada producto: es por donde se resuelve su area */
   catDe:new Map(),
@@ -269,7 +269,7 @@ async function cargarBase() {
   /* Qué tono suena al entrar una comanda. El TONO lo elige el dueño una vez
      para todo el restaurante; ENCENDERLO O NO es de cada aparato. */
   const cn = op.cocinaNotif || {};
-  S.sonTono = cn.tono || 'alerta';
+  S.sonTono = cn.tono || 'caja';
   S.sonVol  = (typeof cn.vol === 'number') ? cn.vol : 80;
   pintarSonido();
   await resolverArea();

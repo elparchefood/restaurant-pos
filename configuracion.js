@@ -2337,7 +2337,7 @@ var OP_DEFAULTS = {
   /* Que suena en la cocina al entrar una comanda. El TONO lo elige el dueno
      una vez para todo el restaurante; ENCENDERLO es de cada aparato, y eso
      vive en el aparato, no aqui. */
-  cocinaNotif: { tono: 'alerta', vol: 80 },
+  cocinaNotif: { tono: 'caja', vol: 80 },
   // C9 — Tiempos de automatización de mesa
   mesaT1: 10,  // min → primera notificación
   mesaT2: 5,   // min → re-notificación tras "No"
@@ -2804,8 +2804,8 @@ function opRenderCocinaSon() {
   var d = _opDraft; if (!d) return;
   var caja = $('op-cocina-tonos'); if (!caja) return;
   var cn = d.cocinaNotif || (d.cocinaNotif = { tono:'alerta', vol:80 });
-  var lista = (typeof window.posTonosDisponibles === 'function')
-    ? window.posTonosDisponibles()
+  var lista = (typeof window.posTonosCocina === 'function')
+    ? window.posTonosCocina()
     : [{ id:'alerta', nombre:'Alerta' }];
   caja.innerHTML = lista.map(function (t) {
     return '<button type="button" class="cf-chip' + (cn.tono === t.id ? ' on' : '')
