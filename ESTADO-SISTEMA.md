@@ -3760,6 +3760,47 @@ agregarlo cuando haya volumen.
 
 ---
 
+## PENDIENTE — SUBIR LAS APK A LAS TIENDAS — Sergio 2026-08-26
+
+Decisión suya, para hacer **más adelante**, no ahora: *"lo vamos a hacer todo
+pero no ya"*. Play Store, Huawei AppGallery y Amazon Appstore. **LG no**, y
+Samsung tampoco por lo mismo (ver abajo).
+
+### Antes de poder subir a ninguna
+- [ ] **Crear el keystore** y guardarlo donde no se pierda. Hoy las dos APK
+      están firmadas en debug — sirven para instalar a mano, no para tienda.
+      **Si se pierde el keystore no se puede volver a actualizar la app nunca
+      más**: hay que publicar otra distinta y los usuarios reinstalar. Copia de
+      seguridad fuera de esta máquina, obligatoria.
+- [ ] **Subir `targetSdk`** de 34 a 35: Play ya exige 35 y sube el mínimo cada
+      año. Se toca en `android/variables.gradle` de cada proyecto.
+- [ ] Política de privacidad publicada (las tres tiendas la piden). Ya hay
+      `politicas/` en el repo — revisar que sirva para app y no solo para web.
+- [ ] Capturas de pantalla y textos de ficha, en español.
+
+### Tienda por tienda
+
+| Tienda | Cuesta | Lo que hay que saber |
+|---|---|---|
+| **Amazon Appstore** | **gratis** | La del **Fire Stick**. Es la que de verdad hace falta: hoy toca Downloader, con tienda se busca "Cobra Cocina" en el televisor y ya. Revisión más relajada que Google. |
+| **Google Play** | **USD 25 una vez**, de por vida | Cuenta **personal nueva** = prueba cerrada con **12 personas durante 14 días seguidos** antes de publicar. Cuenta de **empresa** (con NIT) se lo salta. **Registrarla como empresa desde el principio.** |
+| **Huawei AppGallery** | gratis | La única tienda en los Huawei nuevos. Sin Google Play Services, pero Cobra no los usa. |
+| **LG / Samsung** | — | **Una APK NO sirve**: sus televisores usan webOS y Tizen, no Android. Habría que reempaquetar. Como Cobra ya es una página web —que es justo lo que esos sistemas ejecutan— sería casi puro trabajo de empaquetado. Sergio: por ahora no. |
+
+### Lo que NO cambia al subirlas a tienda — y conviene tenerlo claro
+
+Las APK de Cobra son una **cáscara que abre `cobrapos.app`**. Entonces:
+
+- **Arreglar algo de la pantalla NO necesita subir nada a ninguna tienda.** Se
+  hace push, GitHub Pages despliega y el empleado cierra y abre la app: ya lo
+  tiene. Ni actualizar, ni esperar revisión, ni avisarle a nadie.
+- **Solo hace falta una versión nueva de la APK** cuando se cambia algo que
+  vive DENTRO: la dirección que abre, el icono, el nombre, los permisos, el
+  manifiesto, lo de la pantalla que no se apaga. Eso pasa muy de vez en cuando.
+- Y en esos casos la tienda **no es instantánea**: Play tarda horas o días,
+  Amazon un par de días. La ventaja de la tienda es la **distribución** (que el
+  cliente la encuentre y la instale solo), no la velocidad de arreglo.
+
 ## PENDIENTE — [Inventario] EMPAQUES Y DESECHABLES como insumo — Sergio 2026-07-31
 
 **Estado hoy (verificado):** el empaque es SOLO UN PRECIO. Hay **51 pedidos con
