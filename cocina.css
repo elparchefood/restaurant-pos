@@ -219,8 +219,8 @@ svg{display:block;}
    cuatro filas por columna y las 24 comandas en pantalla. */
 .tk-items{flex:1;padding:calc(var(--u) * .28) calc(var(--u) * .3) calc(var(--u) * .15);display:flex;flex-direction:column;gap:calc(var(--u) * .3);}
 .it{
-  display:flex; gap:calc(var(--u) * .45); align-items:flex-start;
-  padding:calc(var(--u) * .34) calc(var(--u) * .35);
+  display:flex; gap:calc(var(--u) * .4); align-items:flex-start;
+  padding:calc(var(--u) * .3) calc(var(--u) * .3);
   border-radius:calc(var(--u) * .4);
   /* TODOS con su franja, no una si y una no (Sergio, 26-ago-2026: "te dije
      solo franjas, no franjas intermedias"). Alternando, el primero y el
@@ -249,43 +249,37 @@ svg{display:block;}
 .it.mini .it-tx{font-size:calc(var(--u) * .95);font-weight:700;line-height:1.15;letter-spacing:0;}
 .it.mini .it-tx em,.it.mini .it-tx i{font-size:calc(var(--u) * .8);margin-top:0;}
 .it-foto{
-  flex:0 0 auto; width:calc(var(--u) * 2.5); height:calc(var(--u) * 2.5); border-radius:calc(var(--u) * .4);
+  flex:0 0 auto; width:calc(var(--u) * 2.25); height:calc(var(--u) * 2.25); border-radius:calc(var(--u) * .38);
   object-fit:cover; display:block; background:#E2E8F0;
 }
 .it-nofoto{
-  flex:0 0 auto; width:calc(var(--u) * 2.5); height:calc(var(--u) * 2.5); border-radius:calc(var(--u) * .4);
+  flex:0 0 auto; width:calc(var(--u) * 2.25); height:calc(var(--u) * 2.25); border-radius:calc(var(--u) * .38);
   background:repeating-linear-gradient(135deg,#EEF1F5 0 calc(var(--u) * .55),#F8FAFC calc(var(--u) * .55) calc(var(--u) * 1.1));
   display:flex; align-items:center; justify-content:center; text-align:center;
   font-size:calc(var(--u) * .62); font-weight:800; letter-spacing:.04em; color:#94A3B8; line-height:1.2;
 }
 .it-n{
-  position:absolute; left:calc(var(--u) * .2); top:calc(var(--u) * .2);
-  min-width:calc(var(--u) * 1.5); height:calc(var(--u) * 1.5); padding:0 calc(var(--u) * .25);
-  border-radius:calc(var(--u) * .35);
-  background:rgba(15,23,42,.92); color:#fff; font-size:calc(var(--u) * 1.05); font-weight:800;
+  flex:0 0 auto; min-width:calc(var(--u) * 1.35); height:calc(var(--u) * 1.35);
+  padding:0 calc(var(--u) * .2); border-radius:calc(var(--u) * .3);
+  background:#0F172A; color:#fff; font-size:calc(var(--u) * .95); font-weight:800;
   display:flex; align-items:center; justify-content:center;
-  box-shadow:0 0 0 calc(var(--u) * .1) rgba(255,255,255,.55);
 }
-/* La foto y su cantidad, un solo bloque. */
-.it-img{position:relative;flex:0 0 auto;display:block;line-height:0;}
-/* En los renglones pequeños no hay foto, así que la cantidad vuelve a la fila. */
 .it.mini .it-n{
-  position:static; box-shadow:none; background:#475569;
-  min-width:calc(var(--u) * 1.15); height:calc(var(--u) * 1.15);
-  border-radius:calc(var(--u) * .25); font-size:calc(var(--u) * .75); padding:0 calc(var(--u) * .2);
+  background:#475569; min-width:calc(var(--u) * 1.1); height:calc(var(--u) * 1.1);
+  border-radius:calc(var(--u) * .25); font-size:calc(var(--u) * .72);
 }
-/* LOS MARGENES DE ARRIBA ESTAN MEDIDOS, no elegidos a ojo. El nombre del
-   plato tenia 184 px de ancho y «Premium · Mixta» necesita 197: se partia en
-   dos renglones por TRECE pixeles, mientras que «Especial · Pollo» (178) si
-   cabia — que fue justo lo que Sergio vio y reclamo. Apretando los cuatro
-   margenes que se comen ese ancho (el de la lista, el de la franja y los dos
-   huecos de la foto y la cantidad) el texto pasa a ~202 px. Si alguien vuelve
-   a abrirlos, ese nombre se parte otra vez. */
-.it-tx{font-size:calc(var(--u) * 1.7);font-weight:800;line-height:1.05;letter-spacing:-.025em;color:#0F172A;min-width:0;}
+/* ESTE TAMANO ESTA MEDIDO, no elegido a ojo. A 27 px el nombre necesitaba
+   217 px para «Premium · Mixta» y solo habia 184: se partia en dos renglones,
+   mientras «Especial · Pollo» (178) si cabia — que fue justo lo que Sergio vio
+   y reclamo. Probamos subir la cantidad ENCIMA de la foto para ganar esos
+   31 px, pero tapaba el plato. La salida fue no elegir entre las tres cosas:
+   bajar un punto el tamano de todas (letra 27→25, foto 39→35, cantidad al
+   lado otra vez). Si alguien sube la letra o la foto, ese nombre se parte. */
+.it-tx{font-size:calc(var(--u) * 1.55);font-weight:800;line-height:1.05;letter-spacing:-.025em;color:#0F172A;min-width:0;}
 /* Las adiciones en verde y las notas en ámbar, en renglón aparte: una nota
    metida dentro del nombre del plato es un plato devuelto. */
-.it-tx em{display:block;font-style:normal;font-size:calc(var(--u) * 1.1);font-weight:700;color:#15803D;margin-top:calc(var(--u) * .15);letter-spacing:-.01em;}
-.it-tx i {display:block;font-style:normal;font-size:calc(var(--u) * 1.1);font-weight:800;color:#B45309;margin-top:calc(var(--u) * .15);letter-spacing:-.01em;}
+.it-tx em{display:block;font-style:normal;font-size:calc(var(--u) * 1);font-weight:700;color:#15803D;margin-top:calc(var(--u) * .15);letter-spacing:-.01em;}
+.it-tx i {display:block;font-style:normal;font-size:calc(var(--u) * 1);font-weight:800;color:#B45309;margin-top:calc(var(--u) * .15);letter-spacing:-.01em;}
 
 .tk-pie{padding:calc(var(--u) * .2) calc(var(--u) * .7) calc(var(--u) * .4);}
 .tk-btn{

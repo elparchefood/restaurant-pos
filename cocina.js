@@ -593,16 +593,15 @@ function tarjeta(o) {
   function renglon(i, mini) {
     const nombre = i.product_name || i.name || 'Producto';
     const foto   = S.fotos.get(i.product_id);
-    /* LA CANTIDAD VA ENCIMA DE LA FOTO, no en su propia columna. Tenerla al
-       lado le robaba 31 px al nombre del plato — y esos 31 px eran la
-       diferencia entre que «Premium · Mixta» quepa en un renglón o se parta
-       en dos. Sobre la foto se lee igual de bien y no le quita sitio a nada. */
+    /* LA CANTIDAD, AL LADO DE LA FOTO. Un rato estuvo ENCIMA para ganarle
+       31 px al nombre, pero tapaba el plato — y la foto está ahí justamente
+       para reconocerlo sin leer. La salida no fue elegir entre las tres cosas
+       sino bajar un punto el tamaño de todas: así caben la foto entera, el
+       número y el nombre completo. Sergio, 26-ago-2026. */
     const cant = '<span class="it-n">' + (parseInt(i.quantity,10) || 1) + '</span>';
     const img = mini ? cant
-      : '<span class="it-img">'
-        + (foto ? '<img class="it-foto" src="' + esc(foto) + '" alt="" loading="lazy">'
-                : '<span class="it-nofoto">sin<br>foto</span>')
-        + cant + '</span>';
+      : (foto ? '<img class="it-foto" src="' + esc(foto) + '" alt="" loading="lazy">'
+              : '<span class="it-nofoto">sin<br>foto</span>') + cant;
     const adic = adiciones(i);
     return '<div class="it' + (mini ? ' mini' : '') + '">' + img
       + '<span class="it-tx">' + esc(nombre)
