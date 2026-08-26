@@ -148,7 +148,7 @@ async function cargarBase() {
      lo que sí llegó. Sin fotos o sin nombres de mesa se trabaja; sin pantalla
      no. Y cada una con su tope: una que no conteste no puede colgar el resto. */
   const [suc, mesas, prods] = await Promise.allSettled([
-    conTope(sb.from('branches').select('name, cobro_adelantado, brands(name)').eq('id', S.branchId).maybeSingle(), 12, 'la sucursal'),
+    conTope(sb.from('branches').select('name, cobro_adelantado, brands(name, logo_url)').eq('id', S.branchId).maybeSingle(), 12, 'la sucursal'),
     conTope(sb.from('pos_tables').select('id, name').eq('branch_id', S.branchId), 12, 'las mesas'),
     conTope(sb.from('pos_products').select('id, photo_url').eq('branch_id', S.branchId), 15, 'la carta'),
   ]).then(rs => rs.map(r => {
@@ -159,7 +159,24 @@ async function cargarBase() {
   const marca = b.brands && (Array.isArray(b.brands) ? b.brands[0] : b.brands);
   S.negocio = (marca && marca.name) || b.name || 'Cocina';
   S.cobroAdelantado = !!b.cobro_adelantado;
-  $('sede').innerHTML = esc(S.negocio) + '<span>Cocina · ' + esc(b.name || '') + '</span>';
+  /* El nombre del restaurante NO va: el cocinero no lo necesita en su turno.
+     Queda la sede, que es lo unico que hace falta cuando hay varias. */
+  $('sede').textContent = 'Cocina' + (b.name ? ' · ' + b.name : '');
+
+  /* El logo REAL del restaurante. Si no tiene, no se pinta nada: un cuadro
+     con una letra inventada es un logo que no es de nadie.
+     Se arma con createElement y no con innerHTML: la direccion del logo
+     viene de la base y meterla en una cadena de HTML es pedir problemas. */
+  const logo = marca && marca.logo_url;
+  const cajaLogo = $('marca');
+  cajaLogo.textContent = '';
+  if (logo) {
+    const img = document.createElement('img');
+    img.alt = '';
+    img.onerror = () => { cajaLogo.textContent = ''; };
+    img.src = logo;
+    cajaLogo.appendChild(img);
+  }
   /* La leyenda del pago se esconde si en esta sucursal no puede ocurrir:
      sin cobro adelantado solo la venta rápida puede quedar sin pagar. */
   (mesas.data || []).forEach(m => S.mesas.set(m.id, m.name));

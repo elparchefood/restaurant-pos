@@ -65,17 +65,23 @@ svg{display:block;}
   flex:0 0 auto; display:flex; align-items:center; gap:calc(var(--u) * 1);
   padding:calc(var(--u) * .6) calc(var(--u) * 1.2); background:#FFF; border-bottom:1px solid #ECEEF2;
 }
+/* EL LOGO DEL RESTAURANTE, el de verdad (brands.logo_url). Antes habia un
+   cuadro azul con una "C" inventada: un logo que no es de nadie. Si el
+   restaurante no tiene logo cargado, no se pinta nada — mejor vacio que
+   falso. */
 .k-marca{
-  width:calc(var(--u) * 1.9); height:calc(var(--u) * 1.9); border-radius:calc(var(--u) * .45); flex:0 0 auto;
-  background:linear-gradient(135deg,#5B6BFF,#8B5CF6); color:#fff;
-  font-size:calc(var(--u) * 1.1); font-weight:800;
+  width:calc(var(--u) * 2.2); height:calc(var(--u) * 2.2); border-radius:calc(var(--u) * .45);
+  flex:0 0 auto; overflow:hidden; background:#F1F5F9;
   display:flex; align-items:center; justify-content:center;
 }
-.k-sede{font-size:calc(var(--u) * 1.05);font-weight:700;letter-spacing:-.01em;line-height:1.15;color:#475569;}
-.k-sede span{
-  display:block; font-size:calc(var(--u) * .62); font-weight:700; letter-spacing:.14em;
-  text-transform:uppercase; color:#94A3B8; margin-top:calc(var(--u) * .1);
+.k-marca img{width:100%;height:100%;object-fit:cover;display:block;}
+.k-marca:empty{display:none;}
+
+.k-sede{
+  font-size:calc(var(--u) * .78); font-weight:700; letter-spacing:.14em;
+  text-transform:uppercase; color:#94A3B8; line-height:1;
 }
+
 .k-cuenta{margin-left:auto;display:flex;align-items:center;gap:calc(var(--u) * 1.2);}
 .k-pastilla{
   display:flex; align-items:baseline; gap:calc(var(--u) * .5); background:#F1F5F9;
