@@ -54,7 +54,7 @@
        posicion que nunca existio — el boton no abria nada. `?volver=1` hace
        que la pantalla ofrezca "Volver al escritorio" en vez de "Salir": si
        el dueno entra desde aqui y toca Salir, se cerraria SU sesion. */
-    { t: 'Cocina', h: 'cocina.html?volver=1', archivo: 'cocina.html',
+    { t: 'Cocina', h: 'cocina.html?volver=1', archivo: 'cocina.html', id: 'nav-cocina',
       i: '<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>' },
     { t: 'Productos', h: 'catalogo-productos.html',
       i: '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>' },
@@ -153,6 +153,51 @@
     }).catch(function () { estado(false); });
   }
 
+  /* ── LAS PANTALLAS DE PREPARACIÓN ────────────────────────────────────────
+     Con un solo sitio de preparación esto no hace nada y el menú se queda
+     exactamente como estaba: una entrada, «Cocina».
+
+     Con dos o más, «Cocina» se convierte en una entrada por área, y cada una
+     se esconde si el rol no la tiene marcada. Es la primera vez que el menú de
+     Cobra esconde algo por permiso: hasta hoy las 13 entradas las veía todo el
+     mundo y el freno llegaba al entrar, pidiendo el PIN. Decisión de Sergio
+     (26-ago-2026): *"si creo un rol de cocina, esa persona no debe ver la
+     pantalla de barra"*.
+
+     Si un rol no tiene marcada NINGUNA, las ve todas: sin esa regla, el día
+     que el dueño crea la segunda área todos los roles que ya existen se
+     quedarían sin cocina sin que nadie hubiera tocado nada. */
+  function areasEnMenu() {
+    var a = document.getElementById('nav-cocina');
+    if (!a) return;
+    var sb  = (window._pos && window._pos.sb) || window.sb;
+    var bid = window._pos && window._pos.state && window._pos.state.branchId;
+    if (!sb || !bid) return;
+    sb.from('branches').select('operacion_config').eq('id', bid).maybeSingle()
+      .then(function (r) {
+        var cfg   = (r && r.data && r.data.operacion_config) || {};
+        var areas = Array.isArray(cfg.areas) ? cfg.areas.filter(function (x) { return x && x.id; }) : [];
+        if (areas.length < 2) return;            // un solo sitio: nada que repartir
+        var listo = window.posPermsReady ? window.posPermsReady() : Promise.resolve();
+        return Promise.resolve(listo).then(function () {
+          var puede = areas.filter(function (x) {
+            return !window.posHasPerm || window.posHasPerm('prep.' + x.id);
+          });
+          if (!puede.length) puede = areas;      // ninguna marcada = todas
+          var aqui = location.pathname.split('/').pop();
+          var svg  = a.querySelector('svg');
+          var ico  = svg ? svg.outerHTML : '';
+          a.outerHTML = puede.map(function (x) {
+            var act = (aqui === 'cocina.html') ? ' active' : '';
+            return '<a class="nav-item' + act + '" href="cocina.html?volver=1&area='
+              + encodeURIComponent(x.id) + '">' + ico + (x.nombre || x.id) + '</a>';
+          }).join('');
+        });
+      })
+      .catch(function () { /* se queda la entrada de siempre */ });
+  }
+
   pintar();
   abrirPlataforma();
+  areasEnMenu();
 })();

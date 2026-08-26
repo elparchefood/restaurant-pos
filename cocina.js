@@ -68,7 +68,13 @@ const S = {
   branchId:null, tenantId:null, negocio:'', cobroAdelantado:false, avisarCliente:false,
   /* estado de la mesa por id de pedido: la señal del plano de ventas */
   mesaEstado:new Map(),
+  /* ÁREAS DE PREPARACIÓN (26-ago-2026). Sin áreas definidas todo es cocina y
+     la pantalla se comporta EXACTAMENTE como antes: es la regla que hace que
+     ningún restaurante que ya opera note un cambio que no pidió. */
+  areas:[], areaCat:{}, areaProd:{}, area:null, areasVisibles:[],
   orders:new Map(), items:new Map(), mesas:new Map(), fotos:new Map(),
+  /* categoria de cada producto: es por donde se resuelve su area */
+  catDe:new Map(),
   vistas:new Set(),          // comandas que ya sonaron
   listas:new Map(),          // id -> hora en que se marcó lista (para el deshacer)
   online:true, arrancando:true,
@@ -116,6 +122,21 @@ function conTope(promesa, seg, queEs) {
       () => no(new Error('No contestó en ' + seg + ' s: ' + queEs)), seg * 1000)),
   ]);
 }
+
+/* El conmutador solo existe cuando la persona tiene más de un área. */
+addEventListener('click', function (ev) {
+  const b = ev.target && ev.target.closest && ev.target.closest('[data-area]');
+  if (!b) return;
+  const id = b.dataset.area;
+  if (!id || id === S.area) return;
+  if (!S.areasVisibles.some(a => a.id === id)) return;
+  S.area = id;
+  const u = new URL(location.href);
+  u.searchParams.set('area', id);
+  history.replaceState(null, '', u);
+  pintarAreas();
+  pintar();
+});
 
 addEventListener('error',  e => morir('La pantalla no pudo abrir.', e.message));
 addEventListener('unhandledrejection', e => morir('La pantalla no pudo abrir.', e.reason && e.reason.message));
@@ -169,9 +190,9 @@ async function cargarBase() {
      lo que sí llegó. Sin fotos o sin nombres de mesa se trabaja; sin pantalla
      no. Y cada una con su tope: una que no conteste no puede colgar el resto. */
   const [suc, mesas, prods] = await Promise.allSettled([
-    conTope(sb.from('branches').select('name, cobro_adelantado, brands(name, logo_url)').eq('id', S.branchId).maybeSingle(), 12, 'la sucursal'),
+    conTope(sb.from('branches').select('name, cobro_adelantado, operacion_config, brands(name, logo_url)').eq('id', S.branchId).maybeSingle(), 12, 'la sucursal'),
     conTope(sb.from('pos_tables').select('id, name').eq('branch_id', S.branchId), 12, 'las mesas'),
-    conTope(sb.from('pos_products').select('id, photo_url').eq('branch_id', S.branchId), 15, 'la carta'),
+    conTope(sb.from('pos_products').select('id, photo_url, category_id').eq('branch_id', S.branchId), 15, 'la carta'),
   ]).then(rs => rs.map(r => {
     if (r.status === 'rejected') { console.error('[cocina]', r.reason); return { data:null }; }
     return r.value || { data:null };
@@ -201,7 +222,106 @@ async function cargarBase() {
   /* La leyenda del pago se esconde si en esta sucursal no puede ocurrir:
      sin cobro adelantado solo la venta rápida puede quedar sin pagar. */
   (mesas.data || []).forEach(m => S.mesas.set(m.id, m.name));
-  (prods.data || []).forEach(p => { if (p.photo_url) S.fotos.set(p.id, p.photo_url); });
+  (prods.data || []).forEach(p => {
+    if (p.photo_url) S.fotos.set(p.id, p.photo_url);
+    if (p.category_id) S.catDe.set(p.id, p.category_id);
+  });
+
+  /* La configuración de áreas vive en el mismo sitio que los empaques: el
+     bloque `operacion_config` de la sucursal. Ni tabla nueva ni columna
+     nueva — el molde que Cobra ya usa para lo que se configura por categoría
+     y por producto. */
+  const op = b.operacion_config || {};
+  S.areas    = Array.isArray(op.areas) ? op.areas.filter(a => a && a.id) : [];
+  S.areaCat  = op.areaCatCfg  || {};
+  S.areaProd = op.areaProdCfg || {};
+  await resolverArea();
+}
+
+/* ── ÁREAS: cuál es esta pantalla y cuáles puede ver esta persona ──────────
+   Decisión de Sergio (26-ago-2026): *"desde la pantalla no se puede escoger el
+   área, eso va desde los roles"*. El gerente arma el rol y ahí marca qué
+   pantallas ve esa persona. Si solo tiene una, no hay nada que elegir y no se
+   pinta ningún selector; si tiene dos, aparece el conmutador.
+
+   REGLA DE COMPATIBILIDAD, y es la importante: un rol que NO tenga marcada
+   ninguna casilla `prep.*` ve TODAS las áreas. Sin eso, el día que el dueño
+   crea la segunda área, todos los roles que ya existen se quedarían fuera de
+   la cocina sin que nadie hubiera tocado nada. */
+function permisoDeArea(id) { return 'prep.' + id; }
+
+async function resolverArea() {
+  const lista = S.areas;
+  if (lista.length < 2) {            // una sola área (o ninguna): todo es de aquí
+    S.areasVisibles = lista.slice();
+    S.area = lista.length ? lista[0].id : null;
+    pintarAreas();
+    return;
+  }
+  let permisos = null;
+  try {
+    const duenoR = await conTope(sb.rpc('es_dueno'), 10, 'si eres el dueño');
+    if (duenoR && duenoR.data === true) permisos = '*';
+  } catch (e) { /* abajo se intenta por rol */ }
+  if (permisos !== '*') {
+    try {
+      const r = await conTope(sb.rpc('permisos_en_sucursal', { p_branch: S.branchId }), 10, 'tus permisos');
+      if (r && !r.error && Array.isArray(r.data)) permisos = r.data;
+    } catch (e) { /* se queda en null = puerta abierta */ }
+  }
+  let puede;
+  if (permisos === '*' || permisos === null) {
+    puede = lista.slice();                       // dueño, o no se pudo saber
+  } else {
+    const marcadas = lista.filter(a => permisos.indexOf(permisoDeArea(a.id)) >= 0);
+    puede = marcadas.length ? marcadas : lista.slice();   // ninguna marcada = todas
+  }
+  S.areasVisibles = puede;
+
+  /* La dirección manda (así entra la APK de la barra), pero solo si esa área
+     está permitida: escribirla a mano no puede saltarse el rol. */
+  const pedida = new URLSearchParams(location.search).get('area');
+  const valida = pedida && puede.some(a => a.id === pedida) ? pedida : null;
+  S.area = valida || (puede[0] && puede[0].id) || null;
+  pintarAreas();
+}
+
+function pintarAreas() {
+  const caja = $('areas');
+  if (!caja) return;
+  if (!S.area || S.areasVisibles.length < 2) { caja.innerHTML = ''; caja.hidden = true; return; }
+  caja.hidden = false;
+  caja.innerHTML = S.areasVisibles.map(a =>
+    '<button class="k-area' + (a.id === S.area ? ' on' : '') + '" data-area="' + esc(a.id) + '">'
+    + esc(a.nombre || a.id) + '</button>').join('');
+}
+
+/* Dónde se prepara un producto: lo suyo manda sobre lo de su categoría, y si
+   no dice nada, la primera área (la cocina de toda la vida). */
+function areaDeItem(i) {
+  const pid = i.product_id;
+  if (pid && S.areaProd[pid]) return S.areaProd[pid];
+  const cid = pid ? S.catDe.get(pid) : null;
+  if (cid && S.areaCat[cid]) return S.areaCat[cid];
+  return S.areas.length ? S.areas[0].id : null;
+}
+
+/* Lo que esta pantalla tiene que mostrar de una comanda: lo suyo primero y,
+   según la regla del área, lo ajeno detrás o nada. Un solo sitio para que la
+   tarjeta y el conteo no puedan decir cosas distintas. */
+function repartoDe(its) {
+  const regla = reglaAjeno();
+  const mios = [], ajenos = [];
+  (its || []).forEach(i => {
+    if (!S.area || areaDeItem(i) === S.area) mios.push(i);
+    else if (regla !== 'esconder') ajenos.push(i);
+  });
+  return { mios, ajenos, regla };
+}
+
+function reglaAjeno() {
+  const a = S.areas.find(x => x.id === S.area);
+  return (a && a.ajeno) || 'igual';
 }
 
 /* ── El turno de caja, calcado de `getCajaSessionStart()` de ventas-salon ──
@@ -406,7 +526,17 @@ const ETIQUETA  = { prep:'En preparación', pago:'Pendiente de pago', listo:'Lis
 
 function pintar() {
   const porZona = { salon:[], rapido:[], domicilio:[] };
-  S.orders.forEach(o => porZona[zonaDe(o)].push(o));
+  /* Con el área en «esconder», una comanda de solo bebidas no tiene NADA que
+     hacer en la cocina: pintarla vacía sería peor que no pintarla, porque le
+     quita un sitio a una comanda de verdad y el cocinero la mira dos veces
+     antes de entender que no es suya. */
+  let aLaVista = 0;
+  S.orders.forEach(o => {
+    const r = repartoDe(S.items.get(o.id));
+    if (!r.mios.length && !r.ajenos.length) return;
+    aLaVista++;
+    porZona[zonaDe(o)].push(o);
+  });
 
   let sonar = false;
   Object.keys(porZona).forEach(z => {
@@ -423,7 +553,7 @@ function pintar() {
     }).join('');
   });
 
-  $('cuenta').textContent = S.orders.size;
+  $('cuenta').textContent = aLaVista;
   if (sonar) sonarUnaVez();
 }
 
@@ -434,20 +564,35 @@ function tarjeta(o) {
   const nueva = est === 'prep' && mins < 1;
   const its  = S.items.get(o.id) || [];
 
-  const cuerpo = its.map(i => {
+  /* Lo que se prepara aquí y lo que no. La regla la pone el restaurante en
+     Configuración, área por área: dejarlo igual, achicarlo o esconderlo. */
+  const rep_   = repartoDe(its);
+  const regla  = rep_.regla;
+  const mios   = rep_.mios;
+  const ajenos = rep_.ajenos;
+
+  function renglon(i, mini) {
     const nombre = i.product_name || i.name || 'Producto';
     const foto   = S.fotos.get(i.product_id);
-    const img = foto
-      ? '<img class="it-foto" src="' + esc(foto) + '" alt="" loading="lazy">'
-      : '<span class="it-nofoto">sin<br>foto</span>';
+    const img = mini ? ''
+      : (foto ? '<img class="it-foto" src="' + esc(foto) + '" alt="" loading="lazy">'
+              : '<span class="it-nofoto">sin<br>foto</span>');
     const adic = adiciones(i);
-    return '<div class="it">' + img
+    return '<div class="it' + (mini ? ' mini' : '') + '">' + img
       + '<span class="it-n">' + (parseInt(i.quantity,10) || 1) + '</span>'
       + '<span class="it-tx">' + esc(nombre)
       + (adic ? '<em>+ ' + esc(adic) + '</em>' : '')
       + (i.notes ? '<i>' + esc(i.notes) + '</i>' : '')
       + '</span></div>';
-  }).join('') || '<div class="zona-vacia" style="padding:1cqw 0">Sin productos enviados</div>';
+  }
+
+  /* Lo ajeno va JUNTO Y AL FINAL, no intercalado: si la gaseosa se mete entre
+     dos platos, el cocinero la lee igual y no se ahorró nada. */
+  const cuerpo = (mios.map(i => renglon(i, false)).join('')
+    + (ajenos.length && regla === 'pequeno'
+        ? '<div class="it-otros">' + ajenos.map(i => renglon(i, true)).join('') + '</div>'
+        : ajenos.map(i => renglon(i, false)).join('')))
+    || '<div class="zona-vacia" style="padding:1cqw 0">Sin productos enviados</div>';
 
   const accion = est === 'listo'
     ? '<div class="tk-listo"><b>Listo</b><button class="tk-desh" data-desh="' + o.id + '">Deshacer</button></div>'

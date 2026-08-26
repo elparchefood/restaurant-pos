@@ -14141,6 +14141,69 @@ lee (usa `pos_tables.status`), así que marcar listo desde cocina no mueve
 ninguna mesa. La comanda se queda 30 s con **Deshacer** y se va sola: sin
 ventana de confirmación, porque en una cocina nadie confirma nada.
 
+### Áreas de preparación (26-ago-2026)
+
+Que las bebidas no le roben sitio a la comida, y que un restaurante con barra
+pueda colgar una segunda pantalla que solo muestre bebidas.
+
+**El nombre.** Sergio descartó «estación» y «zona» estaba ocupada tres veces
+(zonas del salón, las tres columnas de cocina, barrios de domicilio). Quedó
+**área**, que ya existe en Cobra: `pos_printers.area` usa exactamente
+`cocina | barra | caja`.
+
+**Dónde vive cada cosa** — tres sitios, ninguno nuevo:
+
+| Qué | Dónde | Guardado en |
+|---|---|---|
+| La lista de áreas y qué hace cada pantalla con lo ajeno | Configuración → Operación → Áreas de preparación | `operacion_config.areas` |
+| Qué se prepara en cada área | la misma tarjeta, por categoría | `operacion_config.areaCatCfg` |
+| Quién ve cuál pantalla | Configuración → Usuarios y roles | `pos_roles.perms` → `prep.<idArea>` |
+
+La asignación por categoría **no** quedó en la Carta como se propuso primero:
+quedó al lado de Empaques, porque es el mismo patrón que Cobra ya usa para lo
+que se configura por categoría y por producto (`empaqueCatCfg`/`empaqueProdCfg`)
+y reutiliza el mismo cargador de catálogo (`_empLoadCatalog`). Todo en una
+pantalla en vez de repartido en dos. Sin migración: ni tabla ni columna nuevas.
+
+**Las tres reglas de lo ajeno**, decisión de Sergio de que fuera configurable:
+`igual` (por defecto — el que hace cócteles no quiere achicar nada), `pequeno`
+(sin foto, letra a un tercio, junto y al final tras una línea punteada) y
+`esconder`.
+
+**Compatibilidad, que es lo delicado.** Dos reglas sostienen que nadie que ya
+opera note un cambio que no pidió:
+1. **Sin áreas definidas (o con una sola) no cambia absolutamente nada**: no hay
+   filtro, no hay selector, no hay grupo de permisos y el menú sigue con su
+   única entrada «Cocina».
+2. **Un rol sin ninguna casilla `prep.*` marcada ve TODAS las áreas.** Sin esto,
+   el día que el dueño crea la segunda área, todos los roles que ya existen se
+   quedarían fuera de la cocina sin que nadie hubiera tocado nada.
+
+**Primera vez que el menú esconde algo por permiso.** Hasta hoy `pos-nav.js`
+pintaba las 13 entradas para todo el mundo y el freno llegaba al entrar, con el
+PIN de administrador. Con dos áreas o más, «Cocina» se convierte en una entrada
+por área y cada una se esconde si el rol no la tiene. La dirección escrita a
+mano tampoco sirve: `resolverArea()` en `cocina.js` valida `?area=` contra lo
+que el rol permite.
+
+**Comprobado en el banco** (`tests/ver-cocina.html`, 7 productos en 6 comandas,
+la bebida marcada a Barra):
+
+```
+cocina · pequeno   6 comandas · 7 productos · 3 en pequeño · selector visible
+cocina · esconder  4 comandas · 4 productos   (las 2 de solo bebida desaparecen)
+barra              3 comandas · 3 productos
+```
+
+Ese «4 comandas» es un arreglo aparte: una comanda que en esta área se queda
+sin nada **no se pinta**. Pintarla vacía le quita el sitio a una de verdad y el
+cocinero la mira dos veces antes de entender que no es suya.
+
+**Pendiente a propósito:** el botón «Listo» sigue siendo de la comanda entera.
+Con dos pantallas habría que guardarlo por área — y eso sí toca la base— para
+que la cocina no le borre a la barra un jugo que aún no está. Se hace cuando
+haya un restaurante que de verdad vaya a colgar la segunda pantalla.
+
 ### El salón NUNCA llegaba a la cocina (26-ago-2026)
 
 Sergio probó con el Restaurante de Prueba: caja abierta, una mesa pendiente de
