@@ -1009,7 +1009,7 @@
      una cuadra o dos— y en el negocio quedaba escrita como si fuera exacta.
      Se espera a que el GPS se cuadre y se manda una sola vez. */
   function compartirUbicacion() {
-    if (!navigator.geolocation) { toast('Este equipo no permite ubicación'); return; }
+    if (!navigator.geolocation && !geoNativo()) { toast('Este equipo no permite ubicación'); return; }
     toast('Buscando tu ubicación…');
     var mandado = false, ultimo = null, plazo = null;
     function mandar(p) {
@@ -1119,7 +1119,32 @@
      mejora avisa, asi el mapa se corrige solo en vez de esperar quieto.
 
      `maximumAge: 0` para que no reciclen una lectura vieja del bolsillo.   */
+  /*  ═══════════════════════════════════════════════════════════════
+      EL GPS DEL TELEFONO, NO EL DEL NAVEGADOR
+      ═══════════════════════════════════════════════════════════════
+      `navigator.geolocation` es el GPS del NAVEGADOR, y dentro de la app eso
+      no es lo mismo que el GPS del telefono: la pagina va dentro de un
+      navegador incrustado que resuelve la posicion a su manera —wifi, antenas,
+      y si no hay nada, la direccion de internet—. Por eso podia marcar un
+      barrio entero de distancia con el permiso preciso concedido, y por eso no
+      mejoraba por esperar: no estaba esperando al satelite, estaba esperando a
+      nada.
+
+      Cuando la app trae el modulo de ubicacion de Capacitor, se le pregunta al
+      TELEFONO por la via nativa —la misma que usa Google Maps— y ahi si hay
+      satelite. En el navegador de escritorio no existe ese modulo y se sigue
+      por la via de siempre, que ahi es la correcta.                       */
+  function geoNativo() {
+    try {
+      var C = window.Capacitor;
+      var g = C && C.Plugins && C.Plugins.Geolocation;
+      return (g && typeof g.watchPosition === 'function') ? g : null;
+    } catch (e) { return null; }
+  }
+
   function ubicarme(alPunto, alFallar) {
+    var nat = geoNativo();
+    if (nat) return ubicarmeNativo(nat, alPunto, alFallar);
     if (!navigator.geolocation) { if (alFallar) alFallar(); return null; }
     var mejor = null, id = null, fin = null, n = 0;
 
@@ -1165,6 +1190,93 @@
       else if (alFallar) alFallar();
     }, VENTANA);
     return { parar: cerrar };
+  }
+
+  /*  La misma escucha, por la via del telefono. El modulo devuelve el id de
+      la vigilancia en una promesa, asi que hay que guardarlo cuando llegue —y
+      soltarla igual si el mapa se cerro antes de que llegara. */
+  function ubicarmeNativo(g, alPunto, alFallar) {
+    var mejor = null, id = null, muerto = false, fin = null;
+
+    function cerrar() {
+      muerto = true;
+      if (fin) { clearTimeout(fin); fin = null; }
+      if (id) { try { g.clearWatch({ id: id }); } catch (e) {} id = null; }
+    }
+
+    g.watchPosition({ enableHighAccuracy: true, timeout: VENTANA + 2000, maximumAge: 0 },
+      function (pos, err) {
+        if (muerto) return;
+        if (err) {
+          var t = String((err && (err.message || err.errorMessage)) || '').toLowerCase();
+          if (t.indexOf('denied') >= 0 || t.indexOf('permis') >= 0) { cerrar(); abrirGps('negado'); return; }
+          return;
+        }
+        if (!pos || !pos.coords) return;
+        var p = {
+          lat: pos.coords.latitude, lng: pos.coords.longitude,
+          error: pos.coords.accuracy == null ? 9999 : pos.coords.accuracy,
+          rumbo: pos.coords.heading,
+        };
+        if (mejor && p.error > mejor.error) return;
+        mejor = p;
+        alPunto(p, false);
+      }
+    ).then(function (w) {
+      if (muerto) { try { g.clearWatch({ id: w }); } catch (e) {} return; }
+      id = w;
+    }).catch(function () {
+      cerrar();
+      if (alFallar) alFallar();
+    });
+
+    fin = setTimeout(function () {
+      var m = mejor;
+      cerrar();
+      if (m) alPunto(m, true);
+      else if (alFallar) alFallar();
+    }, VENTANA);
+
+    return { parar: cerrar };
+  }
+
+  /*  VIGILANCIA CONTINUA, para el viaje. Aqui no se busca la mejor lectura y
+      se para: se acompana al domiciliario todo el camino, asi que cada lectura
+      nueva manda aunque sea peor — se esta moviendo, y quedarse con la mejor de
+      hace un minuto seria dejarlo clavado en una esquina por la que ya paso. */
+  function vigilar(alPunto) {
+    var nat = geoNativo();
+    var opciones = { enableHighAccuracy: true, timeout: 15000, maximumAge: 1000 };
+
+    function suyo(pos) {
+      if (!pos || !pos.coords) return;
+      alPunto({
+        lat: pos.coords.latitude, lng: pos.coords.longitude,
+        error: pos.coords.accuracy == null ? 9999 : pos.coords.accuracy,
+        rumbo: pos.coords.heading,
+      });
+    }
+
+    if (nat) {
+      var id = null, muerto = false;
+      nat.watchPosition(opciones, function (pos, err) {
+        if (muerto || err) return;
+        suyo(pos);
+      }).then(function (w) {
+        if (muerto) { try { nat.clearWatch({ id: w }); } catch (e) {} return; }
+        id = w;
+      }).catch(function () {});
+      return { parar: function () {
+        muerto = true;
+        if (id) { try { nat.clearWatch({ id: id }); } catch (e) {} id = null; }
+      } };
+    }
+
+    if (!navigator.geolocation) return { parar: function () {} };
+    var wid = navigator.geolocation.watchPosition(suyo, function () {}, opciones);
+    return { parar: function () {
+      try { navigator.geolocation.clearWatch(wid); } catch (e) {}
+    } };
   }
 
   /*  Cuanto se espera al GPS. Doce segundos es lo que tarda un telefono en
@@ -1518,7 +1630,7 @@
     if (MAPA.andando) { detenerRuta(); return; }
     if (!MAPA.mapa || !MAPA.casa) { toast('El mapa aún no está listo'); return; }
     if (MAPA.aprox) { toast('Esta dirección no está confirmada'); return; }
-    if (!navigator.geolocation) { toast('Este equipo no tiene ubicación'); return; }
+    if (!navigator.geolocation && !geoNativo()) { toast('Este equipo no tiene ubicación'); return; }
 
     /*  La busqueda de arranque puede seguir viva y reencuadrando el mapa. Si
         se deja, se pelea con el viaje: uno centra en el domiciliario y la otra
@@ -1534,19 +1646,11 @@
     seguir(true);
     MAPA.mapa.setZoom(18);
     if (MAPA.yo) MAPA.mapa.panTo(MAPA.yo);
-    MAPA.vigia = navigator.geolocation.watchPosition(function (pos) {
-      var p = {
-        lat: pos.coords.latitude, lng: pos.coords.longitude,
-        error: pos.coords.accuracy == null ? 9999 : pos.coords.accuracy,
-        rumbo: pos.coords.heading,
-      };
-      /* En viaje NO se descarta la lectura peor: el domiciliario se esta
-         moviendo, y quedarse con la mejor de hace un minuto seria dejarlo
-         clavado en una esquina por la que ya paso. */
+    MAPA.vigia = vigilar(function (p) {
       pintarYo(p);
       pintarPrecision(p, true);
       if (MAPA.siguiendo && MAPA.mapa) MAPA.mapa.panTo({ lat: p.lat, lng: p.lng });
-    }, function () {}, { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
+    });
 
     //  2) Los puntos corriendo. El truco es mover el `offset` del símbolo: la
     //     línea no se toca, solo se desplazan los puntos por encima.
@@ -1585,9 +1689,7 @@
   }
 
   function detenerRuta() {
-    if (MAPA.vigia !== null && navigator.geolocation) {
-      navigator.geolocation.clearWatch(MAPA.vigia); MAPA.vigia = null;
-    }
+    if (MAPA.vigia) { MAPA.vigia.parar(); MAPA.vigia = null; }
     if (MAPA.latido) { clearInterval(MAPA.latido); MAPA.latido = null; }
     if (MAPA.linea) MAPA.linea.setOptions({ strokeOpacity: .9, icons: [] });
     if (MAPA.despierto) { try { MAPA.despierto.release(); } catch (e) {} MAPA.despierto = null; }
