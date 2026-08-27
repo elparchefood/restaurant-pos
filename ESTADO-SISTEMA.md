@@ -3,6 +3,67 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 La tarde del punto azul — 27-ago-2026
+
+Un dia entero en un solo fallo, y el fallo no era ninguno de los cuatro que
+"arregle" por el camino. Vale la pena el detalle porque el error de metodo se
+puede repetir en cualquier pantalla.
+
+**El sintoma:** el punto de inicio del domiciliario caia en otro barrio, y mas
+tarde el mapa se quedaba girando para siempre.
+
+**Lo que fui creyendo, en orden, y por que cada uno parecia razonable:**
+
+1. *El GPS tarda en cuadrarse* → puse una espera. **Y la espera tenia el fallo
+   adentro**: cortaba en cuanto el margen bajaba de 20 m, y la posicion por
+   antenas TAMBIEN reporta 15–20 m en ciudad. O sea que se saltaba justo lo que
+   iba a esperar.
+2. *Android tiene la ubicacion en modo aproximado* → puse un cartel rojo
+   explicandolo. Le salio a Sergio **teniendo la precisa concedida**, y encima
+   tapaba el mapa. Quitado.
+3. *Falta pedir el permiso* → lo comprobe. Estaba concedido.
+4. *La ciudad de la sede esta mal* → lo estaba, y era real, pero no explicaba
+   todo.
+
+**Las dos causas de verdad, encontradas mirando y no pensando:**
+
+- La APK **no tenia ni un modulo nativo** (`capacitor.plugins.json` = `[]`).
+  `navigator.geolocation` ahi es el GPS **del navegador**, que resuelve por
+  wifi/antenas/IP. Todo lo anterior era afinar un instrumento desconectado del
+  satelite. Se recompilo con `@capacitor/geolocation`.
+- Y el cuelgue: `g.watchPosition(...).then is not a function`. Por el puente de
+  Capacitor ese metodo devuelve **el id de una**, no una promesa. Reventaba
+  dentro de una promesa, o sea **sin romper nada visible**.
+
+### ⚠️ LA LECCION, QUE ES LO QUE HAY QUE LEER
+
+En un celular **no hay consola que mirar**. Un error suelto dentro de una
+promesa deja la rueda girando, y desde afuera eso se ve EXACTAMENTE IGUAL que:
+
+- "no hay senal"
+- "el arreglo no sirvio"
+- "el telefono tiene guardada la copia vieja"
+
+Cuatro cosas distintas con la misma cara. Mientras no se puedan distinguir, se
+trabaja a ciegas y se arreglan cosas que ya estaban bien.
+
+**Lo que lo termino no fue una idea: fue ver el error escrito en la pantalla.**
+Ahora la app trae, y no se quitan:
+
+- Cualquier error sin atrapar sale escrito donde estaba pasando.
+- Debajo de la rueda va el paso (1/4 llave, 2/4 Google, 3/4 direccion, 4/4
+  dibujar).
+- El **numero de version en Mi perfil**, y la app se recarga sola si hay una
+  copia mas nueva. Sin eso, "ya lo probe y sigue igual" es indistinguible de
+  "estas probando lo de ayer".
+- Plazos en todo: 15 s del lado del telefono, 8 s en cada llamada a Google.
+  Nada puede esperar para siempre.
+
+**Regla que sale de aqui:** al segundo intento fallido, dejar de arreglar y
+poner el instrumento. Debio ser lo primero y fue lo ultimo.
+
+---
+
 ## 🗺️ El mapa del domiciliario, dentro de Cobra — 27-ago-2026
 
 Hasta ahora, "En ruta" sacaba al domiciliario de la app y lo tiraba al mapa del
