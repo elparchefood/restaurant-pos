@@ -1293,6 +1293,17 @@
 
         <div class="vs-sidebar-footer">
           <div id="vs-fx-chip" style="padding:0 4px"></div>
+          <!-- CERRAR SESION.
+               En la tablet del mesero esta pantalla es TODO lo que hay: no hay
+               escritorio al que volver ni menu de usuario donde buscarlo. Sin
+               este boton, quien entra una vez se queda dentro para siempre y
+               la unica salida es borrar la aplicacion. -->
+          <button class="lm-nav" style="color:#DC2626" data-action="cerrar-sesion">
+            <span class="lm-nav-inner">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              <span style="font-weight:600">Cerrar sesión</span>
+            </span>
+          </button>
         </div>
       </aside>
     `;
@@ -3211,6 +3222,26 @@
         break;
       case 'nav-back':
         window._pos && window._pos.emit && window._pos.emit('nav:back');
+        break;
+      case 'cerrar-sesion':
+        /* Se pregunta antes, y con la ventana del producto — nunca la del
+           navegador. Un toque sin querer en plena hora pico no puede sacar al
+           mesero de la sesion. */
+        (async function () {
+          const ok = await vsConfirm({
+            title: 'Cerrar sesión',
+            msg: 'Vas a salir de la cuenta en esta tablet. Para volver a entrar necesitas el usuario y la contraseña.',
+            /* `brand` y no `danger`: el icono de `danger` es una caneca de
+               basura, y salir de la sesion no borra nada. */
+            okLabel: 'Cerrar sesión', variant: 'brand',
+          });
+          if (!ok) return;
+          try { if (window.posCache && window.posCache.limpiar) window.posCache.limpiar(); } catch (e) {}
+          try { await window._pos.sb.auth.signOut(); } catch (e) {}
+          /* A la misma puerta por la que entro. `mesero-login` es la de las
+             tablets; el escritorio entra por `login`. */
+          window.location.href = 'mesero-login.html';
+        })();
         break;
       case 'nav-rapida':
         (async function() { if (await window.cajaGuard(window._pos && window._pos.state && window._pos.state.branchId)) window.location.href = 'venta-rapida.html'; })();
