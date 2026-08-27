@@ -44,6 +44,12 @@
       que: 'Lee el comprobante que manda el cliente y confirma monto, cuenta y hora contra el correo de tu banco.',
       mas: ['Se acabaron los comprobantes falsos', 'Sin salir del chat'],
     },
+    mapa: {
+      titulo: 'Mapa y ruta del domiciliario',
+      plan: 'Pro',
+      que: 'El domiciliario ve en el mapa dónde queda la casa del cliente y el camino hasta allá, sin salir de la app.',
+      mas: ['Mapa de Google, con los negocios de la cuadra como referencia', 'La ruta se calcula sola al tocar "en ruta"'],
+    },
     avisos_estado: {
       titulo: 'Avisos al cliente',
       plan: 'Pro',

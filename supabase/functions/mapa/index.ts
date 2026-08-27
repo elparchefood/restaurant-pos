@@ -655,7 +655,9 @@ async function accNavegador(tenant: string) {
     mensaje: "El mapa se activa cuando abran la caja del restaurante." });
 
   //  4. ¿Queda cupo?
-  const cuenta = await claveDe(tenant);
+  const cuenta = await llaveDe(tenant);
+  if (!cuenta) return ok({ ok: false, motivo: "sin_llave",
+    mensaje: "El mapa todavia no esta configurado en Cobra." });
   const permiso = await consumir(tenant, "navegador", cuenta.propia);
   if (!permiso.permitido) return ok({ ok: false, motivo: "tope",
     mensaje: "Se acabo el cupo de mapas de este mes.",
@@ -675,8 +677,8 @@ async function accRuta(tenant: string, body: Record<string, unknown>) {
   const hasta = String(body.hasta || "").trim();   // "lat,lng" o direccion
   if (!desde || !hasta) return mal("Faltan el origen o el destino");
 
-  const cuenta = await claveDe(tenant);
-  if (!cuenta.clave) return mal("Sin llave de mapas configurada");
+  const cuenta = await llaveDe(tenant);
+  if (!cuenta) return mal("Sin llave de mapas configurada");
   const permiso = await consumir(tenant, "ruta", cuenta.propia);
   if (!permiso.permitido) {
     return ok({ ok: false, motivo: "tope",

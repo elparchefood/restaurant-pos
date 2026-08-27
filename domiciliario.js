@@ -690,11 +690,182 @@
     }, { timeout: 6000, enableHighAccuracy: true });
   }
 
+  /* ══════════════════════════════════════════════════════════════
+     EL MAPA
+     ══════════════════════════════════════════════════════════════
+     Antes este botón sacaba al domiciliario de la app y lo mandaba al mapa
+     del celular. Ahora el mapa es de Cobra y se queda adentro.
+
+     La llave de Google NO está escrita en este archivo. Se pide al servidor
+     cada vez, y el servidor solo la entrega si hay sesión, el plan es Pro,
+     la caja está abierta y queda cupo. La ruta ni siquiera se calcula aquí:
+     la dibuja el servidor con la otra llave, la que nunca sale.            */
+
+  var MAPA = { cargando: null, api: false, mapa: null, marcaCasa: null, marcaYo: null, linea: null, pedido: null };
+
+  function mapaAviso(tx, sub, girando) {
+    var av = $('mapa-aviso'); if (!av) return;
+    if (tx === null) { av.hidden = true; return; }
+    av.hidden = false;
+    var sp = av.querySelector('.dm-spin');
+    if (sp) sp.style.display = girando ? '' : 'none';
+    if ($('mapa-aviso-tx')) $('mapa-aviso-tx').textContent = tx;
+    if ($('mapa-aviso-sub')) $('mapa-aviso-sub').textContent = sub || '';
+  }
+
+  /* La librería de Google se baja UNA sola vez por sesión. Si se pide dos
+     veces, Google escupe un aviso feo encima del mapa y lo deja en blanco. */
+  function cargarGoogle(clave) {
+    if (MAPA.api) return Promise.resolve();
+    if (MAPA.cargando) return MAPA.cargando;
+    MAPA.cargando = new Promise(function (listo, falla) {
+      var t = setTimeout(function () { falla(new Error('lento')); }, 12000);
+      window.__cobraMapaListo = function () { clearTimeout(t); MAPA.api = true; listo(); };
+      var sc = document.createElement('script');
+      sc.async = true;
+      sc.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(clave)
+        + '&language=es&region=CO&callback=__cobraMapaListo';
+      sc.onerror = function () { clearTimeout(t); falla(new Error('sin red')); };
+      document.head.appendChild(sc);
+    });
+    return MAPA.cargando;
+  }
+
+  /* Google manda la ruta comprimida en un texto. Esto la vuelve puntos. Es el
+     algoritmo de siempre; no hay nada que inventar aquí. */
+  function abrirLinea(txt) {
+    var pts = [], i = 0, lat = 0, lng = 0;
+    while (i < txt.length) {
+      var b, sh = 0, r = 0;
+      do { b = txt.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32);
+      lat += ((r & 1) ? ~(r >> 1) : (r >> 1));
+      sh = 0; r = 0;
+      do { b = txt.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32);
+      lng += ((r & 1) ? ~(r >> 1) : (r >> 1));
+      pts.push({ lat: lat / 1e5, lng: lng / 1e5 });
+    }
+    return pts;
+  }
+
+  async function llamarMapa(cuerpo) {
+    var r = await sb.functions.invoke('mapa', { body: cuerpo });
+    if (r.error) throw new Error('No se pudo hablar con el servidor');
+    return r.data || {};
+  }
+
   function verRuta() {
     var p = S.abierto || activos()[0];
-    if (!p || !p.direccion) { toast('Este pedido no tiene dirección'); return; }
+    if (!p) { toast('No hay ningún pedido activo'); return; }
+    if (!p.direccion) { toast('Este pedido no tiene dirección'); return; }
+    MAPA.pedido = p;
+    if ($('mapa-cliente')) $('mapa-cliente').textContent = p.cliente || 'Pedido #' + p.no;
+    if ($('mapa-dir')) $('mapa-dir').textContent = [p.direccion, p.barrio].filter(Boolean).join(' · ');
+    if ($('mapa-dist')) $('mapa-dist').textContent = '';
+    if ($('ov-mapa')) $('ov-mapa').hidden = false;
+    mapaAviso('Abriendo el mapa…', '', true);
+    armarMapa(p);
+  }
+
+  function cerrarMapa() { if ($('ov-mapa')) $('ov-mapa').hidden = true; }
+
+  async function armarMapa(p) {
+    //  1) La llave. Si no la dan, el servidor dice POR QUÉ y eso se muestra
+    //     tal cual: un mapa en blanco sin explicación es una tarde perdida
+    //     buscando un fallo que no existe.
+    var acc;
+    try { acc = await llamarMapa({ accion: 'navegador' }); }
+    catch (e) { mapaAviso('No hay señal', 'Vuelve a intentarlo cuando tengas internet.', false); return; }
+    if (!acc.ok) {
+      mapaAviso(acc.mensaje || 'El mapa no está disponible',
+        acc.motivo === 'sin_turno' ? 'Pide que abran la caja del restaurante.' : '', false);
+      return;
+    }
+
+    try { await cargarGoogle(acc.clave); }
+    catch (e) { mapaAviso('El mapa no cargó', 'Revisa la conexión y vuelve a entrar.', false); return; }
+
+    //  2) Dónde queda la casa. Lo resuelve el servidor y lo deja guardado,
+    //     así que la segunda vez que se abre el mismo pedido es instantáneo.
+    var g;
+    try {
+      g = await llamarMapa({ accion: 'geocodificar', direccion: p.direccion, barrio: p.barrio || '', ciudad: S.ciudad || '' });
+    } catch (e) { mapaAviso('No hay señal', '', false); return; }
+
+    if (g.no_encontrada) { mapaAviso('No se encontró esa dirección', 'Llámala al cliente para que te oriente.', false); return; }
+    if (g.tope_alcanzado) { mapaAviso('Se acabó el cupo de mapas del mes', '', false); return; }
+    if (g.sin_conectar || !g.lat || !g.lng) { mapaAviso('El mapa no está configurado', '', false); return; }
+
+    var casa = { lat: Number(g.lat), lng: Number(g.lng) };
+    mapaAviso(null);
+
+    MAPA.mapa = new google.maps.Map($('mapa-lienzo'), {
+      center: casa, zoom: 16,
+      /* Se puede acercar, alejar y mirar alrededor — es un mapa de verdad,
+         no una foto. Lo que se quita es lo que estorba en un celular. Los
+         negocios de la cuadra se dejan encendidos a propósito: un domiciliario
+         se orienta por la panadería de la esquina, no por el número. */
+      mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
+      zoomControl: false, clickableIcons: true, gestureHandling: 'greedy'
+    });
+    MAPA.marcaCasa = new google.maps.Marker({
+      map: MAPA.mapa, position: casa, title: p.cliente || 'Destino'
+    });
+    /* Si Google solo llegó al barrio, se dice. Un punto aproximado dado con
+       confianza manda al domiciliario a la casa equivocada. */
+    if (g.aproximada && $('mapa-dist')) $('mapa-dist').textContent = 'aprox.';
+
+    //  3) Y la línea, si el GPS quiere colaborar. Si no, el mapa igual sirve.
+    pintarRuta(casa);
+  }
+
+  function pintarRuta(casa) {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(async function (pos) {
+      var yo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      if (!MAPA.mapa) return;
+      MAPA.marcaYo = new google.maps.Marker({
+        map: MAPA.mapa, position: yo, title: 'Tú',
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE, scale: 7,
+          fillColor: '#5B6BFF', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3
+        }
+      });
+      var r;
+      try {
+        r = await llamarMapa({ accion: 'ruta', desde: yo.lat + ',' + yo.lng, hasta: casa.lat + ',' + casa.lng });
+      } catch (e) { return; }
+      if (!r.ok || !r.linea) return;
+
+      MAPA.linea = new google.maps.Polyline({
+        map: MAPA.mapa, path: abrirLinea(r.linea),
+        strokeColor: '#5B6BFF', strokeOpacity: .9, strokeWeight: 5
+      });
+      var caja = new google.maps.LatLngBounds();
+      caja.extend(yo); caja.extend(casa);
+      MAPA.mapa.fitBounds(caja, 60);
+      if ($('mapa-dist')) $('mapa-dist').textContent = r.texto || '';
+    }, function () {
+      /* Sin GPS no hay línea, pero el mapa con la casa marcada ya sirve para
+         orientarse. No se muestra error: no faltó nada importante. */
+    }, { timeout: 8000, enableHighAccuracy: true });
+  }
+
+  function centrarEnMi() {
+    if (!MAPA.mapa || !navigator.geolocation) { toast('El mapa aún no está listo'); return; }
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      var yo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      MAPA.mapa.setCenter(yo); MAPA.mapa.setZoom(17);
+      if (MAPA.marcaYo) MAPA.marcaYo.setPosition(yo);
+    }, function () { toast('Activa el GPS'); }, { timeout: 8000, enableHighAccuracy: true });
+  }
+
+  /* Para MANEJAR hace falta la voz, y eso solo lo da la app de Google. El mapa
+     de Cobra es para orientarse antes de arrancar; este botón es para el
+     camino. Es una opción, ya no lo que pasa solo al tocar "en ruta". */
+  function navegarConVoz() {
+    var p = MAPA.pedido; if (!p) return;
     var destino = [p.direccion, p.barrio, S.ciudad].filter(Boolean).join(', ');
-    window.open('https://www.google.com/maps/dir/?api=1&destination='
+    window.open('https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='
       + encodeURIComponent(destino), '_blank');
   }
 
@@ -735,6 +906,10 @@
 
       var card = t.closest('[data-pedido]');
       if (card) { abrirDetalle(card.dataset.pedido); return; }
+
+      if (t.closest('#btn-mapa-volver')) { cerrarMapa(); return; }
+      if (t.closest('#btn-mapa-yo')) { centrarEnMi(); return; }
+      if (t.closest('#btn-mapa-google')) { navegarConVoz(); return; }
 
       if (t.closest('#btn-cerrar-detalle')) { cerrarTodo(); return; }
       if (t.closest('#btn-volver-detalle')) { $('ov-cobro').hidden = true; return; }

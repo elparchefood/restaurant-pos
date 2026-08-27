@@ -3,6 +3,66 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🗺️ El mapa del domiciliario, dentro de Cobra — 27-ago-2026
+
+Hasta ahora, "En ruta" sacaba al domiciliario de la app y lo tiraba al mapa del
+celular. Sergio: *"quiero que el mapa sea de cobra"*. Ya lo es.
+
+### Dónde vive
+- Pantalla completa (`#ov-mapa` en `domiciliario.html`, estilos `.mp-*` al final
+  de `domiciliario.css`). **No** es una hoja que sube desde abajo como las
+  demás: medio mapa en un celular no sirve para orientarse, que es lo único
+  para lo que existe esta pantalla.
+- El motor, en `domiciliario.js`: `verRuta()` → `armarMapa()` → `pintarRuta()`.
+
+### La llave, que es lo delicado
+El mapa interactivo se dibuja **en el teléfono**, y para eso necesita una llave
+de Google **allí**. No hay forma de evitarlo. Lo que sí se puede es que esa
+llave no sirva para nada más y que no se la lleve cualquiera:
+
+1. **Son DOS llaves distintas.** `MAPAS_CLAVE_COBRA` (la del servidor, que
+   geocodifica y calcula rutas) **nunca** sale. La que baja al teléfono es
+   `MAPAS_CLAVE_NAVEGADOR`, restringida en Google Cloud a *Maps JavaScript API*
+   y al referente `cobrapos.app/*`. Google pone los candados a la llave entera,
+   no a cada uso: por eso tienen que ser dos.
+2. **No está escrita en ningún archivo.** Se pide a la función `mapa`
+   (acción `navegador`), que la entrega solo si se cumplen **cuatro**
+   condiciones: sesión válida, plan Pro, **turno de caja abierto** y bajo el
+   tope del restaurante.
+3. La del **turno abierto** la propuso Sergio y es la más fina: el domiciliario
+   no sabe que existe un turno, así que no puede abrirlo para sacar la llave de
+   noche. Y el turno se abre solo al abrir la caja, que es obligatorio para
+   cobrar.
+4. **La ruta ni se calcula en el teléfono**: la acción `ruta` llama a
+   Directions desde el servidor con la llave que no sale, y devuelve la línea
+   ya comprimida. El gasto grande queda del lado seguro.
+
+Si alguna condición falla, la pantalla **dice cuál**. Un mapa en blanco sin
+explicación es una tarde perdida buscando un fallo que no existe.
+
+### El plan
+`sql/2026-08-27-mapa-en-pro.sql`, ya corrido: `'mapa'` entra en `funciones` de
+Pro y aparece en la lista de beneficios. También en el catálogo de `pos-plan.js`.
+**Siguen siendo dos planes**: se consideró un Premium para meter el mapa y se
+descartó — Pro ya tiene 100k de margen sobre Starter, de sobra para los ~29k/mes
+que cuesta el mapa por restaurante a 20 rutas diarias.
+
+### Un fallo que se cayó antes de salir
+Las dos acciones nuevas llamaban a `claveDe()`, que **no existe**: la función se
+llama `llaveDe()` y devuelve `null` cuando no hay llave. Escrito así, la
+función entera no arrancaba. Se vio releyendo el archivo antes de desplegar, no
+en producción.
+
+### Lo que falta para que funcione
+- Sergio tiene que **crear `MAPAS_CLAVE_NAVEGADOR`** en Google Cloud (solo Maps
+  JavaScript API, referente `cobrapos.app/*`, cuota diaria) y guardarla como
+  secret del proyecto. La APK sirve la página desde `https://cobrapos.app`, así
+  que ese mismo referente cubre celular y navegador — no hace falta `localhost`.
+- Falta **fijar el tope por restaurante**.
+- **Fase 2**, ya hablada: ordenar varios pedidos del más cerca al más lejos.
+
+---
+
 ## 🟢 Puesta en marcha guiada: un solo candado, de a un paso — 24-ago-2026
 
 Diseño de Sergio: *"No se bloquea nada. Lo único que se va a bloquear es la
