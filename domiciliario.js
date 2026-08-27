@@ -48,7 +48,11 @@
     cobroTipo: 'efectivo',
     recibido: null,
     fotos: {},         // product_id -> foto, para reconocer el pedido de un vistazo
-    heroIdx: null      // cual pedido muestra la tarjeta azul; null = todavia no lo elige el dedo
+    heroIdx: null,     // cual pedido muestra la tarjeta azul; null = todavia no lo elige el dedo
+    mapaIdx: 0,        // cual pedido muestra el mapa
+    vistos: null,      // ids ya conocidos; null = todavia no ha cargado ni una vez
+    avisos: [],        // lo que ha pasado en el turno
+    sonTono: 'aero2', sonVol: 80
   };
 
   /* ── Utilidades ──────────────────────────────────────────────────── */
@@ -250,6 +254,7 @@
       } catch (e) { console.warn('[domi] fotos:', e && e.message); }
     }
 
+    var antes = S.vistos;
     S.pedidos = (r.data || []).map(function (o) {
       var d = direccionDe(o.notes);
       var pagado = (Number(o.paid_amount) || 0) > 0;
@@ -268,6 +273,27 @@
         items: items[o.id] || []
       };
     });
+
+    /*  ¿LLEGO ALGO NUEVO?
+
+        Se compara contra los ids que ya se conocian. La PRIMERA carga no
+        cuenta: al abrir la app sonarian de golpe los tres pedidos del dia,
+        que es exactamente el ruido que nadie quiere.                      */
+    var ahora = {};
+    S.pedidos.forEach(function (p) { ahora[p.id] = true; });
+    if (antes) {
+      var nuevos = S.pedidos.filter(function (p) { return !antes[p.id]; });
+      if (nuevos.length) {
+        sonar(); vibrar();
+        nuevos.forEach(function (p) {
+          apuntarAviso('nuevo', 'Te asignaron un pedido', aDonde(p) + ' \u00b7 ' + cop(p.total));
+        });
+        toast(nuevos.length === 1
+          ? 'Nuevo pedido \u00b7 ' + aDonde(nuevos[0])
+          : nuevos.length + ' pedidos nuevos');
+      }
+    }
+    S.vistos = ahora;
   }
 
   /* ══════════════════════════════════════════════════════════════════
@@ -301,6 +327,60 @@
       if (f) return f;
     }
     return '';
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     EL SONIDO
+     ══════════════════════════════════════════════════════════════
+     El domiciliario lleva el celular en el bolsillo con la pantalla apagada.
+     Un pedido que aparece en silencio es un pedido que se queda esperando.
+
+     Encenderlo o apagarlo es DE ESTE CELULAR (aqui, en la campanita); el tono
+     lo escoge el dueno una vez para todo el restaurante, igual que en cocina.
+     Nace ENCENDIDO: quien no quiere oirlo lo apaga en dos toques, pero quien
+     no sabe que existe se queda sin enterarse de que le llego trabajo.      */
+  var SON_KEY = 'cobra.domi.sonido';
+  function sonidoEncendido() {
+    try { return localStorage.getItem(SON_KEY) !== '0'; } catch (e) { return true; }
+  }
+
+  /* El navegador no deja sonar nada hasta que alguien toca la pantalla. Con el
+     primer toque, sea el que sea, se abre el audio y se deja abierto. */
+  var _audioAbierto = false;
+  function abrirAudio() {
+    if (_audioAbierto) return;
+    _audioAbierto = true;
+    try { if (typeof window.posTocarTono === 'function') window.posTocarTono(S.sonTono, 0); } catch (e) {}
+  }
+  ['pointerdown', 'touchstart', 'keydown'].forEach(function (ev) {
+    addEventListener(ev, abrirAudio, { passive: true });
+  });
+
+  function sonar() {
+    if (!sonidoEncendido()) return;
+    try {
+      if (typeof window.posTocarTono === 'function') { window.posTocarTono(S.sonTono, S.sonVol); return; }
+    } catch (e) {}
+    /* Respaldo por si el archivo de tonos no cargo: mejor un pitido feo que un
+       domiciliario que no se entera de que le asignaron un pedido. */
+    try {
+      var C = window.AudioContext || window.webkitAudioContext;
+      if (!C) return;
+      var a = new C();
+      var o = a.createOscillator(), g = a.createGain();
+      o.type = 'sine'; o.frequency.value = 880;
+      g.gain.setValueAtTime(.0001, a.currentTime);
+      g.gain.exponentialRampToValueAtTime(.3, a.currentTime + .02);
+      g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + .45);
+      o.connect(g); g.connect(a.destination);
+      o.start(); o.stop(a.currentTime + .5);
+    } catch (e) {}
+  }
+
+  /* Y que el celular vibre. Con el ruido de la calle y el casco puesto, el
+     sonido solo no siempre llega. */
+  function vibrar() {
+    try { if (navigator.vibrate) navigator.vibrate([120, 70, 120]); } catch (e) {}
   }
 
   function activos() {
@@ -461,6 +541,30 @@
   /*  Deslizar. Se exige que el gesto sea MAS horizontal que vertical: si no,
       cualquier intento de bajar por la pantalla cambiaria de pedido sin
       querer, que es de las cosas que mas molestan en un celular. */
+  function deslizar(el, alPasar) {
+    if (!el) return;
+    var x0 = 0, y0 = 0, vivo = false;
+    el.addEventListener('touchstart', function (e) {
+      var t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; vivo = true;
+    }, { passive: true });
+    el.addEventListener('touchend', function (e) {
+      if (!vivo) return;
+      vivo = false;
+      var t = e.changedTouches[0];
+      var dx = t.clientX - x0, dy = t.clientY - y0;
+      if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy)) return;
+      alPasar(dx < 0 ? 1 : -1);
+    }, { passive: true });
+  }
+
+  /*  En el mapa el gesto NO puede ir sobre el mapa mismo: arrastrar el mapa es
+      moverlo, y robarle ese gesto seria quitarle lo unico que hace. Va sobre
+      la barra de arriba, que es donde esta escrito a donde se va. */
+  function conectarSwipeMapa() {
+    deslizar($('mapa-pasar'), moverMapa);
+    deslizar(document.querySelector('#ov-mapa .mp-top'), moverMapa);
+  }
+
   function conectarSwipe() {
     var sw = $('hero-swipe');
     if (!sw) return;
@@ -579,6 +683,72 @@
         return '<div class="kv"><span>' + f[0] + '</span><span' + color + '>' + esc(f[1]) + '</span></div>';
       }).join('');
     }
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     LA CAMPANITA
+     ══════════════════════════════════════════════════════════════
+     Estaba dibujada y no hacia nada. Ahora guarda lo que paso en el turno —que
+     hasta hoy solo existia en un aviso que duraba tres segundos— y es el sitio
+     donde este celular decide si suena o no.
+
+     La lista vive SOLO en el celular y solo por el turno: no hace falta una
+     tabla en la base para recordar algo que se olvida al terminar el dia.   */
+  function apuntarAviso(tipo, t, sub) {
+    S.avisos.unshift({ tipo: tipo, t: t, sub: sub, cuando: Date.now() });
+    if (S.avisos.length > 40) S.avisos.length = 40;
+    S.avisosSinVer = (S.avisosSinVer || 0) + 1;
+    pintarPunto();
+  }
+
+  function pintarPunto() {
+    var d = document.querySelector('#btn-avisos .dot-n');
+    if (d) d.hidden = !S.avisosSinVer;
+  }
+
+  function hora(ms) {
+    var d = new Date(ms);
+    var h = d.getHours(), m = d.getMinutes();
+    var am = h < 12 ? 'a.\u00a0m.' : 'p.\u00a0m.';
+    var h12 = h % 12; if (!h12) h12 = 12;
+    return h12 + ':' + (m < 10 ? '0' : '') + m + ' ' + am;
+  }
+
+  function pintarAvisos() {
+    var b = $('av-son');
+    if (b) {
+      var on = sonidoEncendido();
+      b.classList.toggle('on', on);
+      if ($('av-son-s')) $('av-son-s').textContent = on
+        ? 'Suena y vibra cuando te asignan un pedido'
+        : 'Apagado \u2014 los pedidos llegan en silencio';
+      if ($('av-son-ic')) {
+        $('av-son-ic').innerHTML = on
+          ? '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.5 8.5a5 5 0 0 1 0 7"></path><path d="M18.5 5.5a9 9 0 0 1 0 13"></path></svg>'
+          : '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="22" y1="9" x2="16" y2="15"></line><line x1="16" y1="9" x2="22" y2="15"></line></svg>';
+      }
+    }
+    var l = $('av-lista');
+    if (!l) return;
+    if (!S.avisos.length) {
+      l.innerHTML = '<div class="empty" style="padding:26px 0">'
+        + '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg>'
+        + '<span>Todav\u00eda no ha pasado nada en tu turno.</span></div>';
+      return;
+    }
+    l.innerHTML = S.avisos.map(function (a) {
+      return '<div class="av-it"><span class="av-pt ' + esc(a.tipo) + '"></span>'
+        + '<div class="av-tx"><b>' + esc(a.t) + '</b>'
+        + '<small>' + esc(a.sub || '') + (a.sub ? ' \u00b7 ' : '') + hora(a.cuando) + '</small>'
+        + '</div></div>';
+    }).join('');
+  }
+
+  function abrirAvisos() {
+    S.avisosSinVer = 0;
+    pintarPunto();
+    pintarAvisos();
+    if ($('ov-avisos')) $('ov-avisos').hidden = false;
   }
 
   function pintarTodo() {
@@ -902,9 +1072,46 @@
     return r.data || {};
   }
 
+  /*  Con varios pedidos, ¿cual mapa se abre? El que se este mirando: si el
+      detalle esta abierto, ese; si no, el que muestra la tarjeta azul. Y una
+      vez dentro se pasa de uno a otro sin salir. */
   function verRuta() {
-    var p = S.abierto || activos()[0];
+    var act = activos();
+    if (S.abierto) {
+      var iA = act.findIndex(function (x) { return x.id === S.abierto.id; });
+      S.mapaIdx = iA < 0 ? 0 : iA;
+    } else {
+      S.mapaIdx = S.heroIdx === null ? 0 : S.heroIdx;
+    }
+    if (S.mapaIdx >= act.length) S.mapaIdx = 0;
+    abrirMapaDe(act[S.mapaIdx] || S.abierto);
+  }
+
+  function moverMapa(paso) {
+    var act = activos();
+    if (act.length < 2) return;
+    var i = S.mapaIdx + paso;
+    if (i < 0) i = act.length - 1;
+    if (i >= act.length) i = 0;
+    S.mapaIdx = i;
+    detenerRuta();
+    abrirMapaDe(act[i]);
+  }
+
+  function pintarMapaPasar() {
+    var act = activos(), caja = $('mapa-pasar'), dots = $('mapa-dots');
+    if (!caja) return;
+    caja.hidden = act.length < 2;
+    if (dots && act.length > 1) {
+      dots.innerHTML = act.map(function (_, i) {
+        return '<span class="' + (i === S.mapaIdx ? 'on' : '') + '"></span>';
+      }).join('');
+    }
+  }
+
+  function abrirMapaDe(p) {
     if (!p) { toast('No hay ningún pedido activo'); return; }
+    pintarMapaPasar();
     if (!p.direccion && !p.conjunto) { toast('Este pedido no tiene dirección'); return; }
     MAPA.pedido = p;
     if ($('mapa-cliente')) $('mapa-cliente').textContent = aDonde(p);
@@ -1163,6 +1370,20 @@
       var card = t.closest('[data-pedido]');
       if (card) { abrirDetalle(card.dataset.pedido); return; }
 
+      if (t.closest('#btn-avisos')) { abrirAvisos(); return; }
+      if (t.closest('#btn-cerrar-avisos')) { if ($('ov-avisos')) $('ov-avisos').hidden = true; return; }
+      if (t.closest('#av-son')) {
+        var on = !sonidoEncendido();
+        try { localStorage.setItem(SON_KEY, on ? '1' : '0'); } catch (e) {}
+        pintarAvisos();
+        /* Al encenderlo suena una vez: asi se sabe que de verdad se oye, y de
+           paso el toque deja el audio abierto para el resto del turno. */
+        if (on) { abrirAudio(); sonar(); }
+        return;
+      }
+
+      if (t.closest('#mapa-antes')) { moverMapa(-1); return; }
+      if (t.closest('#mapa-siguiente')) { moverMapa(1); return; }
       if (t.closest('#btn-mapa-volver')) { cerrarMapa(); return; }
       if (t.closest('#btn-mapa-yo')) { centrarEnMi(); return; }
       if (t.closest('#btn-mapa-iniciar')) { iniciarRuta(); return; }
@@ -1247,6 +1468,14 @@
         .select('city,operacion_config').eq('id', S.yo.branch_id).maybeSingle();
       var b = r && r.data;
       S.ciudad = (b && b.city) || '';
+      /*  El TONO lo escoge el dueno una vez para todo el restaurante, igual
+          que en la pantalla de cocina; encenderlo o no es de cada celular.
+          Si todavia no hay uno propio para la app, se usa el de cocina: es
+          mejor que suene algo escogido a que suene un pitido cualquiera. */
+      var _op = (b && b.operacion_config) || {};
+      var _dn = _op.domiNotif || _op.cocinaNotif || {};
+      S.sonTono = _dn.tono || 'aero2';
+      S.sonVol  = (typeof _dn.vol === 'number') ? _dn.vol : 80;
       var cfg = (b && b.operacion_config) || {};
       var pagos = cfg.pagos || cfg.metodos_pago || null;
       if (pagos && (pagos.numero || pagos.cuenta)) {
@@ -1358,6 +1587,8 @@
     try {
       conectarEventos();
       conectarSwipe();
+      conectarSwipeMapa();
+      pintarPunto();
       veloDice('Comprobando tu sesión…');
       var s = await sb.auth.getSession();
       if (s && s.data && s.data.session) {

@@ -2338,6 +2338,10 @@ var OP_DEFAULTS = {
      una vez para todo el restaurante; ENCENDERLO es de cada aparato, y eso
      vive en el aparato, no aqui. */
   cocinaNotif: { tono: 'caja', vol: 80 },
+  /* El de la app del domiciliario es OTRO a proposito: son dos aparatos
+     distintos sonando en dos sitios distintos, y el dueno puede querer
+     distinguirlos de oido. */
+  domiNotif: { tono: 'aero2', vol: 80 },
   // C9 — Tiempos de automatización de mesa
   mesaT1: 10,  // min → primera notificación
   mesaT2: 5,   // min → re-notificación tras "No"
@@ -2514,6 +2518,9 @@ function opPintarResumenes() {
   if (_nOc)   _extra.push(_nOc + ' sin mostrar');
   var _cn = d.cocinaNotif || {};
   if (_cn.tono) _extra.push('sonido ' + _cn.tono);
+  var _dn = d.domiNotif || {};
+  var _dsum = $('accsum-domiapp');
+  if (_dsum) _dsum.textContent = 'Sonido ' + (_dn.tono || 'aero2') + ' \u00b7 ' + ((_dn.vol == null ? 80 : _dn.vol) + '%');
   if (_arSum) _arSum.textContent =
     (_ar.length < 2 ? 'Solo Cocina' : _ar.map(function (a) { return a.nombre || a.id; }).join(' · '))
     + (_extra.length ? ' · ' + _extra.join(' · ') : '');
@@ -2796,10 +2803,45 @@ function opRenderAreas() {
 
   opRenderAreasCats();
   opRenderCocinaSon();
+  opRenderDomiSon();
 }
 
 /* Los tonos salen de `pos-notify.js`, que es donde estan afinados. Si algun dia
    se agrega uno, aparece aqui solo. */
+/* El mismo patron que el de cocina, y a proposito: dos sonidos que se
+   escogen igual se mantienen igual. */
+function opRenderDomiSon() {
+  var d = _opDraft; if (!d) return;
+  var caja = $('op-domi-tonos'); if (!caja) return;
+  var dn = d.domiNotif || (d.domiNotif = { tono:'aero2', vol:80 });
+  var lista = (typeof window.posTonosCocina === 'function')
+    ? window.posTonosCocina()
+    : [{ id:'alerta', nombre:'Alerta' }];
+  caja.innerHTML = lista.map(function (t) {
+    return '<button type="button" class="cf-chip' + (dn.tono === t.id ? ' on' : '')
+      + '" data-domi-tono="' + _empEsc(t.id) + '">' + _empEsc(t.nombre) + '</button>';
+  }).join('');
+  caja.querySelectorAll('[data-domi-tono]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      dn.tono = b.dataset.domiTono;
+      opRenderDomiSon(); opCheckDirty(); opPintarResumenes();
+      try { window.posTocarTono(dn.tono, dn.vol); } catch (e) {}
+    });
+  });
+  var sl = $('op-domi-vol'), vl = $('op-domi-vol-val');
+  if (sl) {
+    sl.value = dn.vol;
+    if (vl) vl.textContent = dn.vol + '%';
+    sl.oninput = function () {
+      dn.vol = parseInt(sl.value, 10) || 0;
+      if (vl) vl.textContent = dn.vol + '%';
+      opCheckDirty(); opPintarResumenes();
+    };
+    //  Se oye al SOLTAR: en cada paso de la barra serian veinte pitidos.
+    sl.onchange = function () { try { window.posTocarTono(dn.tono, dn.vol); } catch (e) {} };
+  }
+}
+
 function opRenderCocinaSon() {
   var d = _opDraft; if (!d) return;
   var caja = $('op-cocina-tonos'); if (!caja) return;

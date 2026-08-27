@@ -920,6 +920,36 @@
             </div>
           </div>
           <div class="op-acc-grupo">Cobro</div>
+          <!-- La app del domiciliario. Va aparte de la pantalla de cocina
+               porque son dos aparatos distintos, en dos manos distintas, y
+               el dueno los busca por separado. -->
+          <div class="op-acc" data-acc="domiapp">
+            <button type="button" class="op-acc-h" onclick="opAcc('domiapp')">
+              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M11 18h2"/></svg></span>
+              <span class="op-acc-t">App del domiciliario</span>
+              <span class="op-acc-sum" id="accsum-domiapp"></span>
+              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+            </button>
+            <div class="op-acc-b">
+            <div class="op-card-body">
+              <div class="op-row">
+                <div class="op-row-text">
+                  <div class="op-label">Sonido al asignarle un pedido</div>
+                  <div class="op-hint">El domiciliario lleva el celular en el bolsillo con la pantalla apagada: un pedido que aparece en silencio es un pedido que se queda esperando. Se oye apenas lo tocas, para que escojas oyendo. <b>Encenderlo o apagarlo es de cada celular</b>, desde la campanita de la app.</div>
+                </div>
+              </div>
+              <div id="op-domi-tonos" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px"></div>
+              <div class="op-row" style="margin-top:12px">
+                <div class="op-row-text"><div class="op-label">Volumen</div></div>
+                <div class="op-control" style="display:flex;align-items:center;gap:10px">
+                  <input type="range" id="op-domi-vol" min="0" max="100" step="5" style="width:170px">
+                  <span id="op-domi-vol-val" style="font-size:12.5px;font-weight:700;color:#475569;min-width:38px;text-align:right">80%</span>
+                </div>
+              </div>
+            </div>
+            </div>
+          </div>
+
           <div class="op-acc" data-acc="meta">
             <button type="button" class="op-acc-h" onclick="opAcc('meta')">
               <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg></span>
@@ -3230,7 +3260,7 @@
 <script src="pos-notify.js?v=1792390000"></script>
 <script src="pos-vars.js?v=1790460000"></script>
 <script src="pos-vars-ui.js?v=1790530000"></script>
-<script src="configuracion.js?v=1792380000"></script>
+<script src="configuracion.js?v=1792510000"></script>
 </body>
 </html>
 

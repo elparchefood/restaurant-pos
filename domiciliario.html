@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="domiciliario.css?v=1792500000">
+<link rel="stylesheet" href="domiciliario.css?v=1792510000">
 </head>
 <body>
 <!-- Sin conexion: se muestra solo cuando hace falta. -->
@@ -327,6 +327,14 @@
     <div class="mp-dist" id="mapa-dist"></div>
   </div>
 
+  <!-- Con varios pedidos se pasa de uno a otro aqui mismo. Antes el boton del
+       mapa abria uno y no habia forma de ver los demas sin salirse. -->
+  <div class="mp-pasar" id="mapa-pasar" hidden>
+    <button class="mp-flecha" id="mapa-antes" aria-label="Pedido anterior"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></button>
+    <div class="mp-dots" id="mapa-dots"></div>
+    <button class="mp-flecha" id="mapa-siguiente" aria-label="Pedido siguiente"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></button>
+  </div>
+
   <!-- LA BANDA ROJA. Sale cuando Google NO encontro la direccion y devolvio
        un punto inventado. Antes esto se decia con un "aprox." diminuto en la
        esquina y por eso un pedido de Llanos de Calibio mostro el centro de
@@ -355,6 +363,30 @@
   </div>
 </div>
 
+<!-- ══ AVISOS — lo que ha pasado en el turno ══
+     La campanita estaba puesta y no hacia nada. Aqui se cuenta lo que paso, en
+     orden, y se decide si este celular suena o no. -->
+<div class="ov" id="ov-avisos" hidden>
+  <div class="sheet">
+    <span class="grab"></span>
+    <div class="sh-head">
+      <span class="no" style="font-variant-numeric:normal">Avisos</span>
+      <button class="btn-o" style="width:auto;min-height:36px;padding:0 13px;font-size:12px;margin-left:auto;border-radius:11px" id="btn-cerrar-avisos">Cerrar</button>
+    </div>
+    <div class="sh-body">
+      <button class="av-son" id="av-son">
+        <span class="av-son-ic" id="av-son-ic"></span>
+        <span class="av-son-tx">
+          <b id="av-son-t">Sonido en este celular</b>
+          <small id="av-son-s">Suena cuando te asignan un pedido</small>
+        </span>
+        <span class="av-son-sw" id="av-son-sw"><i></i></span>
+      </button>
+      <div id="av-lista"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ TOAST — oculto por defecto ══ -->
 <div class="toast" id="toast" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg><span id="toast-msg">Pedido #1042 entregado</span></div>
 
@@ -364,6 +396,8 @@
      y en el domiciliario queda a la vista la maqueta con clientes falsos.
      Ya paso una vez con la pantalla de cocina. -->
 <script src="vendor/supabase-2.js?v=1789520000"></script>
-<script src="domiciliario.js?v=1792500000"></script>
+<!-- Los tonos, afinados una sola vez para todo Cobra. -->
+<script src="pos-notify.js?v=1792500000"></script>
+<script src="domiciliario.js?v=1792510000"></script>
 </body>
 </html>
