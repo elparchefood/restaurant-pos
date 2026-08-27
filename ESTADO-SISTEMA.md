@@ -3760,46 +3760,31 @@ agregarlo cuando haya volumen.
 
 ---
 
-## PENDIENTE — EL DOMICILIARIO LLEGA A LA PORTERÍA, NO A LA PUERTA — 26-ago-2026
+## RESUELTO — La ruta del domiciliario ya está bien como está — 26-ago-2026
 
-**Lo que YA funciona y no hay que construir:** la app del domiciliario tiene
-dos botones de «Ruta» (`verRuta()` en `domiciliario.js`) que abren **Google
-Maps con navegación paso a paso**. No es un mapa dibujado dentro de Cobra: es
-Google Maps de verdad, que es lo que un domiciliario ya sabe usar. Le manda
-`dirección + barrio + ciudad`, y la ciudad sale de `branches.city`
-(verificado: Popayán en El Parche — sin eso, Google lo mandaría a la misma
-dirección en otra ciudad).
+**No hay nada pendiente aquí. Se anota para que nadie lo vuelva a «arreglar».**
 
-**El límite.** Se le manda a Google **la dirección escrita**, no el punto.
-Comprobado en la base: `pos_orders` **no guarda ninguna coordenada**, solo el
-texto dentro de `notes`. Con direcciones normales Google acierta:
+**Cómo funciona:** la app tiene dos botones de «Ruta» (`verRuta()` en
+`domiciliario.js`) que abren **Google Maps con navegación paso a paso**. No es
+un mapa dibujado dentro de Cobra: es Google Maps de verdad, que es lo que un
+domiciliario ya sabe usar. Se le manda `dirección + barrio + ciudad`, y la
+ciudad sale de `branches.city` (verificado: Popayán en El Parche — sin eso,
+Google lo mandaría a la misma dirección en otra ciudad).
 
-```
-Carrera 4B # 69N - 34 · LA PAZ · Popayán     →  bien
-Calle 25 N #1-84 · SOTARA · Popayán          →  bien
-```
+**Lo que propuse y Sergio descartó, con razón.** Yo planteé guardar las
+**coordenadas** del cliente al pedir, porque con direcciones como «Ciudadela
+llanos de calibio, torre b apto 605» Google encuentra el conjunto pero no la
+torre. Su respuesta: *"ningún mapa lleva hasta la puerta, que llegue al
+conjunto es suficiente"*.
 
-Con estas no, y son pedidos REALES de El Parche:
+Y es correcto: ningún navegador entra a un apartamento. Llegar al conjunto es
+lo que hace falta, y de ahí el domiciliario llama al cliente — el teléfono ya
+va en la comanda. Guardar coordenadas habría sido añadir columnas, cambiar el
+flujo de pedido y montar un mapa en la página de clientes **para resolver los
+últimos treinta metros, que no se resuelven con un mapa sino con una llamada**.
 
-```
-Ciudadela llanos de calibio, torre b apto 605
-Condominio mirador del Sol variante norte Apartamento 508 torre A
-```
-
-Google encuentra el conjunto pero no la torre ni el apartamento. El
-domiciliario llega a la portería y de ahí en adelante se las arregla — que es
-probablemente lo que pasa hoy sin que nadie lo haya medido.
-
-**La solución de fondo, y dónde decidirla.** Guardar **las coordenadas** cuando
-el cliente pide, no la frase. Eso encaja con la **página de clientes** que está
-en diseño: si el cliente marca su punto en un mapa al pedir, el domiciliario
-recibe el punto y llega a la torre, no a la portería.
-
-- [ ] Decidir esto **al diseñar la página de clientes**, no después: añadir el
-      punto a un pedido ya hecho es rehacer el flujo.
-- [ ] Columnas `lat`/`lng` en `pos_orders` (hoy no existen).
-- [ ] `verRuta()` usa el punto si lo hay, y la dirección escrita si no — nunca
-      dejar al domiciliario sin ruta por falta de coordenada.
+**Regla que deja esto:** antes de proponer trabajo, comprobar que el problema
+existe en la calle y no solo en la pantalla.
 
 ## PENDIENTE — VERIFICAR: ¿sale ya Cobra Cocina en el inicio del Fire Stick? — 26-ago-2026
 
