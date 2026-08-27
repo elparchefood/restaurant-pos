@@ -1623,9 +1623,16 @@
         libreria de Google tarda un segundo o dos, y en ese rato el telefono ya
         consiguio una posicion: asi la busqueda sale con el punto de HOY en vez
         del recordado de ayer. */
+    /*  El GPS arranca YA, y mas abajo se le espera un momento antes de
+        preguntar la direccion. `primera` se cumple con la primera posicion
+        que llegue, sea buena o tosca: para saber EN QUE CIUDAD buscar, una
+        lectura de dos cuadras de margen sirve igual que una perfecta.      */
+    var primera = null;
+    var llegoPrimera = new Promise(function (ok) { primera = ok; });
     MAPA.previaBusca = ubicarme(function (p) {
       recordarPos(p);
       pintarYo(p);
+      if (primera) { primera(); primera = null; }
     });
 
     paso(2, 'cargando Google');
@@ -1634,6 +1641,25 @@
 
     //  2) Dónde queda la casa. Lo resuelve el servidor y lo deja guardado,
     //     así que la segunda vez que se abre el mismo pedido es instantáneo.
+    /*  SE LE ESPERA AL GPS ANTES DE PREGUNTAR, Y ESTO NO ES OPCIONAL.
+
+        Sin posicion, el servidor cae al respaldo: la ciudad escrita en la
+        ficha de la sede. Si esa ciudad esta mal —y ya estuvo mal dos veces—
+        Google contesta una casa de esa otra ciudad, y ese punto QUEDA GUARDADO
+        para siempre bajo esa clave: el error se congela y ni siquiera se
+        vuelve a preguntar.
+
+        Cinco segundos de espera valen mas que un mapa que abre rapido y manda
+        a cien kilometros. Si en cinco segundos no hay nada, se sigue igual con
+        el respaldo — nunca dejar al domiciliario sin mapa.                  */
+    if (!posConocida()) {
+      paso(3, 'buscando dónde estás');
+      await Promise.race([
+        llegoPrimera,
+        new Promise(function (ok) { setTimeout(ok, 5000); }),
+      ]);
+    }
+
     var g;
     paso(3, 'buscando la dirección');
     try {
