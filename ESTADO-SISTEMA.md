@@ -3801,6 +3801,44 @@ recibe el punto y llega a la torre, no a la portería.
 - [ ] `verRuta()` usa el punto si lo hay, y la dirección escrita si no — nunca
       dejar al domiciliario sin ruta por falta de coordenada.
 
+## PENDIENTE — VERIFICAR: ¿sale ya Cobra Cocina en el inicio del Fire Stick? — 26-ago-2026
+
+**Sergio lo prueba mañana.** Instala la **1.5** y avisa.
+
+**Ojo con cómo se prueba:** hay que **DESINSTALAR** la anterior primero, no
+actualizar encima. Fire OS crea la entrada del inicio **al instalar**, y la
+primera versión que se instaló no declaraba nada de televisión; actualizando
+encima puede no volver a mirarlo nunca.
+
+**Qué se corrigió y por qué se cree que era eso.** El ícono y el banner estaban
+solo en `<application>`. El lanzador de un televisor los lee **de la
+actividad**, y ahí salían vacíos:
+
+```
+antes   leanback-launchable-activity: icon=''  banner=''
+ahora   leanback-launchable-activity: icon='...ic_launcher.xml'
+                                      banner='...tv_banner.png'
+```
+
+Un televisor no puede pintar una tarjeta sin imagen.
+
+**Anotado también el error de razonamiento**, para no repetirlo: primero dije
+que Fire OS no muestra las apps instaladas a mano y que era decisión de
+Amazon. Sergio corrigió — a él sí le aparecen otras. Cuando el usuario tiene
+experiencia directa que contradice una regla general, la regla general es la
+que está mal.
+
+### PLAN B, decidido con Sergio: la tienda de Amazon
+
+Si con la 1.5 sigue sin aparecer, **no se sigue investigando**: se sube a la
+tienda. Es gratis, la revisión es tranquila, y hay que hacerlo igual el día que
+Cobra se le venda a otro restaurante — nadie va a instalar nada con Downloader.
+Lo que hace falta está en el pendiente de las tiendas, aquí abajo.
+
+**Mientras tanto la pantalla funciona igual:** la APK **arranca sola al
+encender** el Fire Stick, así que aunque no salga en el inicio, nadie tiene que
+buscarla.
+
 ## PENDIENTE — SUBIR LAS APK A LAS TIENDAS — Sergio 2026-08-26
 
 Decisión suya, para hacer **más adelante**, no ahora: *"lo vamos a hacer todo
