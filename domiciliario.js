@@ -701,7 +701,9 @@
      la caja está abierta y queda cupo. La ruta ni siquiera se calcula aquí:
      la dibuja el servidor con la otra llave, la que nunca sale.            */
 
-  var MAPA = { cargando: null, api: false, mapa: null, marcaCasa: null, marcaYo: null, linea: null, pedido: null };
+  var MAPA = { cargando: null, api: false, mapa: null, marcaCasa: null, marcaYo: null,
+    linea: null, pedido: null, casa: null, aprox: false,
+    andando: false, vigia: null, latido: null, despierto: null };
 
   function mapaAviso(tx, sub, girando) {
     var av = $('mapa-aviso'); if (!av) return;
@@ -762,11 +764,20 @@
     if ($('mapa-dir')) $('mapa-dir').textContent = [p.direccion, p.barrio].filter(Boolean).join(' · ');
     if ($('mapa-dist')) $('mapa-dist').textContent = '';
     if ($('ov-mapa')) $('ov-mapa').hidden = false;
+    if ($('mapa-alerta')) $('mapa-alerta').hidden = true;
+    if ($('btn-mapa-iniciar')) $('btn-mapa-iniciar').disabled = false;
+    MAPA.aprox = false; MAPA.casa = null;
     mapaAviso('Abriendo el mapa…', '', true);
     armarMapa(p);
   }
 
-  function cerrarMapa() { if ($('ov-mapa')) $('ov-mapa').hidden = true; }
+  function cerrarMapa() {
+    /* Apagar el seguimiento al salir NO es limpieza de adorno: `watchPosition`
+       deja el GPS prendido, y el GPS es lo que más batería gasta en un
+       celular que va a estar toda la tarde en la calle. */
+    detenerRuta();
+    if ($('ov-mapa')) $('ov-mapa').hidden = true;
+  }
 
   async function armarMapa(p) {
     //  1) La llave. Si no la dan, el servidor dice POR QUÉ y eso se muestra
@@ -796,6 +807,7 @@
     if (g.sin_conectar || !g.lat || !g.lng) { mapaAviso('El mapa no está configurado', '', false); return; }
 
     var casa = { lat: Number(g.lat), lng: Number(g.lng) };
+    MAPA.casa = casa;
     mapaAviso(null);
 
     MAPA.mapa = new google.maps.Map($('mapa-lienzo'), {
@@ -810,9 +822,27 @@
     MAPA.marcaCasa = new google.maps.Marker({
       map: MAPA.mapa, position: casa, title: p.cliente || 'Destino'
     });
-    /* Si Google solo llegó al barrio, se dice. Un punto aproximado dado con
-       confianza manda al domiciliario a la casa equivocada. */
-    if (g.aproximada && $('mapa-dist')) $('mapa-dist').textContent = 'aprox.';
+    /*  CUANDO GOOGLE NO ENCONTRÓ LA CASA.
+
+        Google no responde "no sé": responde el centro del barrio o del pueblo,
+        y ese punto se ve igual de normal que una dirección exacta. Cobra ya lo
+        detectaba — pero lo decía con un "aprox." minúsculo en la esquina, y
+        así un pedido para Llanos de Calibío mostró el centro de Cali sin que
+        nada chillara.
+
+        Ahora se dice con una banda roja y, sobre todo, NO SE DIBUJA LA RUTA:
+        una línea bonita hasta un punto inventado es peor que no tener mapa,
+        porque el domiciliario la sigue creyendo que va bien.              */
+    MAPA.aprox = !!g.aproximada;
+    if (MAPA.aprox) {
+      if ($('mapa-alerta')) $('mapa-alerta').hidden = false;
+      if ($('mapa-alerta-tx')) {
+        $('mapa-alerta-tx').textContent = 'Google no encontró esta dirección exacta. '
+          + 'Este punto es aproximado — llámala al cliente antes de arrancar.';
+      }
+      if ($('btn-mapa-iniciar')) $('btn-mapa-iniciar').disabled = true;
+      return;
+    }
 
     //  3) Y la línea, si el GPS quiere colaborar. Si no, el mapa igual sirve.
     pintarRuta(casa);
@@ -859,14 +889,84 @@
     }, function () { toast('Activa el GPS'); }, { timeout: 8000, enableHighAccuracy: true });
   }
 
-  /* Para MANEJAR hace falta la voz, y eso solo lo da la app de Google. El mapa
-     de Cobra es para orientarse antes de arrancar; este botón es para el
-     camino. Es una opción, ya no lo que pasa solo al tocar "en ruta". */
-  function navegarConVoz() {
-    var p = MAPA.pedido; if (!p) return;
-    var destino = [p.direccion, p.barrio, S.ciudad].filter(Boolean).join(', ');
-    window.open('https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='
-      + encodeURIComponent(destino), '_blank');
+  /* ══════════════════════════════════════════════════════════════
+     "INICIAR" — la ruta andando, dentro de Cobra
+     ══════════════════════════════════════════════════════════════
+     Tres cosas, que son las que hacen que se sienta como Google Maps:
+
+       1. El mapa SIGUE al domiciliario. Cada posición nueva del GPS mueve la
+          cámara con él.
+       2. Los puntos CORREN sobre la línea, hacia el destino. Eso es lo que la
+          hace ver encendida y no un dibujo quieto.
+       3. La pantalla NO SE APAGA mientras dure. Un domiciliario no puede ir
+          desbloqueando el teléfono en cada esquina.                       */
+
+  function iniciarRuta() {
+    if (MAPA.andando) { detenerRuta(); return; }
+    if (!MAPA.mapa || !MAPA.casa) { toast('El mapa aún no está listo'); return; }
+    if (MAPA.aprox) { toast('Esta dirección no está confirmada'); return; }
+    if (!navigator.geolocation) { toast('Este equipo no tiene ubicación'); return; }
+
+    MAPA.andando = true;
+    var b = $('btn-mapa-iniciar');
+    if (b) b.classList.add('andando');
+    if ($('mapa-iniciar-tx')) $('mapa-iniciar-tx').textContent = 'Detener';
+
+    //  1) La cámara va detrás del domiciliario.
+    MAPA.mapa.setZoom(17);
+    MAPA.vigia = navigator.geolocation.watchPosition(function (pos) {
+      var yo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      if (MAPA.marcaYo) MAPA.marcaYo.setPosition(yo);
+      if (MAPA.mapa) MAPA.mapa.panTo(yo);
+    }, function () {}, { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 });
+
+    //  2) Los puntos corriendo. El truco es mover el `offset` del símbolo: la
+    //     línea no se toca, solo se desplazan los puntos por encima.
+    if (MAPA.linea) {
+      MAPA.linea.setOptions({
+        strokeOpacity: .45,
+        icons: [{
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE, scale: 3.2,
+            fillColor: '#5B6BFF', fillOpacity: 1, strokeColor: '#5B6BFF', strokeWeight: 1
+          },
+          offset: '0%', repeat: '42px'
+        }]
+      });
+      var d = 0;
+      MAPA.latido = setInterval(function () {
+        d = (d + 1) % 200;
+        var ic = MAPA.linea.get('icons');
+        if (!ic) return;
+        ic[0].offset = (d / 2) + '%';
+        MAPA.linea.set('icons', ic);
+      }, 55);
+    }
+
+    //  3) Que no se apague la pantalla. Si el navegador no lo permite, se sigue
+    //     sin eso: no es motivo para no arrancar.
+    try {
+      if (navigator.wakeLock && navigator.wakeLock.request) {
+        navigator.wakeLock.request('screen')
+          .then(function (w) { MAPA.despierto = w; })
+          .catch(function () {});
+      }
+    } catch (e) {}
+
+    toast('Ruta iniciada');
+  }
+
+  function detenerRuta() {
+    if (MAPA.vigia !== null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(MAPA.vigia); MAPA.vigia = null;
+    }
+    if (MAPA.latido) { clearInterval(MAPA.latido); MAPA.latido = null; }
+    if (MAPA.linea) MAPA.linea.setOptions({ strokeOpacity: .9, icons: [] });
+    if (MAPA.despierto) { try { MAPA.despierto.release(); } catch (e) {} MAPA.despierto = null; }
+    MAPA.andando = false;
+    var b = $('btn-mapa-iniciar');
+    if (b) b.classList.remove('andando');
+    if ($('mapa-iniciar-tx')) $('mapa-iniciar-tx').textContent = 'Iniciar';
   }
 
   /* ══════════════════════════════════════════════════════════════════
@@ -909,7 +1009,7 @@
 
       if (t.closest('#btn-mapa-volver')) { cerrarMapa(); return; }
       if (t.closest('#btn-mapa-yo')) { centrarEnMi(); return; }
-      if (t.closest('#btn-mapa-google')) { navegarConVoz(); return; }
+      if (t.closest('#btn-mapa-iniciar')) { iniciarRuta(); return; }
 
       if (t.closest('#btn-cerrar-detalle')) { cerrarTodo(); return; }
       if (t.closest('#btn-volver-detalle')) { $('ov-cobro').hidden = true; return; }

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="domiciliario.css?v=1792461000">
+<link rel="stylesheet" href="domiciliario.css?v=1792470000">
 </head>
 <body>
 <!-- Sin conexion: se muestra solo cuando hace falta. -->
@@ -322,6 +322,15 @@
     <div class="mp-dist" id="mapa-dist"></div>
   </div>
 
+  <!-- LA BANDA ROJA. Sale cuando Google NO encontro la direccion y devolvio
+       un punto inventado. Antes esto se decia con un "aprox." diminuto en la
+       esquina y por eso un pedido de Llanos de Calibio mostro el centro de
+       Cali como si nada. -->
+  <div class="mp-alerta" id="mapa-alerta" hidden>
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path></svg>
+    <span id="mapa-alerta-tx">Google no encontró esta dirección. El punto es aproximado.</span>
+  </div>
+
   <div class="mp-lienzo">
     <div id="mapa-lienzo"></div>
     <!-- Encima del lienzo: girando mientras carga, o diciendo por que no
@@ -335,9 +344,9 @@
 
   <div class="mp-pie">
     <button class="btn-o" id="btn-mapa-yo"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></svg> Dónde estoy</button>
-    <!-- Para manejar en moto hace falta la voz, y eso solo lo da la app de
-         Google. El mapa de Cobra es para ORIENTARSE antes de arrancar. -->
-    <button class="btn-o brand" id="btn-mapa-google"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l19-9-9 19-2-8-8-2z"></path></svg> Navegar con voz</button>
+    <!-- ARRANCA LA RUTA DENTRO DE COBRA: el mapa sigue al domiciliario y los
+         puntos corren sobre la linea, como en Google Maps al darle Iniciar. -->
+    <button class="btn-p" id="btn-mapa-iniciar" style="min-height:46px;border-radius:14px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"></path></svg> <span id="mapa-iniciar-tx">Iniciar</span></button>
   </div>
 </div>
 
@@ -350,6 +359,6 @@
      y en el domiciliario queda a la vista la maqueta con clientes falsos.
      Ya paso una vez con la pantalla de cocina. -->
 <script src="vendor/supabase-2.js?v=1789520000"></script>
-<script src="domiciliario.js?v=1792461000"></script>
+<script src="domiciliario.js?v=1792470000"></script>
 </body>
 </html>
