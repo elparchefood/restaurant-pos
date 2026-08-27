@@ -1120,7 +1120,7 @@
      `maximumAge: 0` para que no reciclen una lectura vieja del bolsillo.   */
   function ubicarme(alPunto, alFallar) {
     if (!navigator.geolocation) { if (alFallar) alFallar(); return null; }
-    var mejor = null, id = null, fin = null;
+    var mejor = null, id = null, fin = null, n = 0;
 
     function cerrar() {
       if (id !== null) { try { navigator.geolocation.clearWatch(id); } catch (e) {} id = null; }
@@ -1128,24 +1128,76 @@
     }
 
     id = navigator.geolocation.watchPosition(function (pos) {
+      n++;
       var p = {
         lat: pos.coords.latitude, lng: pos.coords.longitude,
         error: pos.coords.accuracy == null ? 9999 : pos.coords.accuracy,
-        rumbo: pos.coords.heading,
+        rumbo: pos.coords.heading, n: n,
       };
-      //  Solo se acepta lo que MEJORA. Si no, un rebote del wifi devuelve el
-      //  punto malo despues de que el GPS ya habia acertado.
+      //  Solo se acepta lo que MEJORA: un rebote del wifi devuelve el punto
+      //  malo despues de que el GPS ya habia acertado.
       if (mejor && p.error > mejor.error) return;
       mejor = p;
-      alPunto(p, p.error <= 20);
-      if (p.error <= 20) cerrar();
+      alPunto(p, false);
     }, function () {
       cerrar();
       if (!mejor && alFallar) alFallar();
-    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: VENTANA + 2000 });
 
-    fin = setTimeout(cerrar, 20000);
+    /*  NO SE CORTA APENAS LLEGA UNA LECTURA "BUENA", Y ESTO ERA UN FALLO MIO.
+
+        Antes se paraba en cuanto el margen bajaba de 20 metros. Suena
+        razonable y esta mal: la posicion por antenas y wifi TAMBIEN reporta
+        margenes de 15 o 20 metros en una ciudad —se cree exacta— y estando a
+        una cuadra. Al cortar ahi, el GPS de verdad, que llega despues, no
+        alcanzaba a hablar nunca.
+
+        Ahora se escucha la ventana completa y se avisa al final cual quedo.
+        Son unos segundos mas de espera; el mapa mientras tanto ya muestra
+        algo y se va corrigiendo solo.                                     */
+    fin = setTimeout(function () {
+      cerrar();
+      if (mejor) alPunto(mejor, true);
+      else if (alFallar) alFallar();
+    }, VENTANA);
     return { parar: cerrar };
+  }
+
+  /*  Cuanto se espera al GPS. Doce segundos es lo que tarda un telefono en
+      pasar de la posicion por antenas a la del satelite estando a la
+      intemperie; bajo techo no llega nunca y por eso hay tope.            */
+  var VENTANA = 12000;
+
+  /*  QUE TAN BUENA ES LA LECTURA, DICHO EN PANTALLA.
+
+      Sin esto, "el punto esta cerca pero no donde estoy" es una queja que no
+      se puede perseguir: no hay forma de saber si el telefono esta dando 15
+      metros o 1.200. Ahora el numero esta a la vista.
+
+      Y por encima de 100 metros no es un GPS lento: es que Android tiene la
+      ubicacion en modo APROXIMADA para esta app. Ese permiso devuelve el punto
+      corrido a proposito, siempre, y no mejora por esperar. Se dice como se
+      arregla, porque nadie lo va a adivinar.                              */
+  function pintarPrecision(p, definitivo) {
+    var el = $('mapa-precision');
+    if (!el) return;
+    if (!p) { el.hidden = true; return; }
+    var m = Math.round(p.error);
+    el.hidden = false;
+    if (m > 100) {
+      el.className = 'mp-prec mala';
+      el.textContent = definitivo
+        ? 'Tu punto esta a \u00b1' + m + ' m. Android le esta dando ubicaci\u00f3n APROXIMADA a esta app: '
+          + 'Ajustes \u2192 Aplicaciones \u2192 Cobra Domicilios \u2192 Permisos \u2192 Ubicaci\u00f3n \u2192 Usar ubicaci\u00f3n precisa.'
+        : 'Buscando el sat\u00e9lite\u2026 por ahora \u00b1' + m + ' m';
+    } else if (m > 30) {
+      el.className = 'mp-prec media';
+      el.textContent = definitivo ? 'Tu punto: \u00b1' + m + ' m' : 'Afinando\u2026 \u00b1' + m + ' m';
+    } else {
+      el.className = 'mp-prec';
+      el.hidden = definitivo && m <= 20;   // si quedo bien, no hace falta decirlo
+      el.textContent = '\u00b1' + m + ' m';
+    }
   }
 
   function verRuta() {
@@ -1204,6 +1256,7 @@
     MAPA.yo = null;
     seguir(false);
     if ($('mapa-centrar')) $('mapa-centrar').hidden = true;
+    if ($('mapa-precision')) $('mapa-precision').hidden = true;
     mapaAviso('Abriendo el mapa…', '', true);
     armarMapa(p);
   }
@@ -1324,6 +1377,7 @@
       });
     }
     MAPA.yo = pos;
+    MAPA.error = p.error;
   }
 
   async function trazar(casa, yo) {
@@ -1354,13 +1408,14 @@
         corrige en cada mejora —eso es gratis—, pero cada trazo es una llamada
         a Google que se paga, y el GPS mejora cuatro o cinco veces seguidas. */
     var trazos = 0;
-    MAPA.buscando = ubicarme(function (p, bueno) {
+    MAPA.buscando = ubicarme(function (p, definitivo) {
       pintarYo(p);
-      if (trazos === 0 || bueno) {
+      pintarPrecision(p, definitivo);
+      if (trazos === 0 || definitivo) {
         trazos++;
         trazar(casa, { lat: p.lat, lng: p.lng });
       }
-      if (bueno && MAPA.buscando) MAPA.buscando = null;
+      if (definitivo) MAPA.buscando = null;
     });
     /* Sin GPS no hay l\u00ednea, pero el mapa con la casa marcada ya sirve para
        orientarse. No se avisa nada: no falt\u00f3 nada importante. */
@@ -1404,6 +1459,11 @@
     if (MAPA.aprox) { toast('Esta dirección no está confirmada'); return; }
     if (!navigator.geolocation) { toast('Este equipo no tiene ubicación'); return; }
 
+    /*  La busqueda de arranque puede seguir viva y reencuadrando el mapa. Si
+        se deja, se pelea con el viaje: uno centra en el domiciliario y la otra
+        vuelve a encuadrar el recorrido entero. */
+    if (MAPA.buscando) { MAPA.buscando.parar(); MAPA.buscando = null; }
+
     MAPA.andando = true;
     var b = $('btn-mapa-iniciar');
     if (b) b.classList.add('andando');
@@ -1423,6 +1483,7 @@
          moviendo, y quedarse con la mejor de hace un minuto seria dejarlo
          clavado en una esquina por la que ya paso. */
       pintarYo(p);
+      pintarPrecision(p, true);
       if (MAPA.siguiendo && MAPA.mapa) MAPA.mapa.panTo({ lat: p.lat, lng: p.lng });
     }, function () {}, { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
 
@@ -1472,6 +1533,7 @@
     MAPA.andando = false;
     seguir(false);
     if ($('mapa-centrar')) $('mapa-centrar').hidden = true;
+    if ($('mapa-precision')) $('mapa-precision').hidden = true;
     var b = $('btn-mapa-iniciar');
     if (b) b.classList.remove('andando');
     if ($('mapa-iniciar-tx')) $('mapa-iniciar-tx').textContent = 'Iniciar';

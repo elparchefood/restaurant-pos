@@ -356,3 +356,16 @@ a{color:var(--brand);text-decoration:none}a:hover{color:var(--brand-press)}
 
 /* Cuando el viaje esta andando, la barra de abajo lo dice sin leer. */
 .mp-pie .btn-p.andando{background:var(--danger);box-shadow:none}
+
+/* El aviso de precision. Discreto cuando todo va bien; rojo y explicando que
+   hacer cuando el telefono esta dando la ubicacion corrida a proposito. */
+.mp-prec{
+  position:absolute;left:12px;right:12px;top:12px;z-index:5;
+  background:rgba(15,23,42,.82);color:#fff;
+  padding:8px 12px;border-radius:12px;
+  font-size:11.5px;font-weight:600;line-height:1.45;text-align:center;
+  backdrop-filter:blur(6px);
+}
+.mp-prec[hidden]{display:none !important}
+.mp-prec.media{background:rgba(180,83,9,.92)}
+.mp-prec.mala{background:rgba(185,28,28,.94);text-align:left}
