@@ -78,12 +78,16 @@
     if (!t.trim()) return { direccion: '', barrio: '', tel: '' };
     var mB = t.match(/\[barrio:([^\]]*)\]/i);
     var mT = t.match(/\[tel:([^\]]*)\]/i);
+    var mC = t.match(/\[conjunto:([^\]]*)\]/i);
+    var mU = t.match(/\[unidad:([^\]]*)\]/i);
     var corte = t.indexOf('[');
     var dir = corte >= 0 ? t.slice(0, corte).trim() : t.trim();
     dir = dir.replace(/[—\-·,\s]+$/, '').trim();
     return {
       direccion: dir,
       barrio: mB ? mB[1].trim() : '',
+      conjunto: mC ? mC[1].trim() : '',
+      unidad: mU ? mU[1].trim() : '',
       tel: mT ? mT[1].trim() : ''
     };
   }
@@ -234,6 +238,7 @@
         no: String(o.id).slice(0, 4).toUpperCase(),
         cliente: o.customer_name || 'Sin nombre',
         direccion: d.direccion, barrio: d.barrio, tel: d.tel,
+        conjunto: d.conjunto, unidad: d.unidad,
         total: (Number(o.total) || 0) + (Number(o.delivery_fee) || 0),
         estado: ESTADO_APP[o.delivery_status] || 'asignado',
         pago: pagado ? 'pagado' : 'contra',
@@ -758,10 +763,11 @@
   function verRuta() {
     var p = S.abierto || activos()[0];
     if (!p) { toast('No hay ningún pedido activo'); return; }
-    if (!p.direccion) { toast('Este pedido no tiene dirección'); return; }
+    if (!p.direccion && !p.conjunto) { toast('Este pedido no tiene dirección'); return; }
     MAPA.pedido = p;
     if ($('mapa-cliente')) $('mapa-cliente').textContent = p.cliente || 'Pedido #' + p.no;
-    if ($('mapa-dir')) $('mapa-dir').textContent = [p.direccion, p.barrio].filter(Boolean).join(' · ');
+    if ($('mapa-dir')) $('mapa-dir').textContent =
+      [p.conjunto, p.unidad, p.direccion, p.barrio].filter(Boolean).join(' · ');
     if ($('mapa-dist')) $('mapa-dist').textContent = '';
     if ($('ov-mapa')) $('ov-mapa').hidden = false;
     if ($('mapa-alerta')) $('mapa-alerta').hidden = true;
@@ -799,7 +805,8 @@
     //     así que la segunda vez que se abre el mismo pedido es instantáneo.
     var g;
     try {
-      g = await llamarMapa({ accion: 'geocodificar', direccion: p.direccion, barrio: p.barrio || '', ciudad: S.ciudad || '' });
+      g = await llamarMapa({ accion: 'geocodificar', direccion: p.direccion, barrio: p.barrio || '',
+        ciudad: S.ciudad || '', conjunto: p.conjunto || '' });
     } catch (e) { mapaAviso('No hay señal', '', false); return; }
 
     if (g.no_encontrada) { mapaAviso('No se encontró esa dirección', 'Llámala al cliente para que te oriente.', false); return; }

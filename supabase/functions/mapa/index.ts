@@ -242,6 +242,47 @@ async function puntoCiudad(tenant: string, ciudad: string, clave: string):
 async function buscarPorNombre(
   texto: string, ancla: { lat: number; lng: number } | null, clave: string,
 ): Promise<{ lat: number; lng: number; nombre: string; direccion: string } | null> {
+  /*  GOOGLE TIENE DOS VERSIONES DE ESTO Y HAY QUE PROBAR LAS DOS.
+
+      La vieja (`maps.googleapis.com/.../textsearch`) es la que casi todos
+      los ejemplos de internet usan, pero Google dejo de habilitarla en los
+      proyectos nuevos. La nueva (`places.googleapis.com/v1`) es otra
+      direccion, otro formato y otra API que hay que prender aparte.
+
+      Cual de las dos tiene prendida un restaurante no se sabe de antemano,
+      asi que se intentan las dos y se deja escrito en el registro cual
+      contesto. Adivinar cual es ya costo una tarde.                     */
+
+  //  1) La nueva.
+  try {
+    const r = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": clave,
+        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.location",
+      },
+      body: JSON.stringify({
+        textQuery: texto, languageCode: "es", regionCode: "CO", maxResultCount: 3,
+        ...(ancla
+          ? { locationBias: { circle: { center: { latitude: ancla.lat, longitude: ancla.lng }, radius: 50000 } } }
+          : {}),
+      }),
+    });
+    const j = await r.json().catch(() => null);
+    const p = j?.places?.[0];
+    if (p?.location) {
+      console.log("[mapa] places-nuevo OK", texto, "->", p.displayName?.text);
+      return {
+        lat: Number(p.location.latitude), lng: Number(p.location.longitude),
+        nombre: String(p.displayName?.text || ""),
+        direccion: String(p.formattedAddress || ""),
+      };
+    }
+    console.error("[mapa] places-nuevo sin resultado", texto, r.status, JSON.stringify(j?.error || j).slice(0, 300));
+  } catch (e) { console.error("[mapa] places-nuevo", String(e)); }
+
+  //  2) La vieja.
   let url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
     + "?query=" + encodeURIComponent(texto)
     + "&region=co&language=es&key=" + encodeURIComponent(clave);
@@ -249,21 +290,20 @@ async function buscarPorNombre(
   //  Comfandi" en media Colombia y la buena es la de esta ciudad.
   if (ancla) url += "&location=" + ancla.lat + "," + ancla.lng + "&radius=50000";
 
-  const r = await fetch(url);
-  const j = await r.json().catch(() => null);
-  if (j?.status !== "OK" || !j?.results?.length) {
-    if (j?.status && j.status !== "ZERO_RESULTS") {
-      console.error("[mapa] places", j.status, j.error_message);
-    }
+  const r2 = await fetch(url);
+  const j2 = await r2.json().catch(() => null);
+  if (j2?.status !== "OK" || !j2?.results?.length) {
+    console.error("[mapa] places-viejo", texto, j2?.status, j2?.error_message);
     return null;
   }
-  const p = j.results[0];
-  const loc = p.geometry?.location;
+  const p2 = j2.results[0];
+  const loc = p2.geometry?.location;
   if (!loc) return null;
+  console.log("[mapa] places-viejo OK", texto, "->", p2.name);
   return {
     lat: Number(loc.lat), lng: Number(loc.lng),
-    nombre: String(p.name || ""),
-    direccion: String(p.formatted_address || ""),
+    nombre: String(p2.name || ""),
+    direccion: String(p2.formatted_address || ""),
   };
 }
 
@@ -879,6 +919,16 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
   const dir = String(body.direccion || "").trim();
   const barrio = String(body.barrio || "").trim();
   const ciudad = String(body.ciudad || "").trim();
+  /*  EL CONJUNTO, DICHO POR EL CAJERO Y NO ADIVINADO.
+
+      Antes el nombre del conjunto llegaba metido en el campo del barrio y
+      aqui habia que deducir si "LLANOS DE CALIBIO" era un barrio o un nombre
+      propio. Se dedujo mal y el pedido acabo marcando otra ciudad. Ahora la
+      pantalla de domicilios tiene su campo aparte y lo manda dicho.
+
+      Lo de abajo (deducirlo) se queda, pero solo como respaldo para los
+      pedidos viejos y para los que entran por el chat.                    */
+  const conjDicho = String(body.conjunto || "").trim();
   if (!dir && !barrio) return mal("Falta la dirección");
 
   /*  PRIMERO: ¿es un conjunto?
@@ -928,11 +978,13 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
            de Llanos de Calibio, y es el mas comun de los tres: el cajero
            escribe la casa en un campo y la ciudadela en el otro.        */
   const cn = canonizar(dir);
-  const dirEsNombre = !cn.estructurada && !direccionSinNombre(dir);
-  const barrioEsNombre = !conj && !dirEsNombre && direccionSinNombre(dir)
+  const dirEsNombre = !conjDicho && !cn.estructurada && !direccionSinNombre(dir);
+  const barrioEsNombre = !conjDicho && !conj && !dirEsNombre && direccionSinNombre(dir)
     && !!barrio && !canonizar(barrio).estructurada;
 
-  const nombre = conj ? conj : (dirEsNombre ? cn.canonica : (barrioEsNombre ? mayus(barrio) : ""));
+  //  Lo dicho manda sobre lo deducido, siempre.
+  const nombre = conjDicho ? mayus(conjDicho)
+    : (conj ? conj : (dirEsNombre ? cn.canonica : (barrioEsNombre ? mayus(barrio) : "")));
 
   /*  Y si hay nombre, el punto se guarda POR NOMBRE, no por casa. La casa 32
       y la torre D del mismo conjunto llegan a la misma porteria: comparten

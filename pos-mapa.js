@@ -222,7 +222,10 @@
   /* ── Dónde queda una dirección ───────────────────────────────────────
      Pregunta al servidor, que mira PRIMERO lo que ya se sabe. A Google
      solo se le pregunta —y se le paga— por una direccion nueva. */
-  async function ubicar(direccion, barrio, ciudad) {
+  /* `conjunto` va aparte a proposito: es el dato que Google encuentra por
+     nombre, y mandarlo revuelto con el barrio obligaba al servidor a adivinar
+     cual de los dos era un nombre propio. */
+  async function ubicar(direccion, barrio, ciudad, conjunto) {
     var sb = cliente();
     if (!sb) return null;
     var ses = await sb.auth.getSession();
@@ -232,7 +235,7 @@
       var r = await fetch(SB_URL + '/functions/v1/mapa', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accion: 'geocodificar', direccion: direccion, barrio: barrio, ciudad: ciudad })
+        body: JSON.stringify({ accion: 'geocodificar', direccion: direccion, barrio: barrio, ciudad: ciudad, conjunto: conjunto || '' })
       });
       var j = await r.json();
       if (j && isFinite(j.lat) && isFinite(j.lng)) return j;

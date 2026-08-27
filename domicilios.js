@@ -114,14 +114,16 @@ function cliNormalize(c) {
   c.direcciones.forEach(d => { if (!d.id) d.id = cliDirId(); });
   // Fijar dirección activa: la que tenga dirId, o la primera
   const act = c.direcciones.find(d => d.id === c.dirId) || c.direcciones[0] || null;
-  if (act) { c.dir = act.dir; c.barrio = act.barrio; c.dirId = act.id; }
+  if (act) { c.dir = act.dir; c.barrio = act.barrio; c.dirId = act.id;
+    c.conjunto = act.conjunto || ''; c.unidad = act.unidad || ''; }
   return c;
 }
 // Cambia la dirección activa del cliente a la de id dado.
 function cliSetDir(c, dirId) {
   if (!c || !Array.isArray(c.direcciones)) return c;
   const d = c.direcciones.find(x => x.id === dirId) || c.direcciones[0];
-  if (d) { c.dir = d.dir; c.barrio = d.barrio; c.dirId = d.id; }
+  if (d) { c.dir = d.dir; c.barrio = d.barrio; c.dirId = d.id;
+    c.conjunto = d.conjunto || ''; c.unidad = d.unidad || ''; }
   return c;
 }
 try { (S.clientes || []).forEach(cliNormalize); } catch(e) {}
@@ -1510,16 +1512,55 @@ function renderCliList(q) {
 }
 
 // ── Direcciones múltiples: filas del modal ─────────────────────────────
+/* ════════════════════════════════════════════════════════════════════
+   UNA CASA Y UN CONJUNTO NO SE GUARDAN CON LOS MISMOS CAMPOS
+   ════════════════════════════════════════════════════════════════════
+   Antes solo habia "barrio" y "direccion", y el nombre del conjunto terminaba
+   metido en el campo del barrio. De ahi salio que un pedido a la Ciudadela
+   Llanos de Calibio acabara marcando el centro de Cali: el sistema tenia que
+   ADIVINAR que ese barrio era en realidad un nombre propio.
+
+   Ya no adivina. El cajero dice cual de los dos es, y cada uno pide lo suyo:
+
+     CASA      barrio + direccion, como siempre.
+     CONJUNTO  el NOMBRE es lo importante —es lo que Google encuentra—,
+               la casa o apartamento va aparte porque no sirve para buscar
+               pero si para tocar la puerta, y la direccion queda OPCIONAL
+               porque hay clientes que sencillamente no la dan.            */
 function cliDirRowHTML(d) {
   d = d || {};
   const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-  return `<div class="d-dirrow" data-dir-row data-dir-id="${d.id || ''}">
+  const esConj = d.tipo === 'conjunto';
+  return `<div class="d-dirrow ${esConj ? 'es-conjunto' : ''}" data-dir-row data-dir-id="${d.id || ''}" data-tipo="${esConj ? 'conjunto' : 'casa'}">
+    <div class="d-dir-seg" role="group">
+      <button type="button" data-tipo-dir="casa" class="${esConj ? '' : 'on'}">Casa</button>
+      <button type="button" data-tipo-dir="conjunto" class="${esConj ? 'on' : ''}">Conjunto o edificio</button>
+    </div>
+    <input class="d-input d-dir-conj" placeholder="Nombre del conjunto (ej. Ciudadela Llanos de Calibío)" value="${esc(d.conjunto)}" />
+    <input class="d-input d-dir-unidad" placeholder="Casa o apto (ej. Torre D 603)" value="${esc(d.unidad)}" />
     <input class="d-input d-dir-barrio" placeholder="Barrio (ej. Bellavista)" value="${esc(d.barrio)}" />
-    <input class="d-input d-dir-dir" placeholder="Dirección (calle, carrera, apto, indicaciones…)" value="${esc(d.dir)}" />
+    <input class="d-input d-dir-dir" placeholder="${esConj ? 'Dirección (opcional)' : 'Dirección (calle, carrera, apto, indicaciones…)'}" value="${esc(d.dir)}" />
     <button type="button" class="d-dir-del" data-action="del-dir" title="Quitar esta dirección">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
     </button>
   </div>`;
+}
+
+/* El interruptor. Solo cambia clases y el texto de un placeholder: lo que el
+   cajero ya escribio NO se borra, porque cambiar de idea no puede costarle
+   volver a teclear. */
+function cliDirTipo(fila, tipo) {
+  const conj = tipo === 'conjunto';
+  fila.dataset.tipo = conj ? 'conjunto' : 'casa';
+  fila.classList.toggle('es-conjunto', conj);
+  fila.querySelectorAll('[data-tipo-dir]').forEach(b => {
+    b.classList.toggle('on', b.dataset.tipoDir === fila.dataset.tipo);
+  });
+  const dir = fila.querySelector('.d-dir-dir');
+  if (dir) dir.placeholder = conj
+    ? 'Dirección (opcional)'
+    : 'Dirección (calle, carrera, apto, indicaciones…)';
+  if (conj) { const c = fila.querySelector('.d-dir-conj'); if (c) c.focus(); }
 }
 function renderCliDirRows(direcciones) {
   const box = $('cli-dirs');
@@ -1529,10 +1570,19 @@ function renderCliDirRows(direcciones) {
 }
 function getCliDirRows() {
   const rows = [];
+  const val = (r, c) => (r.querySelector(c) && r.querySelector(c).value || '').trim();
   document.querySelectorAll('#cli-dirs [data-dir-row]').forEach(r => {
-    const barrio = (r.querySelector('.d-dir-barrio') && r.querySelector('.d-dir-barrio').value || '').trim();
-    const dir    = (r.querySelector('.d-dir-dir')    && r.querySelector('.d-dir-dir').value    || '').trim();
-    if (barrio || dir) rows.push({ id: r.dataset.dirId || cliDirId(), barrio, dir });
+    const esConj  = r.dataset.tipo === 'conjunto';
+    const barrio  = val(r, '.d-dir-barrio');
+    const dir     = val(r, '.d-dir-dir');
+    const conjunto = esConj ? val(r, '.d-dir-conj')   : '';
+    const unidad   = esConj ? val(r, '.d-dir-unidad') : '';
+    if (!barrio && !dir && !conjunto && !unidad) return;
+    rows.push({
+      id: r.dataset.dirId || cliDirId(),
+      tipo: esConj ? 'conjunto' : 'casa',
+      conjunto, unidad, barrio, dir,
+    });
   });
   return rows;
 }
@@ -1611,6 +1661,7 @@ function guardarCliente() {
   const campos = {
     nombre, tel: telefono, direcciones: dirs,
     barrio: activa ? activa.barrio : '', dir: activa ? activa.dir : '', dirId: activa ? activa.id : null,
+    conjunto: activa ? (activa.conjunto || '') : '', unidad: activa ? (activa.unidad || '') : '',
   };
 
   let cli;
@@ -1759,6 +1810,11 @@ async function enviarACocina() {
   const _barrio  = S.cliente && S.cliente.barrio ? S.cliente.barrio.trim() : '';
   const _dir     = S.cliente && S.cliente.dir ? S.cliente.dir.trim() : '';
   const _tel     = S.cliente && S.cliente.tel ? S.cliente.tel.trim() : '';
+  /* El conjunto viaja APARTE, con su propio marcador. Antes iba revuelto en
+     el campo del barrio y por eso el buscador tenia que adivinar si "LLANOS
+     DE CALIBIO" era un barrio o un nombre propio. Adivino mal. */
+  const _conj    = S.cliente && S.cliente.conjunto ? S.cliente.conjunto.trim() : '';
+  const _unidad  = S.cliente && S.cliente.unidad ? S.cliente.unidad.trim() : '';
   const _empaque = computeEmpaque();
 
   S.deliveries.unshift(nuevo);
@@ -1815,7 +1871,11 @@ async function enviarACocina() {
       status:         'open',
       customer_name:  nuevo.cliente || null,
       // notas = dirección + [barrio:X] (la comanda lo lee) + [tel:Y] (para el recibo)
-      notes:          ((_dir ? _dir + ' ' : '') + (_barrio ? '[barrio:' + _barrio.toUpperCase() + ']' : '') + (_tel ? ' [tel:' + _tel + ']' : '')).trim() || null,
+      notes:          ((_dir ? _dir + ' ' : '')
+                        + (_conj   ? '[conjunto:' + _conj + ']' : '')
+                        + (_unidad ? '[unidad:' + _unidad + ']' : '')
+                        + (_barrio ? '[barrio:' + _barrio.toUpperCase() + ']' : '')
+                        + (_tel ? ' [tel:' + _tel + ']' : '')).trim() || null,
       // El total INCLUYE productos + empaque + domicilio
       subtotal:       prod,
       packaging_fee:  _empaque,
@@ -1908,6 +1968,7 @@ async function entrarModoAgregar(orderId) {
 
   const _dir = String(o.notes || '')
     .replace(/\[barrio:[^\]]*\]/ig, '').replace(/\[tel:[^\]]*\]/ig, '')
+    .replace(/\[conjunto:[^\]]*\]/ig, '').replace(/\[unidad:[^\]]*\]/ig, '')
     .replace(/\[etq:[^\]]*\]/ig, '').replace(/·?\s*Ref:\S+/ig, '').trim();
   const _av = document.createElement('div');
   _av.id = 'd-modo-agregar';
@@ -2224,6 +2285,12 @@ function attachEvents() {
     if (delDirEl) { const row = delDirEl.closest('[data-dir-row]'); if (row) row.remove(); ensureOneDirRow(); return; }
     const addDirEl = e.target.closest('[data-action="add-dir"]');
     if (addDirEl) { addCliDirRow(); return; }
+    const tipoDirEl = e.target.closest('[data-tipo-dir]');
+    if (tipoDirEl) {
+      const row = tipoDirEl.closest('[data-dir-row]');
+      if (row) cliDirTipo(row, tipoDirEl.dataset.tipoDir);
+      return;
+    }
 
     // [data-action]
     const actionEl = e.target.closest('[data-action]');
@@ -2717,7 +2784,7 @@ async function mapaPintar() {
   }
 
   /* 2. La casa del cliente. */
-  var geo = await posMapa.ubicar(d.direccion || '', d.barrio || '', (S.ciudad || ''));
+  var geo = await posMapa.ubicar(d.direccion || '', d.barrio || '', (S.ciudad || ''), d.conjunto || '');
   if (geo && isFinite(geo.lat)) {
     puntos.push({ lat: geo.lat, lng: geo.lng, tipo: 'destino', etiqueta: d.cliente || 'Entrega' });
     if (geo.origen === 'domiciliario') notas.push('El punto de entrega lo marcó un domiciliario en la puerta: es exacto.');
