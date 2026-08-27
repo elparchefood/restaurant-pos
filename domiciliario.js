@@ -1005,23 +1005,35 @@
   /* ══════════════════════════════════════════════════════════════════
      UBICACIÓN
      ══════════════════════════════════════════════════════════════════ */
+  /* Se manda LA BUENA, no la primera. Antes salia la posicion por antenas —a
+     una cuadra o dos— y en el negocio quedaba escrita como si fuera exacta.
+     Se espera a que el GPS se cuadre y se manda una sola vez. */
   function compartirUbicacion() {
     if (!navigator.geolocation) { toast('Este equipo no permite ubicación'); return; }
-    toast('Obteniendo tu ubicación…');
-    navigator.geolocation.getCurrentPosition(async function (pos) {
-      try {
-        await sb.from('pos_domi_ubicaciones').insert({
-          tenant_id: S.yo.tenant_id,
-          domiciliario_id: S.yo.id,
-          order_id: S.abierto ? S.abierto.id : null,
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude
-        });
-        toast('Ubicación enviada al negocio');
-      } catch (e) { toast('No se pudo enviar la ubicación'); }
+    toast('Buscando tu ubicación…');
+    var mandado = false, ultimo = null, plazo = null;
+    function mandar(p) {
+      if (mandado || !p) return;
+      mandado = true;
+      if (plazo) { clearTimeout(plazo); plazo = null; }
+      sb.from('pos_domi_ubicaciones').insert({
+        tenant_id: S.yo.tenant_id,
+        domiciliario_id: S.yo.id,
+        order_id: S.abierto ? S.abierto.id : null,
+        lat: p.lat, lng: p.lng
+      }).then(function () { toast('Ubicación enviada al negocio'); },
+              function () { toast('No se pudo enviar la ubicación'); });
+    }
+    ubicarme(function (p, bueno) {
+      ultimo = p;
+      if (bueno) mandar(p);
     }, function () {
       toast('Activa el GPS para compartir ubicación');
-    }, { timeout: 6000, enableHighAccuracy: true });
+    });
+    /*  Y si el GPS nunca baja de 20 metros —bajo techo pasa— se manda la mejor
+        que hubo. Antes de este plazo, el boton se quedaba callado para siempre
+        y en el negocio no llegaba nada: peor que una ubicacion aproximada. */
+    plazo = setTimeout(function () { mandar(ultimo); }, 21000);
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -1037,7 +1049,8 @@
 
   var MAPA = { cargando: null, api: false, mapa: null, marcaCasa: null, marcaYo: null,
     linea: null, pedido: null, casa: null, aprox: false,
-    andando: false, vigia: null, latido: null, despierto: null };
+    andando: false, vigia: null, latido: null, despierto: null,
+    yo: null, halo: null, siguiendo: false, buscando: null };
 
   function mapaAviso(tx, sub, girando) {
     var av = $('mapa-aviso'); if (!av) return;
@@ -1092,6 +1105,49 @@
   /*  Con varios pedidos, ¿cual mapa se abre? El que se este mirando: si el
       detalle esta abierto, ese; si no, el que muestra la tarjeta azul. Y una
       vez dentro se pasa de uno a otro sin salir. */
+  /* ══════════════════════════════════════════════════════════════
+     DÓNDE ESTOY — y por qué daba un punto cercano pero equivocado
+     ══════════════════════════════════════════════════════════════
+     `getCurrentPosition` entrega LA PRIMERA respuesta que consigue, y la
+     primera casi nunca es el GPS: es la posición por antenas y wifi, que en
+     una ciudad cae a una cuadra o dos. El GPS de verdad tarda unos segundos
+     en cuadrarse. Por eso el destino salia perfecto y el origen "cerca".
+
+     Esto se queda escuchando y va quedandose con la MEJOR lectura, hasta que
+     el margen de error baje de 20 metros o pasen 20 segundos. Cada vez que
+     mejora avisa, asi el mapa se corrige solo en vez de esperar quieto.
+
+     `maximumAge: 0` para que no reciclen una lectura vieja del bolsillo.   */
+  function ubicarme(alPunto, alFallar) {
+    if (!navigator.geolocation) { if (alFallar) alFallar(); return null; }
+    var mejor = null, id = null, fin = null;
+
+    function cerrar() {
+      if (id !== null) { try { navigator.geolocation.clearWatch(id); } catch (e) {} id = null; }
+      if (fin) { clearTimeout(fin); fin = null; }
+    }
+
+    id = navigator.geolocation.watchPosition(function (pos) {
+      var p = {
+        lat: pos.coords.latitude, lng: pos.coords.longitude,
+        error: pos.coords.accuracy == null ? 9999 : pos.coords.accuracy,
+        rumbo: pos.coords.heading,
+      };
+      //  Solo se acepta lo que MEJORA. Si no, un rebote del wifi devuelve el
+      //  punto malo despues de que el GPS ya habia acertado.
+      if (mejor && p.error > mejor.error) return;
+      mejor = p;
+      alPunto(p, p.error <= 20);
+      if (p.error <= 20) cerrar();
+    }, function () {
+      cerrar();
+      if (!mejor && alFallar) alFallar();
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+
+    fin = setTimeout(cerrar, 20000);
+    return { parar: cerrar };
+  }
+
   function verRuta() {
     var act = activos();
     if (S.abierto) {
@@ -1141,6 +1197,13 @@
     if ($('mapa-alerta')) $('mapa-alerta').hidden = true;
     if ($('btn-mapa-iniciar')) $('btn-mapa-iniciar').disabled = false;
     MAPA.aprox = false; MAPA.casa = null;
+    if (MAPA.buscando) { MAPA.buscando.parar(); MAPA.buscando = null; }
+    if (MAPA.marcaYo) { MAPA.marcaYo.setMap(null); MAPA.marcaYo = null; }
+    if (MAPA.halo) { MAPA.halo.setMap(null); MAPA.halo = null; }
+    if (MAPA.linea) { MAPA.linea.setMap(null); MAPA.linea = null; }
+    MAPA.yo = null;
+    seguir(false);
+    if ($('mapa-centrar')) $('mapa-centrar').hidden = true;
     mapaAviso('Abriendo el mapa…', '', true);
     armarMapa(p);
   }
@@ -1150,6 +1213,7 @@
        deja el GPS prendido, y el GPS es lo que más batería gasta en un
        celular que va a estar toda la tarde en la calle. */
     detenerRuta();
+    if (MAPA.buscando) { MAPA.buscando.parar(); MAPA.buscando = null; }
     if ($('ov-mapa')) $('ov-mapa').hidden = true;
   }
 
@@ -1197,6 +1261,10 @@
     MAPA.marcaCasa = new google.maps.Marker({
       map: MAPA.mapa, position: casa, title: p.cliente || 'Destino'
     });
+    /* `dragstart` y no `center_changed`: el segundo salta tambien cuando el
+       mapa se mueve solo siguiendo al domiciliario, y con eso el modo viaje se
+       apagaba a si mismo en el primer paso. */
+    MAPA.mapa.addListener('dragstart', function () { if (MAPA.andando) seguir(false); });
     /*  CUANDO GOOGLE NO ENCONTRÓ LA CASA.
 
         Google no responde "no sé": responde el centro del barrio o del pueblo,
@@ -1223,45 +1291,99 @@
     pintarRuta(casa);
   }
 
-  function pintarRuta(casa) {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(async function (pos) {
-      var yo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      if (!MAPA.mapa) return;
+  /* El punto azul: un círculo, y alrededor la mancha de lo que el GPS no sabe.
+     La mancha no es adorno — si el margen es de 300 metros, el domiciliario
+     tiene que VERLO en vez de creerse que esta donde dice el punto. */
+  function pintarYo(p) {
+    if (!MAPA.mapa) return;
+    var pos = { lat: p.lat, lng: p.lng };
+    if (!MAPA.marcaYo) {
       MAPA.marcaYo = new google.maps.Marker({
-        map: MAPA.mapa, position: yo, title: 'Tú',
+        map: MAPA.mapa, position: pos, title: 'T\u00fa', zIndex: 99,
         icon: {
           path: google.maps.SymbolPath.CIRCLE, scale: 7,
           fillColor: '#5B6BFF', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3
         }
       });
-      var r;
-      try {
-        r = await llamarMapa({ accion: 'ruta', desde: yo.lat + ',' + yo.lng, hasta: casa.lat + ',' + casa.lng });
-      } catch (e) { return; }
-      if (!r.ok || !r.linea) return;
-
-      MAPA.linea = new google.maps.Polyline({
-        map: MAPA.mapa, path: abrirLinea(r.linea),
-        strokeColor: '#5B6BFF', strokeOpacity: .9, strokeWeight: 5
+      MAPA.halo = new google.maps.Circle({
+        map: MAPA.mapa, center: pos, radius: p.error || 0,
+        strokeColor: '#5B6BFF', strokeOpacity: .25, strokeWeight: 1,
+        fillColor: '#5B6BFF', fillOpacity: .10, clickable: false, zIndex: 1
       });
+    } else {
+      MAPA.marcaYo.setPosition(pos);
+      if (MAPA.halo) { MAPA.halo.setCenter(pos); MAPA.halo.setRadius(p.error || 0); }
+    }
+    /* Cuando va andando, el punto se vuelve flecha y apunta a donde va: es lo
+       que dice de un vistazo si tomo bien la calle o se paso. */
+    if (MAPA.andando && p.rumbo != null && !isNaN(p.rumbo)) {
+      MAPA.marcaYo.setIcon({
+        path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 5.5,
+        fillColor: '#5B6BFF', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2,
+        rotation: p.rumbo
+      });
+    }
+    MAPA.yo = pos;
+  }
+
+  async function trazar(casa, yo) {
+    var r;
+    try {
+      r = await llamarMapa({ accion: 'ruta', desde: yo.lat + ',' + yo.lng, hasta: casa.lat + ',' + casa.lng });
+    } catch (e) { return; }
+    if (!r.ok || !r.linea) return;
+    var puntos = abrirLinea(r.linea);
+    if (MAPA.linea) MAPA.linea.setPath(puntos);
+    else MAPA.linea = new google.maps.Polyline({
+      map: MAPA.mapa, path: puntos,
+      strokeColor: '#5B6BFF', strokeOpacity: .9, strokeWeight: 5
+    });
+    if ($('mapa-dist')) $('mapa-dist').textContent = r.texto || '';
+    //  Encuadre solo mientras NO va andando: en pleno viaje el mapa lo sigue a
+    //  el, y reencuadrar seria quitarselo de las manos cada pocos segundos.
+    if (!MAPA.andando) {
       var caja = new google.maps.LatLngBounds();
       caja.extend(yo); caja.extend(casa);
       MAPA.mapa.fitBounds(caja, 60);
-      if ($('mapa-dist')) $('mapa-dist').textContent = r.texto || '';
-    }, function () {
-      /* Sin GPS no hay línea, pero el mapa con la casa marcada ya sirve para
-         orientarse. No se muestra error: no faltó nada importante. */
-    }, { timeout: 8000, enableHighAccuracy: true });
+    }
+  }
+
+  function pintarRuta(casa) {
+    /*  La linea se traza DOS VECES como mucho: una con la lectura tosca, para
+        que se vea algo ya, y otra cuando llega la buena. El punto azul si se
+        corrige en cada mejora —eso es gratis—, pero cada trazo es una llamada
+        a Google que se paga, y el GPS mejora cuatro o cinco veces seguidas. */
+    var trazos = 0;
+    MAPA.buscando = ubicarme(function (p, bueno) {
+      pintarYo(p);
+      if (trazos === 0 || bueno) {
+        trazos++;
+        trazar(casa, { lat: p.lat, lng: p.lng });
+      }
+      if (bueno && MAPA.buscando) MAPA.buscando = null;
+    });
+    /* Sin GPS no hay l\u00ednea, pero el mapa con la casa marcada ya sirve para
+       orientarse. No se avisa nada: no falt\u00f3 nada importante. */
   }
 
   function centrarEnMi() {
-    if (!MAPA.mapa || !navigator.geolocation) { toast('El mapa aún no está listo'); return; }
-    navigator.geolocation.getCurrentPosition(function (pos) {
-      var yo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      MAPA.mapa.setCenter(yo); MAPA.mapa.setZoom(17);
-      if (MAPA.marcaYo) MAPA.marcaYo.setPosition(yo);
-    }, function () { toast('Activa el GPS'); }, { timeout: 8000, enableHighAccuracy: true });
+    if (!MAPA.mapa) { toast('El mapa a\u00fan no est\u00e1 listo'); return; }
+    seguir(true);
+    if (MAPA.yo) { MAPA.mapa.panTo(MAPA.yo); MAPA.mapa.setZoom(MAPA.andando ? 18 : 17); }
+    ubicarme(function (p) {
+      pintarYo(p);
+      if (MAPA.siguiendo) MAPA.mapa.panTo({ lat: p.lat, lng: p.lng });
+    }, function () { toast('Activa el GPS'); });
+  }
+
+  /* SEGUIR O NO SEGUIR, que es lo que hace Google al arrastrar el mapa.
+     Mientras lo sigue, el boton de centrar estorba y no se ve; en cuanto el
+     domiciliario mueve el mapa con el dedo, deja de seguirlo —si no, el mapa
+     le pelearia el dedo— y aparece el boton para volver. */
+  function seguir(si) {
+    MAPA.siguiendo = !!si;
+    var b = $('mapa-centrar');
+    if (b) b.hidden = !!si;
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -1287,13 +1409,22 @@
     if (b) b.classList.add('andando');
     if ($('mapa-iniciar-tx')) $('mapa-iniciar-tx').textContent = 'Detener';
 
-    //  1) La cámara va detrás del domiciliario.
-    MAPA.mapa.setZoom(17);
+    //  1) La cámara va detrás del domiciliario, y el punto se vuelve flecha.
+    seguir(true);
+    MAPA.mapa.setZoom(18);
+    if (MAPA.yo) MAPA.mapa.panTo(MAPA.yo);
     MAPA.vigia = navigator.geolocation.watchPosition(function (pos) {
-      var yo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      if (MAPA.marcaYo) MAPA.marcaYo.setPosition(yo);
-      if (MAPA.mapa) MAPA.mapa.panTo(yo);
-    }, function () {}, { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 });
+      var p = {
+        lat: pos.coords.latitude, lng: pos.coords.longitude,
+        error: pos.coords.accuracy == null ? 9999 : pos.coords.accuracy,
+        rumbo: pos.coords.heading,
+      };
+      /* En viaje NO se descarta la lectura peor: el domiciliario se esta
+         moviendo, y quedarse con la mejor de hace un minuto seria dejarlo
+         clavado en una esquina por la que ya paso. */
+      pintarYo(p);
+      if (MAPA.siguiendo && MAPA.mapa) MAPA.mapa.panTo({ lat: p.lat, lng: p.lng });
+    }, function () {}, { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
 
     //  2) Los puntos corriendo. El truco es mover el `offset` del símbolo: la
     //     línea no se toca, solo se desplazan los puntos por encima.
@@ -1339,6 +1470,8 @@
     if (MAPA.linea) MAPA.linea.setOptions({ strokeOpacity: .9, icons: [] });
     if (MAPA.despierto) { try { MAPA.despierto.release(); } catch (e) {} MAPA.despierto = null; }
     MAPA.andando = false;
+    seguir(false);
+    if ($('mapa-centrar')) $('mapa-centrar').hidden = true;
     var b = $('btn-mapa-iniciar');
     if (b) b.classList.remove('andando');
     if ($('mapa-iniciar-tx')) $('mapa-iniciar-tx').textContent = 'Iniciar';
@@ -1401,6 +1534,7 @@
         return;
       }
 
+      if (t.closest('#mapa-centrar')) { centrarEnMi(); return; }
       if (t.closest('#mapa-antes')) { moverMapa(-1); return; }
       if (t.closest('#mapa-siguiente')) { moverMapa(1); return; }
       if (t.closest('#btn-mapa-volver')) { cerrarMapa(); return; }

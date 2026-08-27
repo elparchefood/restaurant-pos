@@ -337,3 +337,22 @@ a{color:var(--brand);text-decoration:none}a:hover{color:var(--brand-press)}
 .circ img{width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit}
 .circ.con-foto{padding:0;overflow:hidden;border-color:transparent}
 .circ.con-foto svg{display:none}
+
+/* El boton de volver al centro. Va flotando abajo a la derecha del mapa, que
+   es donde lo tiene Google y donde el pulgar llega sin soltar el manubrio. */
+.mp-centrar{
+  position:absolute;right:14px;bottom:14px;z-index:5;
+  display:flex;align-items:center;gap:7px;
+  padding:9px 14px;border-radius:999px;
+  background:var(--surface);color:var(--brand);
+  border:1px solid var(--brand-ring);
+  font-family:inherit;font-size:12.5px;font-weight:700;
+  box-shadow:0 6px 18px -6px rgba(15,23,42,.35);
+  animation:mpCentrar .18s cubic-bezier(.2,.8,.2,1);
+}
+.mp-centrar[hidden]{display:none !important}
+.mp-centrar:active{background:var(--brand-tint)}
+@keyframes mpCentrar{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* Cuando el viaje esta andando, la barra de abajo lo dice sin leer. */
+.mp-pie .btn-p.andando{background:var(--danger);box-shadow:none}

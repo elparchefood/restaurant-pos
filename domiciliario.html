@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="domiciliario.css?v=1792530000">
+<link rel="stylesheet" href="domiciliario.css?v=1792550000">
 </head>
 <body>
 <!-- Sin conexion: se muestra solo cuando hace falta. -->
@@ -353,6 +353,13 @@
 
   <div class="mp-lienzo">
     <div id="mapa-lienzo"></div>
+    <!-- Aparece SOLO cuando el domiciliario mueve el mapa con el dedo, igual
+         que en Google. Mientras el mapa lo sigue, estorba. -->
+    <button class="mp-centrar" id="mapa-centrar" hidden>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2v3.2M12 18.8V22M2 12h3.2M18.8 12H22"></path></svg>
+      <span>Centrar</span>
+    </button>
+
     <!-- Encima del lienzo: girando mientras carga, o diciendo por que no
          se pudo. Nunca un mapa en blanco sin explicacion. -->
     <div class="mp-aviso" id="mapa-aviso">
@@ -405,6 +412,6 @@
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <!-- Los tonos, afinados una sola vez para todo Cobra. -->
 <script src="pos-notify.js?v=1792500000"></script>
-<script src="domiciliario.js?v=1792530000"></script>
+<script src="domiciliario.js?v=1792550000"></script>
 </body>
 </html>
