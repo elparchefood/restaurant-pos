@@ -62,24 +62,24 @@
   function loadCart() {
     try { S.cart = JSON.parse(localStorage.getItem(CART_KEY) || '[]'); } catch(e) { S.cart = []; }
   }
-  const CLIENTES_KEY = 'pos.clientes';
+  /* La cache de clientes va POR RESTAURANTE, nunca compartida: con una sola
+     llave para todos, al abrir con otro negocio en el mismo computador esta
+     pantalla mostraba los clientes del anterior. Ver pos-clientes.js. */
   function saveClientes() {
-    try { localStorage.setItem(CLIENTES_KEY, JSON.stringify(S.clientes)); } catch(e) {}
+    try {
+      if (window.posClientes && window.posClientes.guardarCache)
+        window.posClientes.guardarCache(S.clientes);
+    } catch(e) {}
   }
   function loadClientes() {
     try {
-      // Migración: pos.rapida.clientes → pos.clientes (clave compartida)
-      const _shared = localStorage.getItem(CLIENTES_KEY);
-      if (_shared) {
-        S.clientes = JSON.parse(_shared);
-      } else {
-        // Intentar migrar desde cualquier clave antigua
-        const _fromRapida = localStorage.getItem('pos.rapida.clientes');
-        const _fromDomi   = localStorage.getItem('pos.domi.clientes');
-        const _raw = _fromRapida || _fromDomi;
-        if (_raw) { S.clientes = JSON.parse(_raw); localStorage.setItem(CLIENTES_KEY, _raw); }
-        else S.clientes = [];
-      }
+      /* Las llaves viejas se borran en vez de migrarse: traian los clientes de
+         cualquier restaurante que hubiera entrado antes en este equipo. */
+      localStorage.removeItem('pos.clientes');
+      localStorage.removeItem('pos.rapida.clientes');
+      localStorage.removeItem('pos.domi.clientes');
+      S.clientes = (window.posClientes && window.posClientes.leerCache)
+        ? window.posClientes.leerCache() : [];
     } catch(e) { S.clientes = []; }
     // Y ahora la lista REAL (compartida con Domicilios y el chat). Lo de arriba
     // es solo el arranque rápido mientras llega esta.

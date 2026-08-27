@@ -130,9 +130,19 @@ async function quienLlama(req: Request): Promise<{ tenant: string; sub: string }
   });
   if (!r.ok) return null;
   const u = await r.json();
-  const tenant = u?.user_metadata?.tenant_id;
+  const sub = String(u.id || "");
+  let tenant = u?.user_metadata?.tenant_id;
+  /*  LA APP DEL DOMICILIARIO NO ESCRIBE METADATA. Entra con su propio
+      login y nunca llama a `updateUser`, asi que aqui llegaba sin
+      `tenant_id` y se le respondia "no autorizado" — el mapa no le habria
+      funcionado nunca y el sintoma habria parecido un problema de
+      permisos. Se pregunta a la tabla, que es donde vive la verdad. */
+  if (!tenant && sub) {
+    const f = await sbSel(`pos_users?select=tenant_id&auth_user_id=eq.${sub}&limit=1`);
+    if (f && f.length) tenant = f[0].tenant_id;
+  }
   if (!tenant) return null;
-  return { tenant: String(tenant), sub: String(u.id || "") };
+  return { tenant: String(tenant), sub };
 }
 
 /* ── QUE LLAVE SE USA PARA ESTE RESTAURANTE ──────────────────────────
@@ -595,6 +605,114 @@ async function accEstado(tenant: string) {
   });
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   LA LLAVE QUE SI BAJA AL CELULAR
+   ══════════════════════════════════════════════════════════════════════
+   El mapa interactivo de Google se dibuja EN EL TELEFONO, y para eso
+   necesita una llave alli. No hay forma de evitarlo: no existe manera de
+   pintar ese mapa desde el servidor.
+
+   Lo que si se puede es que esa llave no sirva para nada mas, y que no se
+   la lleve cualquiera. Cuatro condiciones, y ninguna sobra:
+
+     1. SESION VALIDA. La llave no esta escrita en ningun archivo: se pide
+        aqui. Quien baje la APK o abra la pagina sin cuenta no encuentra
+        nada. Esta es la barrera grande, y la propuso Sergio.
+     2. PLAN PRO. El mapa se vende en Pro.
+     3. TURNO DE CAJA ABIERTO. Fuera del horario de trabajo no se entrega.
+        Tambien idea de Sergio: el domiciliario no sabe que existe un
+        turno, asi que no puede "abrirlo" para sacar la llave de noche.
+     4. BAJO EL TOPE. Y el tope es de cada restaurante, no de Cobra: si
+        alguien se pone a jugar, se gasta SU cupo y su dueno lo ve.
+
+   Y ES OTRA LLAVE, no la del servidor. Google le pone los candados a la
+   llave entera, no a cada uso: la del servidor tiene que estar suelta
+   para poder buscar direcciones, asi que mandarla al telefono seria
+   mandar la que si puede gastar. La del navegador va restringida a
+   dibujar mapas y solo desde cobrapos.app.
+
+   SI NO SE CUMPLE ALGUNA, SE DICE CUAL. Un mapa en blanco sin explicacion
+   es una tarde perdida buscando un fallo que no existe. */
+async function accNavegador(tenant: string) {
+  const clave = Deno.env.get("MAPAS_CLAVE_NAVEGADOR") || "";
+  if (!clave) return ok({ ok: false, motivo: "sin_llave",
+    mensaje: "El mapa todavia no esta configurado en Cobra." });
+
+  //  2. ¿El plan lo incluye?
+  const t = await sbSel(`tenants?select=plan&id=eq.${tenant}&limit=1`);
+  const plan = (t && t.length && String(t[0].plan || "")) || "";
+  if (!plan) return ok({ ok: false, motivo: "sin_plan",
+    mensaje: "No se pudo comprobar el plan del restaurante." });
+  const pl = await sbSel(`pos_planes?select=funciones&plan=eq.${plan}&limit=1`);
+  const funciones = (pl && pl.length && (pl[0].funciones as string[])) || [];
+  if (!funciones.includes("mapa")) return ok({ ok: false, motivo: "plan",
+    mensaje: "El mapa viene en el plan Pro." });
+
+  //  3. ¿Hay turno de caja abierto?
+  const ses = await sbSel(
+    `pos_sessions?select=id&tenant_id=eq.${tenant}&closed_at=is.null&limit=1`);
+  if (!ses || !ses.length) return ok({ ok: false, motivo: "sin_turno",
+    mensaje: "El mapa se activa cuando abran la caja del restaurante." });
+
+  //  4. ¿Queda cupo?
+  const cuenta = await claveDe(tenant);
+  const permiso = await consumir(tenant, "navegador", cuenta.propia);
+  if (!permiso.permitido) return ok({ ok: false, motivo: "tope",
+    mensaje: "Se acabo el cupo de mapas de este mes.",
+    usado: permiso.usado, tope: permiso.tope });
+
+  return ok({ ok: true, clave, usado: permiso.usado, tope: permiso.tope });
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   LA RUTA
+   ══════════════════════════════════════════════════════════════════════
+   Esta SI se calcula en el servidor, con la llave de Cobra, que nunca
+   sale. El telefono manda de donde a donde y recibe la linea ya dibujada.
+   Asi el gasto grande queda del lado seguro. */
+async function accRuta(tenant: string, body: Record<string, unknown>) {
+  const desde = String(body.desde || "").trim();   // "lat,lng"
+  const hasta = String(body.hasta || "").trim();   // "lat,lng" o direccion
+  if (!desde || !hasta) return mal("Faltan el origen o el destino");
+
+  const cuenta = await claveDe(tenant);
+  if (!cuenta.clave) return mal("Sin llave de mapas configurada");
+  const permiso = await consumir(tenant, "ruta", cuenta.propia);
+  if (!permiso.permitido) {
+    return ok({ ok: false, motivo: "tope",
+      mensaje: "Se acabo el cupo de rutas de este mes.",
+      usado: permiso.usado, tope: permiso.tope });
+  }
+
+  const url = "https://maps.googleapis.com/maps/api/directions/json"
+    + "?origin=" + encodeURIComponent(desde)
+    + "&destination=" + encodeURIComponent(hasta)
+    + "&mode=driving&language=es&region=co"
+    + "&key=" + encodeURIComponent(cuenta.clave);
+
+  const r = await fetch(url);
+  if (!r.ok) {
+    console.error("[mapa] directions", r.status, await r.text());
+    return ok({ ok: false, motivo: "google", mensaje: "Google no contesto la ruta." });
+  }
+  const d = await r.json();
+  if (d.status !== "OK" || !d.routes || !d.routes.length) {
+    console.error("[mapa] directions", d.status, d.error_message);
+    return ok({ ok: false, motivo: "sin_ruta",
+      mensaje: "No se encontro camino hasta esa direccion." });
+  }
+  const ruta = d.routes[0];
+  const tramo = (ruta.legs && ruta.legs[0]) || {};
+  return ok({
+    ok: true,
+    linea:    ruta.overview_polyline && ruta.overview_polyline.points,
+    metros:   tramo.distance && tramo.distance.value,
+    segundos: tramo.duration && tramo.duration.value,
+    texto:    (tramo.distance && tramo.distance.text) + " · " + (tramo.duration && tramo.duration.text),
+    usado: permiso.usado, tope: permiso.tope,
+  });
+}
+
 /* Guarda la llave — pero solo despues de PROBARLA. Si el dueno se
    equivoca al copiarla, se entera aqui y no tres dias despues cuando un
    mapa no cargue. */
@@ -890,6 +1008,8 @@ serve(async (req: Request) => {
     const acc = String(body.accion || "");
 
     if (acc === "estado")        return await accEstado(quien.tenant);
+    if (acc === "navegador")     return await accNavegador(quien.tenant);
+    if (acc === "ruta")          return await accRuta(quien.tenant, body);
     if (acc === "geocodificar")  return await accGeocodificar(quien.tenant, body);
     if (acc === "guardar")       return await accGuardar(quien.tenant, String(body.clave || ""));
     if (acc === "desconectar")   return await accDesconectar(quien.tenant);

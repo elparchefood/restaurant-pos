@@ -40,6 +40,18 @@ const KAN_BTN     = { recibido: 'En preparación', preparacion: 'Listo', listo: 
 
 
 // ── Estado global S ────────────────────────────────────────────────────
+/* La cache de clientes va SIEMPRE por restaurante. Antes tres lineas de este
+   archivo escribian en 'pos.clientes' —una sola llave para todos— y con eso
+   bastaba para que el siguiente restaurante que abriera en este computador
+   viera los clientes del anterior. */
+function _guardarClientes() {
+  try {
+    if (window.posClientes && window.posClientes.guardarCache) {
+      window.posClientes.guardarCache(S.clientes);
+    }
+  } catch (e) {}
+}
+
 const S = {
   tenantId:  null,
   branchId:    null,
@@ -72,11 +84,14 @@ const S = {
   // pos-clientes.js): se carga apenas hay sesión y reemplaza esto. Así lo que
   // se edita aquí se ve en el chat y al revés, y no depende del equipo.
   clientes:  (function() {
-    // Migración clave compartida pos.clientes
-    const _shared = localStorage.getItem('pos.clientes');
-    if (_shared) return JSON.parse(_shared);
-    const _old = localStorage.getItem('pos.domi.clientes');
-    if (_old) { const d = JSON.parse(_old); localStorage.setItem('pos.clientes', _old); return d; }
+    /* ARRANCA VACIO, a proposito. Antes leia 'pos.clientes', que era una sola
+       llave para TODOS los restaurantes: al abrir con otro negocio en el mismo
+       navegador, esta pantalla pintaba los clientes del anterior antes de que
+       llegara la consulta. `pos-clientes.js` la llena en cuanto hay sesion,
+       ya filtrada por restaurante. Medio segundo de lista vacia es mejor que
+       un segundo con los clientes de otro. */
+    try { localStorage.removeItem('pos.clientes'); } catch (e) {}
+    try { localStorage.removeItem('pos.domi.clientes'); } catch (e) {}
     return [];
   })(),
   deliveries: [],
@@ -1613,7 +1628,7 @@ function guardarCliente() {
     S.cliente = cli;
   }
 
-  localStorage.setItem('pos.clientes', JSON.stringify(S.clientes));
+  _guardarClientes();
   closeModal('modal-nuevocli');
   renderCliList('');
   renderClienteCard();
@@ -1627,7 +1642,7 @@ function guardarCliente() {
     window.posClientes.guardar(cli).then(function(g){
       const i = S.clientes.findIndex(x => x.id === cli.id);
       if (i !== -1) { S.clientes[i] = cliNormalize(g); if (S.cliente && S.cliente.id === cli.id) S.cliente = S.clientes[i]; }
-      localStorage.setItem('pos.clientes', JSON.stringify(S.clientes));
+      _guardarClientes();
       renderCliList(''); renderClienteCard();
     }).catch(function(e){
       console.warn('[domicilios] guardar cliente:', e && e.message);
@@ -2192,7 +2207,7 @@ function attachEvents() {
       cliSetDir(S.cliente, sel.value);
       // Persistir la elección de dirección activa
       const idx = S.clientes.findIndex(c => c.id === S.cliente.id);
-      if (idx !== -1) { S.clientes[idx].dirId = S.cliente.dirId; localStorage.setItem('pos.clientes', JSON.stringify(S.clientes)); }
+      if (idx !== -1) { S.clientes[idx].dirId = S.cliente.dirId; _guardarClientes(); }
       renderClienteCard();
       renderDetBtn();
     }

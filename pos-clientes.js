@@ -19,7 +19,23 @@
 (function () {
   'use strict';
 
-  var KEY = 'pos.clientes';
+  /* ⚠️ UNA LLAVE POR RESTAURANTE, y esto es un arreglo de seguridad.
+
+     Antes era una sola, 'pos.clientes', igual para todos. La cache existe
+     para que la pantalla abra rapido sin esperar a la base — pero al entrar
+     con OTRO restaurante en el mismo navegador, lo primero que se pintaba
+     eran los clientes del restaurante ANTERIOR. Nombres, telefonos y
+     direcciones de gente real, en la pantalla de otro negocio.
+
+     Sergio lo vio con sus propios ojos: el Restaurante de Prueba le mostraba
+     los 228 clientes de El Parche. La base estaba bien —la consulta devuelve
+     cero— pero la pantalla enseñaba lo que quedo guardado antes. En un
+     producto que se vende a muchos restaurantes eso es un escape de datos:
+     dos negocios en el mismo computador se ven los clientes.
+
+     Ahora cada restaurante tiene su propio cajon y no puede ver el del otro. */
+  var KEY_VIEJA = 'pos.clientes';
+  function KEY_DE(t) { return 'pos.clientes.' + (t || 'sin'); }
 
   // Cada pantalla resuelve la sesión a su manera, así que puede pasarnos el
   // contexto con setCtx(); si no, se toma el de pos-core.
@@ -83,11 +99,18 @@
 
   // ── Caché local (solo para arrancar rápido / sin internet) ───────────
   function leerCache() {
-    try { var v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; }
-    catch (e) { return []; }
+    try {
+      /* La compartida se BORRA en cuanto se ve: mientras exista, cualquier
+         pantalla vieja que la lea sigue enseñando clientes de otro negocio. */
+      if (localStorage.getItem(KEY_VIEJA)) localStorage.removeItem(KEY_VIEJA);
+      var v = JSON.parse(localStorage.getItem(KEY_DE(tenantId())) || '[]');
+      return Array.isArray(v) ? v : [];
+    } catch (e) { return []; }
   }
   function grabarCache(lista) {
-    try { localStorage.setItem(KEY, JSON.stringify(lista)); } catch (e) {}
+    var t = tenantId();
+    if (!t) return;              // sin saber de quien es, no se guarda
+    try { localStorage.setItem(KEY_DE(t), JSON.stringify(lista)); } catch (e) {}
   }
 
   // ── Cargar TODOS los clientes de la tabla ────────────────────────────
@@ -191,5 +214,8 @@
     cargar: cargar, guardar: guardar, borrar: borrar,
     iniciar: iniciar, subirLocales: subirLocales,
     deDB: deDB, aDB: aDB, tel10: tel10, nuevoDirId: dirId,
+    /* Para que ninguna pantalla se invente su propia llave de cache y
+       vuelva a mezclar los clientes de dos restaurantes. */
+    guardarCache: grabarCache, leerCache: leerCache,
   };
 })();

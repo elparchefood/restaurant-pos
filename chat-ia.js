@@ -3517,10 +3517,11 @@ function cpSaveClienteLocal(o){
     const tel=String(o.telefono||'').replace(/\D/g,'');
     if(!tel && !o.cliente) return;
     const nn=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
-    const list=JSON.parse(localStorage.getItem('pos.clientes')||'[]');
+    /* Por restaurante, no compartida: ver pos-clientes.js. */
+    const list=(window.posClientes&&window.posClientes.leerCache)?window.posClientes.leerCache():[];
     if(list.some(c=>nn(c.tel)===nn(tel)&&nn(c.nombre)===nn(o.cliente)&&nn(c.dir)===nn(o.direccion))) return;
     list.unshift({ id:'c'+Date.now(), nombre:o.cliente||'Cliente', tel:tel, barrio:o.barrio||'', dir:o.direccion||'', tipdoc:'', numdoc:'', email:'', notas:'' });
-    localStorage.setItem('pos.clientes', JSON.stringify(list));
+    if(window.posClientes&&window.posClientes.guardarCache) window.posClientes.guardarCache(list);
   }catch(e){ console.warn('cpSaveClienteLocal:', e); }
 }
 
