@@ -1818,7 +1818,11 @@ async function enviarACocina() {
          El externo se guarda igual que siempre: sin persona, que es lo
          correcto — una moto que rota no tiene cuenta. */
       domi_courier:    externo ? 'externo' : 'interno',
-      domiciliario_id: externo ? null : (S.asignado || null),
+      /* OJO: aqui NO se puede usar `S.asignado`. El pedido se guarda DESPUES
+         del reset de estado de mas arriba, y para entonces ya vale null — es
+         justo lo que me paso: el nombre se guardaba y el id no, porque `dm`
+         se captura antes del reset y `S.asignado` no. */
+      domiciliario_id: externo ? null : (dm ? dm.id : null),
       domiciliario:   externo ? null : (dm ? dm.nombre : null),
       payment_method: metodo,
       opened_at:      new Date().toISOString(),
