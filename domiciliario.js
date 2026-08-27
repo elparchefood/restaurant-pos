@@ -1093,6 +1093,36 @@
     mapaId: '', rumbo: null, giro: null,
     previa: null, previaBusca: null };
 
+  /*  EN UN CELULAR NO HAY CONSOLA QUE MIRAR.
+
+      Un error suelto en una promesa no rompe nada visible: la rueda se queda
+      girando y desde afuera parece que "esta cargando". Asi se perdio una
+      tarde entera. Ahora cualquier error que nadie atrape sale escrito en la
+      pantalla donde estaba pasando.                                        */
+  function contarError(donde, e) {
+    var m = (e && (e.message || e.reason && e.reason.message || e.reason)) || e;
+    var tx = donde + ': ' + String(m || 'error sin mensaje');
+    console.error('[domi]', tx);
+    var ov = $('ov-mapa');
+    if (ov && !ov.hidden) mapaAviso('Se trabo abriendo el mapa', tx, false);
+    else toast(tx.slice(0, 90));
+  }
+  addEventListener('error', function (e) {
+    /*  Solo errores DE PROGRAMA. El mismo evento salta cuando una foto de
+        producto no carga, y con eso la pantalla se llenaria de avisos por algo
+        que ya se resuelve solo (la foto se quita y ya). */
+    if (!e || !e.error) return;
+    contarError('fallo', e.error);
+  });
+  addEventListener('unhandledrejection', function (e) { contarError('promesa', e); });
+
+  /*  Y el paso en el que va, escrito debajo de la rueda. Con esto, "se queda
+      cargando" deja de ser una sola cosa y pasa a ser cuatro cosas distintas
+      que se distinguen mirando.                                            */
+  function paso(n, txt) {
+    mapaAviso('Abriendo el mapa…', n + '/4 · ' + txt, true);
+  }
+
   function mapaAviso(tx, sub, girando) {
     var av = $('mapa-aviso'); if (!av) return;
     if (tx === null) { av.hidden = true; return; }
@@ -1554,6 +1584,7 @@
     //     tal cual: un mapa en blanco sin explicación es una tarde perdida
     //     buscando un fallo que no existe.
     var acc;
+    paso(1, 'pidiendo la llave');
     try { acc = await llamarMapa({ accion: 'navegador' }); }
     catch (e) {
       mapaAviso('No se pudo abrir el mapa', (e && e.message) || 'Vuelve a intentarlo con señal.', false);
@@ -1575,12 +1606,14 @@
       pintarYo(p);
     });
 
+    paso(2, 'cargando Google');
     try { await cargarGoogle(acc.clave); }
     catch (e) { mapaAviso('El mapa no cargó', 'Revisa la conexión y vuelve a entrar.', false); return; }
 
     //  2) Dónde queda la casa. Lo resuelve el servidor y lo deja guardado,
     //     así que la segunda vez que se abre el mismo pedido es instantáneo.
     var g;
+    paso(3, 'buscando la dirección');
     try {
       g = await llamarMapa({ accion: 'geocodificar', direccion: p.direccion, barrio: p.barrio || '',
         ciudad: S.ciudad || '', conjunto: p.conjunto || '',
@@ -1599,6 +1632,7 @@
 
     var casa = { lat: Number(g.lat), lng: Number(g.lng) };
     MAPA.casa = casa;
+    paso(4, 'dibujando');
     mapaAviso(null);
 
     var opciones = {
@@ -1615,7 +1649,17 @@
         Google ignora `setHeading` sin decir nada — no falla, simplemente no
         pasa nada, que es la clase de silencio que cuesta una tarde. */
     if (MAPA.mapaId) { opciones.mapId = MAPA.mapaId; opciones.tilt = 0; opciones.heading = 0; }
-    MAPA.mapa = new google.maps.Map($('mapa-lienzo'), opciones);
+    try {
+      MAPA.mapa = new google.maps.Map($('mapa-lienzo'), opciones);
+    } catch (e) {
+      /*  Si el Map ID esta mal escrito o no es vectorial, Google revienta aqui.
+          Antes de dejar sin mapa al domiciliario por un ajuste, se reintenta
+          sin el: pierde el giro, pero el mapa se ve. */
+      console.error('[domi] mapId', e && e.message);
+      delete opciones.mapId; delete opciones.tilt; delete opciones.heading;
+      MAPA.mapaId = '';
+      MAPA.mapa = new google.maps.Map($('mapa-lienzo'), opciones);
+    }
     MAPA.marcaCasa = new google.maps.Marker({
       map: MAPA.mapa, position: casa, title: p.cliente || 'Destino'
     });
