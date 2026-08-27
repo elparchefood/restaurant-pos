@@ -77,7 +77,7 @@ async function descifrar(b64: string): Promise<string> {
 
 /* ── Supabase con service_role ────────────────────────────────────────── */
 async function sbSel(path: string): Promise<Array<Record<string, unknown>>> {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+  const r = await fetchCorto(`${SUPABASE_URL}/rest/v1/${path}`, {
     headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
   });
   if (!r.ok) { console.error("sbSel", path, await r.text()); return []; }
@@ -85,7 +85,7 @@ async function sbSel(path: string): Promise<Array<Record<string, unknown>>> {
 }
 
 async function sbRpc(fn: string, args: Record<string, unknown>): Promise<unknown> {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+  const r = await fetchCorto(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
     method: "POST",
     headers: {
       apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`,
@@ -105,7 +105,7 @@ async function sbRpc(fn: string, args: Record<string, unknown>): Promise<unknown
 }
 
 async function sbUpsert(tabla: string, fila: Record<string, unknown>, onConflict: string) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${tabla}?on_conflict=${onConflict}`, {
+  const r = await fetchCorto(`${SUPABASE_URL}/rest/v1/${tabla}?on_conflict=${onConflict}`, {
     method: "POST",
     headers: {
       apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`,
@@ -125,7 +125,7 @@ async function quienLlama(req: Request): Promise<{ tenant: string; sub: string }
   const auth = req.headers.get("authorization") || "";
   const token = auth.replace(/^Bearer\s+/i, "");
   if (!token) return null;
-  const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+  const r = await fetchCorto(`${SUPABASE_URL}/auth/v1/user`, {
     headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` },
   });
   if (!r.ok) return null;
@@ -203,7 +203,7 @@ async function puntoCiudad(tenant: string, ciudad: string, clave: string):
     + "?address=" + encodeURIComponent(ciudad + ", Colombia")
     + "&components=" + encodeURIComponent("country:CO")
     + "&region=co&language=es&key=" + encodeURIComponent(clave);
-  const r = await fetch(url);
+  const r = await fetchCorto(url);
   const j = await r.json().catch(() => null);
   const loc = j?.results?.[0]?.geometry?.location;
   if (j?.status !== "OK" || !loc) {
@@ -239,6 +239,22 @@ async function puntoCiudad(tenant: string, ciudad: string, clave: string):
     SI PLACES NO CONTESTA, SE SIGUE POR EL CAMINO VIEJO. Puede no estar
     habilitada en la cuenta de Google, y eso no puede dejar sin mapa al
     domiciliario: se responde null y quien llama busca como antes.        */
+/*  Una llamada a Google CON PLAZO.
+
+    Sin esto, si Google se queda callado la funcion entera se queda colgada y
+    el telefono espera para siempre. Paso: la pantalla se quedo en "Abriendo el
+    mapa" sin fallar nunca. Ocho segundos y se sigue: mas vale responder "no la
+    encontre" que no responder.                                            */
+async function fetchCorto(url: string, init?: RequestInit, ms = 8000): Promise<Response> {
+  const corte = new AbortController();
+  const t = setTimeout(() => corte.abort(), ms);
+  try {
+    return await fetch(url, { ...(init || {}), signal: corte.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function buscarPorNombre(
   texto: string, ancla: { lat: number; lng: number } | null, clave: string,
 ): Promise<{ lat: number; lng: number; nombre: string; direccion: string } | null> {
@@ -255,7 +271,7 @@ async function buscarPorNombre(
 
   //  1) La nueva.
   try {
-    const r = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    const r = await fetchCorto("https://places.googleapis.com/v1/places:searchText", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -290,7 +306,7 @@ async function buscarPorNombre(
   //  Comfandi" en media Colombia y la buena es la de esta ciudad.
   if (ancla) url += "&location=" + ancla.lat + "," + ancla.lng + "&radius=50000";
 
-  const r2 = await fetch(url);
+  const r2 = await fetchCorto(url);
   const j2 = await r2.json().catch(() => null);
   if (j2?.status !== "OK" || !j2?.results?.length) {
     console.error("[mapa] places-viejo", texto, j2?.status, j2?.error_message);
@@ -849,7 +865,7 @@ async function accRuta(tenant: string, body: Record<string, unknown>) {
     + "&mode=driving&language=es&region=co"
     + "&key=" + encodeURIComponent(cuenta.clave);
 
-  const r = await fetch(url);
+  const r = await fetchCorto(url);
   if (!r.ok) {
     console.error("[mapa] directions", r.status, await r.text());
     return ok({ ok: false, motivo: "google", mensaje: "Google no contesto la ruta." });
@@ -884,7 +900,7 @@ async function accGuardar(tenant: string, clave: string) {
 
   //  Prueba real: una direccion conocida. Si Google la rechaza, se dice
   //  por que, con el mensaje de Google traducido a algo entendible.
-  const prueba = await fetch(
+  const prueba = await fetchCorto(
     "https://maps.googleapis.com/maps/api/geocode/json?address=" +
     encodeURIComponent("Parque Caldas, Popayan, Colombia") + "&key=" + encodeURIComponent(clave),
   );
@@ -1161,7 +1177,7 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
       (ancla.lat - d) + "," + (ancla.lng - d) + "|" + (ancla.lat + d) + "," + (ancla.lng + d));
   }
 
-  const r = await fetch(url);
+  const r = await fetchCorto(url);
   const j = await r.json().catch(() => null);
 
   if (j?.status === "ZERO_RESULTS") {
@@ -1262,7 +1278,7 @@ async function accEstatico(tenant: string, u: URL) {
     + "&maptype=roadmap&language=es&region=co"
     + "&key=" + encodeURIComponent(cuenta.clave);
 
-  const r = await fetch(url);
+  const r = await fetchCorto(url);
   if (!r.ok) {
     console.error("staticmap", r.status, await r.text());
     return mal("Google no devolvió el mapa", 502);

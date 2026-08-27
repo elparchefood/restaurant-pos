@@ -1099,10 +1099,43 @@
     return pts;
   }
 
-  async function llamarMapa(cuerpo) {
-    var r = await sb.functions.invoke('mapa', { body: cuerpo });
-    if (r.error) throw new Error('No se pudo hablar con el servidor');
-    return r.data || {};
+  /*  NUNCA ESPERAR PARA SIEMPRE.
+
+      `invoke` no trae plazo: si el servidor no contesta, la pantalla se queda
+      en "Abriendo el mapa…" hasta que alguien cierre la app. Le paso a Sergio
+      y es de lo peor que puede hacer un programa — no falla, no dice nada, y
+      quien lo mira no sabe si esperar o irse.
+
+      Quince segundos y se cuenta que paso, diciendo EN QUE PASO se quedo: no
+      es lo mismo que no se consiga la llave a que no se consiga la direccion,
+      y con "no hay senal" a secas no hay forma de saberlo.                 */
+  function llamarMapa(cuerpo) {
+    var paso = cuerpo && cuerpo.accion;
+    return new Promise(function (listo, falla) {
+      var cerrado = false;
+      var t = setTimeout(function () {
+        if (cerrado) return;
+        cerrado = true;
+        console.error('[mapa] sin respuesta en', paso);
+        falla(new Error('El servidor no contestó (' + paso + ')'));
+      }, 15000);
+
+      sb.functions.invoke('mapa', { body: cuerpo }).then(function (r) {
+        if (cerrado) return;
+        cerrado = true; clearTimeout(t);
+        if (r.error) {
+          console.error('[mapa]', paso, r.error && r.error.message);
+          falla(new Error('El servidor respondió con error (' + paso + ')'));
+          return;
+        }
+        listo(r.data || {});
+      }).catch(function (e) {
+        if (cerrado) return;
+        cerrado = true; clearTimeout(t);
+        console.error('[mapa]', paso, e && e.message);
+        falla(e);
+      });
+    });
   }
 
   /*  Con varios pedidos, ¿cual mapa se abre? El que se este mirando: si el
@@ -1484,7 +1517,10 @@
     //     buscando un fallo que no existe.
     var acc;
     try { acc = await llamarMapa({ accion: 'navegador' }); }
-    catch (e) { mapaAviso('No hay señal', 'Vuelve a intentarlo cuando tengas internet.', false); return; }
+    catch (e) {
+      mapaAviso('No se pudo abrir el mapa', (e && e.message) || 'Vuelve a intentarlo con señal.', false);
+      return;
+    }
     if (!acc.ok) {
       mapaAviso(acc.mensaje || 'El mapa no está disponible',
         acc.motivo === 'sin_turno' ? 'Pide que abran la caja del restaurante.' : '', false);
@@ -1514,7 +1550,10 @@
             y su ciudad son texto de un formulario, y el domiciliario esta —por
             definicion— dentro de la zona de reparto. */
         cerca: posConocida() });
-    } catch (e) { mapaAviso('No hay señal', '', false); return; }
+    } catch (e) {
+      mapaAviso('No se pudo buscar la dirección', (e && e.message) || '', false);
+      return;
+    }
 
     if (g.no_encontrada) { mapaAviso('No se encontró esa dirección', 'Llámala al cliente para que te oriente.', false); return; }
     if (g.tope_alcanzado) { mapaAviso('Se acabó el cupo de mapas del mes', '', false); return; }
