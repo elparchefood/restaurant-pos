@@ -1237,6 +1237,27 @@
       TELEFONO por la via nativa —la misma que usa Google Maps— y ahi si hay
       satelite. En el navegador de escritorio no existe ese modulo y se sigue
       por la via de siempre, que ahi es la correcta.                       */
+  /*  EL MODULO DEVUELVE EL ID DE DOS MANERAS DISTINTAS.
+
+      Con el envoltorio de npm, `watchPosition` devuelve una PROMESA con el id
+      adentro. Pero la app no usa el envoltorio: llega al modulo por el puente
+      de Capacitor, y ahi el mismo metodo devuelve EL ID DE UNA, un texto.
+
+      Yo escribi `.then(...)` dando por hecho lo primero, y en el telefono
+      reventaba con "then is not a function" — dentro de una promesa, o sea sin
+      romper nada visible: el mapa se quedaba girando para siempre. Costo una
+      tarde, y lo que la termino no fue una idea sino ver el error escrito en
+      la pantalla.
+
+      Se aceptan las dos formas y ya.                                       */
+  function idDeVigilancia(r, usar, fallar) {
+    if (r && typeof r.then === 'function') {
+      r.then(usar).catch(fallar || function () {});
+    } else {
+      usar(r);
+    }
+  }
+
   function geoNativo() {
     try {
       var C = window.Capacitor;
@@ -1307,7 +1328,7 @@
       if (id) { try { g.clearWatch({ id: id }); } catch (e) {} id = null; }
     }
 
-    g.watchPosition({ enableHighAccuracy: true, timeout: VENTANA + 2000, maximumAge: 0 },
+    var ret = g.watchPosition({ enableHighAccuracy: true, timeout: VENTANA + 2000, maximumAge: 0 },
       function (pos, err) {
         if (muerto) return;
         if (err) {
@@ -1324,11 +1345,11 @@
         if (mejor && p.error > mejor.error) return;
         mejor = p;
         alPunto(p, false);
-      }
-    ).then(function (w) {
+      });
+    idDeVigilancia(ret, function (w) {
       if (muerto) { try { g.clearWatch({ id: w }); } catch (e) {} return; }
       id = w;
-    }).catch(function () {
+    }, function () {
       cerrar();
       if (alFallar) alFallar();
     });
@@ -1412,13 +1433,14 @@
 
     if (nat) {
       var id = null, muerto = false;
-      nat.watchPosition(opciones, function (pos, err) {
+      var ret = nat.watchPosition(opciones, function (pos, err) {
         if (muerto || err) return;
         suyo(pos);
-      }).then(function (w) {
+      });
+      idDeVigilancia(ret, function (w) {
         if (muerto) { try { nat.clearWatch({ id: w }); } catch (e) {} return; }
         id = w;
-      }).catch(function () {});
+      });
       return { parar: function () {
         muerto = true;
         if (id) { try { nat.clearWatch({ id: id }); } catch (e) {} id = null; }
