@@ -1050,7 +1050,8 @@
   var MAPA = { cargando: null, api: false, mapa: null, marcaCasa: null, marcaYo: null,
     linea: null, pedido: null, casa: null, aprox: false,
     andando: false, vigia: null, latido: null, despierto: null,
-    yo: null, halo: null, siguiendo: false, buscando: null };
+    yo: null, halo: null, siguiendo: false, buscando: null,
+    margen: 0, avisoGps: false };
 
   function mapaAviso(tx, sub, girando) {
     var av = $('mapa-aviso'); if (!av) return;
@@ -1139,8 +1140,11 @@
       if (mejor && p.error > mejor.error) return;
       mejor = p;
       alPunto(p, false);
-    }, function () {
+    }, function (err) {
       cerrar();
+      /* Codigo 1 = el usuario o el sistema lo tiene NEGADO. Los otros son
+         "no lo consegui ahora", que es otra cosa y no merece una ventana. */
+      if (err && err.code === 1) { abrirGps('negado'); return; }
       if (!mejor && alFallar) alFallar();
     }, { enableHighAccuracy: true, maximumAge: 0, timeout: VENTANA + 2000 });
 
@@ -1178,26 +1182,75 @@
       ubicacion en modo APROXIMADA para esta app. Ese permiso devuelve el punto
       corrido a proposito, siempre, y no mejora por esperar. Se dice como se
       arregla, porque nadie lo va a adivinar.                              */
+  /*  Mientras BUSCA no se dice nada: el mapa ya se ve, el punto ya esta ahi y
+      se va corrigiendo solo. Avisar cada segundo de que se esta buscando es
+      ruido, y taparlo con un cartel es peor.
+
+      Solo se habla cuando la busqueda TERMINO y el resultado sirve poco. */
   function pintarPrecision(p, definitivo) {
     var el = $('mapa-precision');
     if (!el) return;
-    if (!p) { el.hidden = true; return; }
+    if (!p || !definitivo) { el.hidden = true; return; }
     var m = Math.round(p.error);
+    if (m <= 40) { el.hidden = true; return; }   // normal: no se molesta a nadie
     el.hidden = false;
-    if (m > 100) {
-      el.className = 'mp-prec mala';
-      el.textContent = definitivo
-        ? 'Tu punto esta a \u00b1' + m + ' m. Android le esta dando ubicaci\u00f3n APROXIMADA a esta app: '
-          + 'Ajustes \u2192 Aplicaciones \u2192 Cobra Domicilios \u2192 Permisos \u2192 Ubicaci\u00f3n \u2192 Usar ubicaci\u00f3n precisa.'
-        : 'Buscando el sat\u00e9lite\u2026 por ahora \u00b1' + m + ' m';
-    } else if (m > 30) {
-      el.className = 'mp-prec media';
-      el.textContent = definitivo ? 'Tu punto: \u00b1' + m + ' m' : 'Afinando\u2026 \u00b1' + m + ' m';
-    } else {
-      el.className = 'mp-prec';
-      el.hidden = definitivo && m <= 20;   // si quedo bien, no hace falta decirlo
-      el.textContent = '\u00b1' + m + ' m';
+    el.className = m > 100 ? 'mp-prec mala' : 'mp-prec media';
+    el.textContent = '\u00b1' + m + ' m \u00b7 tocar';
+    MAPA.margen = m;
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     EL PERMISO DE UBICACION
+     ══════════════════════════════════════════════════════════════
+     La app nunca comprobaba si el telefono le estaba dando la ubicacion. Si el
+     permiso estaba negado, el mapa simplemente se quedaba sin punto azul y sin
+     decir por que — y quien lo mirara pensaria que el programa esta malo.
+
+     Son DOS cosas distintas y la gente las confunde:
+
+       · PERMISO NEGADO: la app no puede pedir la ubicacion. Se arregla en los
+         ajustes del telefono.
+       · PERMISO "APROXIMADO": Android 12 dejo que se conceda la ubicacion a
+         proposito corrida un kilometro. La app SI recibe una posicion, y por
+         eso no falla nada visible: simplemente esta mal, siempre, y no mejora
+         por esperar ni por salir a campo abierto.
+
+     El segundo es el que nadie adivina, y es el que explica un punto de inicio
+     "cerca pero no donde estoy".                                          */
+  function abrirGps(motivo) {
+    var t = $('gps-t'), s = $('gps-s'), pasos = $('gps-pasos');
+    var aprox = motivo === 'aproximada';
+    if (t) t.textContent = aprox ? 'Tu ubicaci\u00f3n est\u00e1 en modo aproximado' : 'Falta tu ubicaci\u00f3n';
+    if (s) {
+      s.textContent = aprox
+        ? 'El tel\u00e9fono la est\u00e1 dando corrida a prop\u00f3sito' + (MAPA.margen ? ' (\u00b1' + MAPA.margen + ' m)' : '')
+          + '. No mejora esperando: hay que cambiarla en los ajustes.'
+        : 'Sin ella el mapa no sabe desde d\u00f3nde arrancar.';
     }
+    if (pasos) {
+      pasos.innerHTML = aprox
+        ? ['Ajustes del tel\u00e9fono', 'Aplicaciones \u2192 <b>Cobra Domicilios</b>',
+           'Permisos \u2192 Ubicaci\u00f3n', 'Activar <b>Usar ubicaci\u00f3n precisa</b>']
+            .map(function (x) { return '<li>' + x + '</li>'; }).join('')
+        : ['Ajustes del tel\u00e9fono', 'Aplicaciones \u2192 <b>Cobra Domicilios</b>',
+           'Permisos \u2192 Ubicaci\u00f3n', 'Elegir <b>Permitir mientras se usa</b>',
+           'Y activar <b>Usar ubicaci\u00f3n precisa</b>']
+            .map(function (x) { return '<li>' + x + '</li>'; }).join('');
+    }
+    if ($('ov-gps')) $('ov-gps').hidden = false;
+  }
+
+  /*  Se comprueba ANTES de abrir el mapa. Si el navegador sabe decir que esta
+      negado, se dice de una en vez de dejar el mapa mudo. Y si no sabe
+      decirlo —muchos no implementan esto— no pasa nada: el fallo al pedir la
+      posicion lo atrapa igual mas adelante. */
+  function revisarPermiso() {
+    try {
+      if (!navigator.permissions || !navigator.permissions.query) return;
+      navigator.permissions.query({ name: 'geolocation' }).then(function (r) {
+        if (r && r.state === 'denied') abrirGps('negado');
+      }).catch(function () {});
+    } catch (e) {}
   }
 
   function verRuta() {
@@ -1250,6 +1303,7 @@
     if ($('btn-mapa-iniciar')) $('btn-mapa-iniciar').disabled = false;
     MAPA.aprox = false; MAPA.casa = null;
     if (MAPA.buscando) { MAPA.buscando.parar(); MAPA.buscando = null; }
+    MAPA.avisoGps = false;
     if (MAPA.marcaYo) { MAPA.marcaYo.setMap(null); MAPA.marcaYo = null; }
     if (MAPA.halo) { MAPA.halo.setMap(null); MAPA.halo = null; }
     if (MAPA.linea) { MAPA.linea.setMap(null); MAPA.linea = null; }
@@ -1258,6 +1312,7 @@
     if ($('mapa-centrar')) $('mapa-centrar').hidden = true;
     if ($('mapa-precision')) $('mapa-precision').hidden = true;
     mapaAviso('Abriendo el mapa…', '', true);
+    revisarPermiso();
     armarMapa(p);
   }
 
@@ -1415,7 +1470,13 @@
         trazos++;
         trazar(casa, { lat: p.lat, lng: p.lng });
       }
-      if (definitivo) MAPA.buscando = null;
+      if (definitivo) {
+        MAPA.buscando = null;
+        /* Mas de 200 metros con el GPS a tope no es un satelite lento: es el
+           permiso aproximado. Se ofrece la explicacion UNA vez por pedido, sin
+           taparle el mapa — la pastilla se queda ahi por si la quiere luego. */
+        if (p.error > 200 && !MAPA.avisoGps) { MAPA.avisoGps = true; abrirGps('aproximada'); }
+      }
     });
     /* Sin GPS no hay l\u00ednea, pero el mapa con la casa marcada ya sirve para
        orientarse. No se avisa nada: no falt\u00f3 nada importante. */
@@ -1596,6 +1657,14 @@
         return;
       }
 
+      if (t.closest('#mapa-precision')) { abrirGps('aproximada'); return; }
+      if (t.closest('#gps-cerrar')) { if ($('ov-gps')) $('ov-gps').hidden = true; return; }
+      if (t.closest('#gps-reintentar')) {
+        if ($('ov-gps')) $('ov-gps').hidden = true;
+        MAPA.avisoGps = false;
+        if (MAPA.casa) pintarRuta(MAPA.casa); else centrarEnMi();
+        return;
+      }
       if (t.closest('#mapa-centrar')) { centrarEnMi(); return; }
       if (t.closest('#mapa-antes')) { moverMapa(-1); return; }
       if (t.closest('#mapa-siguiente')) { moverMapa(1); return; }

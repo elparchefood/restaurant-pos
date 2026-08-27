@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="domiciliario.css?v=1792560000">
+<link rel="stylesheet" href="domiciliario.css?v=1792570000">
 </head>
 <body>
 <!-- Sin conexion: se muestra solo cuando hace falta. -->
@@ -353,10 +353,11 @@
 
   <div class="mp-lienzo">
     <div id="mapa-lienzo"></div>
-    <!-- Que tan seguro esta el telefono de donde estas. Sin este numero, "el
-         punto esta cerca pero no donde estoy" es una queja imposible de
-         perseguir: no hay forma de saber si dio 15 metros o 1.200. -->
-    <div class="mp-prec" id="mapa-precision" hidden></div>
+    <!-- Cuanto margen tiene tu punto. Una pastilla chiquita abajo, NO un
+         cartel encima del mapa: Google nunca tapa el mapa, y con razon — el
+         mapa es lo que el domiciliario necesita ver. Solo aparece cuando el
+         margen es malo, y se toca para saber que hacer. -->
+    <button class="mp-prec" id="mapa-precision" hidden></button>
 
     <!-- Aparece SOLO cuando el domiciliario mueve el mapa con el dedo, igual
          que en Google. Mientras el mapa lo sigue, estorba. -->
@@ -379,6 +380,24 @@
     <!-- ARRANCA LA RUTA DENTRO DE COBRA: el mapa sigue al domiciliario y los
          puntos corren sobre la linea, como en Google Maps al darle Iniciar. -->
     <button class="btn-p" id="btn-mapa-iniciar" style="min-height:46px;border-radius:14px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"></path></svg> <span id="mapa-iniciar-tx">Iniciar</span></button>
+  </div>
+</div>
+
+<!-- ══ UBICACION — cuando el telefono no la esta dando ══
+     Se explica que pasa y como se arregla, con los pasos exactos del telefono.
+     "Activa el GPS" no le sirve a nadie: nadie sabe donde queda eso. -->
+<div class="ov center" id="ov-gps" hidden>
+  <div class="modal" style="max-width:340px">
+    <div class="sh-body" style="gap:14px;text-align:center;align-items:center">
+      <div class="gps-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>
+      <div>
+        <div style="font-size:17px;font-weight:700;letter-spacing:-.02em" id="gps-t">Falta tu ubicaci&oacute;n</div>
+        <div style="font-size:13px;color:var(--ink-3);margin-top:7px;line-height:1.55" id="gps-s">Sin ella el mapa no sabe desde d&oacute;nde arrancar.</div>
+      </div>
+      <ol class="gps-pasos" id="gps-pasos"></ol>
+      <button class="btn-p" id="gps-reintentar">Volver a intentar</button>
+      <button class="btn-o" id="gps-cerrar">Ahora no</button>
+    </div>
   </div>
 </div>
 
@@ -417,6 +436,6 @@
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <!-- Los tonos, afinados una sola vez para todo Cobra. -->
 <script src="pos-notify.js?v=1792500000"></script>
-<script src="domiciliario.js?v=1792560000"></script>
+<script src="domiciliario.js?v=1792570000"></script>
 </body>
 </html>

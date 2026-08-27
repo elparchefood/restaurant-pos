@@ -357,15 +357,39 @@ a{color:var(--brand);text-decoration:none}a:hover{color:var(--brand-press)}
 /* Cuando el viaje esta andando, la barra de abajo lo dice sin leer. */
 .mp-pie .btn-p.andando{background:var(--danger);box-shadow:none}
 
-/* El aviso de precision. Discreto cuando todo va bien; rojo y explicando que
-   hacer cuando el telefono esta dando la ubicacion corrida a proposito. */
+/* CUANTO MARGEN TIENE EL PUNTO — una pastilla, no un cartel.
+
+   Aqui hubo un cartel rojo a todo lo ancho que tapaba el mapa mientras
+   buscaba. Sergio: "eso jamas en la vida sucede en Google Maps". Cierto: el
+   mapa es lo que el domiciliario necesita ver, y taparlo para avisarle que
+   estamos buscando es quitarle lo unico que sirve.
+
+   Ahora es una pastilla chiquita abajo a la izquierda, aparece solo cuando el
+   margen es malo de verdad, y se toca para saber que hacer. */
 .mp-prec{
-  position:absolute;left:12px;right:12px;top:12px;z-index:5;
-  background:rgba(15,23,42,.82);color:#fff;
-  padding:8px 12px;border-radius:12px;
-  font-size:11.5px;font-weight:600;line-height:1.45;text-align:center;
-  backdrop-filter:blur(6px);
+  position:absolute;left:14px;bottom:14px;z-index:5;
+  display:flex;align-items:center;gap:6px;
+  background:rgba(15,23,42,.80);color:#fff;
+  padding:7px 12px;border-radius:999px;
+  font-family:inherit;font-size:11.5px;font-weight:700;
+  backdrop-filter:blur(6px);border:none;
+  box-shadow:0 4px 14px -6px rgba(15,23,42,.5);
 }
 .mp-prec[hidden]{display:none !important}
 .mp-prec.media{background:rgba(180,83,9,.92)}
-.mp-prec.mala{background:rgba(185,28,28,.94);text-align:left}
+.mp-prec.mala{background:rgba(185,28,28,.94)}
+.mp-prec:active{opacity:.85}
+
+/* La ventana que explica el permiso. */
+.gps-ic{
+  width:52px;height:52px;border-radius:16px;flex-shrink:0;
+  background:var(--brand-tint);color:var(--brand);
+  display:flex;align-items:center;justify-content:center;
+}
+.gps-pasos{
+  margin:0;padding:0 0 0 20px;text-align:left;width:100%;
+  font-size:12.5px;color:var(--ink-2);line-height:1.6;
+}
+.gps-pasos li{margin-bottom:5px}
+.gps-pasos li:last-child{margin-bottom:0}
+.gps-pasos b{color:var(--ink);font-weight:700}
