@@ -173,6 +173,60 @@ async function llaveDe(tenant: string): Promise<{ clave: string; propia: boolean
   return null;
 }
 
+/*  CUANTOS KILOMETROS HAY ENTRE DOS PUNTOS.
+    Formula de siempre (haversine). Sirve para una sola cosa: comprobar que
+    lo que devolvio Google esta donde puede estar un domicilio.            */
+function kmEntre(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371, g = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * g, dLng = (b.lng - a.lng) * g;
+  const h = Math.sin(dLat / 2) ** 2
+    + Math.cos(a.lat * g) * Math.cos(b.lat * g) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/*  EL PUNTO DE LA CIUDAD DEL RESTAURANTE.
+
+    Es el ancla contra la que se mide todo lo demas. Se le pregunta a Google
+    UNA vez por ciudad y se guarda para siempre en la misma tabla de
+    direcciones, con una clave que no se puede confundir con la de un
+    cliente. Una ciudad no se mueve.                                       */
+async function puntoCiudad(tenant: string, ciudad: string, clave: string):
+    Promise<{ lat: number; lng: number } | null> {
+  if (!ciudad) return null;
+  const k = "__ciudad__ " + normTexto(ciudad);
+
+  const g = await sbSel(
+    `pos_direcciones_geo?tenant_id=eq.${tenant}&clave=eq.${encodeURIComponent(k)}&select=lat,lng`);
+  if (g.length && g[0].lat != null) return { lat: Number(g[0].lat), lng: Number(g[0].lng) };
+
+  const url = "https://maps.googleapis.com/maps/api/geocode/json"
+    + "?address=" + encodeURIComponent(ciudad + ", Colombia")
+    + "&components=" + encodeURIComponent("country:CO")
+    + "&region=co&language=es&key=" + encodeURIComponent(clave);
+  const r = await fetch(url);
+  const j = await r.json().catch(() => null);
+  const loc = j?.results?.[0]?.geometry?.location;
+  if (j?.status !== "OK" || !loc) {
+    console.error("[mapa] ciudad", ciudad, j?.status, j?.error_message);
+    return null;
+  }
+  await sbRpc("fn_direccion_guardar", {
+    p_tenant: tenant, p_clave: k, p_direccion: ciudad, p_barrio: "",
+    p_lat: loc.lat, p_lng: loc.lng, p_origen: "google_ciudad",
+    p_place_id: j.results[0].place_id || null,
+    p_exactitud: j.results[0].geometry?.location_type || null,
+    p_canonica: ciudad,
+  });
+  return { lat: Number(loc.lat), lng: Number(loc.lng) };
+}
+
+/*  HASTA DONDE PUEDE ESTAR UN DOMICILIO.
+
+    50 km del centro de la ciudad. Es holgado a proposito: un corregimiento
+    o una vereda de las afueras entra sin problema, y una respuesta de otra
+    ciudad (Cali esta a 111 km de Popayan) no.                             */
+const KM_MAXIMO = 50;
+
 /* ── Pedir permiso al contador ────────────────────────────────────────── */
 async function consumir(tenant: string, sku: string, propia: boolean): Promise<{ permitido: boolean; usado: number; tope: number; global?: boolean }> {
   /*  DOS FRENOS, NO UNO.
@@ -863,9 +917,25 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
       que es como estan escritos los datos de Google en Colombia, y SIN el
       complemento: "apto 502" no le dice nada y solo le estorba.
 
-      Y `components` amarra la busqueda al pais y al municipio. Sin eso,
-      "Calle 5 # 4-30" existe en media Colombia y Google puede devolver
-      la de otra ciudad sin avisar.                                      */
+      NO SE FILTRA POR MUNICIPIO, Y ESTO SE APRENDIO FALLANDO.
+
+      Antes iba `components=locality:<ciudad>`, para que "Calle 5 # 4-30"
+      —que existe en media Colombia— no cayera en otra ciudad. Suena bien
+      y esta mal: los domicilios se salen del municipio todos los dias.
+      Un pedido a "Ciudadela Llanos de Calibio", que es un sitio que Google
+      conoce por nombre, quedaba fuera del municipio y Google, obligado a
+      contestar dentro de el, devolvio el centro de la ciudad como si fuera
+      la casa. El filtro que existia para no equivocarse de ciudad fue justo
+      lo que mando el pedido a otra ciudad.
+
+      Ahora se hacen dos cosas distintas, que antes eran una sola mal hecha:
+
+        - Se le SUGIERE la zona con `bounds` (un recuadro alrededor de la
+          ciudad). Sugerir no es obligar: si la respuesta buena esta un poco
+          afuera, Google la puede dar igual.
+        - Y despues SE MIDE. Si lo que contesto queda a mas de 50 km del
+          centro de la ciudad, no se acepta. Medir es mas seguro que
+          prohibir: atrapa el error de ciudad sin romper las afueras.     */
   //  A un conjunto NO se le agrega el barrio: el nombre propio ya lo
   //  identifica, y meterle mas palabras solo confunde la busqueda.
   const partes = [orden.canonica];
@@ -873,14 +943,20 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
   if (ciudad) partes.push(ciudad);
   const texto = partes.filter(Boolean).join(", ");
 
-  let comp = "country:CO";
-  if (ciudad) comp += "|locality:" + ciudad;
+  const ancla = await puntoCiudad(tenant, ciudad, cuenta.clave);
 
-  const url = "https://maps.googleapis.com/maps/api/geocode/json"
+  let url = "https://maps.googleapis.com/maps/api/geocode/json"
     + "?address=" + encodeURIComponent(texto)
-    + "&components=" + encodeURIComponent(comp)
+    + "&components=" + encodeURIComponent("country:CO")
     + "&region=co&language=es"
     + "&key=" + encodeURIComponent(cuenta.clave);
+  if (ancla) {
+    //  Medio grado ≈ 55 km a cada lado: la zona de reparto de cualquier
+    //  restaurante cabe de sobra ahi.
+    const d = 0.5;
+    url += "&bounds=" + encodeURIComponent(
+      (ancla.lat - d) + "," + (ancla.lng - d) + "|" + (ancla.lat + d) + "," + (ancla.lng + d));
+  }
 
   const r = await fetch(url);
   const j = await r.json().catch(() => null);
@@ -904,6 +980,20 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
   const loc = res0.geometry?.location;
   const tipo = String(res0.geometry?.location_type || "");
   if (!loc) return ok({ no_encontrada: true });
+
+  /*  LA MEDIDA. Si la respuesta cae lejisimos, no se guarda ni se muestra:
+      un punto en otra ciudad se ve perfectamente normal en el mapa, y ese
+      es justo el problema. Se responde "no la encontre", que es la verdad. */
+  if (ancla) {
+    const lejos = kmEntre(ancla, { lat: Number(loc.lat), lng: Number(loc.lng) });
+    if (lejos > KM_MAXIMO) {
+      console.error("[mapa] respuesta lejana", texto, Math.round(lejos) + " km");
+      return ok({
+        no_encontrada: true, lejos: Math.round(lejos),
+        canonica: orden.canonica, complemento: orden.complemento,
+      });
+    }
+  }
 
   /*  QUE TAN EXACTO ES LO QUE DEVOLVIO.
 

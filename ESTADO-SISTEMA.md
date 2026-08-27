@@ -53,6 +53,46 @@ llama `llaveDe()` y devuelve `null` cuando no hay llave. Escrito así, la
 función entera no arrancaba. Se vio releyendo el archivo antes de desplegar, no
 en producción.
 
+### 🔴→🟢 El filtro que existia para no equivocarse de ciudad, mando el pedido a otra ciudad
+
+Primera prueba real: un pedido a **Ciudadela Llanos de Calibio** (Popayan,
+`2.4966, -76.5712`) marco el **centro de Cali** (`3.4516, -76.5319`). 111 km.
+
+La busqueda iba con `components=locality:<ciudad del restaurante>`, puesto para
+que "Calle 5 # 4-30" —que existe en media Colombia— no cayera en otra ciudad.
+Suena bien y esta mal: **los domicilios se salen del municipio todos los dias**.
+Llanos de Calibio es un sitio que Google conoce por nombre, pero queda fuera del
+municipio; obligado a contestar dentro de el, Google devolvio el centro de la
+ciudad. El filtro que existia para no equivocarse de ciudad fue exactamente lo
+que causo el error.
+
+Ahora son dos cosas distintas, que antes eran una sola mal hecha:
+
+- **Se sugiere la zona** con `bounds` (medio grado alrededor del punto de la
+  ciudad). Sugerir no es obligar: si la respuesta buena queda un poco afuera,
+  Google la puede dar igual.
+- **Y despues se mide.** Si la respuesta cae a mas de `KM_MAXIMO` (50 km) del
+  centro de la ciudad, no se acepta y se responde "no la encontre".
+
+Medir es mas seguro que prohibir: atrapa el error de ciudad sin romper las
+afueras. El punto de la ciudad se le pregunta a Google una vez y se guarda para
+siempre (`__ciudad__ <ciudad>` en `pos_direcciones_geo`) — una ciudad no se mueve.
+
+**Y el aviso, que fallo igual de feo.** Cobra SI habia marcado el punto como
+`google_aprox` / `APPROXIMATE`. Lo decia con un "aprox." minusculo en la esquina
+del mapa. Ahora sale una banda roja y **no se dibuja la ruta ni se deja
+arrancar**: una linea bonita hasta un punto inventado es peor que no tener mapa,
+porque el domiciliario la sigue creyendo que va bien.
+
+### "Iniciar" en vez de "Navegar con voz"
+
+El boton que sacaba a Google Maps era volver al problema que acababamos de
+quitar. Ahora la ruta corre dentro de Cobra: la camara sigue al domiciliario,
+los puntos corren sobre la linea (moviendo el `offset` del simbolo) y la
+pantalla no se apaga (`wakeLock`). Salir del mapa apaga el `watchPosition` — el
+GPS es lo que mas bateria gasta en un celular que va a estar toda la tarde en la
+calle.
+
 ### Lo que falta para que funcione
 - Sergio tiene que **crear `MAPAS_CLAVE_NAVEGADOR`** en Google Cloud (solo Maps
   JavaScript API, referente `cobrapos.app/*`, cuota diaria) y guardarla como
