@@ -864,13 +864,15 @@
     var btn = $('btn-accion-principal');
     var aviso = $('detalle-aviso-pago');
     var fin = $('detalle-entregado');
+    var espera = $('detalle-espera');
     if (aviso) aviso.hidden = true;
     if (fin) fin.hidden = true;
+    if (espera) espera.hidden = p.estado !== 'asignado';
     if (btn) {
       btn.hidden = false;
       btn.disabled = false;
       if (p.estado === 'asignado') {
-        btn.lastChild.nodeValue = ' Recogí el pedido';
+        btn.hidden = true;
       } else if (p.estado === 'camino') {
         btn.lastChild.nodeValue = p.pago === 'contra' ? ' Cobrar y entregar' : ' Marcar como entregado';
         if (p.pago === 'pagado' && aviso) aviso.hidden = false;
@@ -909,19 +911,17 @@
     if (!p) return;
     var btn = $('btn-accion-principal');
 
-    if (p.estado === 'asignado') {
-      if (btn) btn.disabled = true;
-      try {
-        await cambiarEstado(p.id, 'camino');
-        p.estado = 'camino';
-        toast('Pedido #' + p.no + ' en camino');
-        abrirDetalle(p.id);
-        pintarTodo();
-      } catch (e) {
-        toast('No se pudo marcar en camino. Revisa tu señal.');
-      } finally { if (btn) btn.disabled = false; }
-      return;
-    }
+    /*  AQUI ESTABA "RECOGI EL PEDIDO", Y SE QUITA.
+
+        Ese boton ponia el pedido EN CAMINO desde el telefono del domiciliario.
+        Pero quien despacha es la caja: es la que sabe si esta empacado, si se
+        cobro adelantado y si de verdad salio. Dejarselo al domiciliario
+        permitia que un pedido figurara en camino estando todavia en el
+        mostrador — y con eso al cliente le llega el aviso de que su comida va
+        en camino cuando ni siquiera ha salido.
+
+        El domiciliario no pierde nada: cuando la caja lo despacha, su pantalla
+        cambia sola. Lo suyo empieza en la puerta del cliente.             */
 
     if (p.estado === 'camino') {
       if (p.pago === 'contra') { abrirCobro(p); return; }
@@ -2252,11 +2252,33 @@
   /* EL AVISO DE SIN CONEXION. Una app de reparto que deja de actualizarse en
      silencio es peor que no tener app: el domiciliario le cree y se queda
      esperando un pedido que ya le asignaron. */
+  /*  NO GRITAR POR UN PARPADEO.
+
+      El aviso salia y se iba en menos de un segundo, varias veces por rato. No
+      era mentira: el canal de tiempo real se cae y se vuelve a levantar solo
+      cada tanto —cambio de antena, la pantalla que se apaga— y cada bajon
+      encendia el letrero.
+
+      Un aviso que aparece y desaparece sin dar tiempo a leerlo no informa:
+      preocupa. Ahora se esperan SEIS SEGUNDOS sin conexion antes de decir
+      nada, y se quita de una en cuanto vuelve. Un corte de verdad dura mucho
+      mas que seis segundos; un bajon del canal, mucho menos.               */
+  var _redPlazo = null;
+
   function marcarRed(ok) {
     var b = $('sinred');
     if (!b) return;
     var hay = ok && (navigator.onLine !== false);
-    b.hidden = !!hay;
+    if (hay) {
+      if (_redPlazo) { clearTimeout(_redPlazo); _redPlazo = null; }
+      b.hidden = true;
+      return;
+    }
+    if (_redPlazo || !b.hidden) return;   // ya se esta contando, o ya se dijo
+    _redPlazo = setTimeout(function () {
+      _redPlazo = null;
+      b.hidden = false;
+    }, 6000);
   }
 
   /* El velo solo se quita cuando de verdad hay algo que mostrar. Si algo

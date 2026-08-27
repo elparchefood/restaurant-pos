@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="domiciliario.css?v=1792650000">
+<link rel="stylesheet" href="domiciliario.css?v=1792660000">
 </head>
 <body>
 <!-- Sin conexion: se muestra solo cuando hace falta. -->
@@ -219,13 +219,10 @@
       <div class="kv"><span>Rol</span><span style="color:var(--brand)">Domiciliario</span></div>
     </div>
 
-    <div class="sec"><span class="sec-l">Permisos del rol</span></div>
-    <div class="list" id="permisos">
-      <div class="li"><div class="li-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg></div><div><div class="li-t">Ver pedidos asignados</div><div class="li-s">Solo los propios</div></div></div>
-      <div class="li"><div class="li-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg></div><div><div class="li-t">Cobrar contra entrega</div><div class="li-s">Efectivo y transferencia</div></div></div>
-      <div class="li"><div class="li-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg></div><div><div class="li-t">Compartir su ubicación</div><div class="li-s">Mientras el turno esté abierto</div></div></div>
-    </div>
-
+    <!-- AQUI ESTABA "PERMISOS DEL ROL", Y SE QUITA.
+         Al domiciliario no le sirve saber que permisos tiene: no puede
+         cambiarlos, no le explican nada de su trabajo, y una lista de permisos
+         es informacion de adentro del sistema. Lo suyo es la calle. -->
     <button class="btn-o" id="btn-ubicacion-perfil">Compartir mi ubicación ahora</button>
     <button class="btn-o danger" id="btn-logout">Cerrar sesión</button>
   </div>
@@ -276,6 +273,13 @@
       <button class="btn-o" id="btn-ubicacion-detalle"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"></path><path d="M9 3v15"></path><path d="M15 6v15"></path></svg> Compartir mi ubicación</button>
     </div>
     <div class="sh-foot">
+      <!-- Mientras la caja no lo despache, aqui no hay boton que tocar: hay
+           una explicacion de por que. Un boton apagado sin motivo se lee como
+           una app rota. -->
+      <div class="dm-espera" id="detalle-espera" hidden>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+        <span>Todav&iacute;a no ha salido. Cuando la caja lo despache, este pedido pasa solo a <b>En camino</b>.</span>
+      </div>
       <button class="btn-p" id="btn-accion-principal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg> Cobrar y entregar</button>
       <div style="font-size:11.5px;color:var(--muted);text-align:center" id="detalle-aviso-pago" hidden>Este pedido ya está pago. Solo entrega.</div>
       <div class="change" id="detalle-entregado" hidden><span>Entregado a las 6:12 p. m.</span><b class="tnum">$ 52.000</b></div>
@@ -440,6 +444,6 @@
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <!-- Los tonos, afinados una sola vez para todo Cobra. -->
 <script src="pos-notify.js?v=1792500000"></script>
-<script src="domiciliario.js?v=1792650000"></script>
+<script src="domiciliario.js?v=1792660000"></script>
 </body>
 </html>

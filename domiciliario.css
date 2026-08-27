@@ -397,3 +397,15 @@ a{color:var(--brand);text-decoration:none}a:hover{color:var(--brand-press)}
 /* El sello de version. Chiquito y gris: no es para el domiciliario, es para
    saber que copia esta corriendo cuando algo no cuadra. */
 .dm-sello{font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;text-align:center;padding:2px 0}
+
+/* El aviso de "todavia no sale". Va donde estaba el boton, para que el hueco
+   diga algo en vez de parecer que falta una pieza. */
+.dm-espera{
+  display:flex;align-items:flex-start;gap:9px;
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:14px;padding:13px 14px;
+  font-size:12.5px;color:var(--ink-2);line-height:1.5;
+}
+.dm-espera[hidden]{display:none !important}
+.dm-espera svg{flex-shrink:0;margin-top:1px;color:var(--ink-3)}
+.dm-espera b{color:var(--ink)}
