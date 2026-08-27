@@ -945,6 +945,31 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
       Lo de abajo (deducirlo) se queda, pero solo como respaldo para los
       pedidos viejos y para los que entran por el chat.                    */
   const conjDicho = String(body.conjunto || "").trim();
+
+  /*  DESDE DONDE SE BUSCA — y por que ya no manda el nombre de la ciudad.
+
+      Hasta ahora el ancla salia del campo "Ciudad" de la sede. Eso es un texto
+      que alguien escribio en un formulario: puede estar mal, vacio, mal
+      escrito, o quedar viejo cuando el negocio se muda. Y cuando esta mal, el
+      resultado no es un error visible sino una casa de OTRA ciudad, dada con
+      toda confianza.
+
+      Sergio lo dijo mejor que yo: el restaurante puede llamarse como sea y la
+      ciudad puede decir cualquier cosa; lo que no miente es DONDE ESTA
+      PARADO quien pide el mapa. El domiciliario esta, por definicion, dentro
+      de la zona de reparto.
+
+      Asi que manda el punto real de quien pregunta. La ciudad se queda solo de
+      respaldo, para cuando nadie tiene GPS — el computador de la caja.       */
+  const cerca = String(body.cerca || "").trim();
+  const anclaGps = (function () {
+    const m = cerca.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
+    if (!m) return null;
+    const lat = Number(m[1]), lng = Number(m[2]);
+    if (!isFinite(lat) || !isFinite(lng)) return null;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return { lat, lng };
+  })();
   if (!dir && !barrio) return mal("Falta la dirección");
 
   /*  PRIMERO: ¿es un conjunto?
@@ -1008,6 +1033,10 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
   const clave = nombre
     ? "nombre " + nucleo(nombre) + " " + normTexto(ciudad)
     : normalizar(dir, barrio, ciudad);
+  /*  La clave si sigue llevando la ciudad escrita, y esta bien: si el dueno la
+      corrige, las direcciones viejas —resueltas con la ciudad mala— quedan
+      guardadas aparte y no contaminan las nuevas. Es un cajon por ciudad, no
+      un dato que decida donde buscar.                                      */
   if (!clave) return mal("Falta la dirección");
 
   const orden = nombre
@@ -1085,7 +1114,8 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
   if (ciudad) partes.push(ciudad);
   const texto = partes.filter(Boolean).join(", ");
 
-  const ancla = await puntoCiudad(tenant, ciudad, cuenta.clave);
+  //  El GPS de quien pregunta manda; la ciudad es el respaldo.
+  const ancla = anclaGps || await puntoCiudad(tenant, ciudad, cuenta.clave);
 
   /*  CAMINO 1: TIENE NOMBRE. Se le pregunta al indice de sitios.
       Al nombre NO se le pega el barrio ni el numero de casa: el nombre

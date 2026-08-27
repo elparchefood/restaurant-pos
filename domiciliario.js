@@ -1052,7 +1052,8 @@
     andando: false, vigia: null, latido: null, despierto: null,
     yo: null, halo: null, siguiendo: false, buscando: null,
     margen: 0, avisoGps: false,
-    mapaId: '', rumbo: null, giro: null };
+    mapaId: '', rumbo: null, giro: null,
+    previa: null, previaBusca: null };
 
   function mapaAviso(tx, sub, girando) {
     var av = $('mapa-aviso'); if (!av) return;
@@ -1453,6 +1454,7 @@
     if ($('btn-mapa-iniciar')) $('btn-mapa-iniciar').disabled = false;
     MAPA.aprox = false; MAPA.casa = null;
     if (MAPA.buscando) { MAPA.buscando.parar(); MAPA.buscando = null; }
+    if (MAPA.previaBusca) { MAPA.previaBusca.parar(); MAPA.previaBusca = null; }
     MAPA.avisoGps = false;
     if (MAPA.marcaYo) { MAPA.marcaYo.setMap(null); MAPA.marcaYo = null; }
     if (MAPA.halo) { MAPA.halo.setMap(null); MAPA.halo = null; }
@@ -1472,6 +1474,7 @@
        celular que va a estar toda la tarde en la calle. */
     detenerRuta();
     if (MAPA.buscando) { MAPA.buscando.parar(); MAPA.buscando = null; }
+    if (MAPA.previaBusca) { MAPA.previaBusca.parar(); MAPA.previaBusca = null; }
     if ($('ov-mapa')) $('ov-mapa').hidden = true;
   }
 
@@ -1489,6 +1492,15 @@
     }
 
     MAPA.mapaId = acc.mapaId || '';
+    /*  Se arranca el GPS ANTES de preguntar la direccion, no despues. Bajar la
+        libreria de Google tarda un segundo o dos, y en ese rato el telefono ya
+        consiguio una posicion: asi la busqueda sale con el punto de HOY en vez
+        del recordado de ayer. */
+    MAPA.previaBusca = ubicarme(function (p) {
+      recordarPos(p);
+      pintarYo(p);
+    });
+
     try { await cargarGoogle(acc.clave); }
     catch (e) { mapaAviso('El mapa no cargó', 'Revisa la conexión y vuelve a entrar.', false); return; }
 
@@ -1497,7 +1509,11 @@
     var g;
     try {
       g = await llamarMapa({ accion: 'geocodificar', direccion: p.direccion, barrio: p.barrio || '',
-        ciudad: S.ciudad || '', conjunto: p.conjunto || '' });
+        ciudad: S.ciudad || '', conjunto: p.conjunto || '',
+        /*  DESDE DONDE BUSCAR. Es lo unico que no miente: el nombre de la sede
+            y su ciudad son texto de un formulario, y el domiciliario esta —por
+            definicion— dentro de la zona de reparto. */
+        cerca: posConocida() });
     } catch (e) { mapaAviso('No hay señal', '', false); return; }
 
     if (g.no_encontrada) { mapaAviso('No se encontró esa dirección', 'Llámala al cliente para que te oriente.', false); return; }
@@ -1559,7 +1575,33 @@
   /* El punto azul: un círculo, y alrededor la mancha de lo que el GPS no sabe.
      La mancha no es adorno — si el margen es de 300 metros, el domiciliario
      tiene que VERLO en vez de creerse que esta donde dice el punto. */
+  /*  DONDE ESTABA LA ULTIMA VEZ.
+
+      Se guarda en el telefono porque hace falta ANTES de tener senal del GPS:
+      es lo que se le manda al servidor para que busque la direccion cerca de
+      aqui y no en la ciudad que diga un formulario. Un domiciliario abre la
+      app en el mismo barrio todos los dias, asi que la de ayer ya sirve.
+
+      No es un dato delicado: es donde estaba el propio dueno del telefono, en
+      su propio telefono, y no sale de ahi salvo para preguntar por una
+      direccion que el mismo va a ir a entregar.                            */
+  var POS_KEY = 'cobra.domi.ultimapos';
+
+  function recordarPos(p) {
+    MAPA.previa = { lat: p.lat, lng: p.lng };
+    try { localStorage.setItem(POS_KEY, p.lat + ',' + p.lng); } catch (e) {}
+  }
+
+  function posConocida() {
+    if (MAPA.previa) return MAPA.previa.lat + ',' + MAPA.previa.lng;
+    try {
+      var v = localStorage.getItem(POS_KEY);
+      return /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(v || '') ? v : '';
+    } catch (e) { return ''; }
+  }
+
   function pintarYo(p) {
+    recordarPos(p);
     if (!MAPA.mapa) return;
     var pos = { lat: p.lat, lng: p.lng };
     if (!MAPA.marcaYo) {
