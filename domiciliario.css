@@ -15,6 +15,14 @@ svg{display:block}
 a{color:var(--brand);text-decoration:none}a:hover{color:var(--brand-press)}
 ::-webkit-scrollbar{width:0}
 .tnum{font-variant-numeric:tabular-nums}
+.dm-sinred{
+  position:fixed; left:0; right:0; top:0; z-index:9998;
+  background:#DC2626; color:#fff; text-align:center;
+  padding:calc(6px + env(safe-area-inset-top)) 14px 7px;
+  font-size:12.5px; font-weight:700;
+}
+.dm-sinred[hidden]{display:none !important;}
+
 /* EL VELO. Va con `display:flex` desde el arranque: si el programa nunca
    corre, nunca se quita, y la maqueta no se ve. Es a proposito que sea al
    reves de lo normal — tapar por defecto y destapar al final. */

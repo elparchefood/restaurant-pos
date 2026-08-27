@@ -38,6 +38,7 @@
   });
 
   var S = {
+    canal: null, repaso: null, reintento: null,
     yo: null,          // fila de pos_users del domiciliario
     negocio: '',       // nombre del restaurante
     cuenta: null,      // cuenta para transferencias
@@ -831,19 +832,71 @@
     await cargarPedidos();
     pintarTodo();
 
-    /* Cuando el restaurante le asigna un pedido, le aparece solo: no tiene
-       que estar cerrando y abriendo la app mientras maneja. */
+    /* ── QUE EL PEDIDO APAREZCA SOLO, Y QUE NO SE PIERDA ────────────────
+       Un domiciliario lleva el celular en el bolsillo, con la pantalla
+       apagada, moviendose entre antenas. El tiempo real por si solo NO basta:
+       el socket se cae al apagar la pantalla y, tal como estaba, nadie se
+       enteraba y no volvia — habia que matar la app. Por eso hay cuatro
+       redes, no una:
+
+         1. tiempo real, para que llegue al instante
+         2. reintento cuando el socket se cae
+         3. un repaso cada 25 s, por si se perdio un aviso
+         4. al volver a la pantalla, se recarga de una
+
+       Y se escuchan INSERT ademas de UPDATE: un pedido creado ya asignado
+       nunca dispara un UPDATE, y sin esto no aparecia nunca. */
+    escuchar();
+    clearInterval(S.repaso);
+    S.repaso = setInterval(function () {
+      if (document.hidden) return;      // dormido no se gasta bateria ni datos
+      refrescar();
+    }, 25000);
+
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) { refrescar(); escuchar(); }
+    });
+    window.addEventListener('online',  function () { marcarRed(true);  refrescar(); escuchar(); });
+    window.addEventListener('offline', function () { marcarRed(false); });
+  }
+
+  async function refrescar() {
     try {
-      sb.channel('domi-' + S.yo.id)
+      await cargarPedidos();
+      pintarTodo();
+      marcarRed(true);
+    } catch (e) { marcarRed(false); }
+  }
+
+  /* Se (re)suscribe. Si el canal se cae o se cierra, se vuelve a intentar a
+     los pocos segundos en vez de quedarse mudo para siempre. */
+  function escuchar() {
+    try {
+      if (S.canal) { try { sb.removeChannel(S.canal); } catch (e) {} S.canal = null; }
+      S.canal = sb.channel('domi-' + S.yo.id + '-' + Date.now())
         .on('postgres_changes', {
-          event: 'UPDATE', schema: 'public', table: 'pos_orders',
+          event: '*', schema: 'public', table: 'pos_orders',
           filter: 'domiciliario_id=eq.' + S.yo.id
-        }, async function () {
-          await cargarPedidos();
-          pintarTodo();
-        })
-        .subscribe();
+        }, function () { refrescar(); })
+        .subscribe(function (estado) {
+          if (estado === 'SUBSCRIBED') { marcarRed(true); return; }
+          if (estado === 'CHANNEL_ERROR' || estado === 'TIMED_OUT' || estado === 'CLOSED') {
+            marcarRed(false);
+            clearTimeout(S.reintento);
+            S.reintento = setTimeout(escuchar, 4000);
+          }
+        });
     } catch (e) { console.warn('[domi] tiempo real:', e); }
+  }
+
+  /* EL AVISO DE SIN CONEXION. Una app de reparto que deja de actualizarse en
+     silencio es peor que no tener app: el domiciliario le cree y se queda
+     esperando un pedido que ya le asignaron. */
+  function marcarRed(ok) {
+    var b = $('sinred');
+    if (!b) return;
+    var hay = ok && (navigator.onLine !== false);
+    b.hidden = !!hay;
   }
 
   /* El velo solo se quita cuando de verdad hay algo que mostrar. Si algo
