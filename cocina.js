@@ -73,8 +73,9 @@ const S = {
      ningún restaurante que ya opera note un cambio que no pidió. */
   areas:[], areaCat:{}, areaProd:{}, tamCat:{}, area:null, areasVisibles:[],
   sonTono:'caja', sonVol:80,
-  /* En que comanda esta parada la marca del control remoto */
-  foco:null,
+  /* Donde esta parado el control remoto, guardado por NOMBRE para que
+     sobreviva a que la pantalla se redibuje cada segundo. */
+  cursor:null, ultimaTk:null,
   orders:new Map(), items:new Map(), mesas:new Map(), fotos:new Map(),
   /* categoria de cada producto: es por donde se resuelve su area */
   catDe:new Map(),
@@ -147,167 +148,216 @@ function conTope(promesa, seg, queEs) {
         Mesas a Para llevar a Domicilios. Siempre lo mismo, siempre predecible.
 
    Y la marca se ve: un aro azul grueso. Sin eso el cocinero aprieta a ciegas. */
-function tarjetas() { return [...document.querySelectorAll('.tk[data-tk]')]; }
+/* ── EL CONTROL REMOTO: CURSOR PROPIO ──────────────────────────────────────
+   Antes la marca era el FOCO del navegador. En un televisor eso es terreno
+   movedizo: el WebView mueve el foco por su cuenta con la cruceta,
+   `preventDefault()` no siempre se lo impide, y encima esta pantalla se
+   redibuja entera cada segundo para los relojes. Tres cosas peleandose por lo
+   mismo, y el resultado era una marca que se iba sola.
 
-function ponerFoco(id, mover) {
-  const t = tarjetas();
-  if (!t.length) { S.foco = null; return; }
-  let el = id ? t.find(x => x.dataset.tk === id) : null;
-  if (!el) el = t[0];
-  S.foco = el.dataset.tk;
-  if (mover !== false) el.focus({ preventScroll: false });
-}
+   Ahora la pantalla lleva su propio cursor: se acuerda de QUE cosa esta
+   marcada —por su nombre, no por el elemento— y la pinta con una clase. El
+   navegador ya no opina.
 
-/* Después de redibujar, la marca vuelve donde estaba. Solo si de verdad
-   estaba en una tarjeta: si el cocinero no ha tocado el control, no le
-   robamos el foco a nada. */
-function restaurarFoco() {
-  if (!S.foco) return;
-  /* Si la persona esta en el altavoz o en Salir, la pantalla NO le quita la
-     marca de ahi al redibujarse. Solo se restaura cuando estaba en una
-     comanda, que es lo unico que el redibujado destruye. */
-  const a = document.activeElement;
-  if (a && a !== document.body && !a.classList.contains('tk')) return;
-  const el = document.querySelector('.tk[data-tk="' + CSS.escape(S.foco) + '"]');
-  if (el) { if (document.activeElement !== el) el.focus({ preventScroll: true }); return; }
-  /* Esa comanda ya no está —la marcaron lista— así que la marca pasa a la
-     primera que quede, en vez de desaparecer. */
-  ponerFoco(null, true);
-}
+   El recorrido tiene tres pisos y se lee de arriba abajo:
+     ARRIBA   el altavoz, y las areas si hay mas de una
+     EN MEDIO las comandas, en tres columnas
+     ABAJO    Salir                                                        */
 
-const ZONAS = ['salon', 'rapido', 'domicilio'];
+/* El cursor se guarda como texto para que sobreviva al redibujado:
+   'son' | 'area:barra' | 'tk:<id del pedido>' | 'salir'  */
 
-/* LOS MANDOS DE ARRIBA Y DE ABAJO TAMBIEN SE ALCANZAN CON EL CONTROL.
-   Sergio: *"con el control solo puedo navegar entre los pedidos, no puedo
-   subir hasta activar el altavoz"*. Y tenia razon: hice que las flechas se
-   movieran solo entre comandas, asi que el altavoz —justo el que hace falta
-   para que suene— quedo fuera del alcance de un aparato que no tiene raton.
-
-   El recorrido es de tres pisos y se lee de arriba abajo:
-     ARRIBA   el altavoz, y los botones de area si hay mas de una
-     EN MEDIO las comandas
-     ABAJO    Salir
-   Arriba desde la primera comanda sube; abajo desde la ultima baja. */
 function mandosArriba() {
   return [...document.querySelectorAll('#son, .k-area')].filter(x => x.offsetParent !== null);
 }
 function mandosAbajo() {
   return [...document.querySelectorAll('#salir')].filter(x => x.offsetParent !== null);
 }
-function piso(el) {
+function tarjetas() { return [...document.querySelectorAll('.tk[data-tk]')]; }
+
+function nombreDe(el) {
   if (!el) return null;
-  if (el.classList && el.classList.contains('tk')) return 'medio';
-  if (el.closest && el.closest('.k-top')) return 'arriba';
-  if (el.closest && el.closest('.k-pie')) return 'abajo';
+  if (el.id === 'son') return 'son';
+  if (el.id === 'salir') return 'salir';
+  if (el.classList.contains('k-area')) return 'area:' + el.dataset.area;
+  if (el.classList.contains('tk')) return 'tk:' + el.dataset.tk;
   return null;
 }
-function enfocar(el) {
-  if (!el) return;
-  if (el.classList && el.classList.contains('tk')) S.foco = el.dataset.tk;
-  el.focus({ preventScroll: false });
+function elementoDe(nombre) {
+  if (!nombre) return null;
+  if (nombre === 'son') return $('son');
+  if (nombre === 'salir') return $('salir');
+  if (nombre.indexOf('area:') === 0)
+    return document.querySelector('.k-area[data-area="' + CSS.escape(nombre.slice(5)) + '"]');
+  if (nombre.indexOf('tk:') === 0)
+    return document.querySelector('.tk[data-tk="' + CSS.escape(nombre.slice(3)) + '"]');
+  return null;
 }
 
-function moverFoco(dir) {
-  const t = tarjetas();
-  if (!t.length) return;
-  const actual = S.foco ? t.findIndex(x => x.dataset.tk === S.foco) : -1;
-  if (actual < 0) { ponerFoco(null); return; }
+/* Pinta el cursor. Se llama despues de CADA redibujado: como el cursor es un
+   nombre y no un elemento, sobrevive a que la tarjeta se vuelva a crear. */
+function pintarCursor() {
+  document.querySelectorAll('.cur').forEach(x => x.classList.remove('cur'));
+  if (!S.cursor) return;
+  let el = elementoDe(S.cursor);
+  if (!el) {
+    /* Lo que estaba marcado ya no existe —la comanda se marco lista— asi que
+       el cursor pasa a la primera que quede, en vez de desaparecer. */
+    const t = tarjetas();
+    S.cursor = t.length ? nombreDe(t[0]) : (mandosArriba()[0] ? 'son' : null);
+    el = elementoDe(S.cursor);
+    if (!el) return;
+  }
+  el.classList.add('cur');
+  /* Que se vea aunque este mas abajo de lo que cabe en la columna. */
+  if (typeof el.scrollIntoView === 'function') {
+    try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {}
+  }
+}
 
-  if (dir === 'abajo' || dir === 'arriba') {
-    /* Dentro de la misma zona: la lista de esa columna, en orden. */
-    const zona = t[actual].closest('.zona-lista');
-    const dentro = [...zona.querySelectorAll('.tk[data-tk]')];
-    const i = dentro.indexOf(t[actual]);
-    const j = dir === 'abajo' ? i + 1 : i - 1;
-    if (j >= 0 && j < dentro.length) ponerFoco(dentro[j].dataset.tk);
+function irA(nombre) {
+  if (!nombre) return;
+  S.cursor = nombre;
+  pintarCursor();
+}
+
+const ZONAS = ['salon', 'rapido', 'domicilio'];
+
+function mover(k) {
+  const arriba = mandosArriba(), abajo = mandosAbajo(), tk = tarjetas();
+
+  /* Sin cursor todavia: la primera flecha lo pone en la primera comanda. */
+  if (!S.cursor) { irA(tk.length ? nombreDe(tk[0]) : 'son'); return; }
+
+  /* ── Piso de arriba ── */
+  if (S.cursor === 'son' || S.cursor.indexOf('area:') === 0) {
+    const i = arriba.findIndex(x => nombreDe(x) === S.cursor);
+    if (k === 'ArrowLeft'  && i > 0)                 return irA(nombreDe(arriba[i - 1]));
+    if (k === 'ArrowRight' && i < arriba.length - 1) return irA(nombreDe(arriba[i + 1]));
+    if (k === 'ArrowDown') return irA(tk.length ? (S.ultimaTk || nombreDe(tk[0])) : (abajo[0] ? 'salir' : null));
     return;
   }
 
-  /* Izquierda y derecha: a la zona de al lado, a la misma altura. Se saltan
-     las zonas vacías; si no, la flecha no haría nada y parecería trabada. */
-  const zonaActual = t[actual].closest('.zona-lista').id.replace('z-', '');
-  const dentro = [...t[actual].closest('.zona-lista').querySelectorAll('.tk[data-tk]')];
-  const altura = dentro.indexOf(t[actual]);
-  let k = ZONAS.indexOf(zonaActual);
-  const paso = dir === 'derecha' ? 1 : -1;
-  for (let n = 0; n < ZONAS.length; n++) {
-    k += paso;
-    if (k < 0 || k >= ZONAS.length) return;
-    const otra = document.getElementById('z-' + ZONAS[k]);
-    const lista = otra ? [...otra.querySelectorAll('.tk[data-tk]')] : [];
-    if (lista.length) {
-      ponerFoco(lista[Math.min(altura, lista.length - 1)].dataset.tk);
-      return;
-    }
+  /* ── Piso de abajo ── */
+  if (S.cursor === 'salir') {
+    if (k === 'ArrowUp') return irA(tk.length ? (S.ultimaTk || nombreDe(tk[tk.length - 1])) : 'son');
+    return;
+  }
+
+  /* ── Las comandas ── */
+  const el = elementoDe(S.cursor);
+  if (!el) { irA(tk.length ? nombreDe(tk[0]) : 'son'); return; }
+  const lista = el.closest('.zona-lista');
+  const dentro = [...lista.querySelectorAll('.tk[data-tk]')];
+  const i = dentro.indexOf(el);
+
+  if (k === 'ArrowDown') {
+    if (i < dentro.length - 1) return irA(nombreDe(dentro[i + 1]));
+    return abajo[0] ? irA('salir') : null;
+  }
+  if (k === 'ArrowUp') {
+    if (i > 0) return irA(nombreDe(dentro[i - 1]));
+    return arriba[0] ? irA(nombreDe(arriba[0])) : null;
+  }
+
+  /* Izquierda y derecha: a la zona de al lado, a la misma altura, saltandose
+     las vacias — si no, la flecha no haria nada y pareceria trabada. */
+  const zonaActual = lista.id.replace('z-', '');
+  let n = ZONAS.indexOf(zonaActual);
+  const paso = (k === 'ArrowRight') ? 1 : -1;
+  for (let v = 0; v < ZONAS.length; v++) {
+    n += paso;
+    if (n < 0 || n >= ZONAS.length) return;
+    const otra = $('z-' + ZONAS[n]);
+    const suyas = otra ? [...otra.querySelectorAll('.tk[data-tk]')] : [];
+    if (suyas.length) return irA(nombreDe(suyas[Math.min(i, suyas.length - 1)]));
   }
 }
 
-addEventListener('keydown', function (ev) {
+function activarCursor() {
+  const el = elementoDe(S.cursor);
+  if (!el) return;
+  if (el.classList.contains('tk')) {
+    /* El OK hace lo que toque: marcar listo, o deshacer si ya estaba lista. */
+    const b = el.querySelector('[data-listo],[data-desh]');
+    if (b) b.click();
+    return;
+  }
+  el.click();          // el altavoz, un area, o Salir
+}
+
+/* Se atiende en fase de CAPTURA y sobre `document`: asi llega antes que
+   cualquier cosa que el WebView del televisor quiera hacer con la cruceta. */
+document.addEventListener('keydown', function (ev) {
   const k = ev.key;
   const flecha = (k === 'ArrowDown' || k === 'ArrowUp' || k === 'ArrowLeft' || k === 'ArrowRight');
   const ok = (k === 'Enter' || k === ' ' || k === 'Spacebar');
   if (!flecha && !ok) return;
-
-  const act = document.activeElement;
-  const donde = piso(act);
-
-  if (ok) {
-    ev.preventDefault();
-    if (donde === 'medio') {
-      /* El OK hace lo que toque: marcar listo, o deshacer si ya estaba lista. */
-      const b = act.querySelector('[data-listo],[data-desh]');
-      if (b) b.click();
-    } else if (act && typeof act.click === 'function') {
-      act.click();          // el altavoz, un area, o Salir
-    }
-    return;
-  }
-
-  /* Se le quita el volante al navegador: si no, ademas de lo nuestro hace lo
-     suyo y la marca termina en dos sitios a la vez. */
   ev.preventDefault();
-  const tk = tarjetas();
+  ev.stopPropagation();
+  if (ok) activarCursor(); else mover(k);
+  if (S.cursor && S.cursor.indexOf('tk:') === 0) S.ultimaTk = S.cursor;
+}, true);
 
-  if (donde === 'arriba') {
-    const m = mandosArriba();
-    const i = m.indexOf(act);
-    if (k === 'ArrowLeft'  && i > 0)            return enfocar(m[i - 1]);
-    if (k === 'ArrowRight' && i < m.length - 1) return enfocar(m[i + 1]);
-    if (k === 'ArrowDown') return enfocar(tk.find(x => x.dataset.tk === S.foco) || tk[0] || mandosAbajo()[0]);
-    return;
+/* UN AVISO EN LA PROPIA PANTALLA.
+   Hizo falta porque el sonido fallaba y desde aqui no hay forma de oir la
+   cocina: en vez de seguir adivinando, la pantalla dice en voz alta lo que
+   hizo y lo que le paso. */
+let _avisoT = null;
+function aviso(texto, mal) {
+  let el = $('aviso');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'aviso';
+    document.body.appendChild(el);
   }
+  el.className = 'k-aviso' + (mal ? ' mal' : '');
+  el.textContent = texto;
+  clearTimeout(_avisoT);
+  _avisoT = setTimeout(() => { el.remove(); }, 6000);
+}
 
-  if (donde === 'abajo') {
-    if (k === 'ArrowUp') {
-      const v = tk.find(x => x.dataset.tk === S.foco) || tk[tk.length - 1];
-      return enfocar(v || mandosArriba()[0]);
-    }
-    return;
-  }
-
-  if (donde !== 'medio') { enfocar(tk[0] || mandosArriba()[0]); return; }
-
-  /* Dentro de las comandas: al llegar al tope, se sale al piso de al lado. */
-  const zona = act.closest('.zona-lista');
-  const dentro = [...zona.querySelectorAll('.tk[data-tk]')];
-  const i = dentro.indexOf(act);
-  if (k === 'ArrowUp'   && i === 0)                 return enfocar(mandosArriba()[0]);
-  if (k === 'ArrowDown' && i === dentro.length - 1) return enfocar(mandosAbajo()[0] || act);
-
-  moverFoco(k === 'ArrowDown' ? 'abajo' : k === 'ArrowUp' ? 'arriba'
-          : k === 'ArrowRight' ? 'derecha' : 'izquierda');
-});
-
-/* El interruptor del sonido. Al encenderlo suena una vez: así se comprueba
-   en el momento, sin esperar a que entre una comanda de verdad. */
+/* El interruptor del sonido. Al encenderlo suena una vez Y DICE si pudo: si
+   el aparato no deja sonar, se ve en la pantalla en vez de quedar en el aire. */
 addEventListener('click', function (ev) {
   const s = ev.target && ev.target.closest && ev.target.closest('#son');
   if (!s) return;
   const nuevo = !sonidoEncendido();
   try { localStorage.setItem(SONIDO_KEY, nuevo ? '1' : '0'); } catch (e) {}
   pintarSonido();
-  if (nuevo) { try { window.posTocarTono(S.sonTono, S.sonVol); } catch (e) {} }
+  if (!nuevo) { aviso('Sonido apagado en este aparato'); return; }
+  aviso('Sonido encendido · probando…');
+  probarSonido();
 });
+
+/* Toca el tono y cuenta que paso, paso por paso. */
+async function probarSonido() {
+  if (typeof window.posTocarTono !== 'function') {
+    aviso('No cargó el archivo de sonidos (pos-notify)', true); return;
+  }
+  let estado = '?';
+  try {
+    const C = window.AudioContext || window.webkitAudioContext;
+    if (!C) { aviso('Este aparato no tiene audio en el navegador', true); return; }
+    _audio = _audio || new C();
+    if (_audio.state === 'suspended') { try { await _audio.resume(); } catch (e) {} }
+    estado = _audio.state;
+  } catch (e) { aviso('No se pudo abrir el audio: ' + (e.message || e), true); return; }
+
+  try {
+    const r = await fetch('assets/son/' + S.sonTono + '.mp3', { method: 'HEAD' });
+    if (!r.ok) { aviso('No se pudo bajar el sonido (' + r.status + ')', true); return; }
+  } catch (e) { aviso('No se pudo bajar el sonido: ' + (e.message || e), true); return; }
+
+  try { window.posTocarTono(S.sonTono, S.sonVol); } catch (e) {
+    aviso('Falló al tocarlo: ' + (e.message || e), true); return;
+  }
+  if (estado !== 'running') {
+    aviso('El audio sigue bloqueado (' + estado + '). Aprieta cualquier botón del control y vuelve a probar', true);
+  } else {
+    aviso('Sonó: ' + S.sonTono + ' al ' + S.sonVol + '%');
+  }
+}
 
 addEventListener('click', function (ev) {
   const b = ev.target && ev.target.closest && ev.target.closest('[data-area]');
@@ -814,7 +864,7 @@ function pintar() {
 
   $('cuenta').textContent = aLaVista;
   if (sonar) sonarUnaVez();
-  restaurarFoco();
+  pintarCursor();
 }
 
 function tarjeta(o) {
@@ -862,7 +912,7 @@ function tarjeta(o) {
     : '<div class="tk-pie"><button class="tk-btn" tabindex="-1" data-listo="' + o.id + '">Listo</button></div>';
 
   return '<article class="tk ' + est + (tarde ? ' tarde' : '') + (nueva ? ' nueva' : '')
-    + '" tabindex="0" data-tk="' + o.id + '">'
+    + '" data-tk="' + o.id + '">'
     + '<div class="tk-cab"><div class="tk-quien">'
     +   '<div class="tk-estado"><i></i>' + ETIQUETA[est] + '</div>'
     +   '<div class="tk-de">' + esc(tituloDe(o)) + '</div>'
