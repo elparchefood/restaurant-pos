@@ -1809,6 +1809,16 @@ async function enviarACocina() {
       delivery_status:'recibido',
       // Quien REPARTE, solo si es de la casa. El externo no se guarda: no es
       // gente nuestra y en la tarjeta no aporta nada.
+      /* QUIEN REPARTE. Antes se guardaba SOLO EL NOMBRE, y eso dejaba al
+         pedido sin dueno: la app del domiciliario busca por `domiciliario_id`
+         y ese campo se quedaba vacio SIEMPRE, incluso eligiendo un
+         domiciliario interno. Resultado: en 140 domicilios, cero llegaron
+         nunca a la app. El nombre sirve para la tarjeta; el id es lo que hace
+         que el pedido sea DE ALGUIEN.
+         El externo se guarda igual que siempre: sin persona, que es lo
+         correcto — una moto que rota no tiene cuenta. */
+      domi_courier:    externo ? 'externo' : 'interno',
+      domiciliario_id: externo ? null : (S.asignado || null),
       domiciliario:   externo ? null : (dm ? dm.nombre : null),
       payment_method: metodo,
       opened_at:      new Date().toISOString(),
