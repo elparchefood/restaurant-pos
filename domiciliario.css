@@ -67,16 +67,20 @@ a{color:var(--brand);text-decoration:none}a:hover{color:var(--brand-press)}
 .tabs{padding-bottom:env(safe-area-inset-bottom)}
 /* topbar */
 .top{display:flex;align-items:center;gap:10px;padding:4px 20px 14px;flex-shrink:0}
+/* Un solo sitio que rueda para toda la app. `min-height:0` porque sin el,
+   dentro de un flex, el contenido lo estira y la barra de abajo se va. */
+.dm-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column}
 .circ{width:40px;height:40px;border-radius:999px;background:var(--surface);border:1px solid #EFF0F4;display:flex;align-items:center;justify-content:center;color:var(--ink-2);flex-shrink:0;position:relative}
 .circ:active{background:var(--surface-2)}
 .wordmark{margin:0 auto;font-size:12.5px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;color:var(--ink);display:flex;align-items:center;gap:9px;padding-left:.28em}
 .wordmark i{width:7px;height:7px;border-radius:999px;background:var(--brand);display:block}
 .dot-n{position:absolute;top:7px;right:8px;width:8px;height:8px;border-radius:999px;background:var(--brand);border:2px solid var(--surface)}
 /* views */
-.view{display:none;flex:1;min-height:0;flex-direction:column}
+/* Las vistas ya no rebanan la pantalla: el que rueda es `.dm-scroll`. */
+.view{display:none;flex-direction:column}
 .view.on{display:flex}
 .body>*,.sh-body>*{flex-shrink:0}
-.body{flex:1;min-height:0;overflow-y:auto;padding:2px 20px 30px;display:flex;flex-direction:column;gap:18px}
+.body{padding:2px 20px 30px;display:flex;flex-direction:column;gap:18px}
 .eyebrow{font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.16em}
 .h1{font-size:26px;font-weight:600;letter-spacing:-.035em;line-height:1.12;margin:0;text-wrap:pretty}
 .h2{font-size:23px;font-weight:600;letter-spacing:-.035em;margin:0}
@@ -327,3 +331,9 @@ a{color:var(--brand);text-decoration:none}a:hover{color:var(--brand-press)}
 .av-tx{flex:1;min-width:0}
 .av-tx b{display:block;font-size:13.5px;font-weight:600;letter-spacing:-.01em;line-height:1.35}
 .av-tx small{font-size:11.5px;color:var(--muted)}
+
+/* La foto del restaurante en el circulo de arriba. Se recorta al circulo y, si
+   no carga, queda el icono de siempre debajo — nunca un hueco blanco. */
+.circ img{width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit}
+.circ.con-foto{padding:0;overflow:hidden;border-color:transparent}
+.circ.con-foto svg{display:none}

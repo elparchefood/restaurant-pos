@@ -47,6 +47,7 @@
     abierto: null,     // pedido abierto en el detalle
     cobroTipo: 'efectivo',
     recibido: null,
+    logo: '',          // la foto del restaurante, para el circulo de arriba
     fotos: {},         // product_id -> foto, para reconocer el pedido de un vistazo
     heroIdx: null,     // cual pedido muestra la tarjeta azul; null = todavia no lo elige el dedo
     mapaIdx: 0,        // cual pedido muestra el mapa
@@ -751,6 +752,22 @@
     if ($('ov-avisos')) $('ov-avisos').hidden = false;
   }
 
+  /* El circulo de arriba a la izquierda tenia un monigote generico. Ahora
+     lleva la foto del restaurante: es lo primero que se ve al abrir, y le dice
+     al domiciliario para quien esta trabajando hoy. Si la imagen no carga se
+     queda el monigote — nunca un hueco blanco. */
+  function pintarLogo() {
+    var b = $('btn-perfil-top');
+    if (!b || !S.logo) return;
+    if (b.querySelector('img')) return;
+    var img = document.createElement('img');
+    img.alt = '';
+    img.onerror = function () { b.classList.remove('con-foto'); img.remove(); };
+    img.onload = function () { b.classList.add('con-foto'); };
+    img.src = S.logo;
+    b.appendChild(img);
+  }
+
   function pintarTodo() {
     pintarInicio(); pintarLista(); pintarTurno(); pintarPerfil();
   }
@@ -1337,8 +1354,10 @@
     document.querySelectorAll('.view').forEach(function (v) {
       v.classList.toggle('on', v.id === 'v-' + tab);
     });
-    var body = document.querySelector('#v-' + tab + ' .body');
-    if (body) body.scrollTop = 0;
+    /* Sube el UNICO sitio que rueda. Antes se subia `.body`, que ya no rueda:
+       al cambiar de pestana la barra de arriba se quedaba escondida. */
+    var sc = $('dm-scroll');
+    if (sc) sc.scrollTop = 0;
     if (tab === 'turno') pintarTurno();
   }
 
@@ -1465,9 +1484,22 @@
        Si no hay ninguna, se dice; no se inventa un número. */
     try {
       var r = await sb.from('branches')
-        .select('city,operacion_config').eq('id', S.yo.branch_id).maybeSingle();
+        .select('city,operacion_config,brand_id').eq('id', S.yo.branch_id).maybeSingle();
       var b = r && r.data;
       S.ciudad = (b && b.city) || '';
+      /* La foto del restaurante. Vive en la MARCA, no en la sede: dos sedes
+         del mismo negocio comparten logo, y el domiciliario trabaja para el
+         negocio, no para el local. */
+      if (b && b.brand_id) {
+        try {
+          var rb = await sb.from('brands').select('name,logo_url').eq('id', b.brand_id).maybeSingle();
+          if (rb && rb.data) {
+            S.logo = rb.data.logo_url || '';
+            S.negocio = S.negocio || rb.data.name || '';
+          }
+        } catch (e) { console.warn('[domi] marca:', e && e.message); }
+      }
+      pintarLogo();
       /*  El TONO lo escoge el dueno una vez para todo el restaurante, igual
           que en la pantalla de cocina; encenderlo o no es de cada celular.
           Si todavia no hay uno propio para la app, se usa el de cocina: es
