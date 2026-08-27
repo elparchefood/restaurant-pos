@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="domiciliario.css?v=1792480000">
+<link rel="stylesheet" href="domiciliario.css?v=1792500000">
 </head>
 <body>
 <!-- Sin conexion: se muestra solo cuando hace falta. -->
@@ -61,7 +61,18 @@
     <div class="hero" id="hero-inicio">
       <div class="hero-hi">Buenas noches, Julián</div>
       <div class="hero-t">Tienes <b>3 pedidos</b><br>por entregar</div>
-      <button class="hero-cta" id="cta-entrega-actual" data-pedido="1042">Continuar entrega · #1042<i><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></i></button>
+      <!-- Se desliza para pasar de un pedido al siguiente. Antes solo se veia
+           el ultimo, y el resto habia que ir a buscarlos a otra pantalla. -->
+      <div class="hero-swipe" id="hero-swipe">
+        <button class="hero-cta" id="cta-entrega-actual" data-pedido="">
+          <span class="hero-cta-tx">
+            <b id="cta-donde">&mdash;</b>
+            <small id="cta-sub">&mdash;</small>
+          </span>
+          <i><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></i>
+        </button>
+        <div class="hero-dots" id="hero-dots" hidden></div>
+      </div>
       <div class="hero-strip">
         <div class="hs"><div class="hs-l">Por cobrar</div><div class="hs-v tnum" id="hs-porcobrar">$ 117.500</div></div>
         <div class="hs"><div class="hs-l">En mano</div><div class="hs-v tnum" id="hs-enmano">$ 52.000</div></div>
@@ -69,14 +80,8 @@
       </div>
     </div>
 
-    <div class="tiles">
-      <button class="tile" id="tile-pedidos"><span class="tile-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12l2 6H4z"></path><path d="M4 8v12h16V8"></path></svg></span>Pedidos<span class="tile-n" id="tile-pedidos-n">3</span></button>
-      <button class="tile" id="tile-ruta"><span class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg></span>Ruta</button>
-      <button class="tile" id="tile-turno"><span class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="3"></rect><path d="M2 10h20"></path><path d="M17 15h.01"></path></svg></span>Turno</button>
-      <button class="tile" id="tile-perfil"><span class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>Perfil</button>
-    </div>
 
-    <div class="sec"><span class="sec-l">Entrega en curso</span><button class="sec-a" id="link-ver-todos">Ver todos <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></button></div>
+    <div class="sec"><span class="sec-l">Tus entregas</span><button class="sec-a" id="link-ver-todos">Ver todos <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></button></div>
 
     <button class="feat" id="feat-1042" data-pedido="1042">
       <div class="feat-top">
@@ -221,7 +226,7 @@
 <div class="tabs">
   <button class="tab on" data-tab="inicio"><span class="tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M9 22V12h6v10"></path></svg></span>Inicio</button>
   <button class="tab" data-tab="pedidos"><span class="tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v13H3V3h5"></path><path d="M8 3v5l4-2 4 2V3"></path><path d="M3 16l3 5h12l3-5"></path></svg><span class="tab-n" id="tab-n">3</span></span>Pedidos</button>
-  <button class="fab" id="fab-ubicacion" aria-label="Compartir ubicación"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></button>
+  <button class="fab" id="fab-ubicacion" aria-label="Ver el mapa"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></button>
   <button class="tab" data-tab="turno"><span class="tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="3"></rect><path d="M2 10h20"></path><path d="M17 15h.01"></path></svg></span>Turno</button>
   <button class="tab" data-tab="perfil"><span class="tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>Perfil</button>
 </div>
@@ -359,6 +364,6 @@
      y en el domiciliario queda a la vista la maqueta con clientes falsos.
      Ya paso una vez con la pantalla de cocina. -->
 <script src="vendor/supabase-2.js?v=1789520000"></script>
-<script src="domiciliario.js?v=1792480000"></script>
+<script src="domiciliario.js?v=1792500000"></script>
 </body>
 </html>

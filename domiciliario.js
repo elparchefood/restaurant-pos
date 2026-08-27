@@ -46,7 +46,9 @@
     filtro: 'activos',
     abierto: null,     // pedido abierto en el detalle
     cobroTipo: 'efectivo',
-    recibido: null
+    recibido: null,
+    fotos: {},         // product_id -> foto, para reconocer el pedido de un vistazo
+    heroIdx: null      // cual pedido muestra la tarjeta azul; null = todavia no lo elige el dedo
   };
 
   /* ── Utilidades ──────────────────────────────────────────────────── */
@@ -223,11 +225,29 @@
         /* Los nombres reales de las columnas: `quantity` y `total`, no
            `qty` ni `price`. `name` y `product_name` conviven porque hay
            renglones de dos epocas distintas del sistema. */
-        .select('order_id,name,product_name,quantity,unit_price,product_price,total')
+        .select('order_id,product_id,name,product_name,quantity,unit_price,product_price,total')
         .in('order_id', ids);
       (ri.data || []).forEach(function (it) {
         (items[it.order_id] = items[it.order_id] || []).push(it);
       });
+    }
+
+    /*  LAS FOTOS DE LOS PRODUCTOS.
+        El domiciliario reconoce un pedido por lo que lleva, no por un codigo.
+        Van aparte porque `pos_order_items` guarda el nombre y el precio del
+        momento de la venta, pero no la foto — esa vive en la carta.
+        Si esta consulta falla no se cae nada: se pinta el icono de siempre. */
+    var pids = [];
+    Object.keys(items).forEach(function (k) {
+      items[k].forEach(function (it) {
+        if (it.product_id && pids.indexOf(it.product_id) < 0) pids.push(it.product_id);
+      });
+    });
+    if (pids.length) {
+      try {
+        var rf = await sb.from('pos_products').select('id,photo_url').in('id', pids);
+        (rf.data || []).forEach(function (p) { if (p.photo_url) S.fotos[p.id] = p.photo_url; });
+      } catch (e) { console.warn('[domi] fotos:', e && e.message); }
     }
 
     S.pedidos = (r.data || []).map(function (o) {
@@ -253,6 +273,36 @@
   /* ══════════════════════════════════════════════════════════════════
      PINTAR
      ══════════════════════════════════════════════════════════════════ */
+  /* QUE LLEVA ESTE PEDIDO, en una linea. Dos productos y el resto contado:
+     el domiciliario necesita reconocerlo de un vistazo, no leer la factura. */
+  function queLleva(p) {
+    var its = p.items || [];
+    if (!its.length) return '';
+    var partes = its.slice(0, 2).map(function (it) {
+      var q = Number(it.quantity) || 1;
+      var n = it.name || it.product_name || 'Producto';
+      return (q > 1 ? q + '× ' : '') + n;
+    });
+    var resto = its.length - 2;
+    return partes.join(', ') + (resto > 0 ? ' y ' + resto + ' más' : '');
+  }
+
+  /* A DONDE VA, dicho como lo dice una persona. El conjunto primero: es lo
+     que de verdad ubica. Nunca el codigo del pedido — "#7B4E" no le dice
+     nada a nadie, y era justo lo que salia antes en la tarjeta azul. */
+  function aDonde(p) {
+    return p.conjunto || p.barrio || p.direccion || 'Sin dirección';
+  }
+
+  function fotoDe(p) {
+    var its = p.items || [];
+    for (var i = 0; i < its.length; i++) {
+      var f = its[i].product_id && S.fotos[its[i].product_id];
+      if (f) return f;
+    }
+    return '';
+  }
+
   function activos() {
     return S.pedidos.filter(function (p) { return p.estado !== 'entregado'; });
   }
@@ -269,15 +319,36 @@
       : '<span class="badge b-neutral">Cobrar ' + cop(p.total) + '</span>';
   }
 
+  /*  LA TARJETA DE UN PEDIDO.
+
+      Antes el renglon grande era un NOMBRE. Sergio: "es obvio que es para el,
+      en lugar de eso deberia decir un resumen de lo que pidio el cliente y la
+      foto del producto". Tiene razon: el domiciliario lleva tres pedidos en el
+      bolso y lo que necesita distinguir es cual es cual.
+
+      El nombre del cliente se queda, pero chiquito y debajo: sirve en la
+      puerta, no para escoger la bolsa.                                     */
   function tarjeta(p) {
-    var donde = [p.direccion, p.barrio].filter(Boolean).join(' · ') || 'Sin dirección';
+    var foto = fotoDe(p);
+    var lleva = queLleva(p);
+    var donde = [p.conjunto, p.unidad, p.direccion, p.barrio].filter(Boolean).join(' · ')
+      || 'Sin dirección';
     return '<button class="card" data-pedido="' + esc(p.id) + '">'
-      + '<div class="row"><span class="no tnum">#' + esc(p.no) + '</span>'
+      + '<div class="row">'
       + '<span class="badge ' + CLASE[p.estado] + '">' + ETIQUETA[p.estado] + '</span>'
-      + '<span class="money tnum">' + cop(p.total) + '</span></div>'
-      + '<div><div class="cli">' + esc(p.cliente) + '</div>'
+      + '<span class="money tnum" style="margin-left:auto">' + cop(p.total) + '</span></div>'
+      + '<div class="card-top">'
+      + '<div class="card-foto">'
+      + (foto
+          ? '<img src="' + esc(foto) + '" alt="" loading="lazy" onerror="this.remove()">'
+          : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12l2 6H4z"></path><path d="M4 8v12h16V8"></path></svg>')
+      + '</div>'
+      + '<div style="flex:1;min-width:0">'
+      + '<div class="card-que">' + esc(lleva || 'Pedido') + '</div>'
       + '<div class="addr" style="margin-top:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>'
-      + '<span>' + esc(donde) + '</span></div></div>'
+      + '<span>' + esc(donde) + '</span></div>'
+      + (p.cliente ? '<div class="card-quien">' + esc(p.cliente) + '</div>' : '')
+      + '</div></div>'
       + '<div class="feat-foot">' + badgePago(p) + '</div>'
       + '</button>';
   }
@@ -303,15 +374,7 @@
           ? 'Tienes <b>' + act.length + (act.length === 1 ? ' pedido</b><br>por entregar' : ' pedidos</b><br>por entregar')
           : 'No tienes pedidos<br><b>por entregar</b>';
       }
-      var cta = $('cta-entrega-actual');
-      if (cta) {
-        var enCurso = act.find(function (p) { return p.estado === 'camino'; }) || act[0];
-        if (enCurso) {
-          cta.hidden = false;
-          cta.dataset.pedido = enCurso.id;
-          cta.childNodes[0].nodeValue = 'Continuar entrega · #' + enCurso.no;
-        } else { cta.hidden = true; }
-      }
+      pintarHero(act);
     }
     if ($('hs-porcobrar')) $('hs-porcobrar').textContent = cop(t.porCobrar);
     if ($('hs-enmano')) $('hs-enmano').textContent = cop(t.efectivo);
@@ -337,6 +400,82 @@
         sec.insertAdjacentHTML('afterend', html);
       }
     }
+  }
+
+  /*  LA TARJETA AZUL, UN PEDIDO A LA VEZ.
+
+      Antes mostraba solo el ultimo y decia "Continuar entrega · #7B4E". Ese
+      codigo son los cuatro primeros caracteres del identificador interno: no
+      significa nada para nadie. Ahora dice A DONDE VA, y con varios pedidos se
+      desliza de uno a otro sin salir de la pantalla.                        */
+  function pintarHero(act) {
+    var swipe = $('hero-swipe'), cta = $('cta-entrega-actual'), dots = $('hero-dots');
+    if (!cta) return;
+    if (!act.length) {
+      if (swipe) swipe.hidden = true;
+      return;
+    }
+    if (swipe) swipe.hidden = false;
+
+    //  Al arrancar se para en el que ya va en camino; despues manda el dedo.
+    if (S.heroIdx === null) {
+      var i = act.findIndex(function (p) { return p.estado === 'camino'; });
+      S.heroIdx = i < 0 ? 0 : i;
+    }
+    if (S.heroIdx >= act.length) S.heroIdx = act.length - 1;
+    if (S.heroIdx < 0) S.heroIdx = 0;
+
+    var p = act[S.heroIdx];
+    cta.dataset.pedido = p.id;
+    if ($('cta-donde')) $('cta-donde').textContent = aDonde(p);
+    if ($('cta-sub')) {
+      var lleva = queLleva(p);
+      $('cta-sub').textContent = [ETIQUETA[p.estado], lleva].filter(Boolean).join(' · ');
+    }
+
+    if (dots) {
+      dots.hidden = act.length < 2;
+      if (act.length > 1) {
+        dots.innerHTML = act.map(function (_, i) {
+          return '<span class="' + (i === S.heroIdx ? 'on' : '') + '"></span>';
+        }).join('');
+      }
+    }
+  }
+
+  function moverHero(paso) {
+    var act = activos();
+    if (act.length < 2) return;
+    var i = (S.heroIdx === null ? 0 : S.heroIdx) + paso;
+    if (i < 0) i = act.length - 1;
+    if (i >= act.length) i = 0;
+    S.heroIdx = i;
+    var sw = $('hero-swipe');
+    if (sw) {
+      sw.classList.add('pasando');
+      setTimeout(function () { sw.classList.remove('pasando'); }, 180);
+    }
+    pintarHero(act);
+  }
+
+  /*  Deslizar. Se exige que el gesto sea MAS horizontal que vertical: si no,
+      cualquier intento de bajar por la pantalla cambiaria de pedido sin
+      querer, que es de las cosas que mas molestan en un celular. */
+  function conectarSwipe() {
+    var sw = $('hero-swipe');
+    if (!sw) return;
+    var x0 = 0, y0 = 0, vivo = false;
+    sw.addEventListener('touchstart', function (e) {
+      var t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; vivo = true;
+    }, { passive: true });
+    sw.addEventListener('touchend', function (e) {
+      if (!vivo) return;
+      vivo = false;
+      var t = e.changedTouches[0];
+      var dx = t.clientX - x0, dy = t.clientY - y0;
+      if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy)) return;
+      moverHero(dx < 0 ? 1 : -1);
+    }, { passive: true });
   }
 
   function pintarLista() {
@@ -404,7 +543,7 @@
       var cuando = p.entregadoAt ? hora(p.entregadoAt) : '';
       var texto = efe ? 'Efectivo recibido' : (p.metodo ? esc(p.metodo) : 'Transferencia');
       return '<div class="li"><div class="li-ic">' + (efe ? icoBillete : icoBanco) + '</div>'
-        + '<div><div class="li-t">#' + esc(p.no) + ' · ' + esc(p.cliente) + '</div>'
+        + '<div><div class="li-t">' + esc(aDonde(p)) + ' · ' + esc(p.cliente) + '</div>'
         + '<div class="li-s">' + texto + (cuando ? ' · ' + esc(cuando) : '') + '</div></div>'
         + '<div class="li-v tnum" style="color:' + (efe ? 'var(--success)' : 'var(--ink-3)') + '">'
         + cop(p.total) + '</div></div>';
@@ -454,7 +593,10 @@
     if (!p) return;
     S.abierto = p;
 
-    if ($('detalle-no')) $('detalle-no').textContent = '#' + p.no;
+    /* El mismo problema que en la tarjeta azul: "#7B4E" no le dice nada a
+       nadie. Aqui manda el sitio; el codigo se queda solo para nombrar el
+       pedido en los avisos, que es donde si hace falta un identificador. */
+    if ($('detalle-no')) $('detalle-no').textContent = aDonde(p);
     var est = $('detalle-estado');
     if (est) { est.className = 'badge ' + CLASE[p.estado]; est.textContent = ETIQUETA[p.estado]; }
     if ($('detalle-cliente')) $('detalle-cliente').textContent = p.cliente;
@@ -765,9 +907,11 @@
     if (!p) { toast('No hay ningún pedido activo'); return; }
     if (!p.direccion && !p.conjunto) { toast('Este pedido no tiene dirección'); return; }
     MAPA.pedido = p;
-    if ($('mapa-cliente')) $('mapa-cliente').textContent = p.cliente || 'Pedido #' + p.no;
+    if ($('mapa-cliente')) $('mapa-cliente').textContent = aDonde(p);
+    /* Arriba va el sitio; aqui lo que falta para llegar a la puerta. El
+       conjunto no se repite: ya esta en el titulo. */
     if ($('mapa-dir')) $('mapa-dir').textContent =
-      [p.conjunto, p.unidad, p.direccion, p.barrio].filter(Boolean).join(' · ');
+      [p.unidad, p.direccion, (p.conjunto ? '' : p.barrio), p.cliente].filter(Boolean).join(' · ');
     if ($('mapa-dist')) $('mapa-dist').textContent = '';
     if ($('ov-mapa')) $('ov-mapa').hidden = false;
     if ($('mapa-alerta')) $('mapa-alerta').hidden = true;
@@ -1000,12 +1144,17 @@
       var tab = t.closest('.tab[data-tab]');
       if (tab) { irA(tab.dataset.tab); return; }
 
-      if (t.closest('#tile-pedidos') || t.closest('#link-ver-todos')) { irA('pedidos'); return; }
-      if (t.closest('#tile-turno') || t.closest('#link-turno')) { irA('turno'); return; }
-      if (t.closest('#tile-perfil') || t.closest('#btn-perfil-top')) { irA('perfil'); return; }
-      if (t.closest('#tile-ruta') || t.closest('#btn-ruta')) { verRuta(); return; }
+      if (t.closest('#link-ver-todos')) { irA('pedidos'); return; }
+      if (t.closest('#link-turno')) { irA('turno'); return; }
+      if (t.closest('#btn-perfil-top')) { irA('perfil'); return; }
+      if (t.closest('#btn-ruta')) { verRuta(); return; }
 
-      if (t.closest('#fab-ubicacion') || t.closest('#btn-ubicacion-detalle')
+      /*  El boton del medio abre EL MAPA. Es el que parece un mapa, asi que es
+          lo que la gente espera que haga — Sergio mismo lo llamo "el icono de
+          mapa". Compartir la ubicacion sigue estando en el detalle del pedido
+          y en el perfil, que es donde se busca a proposito.                */
+      if (t.closest('#fab-ubicacion')) { verRuta(); return; }
+      if (t.closest('#btn-ubicacion-detalle')
         || t.closest('#btn-ubicacion-perfil')) { compartirUbicacion(); return; }
 
       var chip = t.closest('.fchip[data-filtro]');
@@ -1208,6 +1357,7 @@
   async function init() {
     try {
       conectarEventos();
+      conectarSwipe();
       veloDice('Comprobando tu sesión…');
       var s = await sb.auth.getSession();
       if (s && s.data && s.data.session) {
