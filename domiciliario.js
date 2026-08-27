@@ -1051,7 +1051,8 @@
     linea: null, pedido: null, casa: null, aprox: false,
     andando: false, vigia: null, latido: null, despierto: null,
     yo: null, halo: null, siguiendo: false, buscando: null,
-    margen: 0, avisoGps: false };
+    margen: 0, avisoGps: false,
+    mapaId: '', rumbo: null, giro: null };
 
   function mapaAviso(tx, sub, girando) {
     var av = $('mapa-aviso'); if (!av) return;
@@ -1169,7 +1170,7 @@
       cerrar();
       /* Codigo 1 = el usuario o el sistema lo tiene NEGADO. Los otros son
          "no lo consegui ahora", que es otra cosa y no merece una ventana. */
-      if (err && err.code === 1) { abrirGps('negado'); return; }
+      if (err && err.code === 1) { abrirGps(); return; }
       if (!mejor && alFallar) alFallar();
     }, { enableHighAccuracy: true, maximumAge: 0, timeout: VENTANA + 2000 });
 
@@ -1209,7 +1210,7 @@
         if (muerto) return;
         if (err) {
           var t = String((err && (err.message || err.errorMessage)) || '').toLowerCase();
-          if (t.indexOf('denied') >= 0 || t.indexOf('permis') >= 0) { cerrar(); abrirGps('negado'); return; }
+          if (t.indexOf('denied') >= 0 || t.indexOf('permis') >= 0) { cerrar(); abrirGps(); return; }
           return;
         }
         if (!pos || !pos.coords) return;
@@ -1240,6 +1241,55 @@
     return { parar: cerrar };
   }
 
+  /*  ¿HACIA DONDE ESTA MIRANDO?
+
+      Dos fuentes, y hacen falta las dos:
+
+        · El GPS da el rumbo del MOVIMIENTO, y es el bueno mientras se anda.
+          Pero cuando el domiciliario se detiene —un semaforo, buscando el
+          numero de la casa— deja de darlo.
+        · La brujula del telefono da hacia donde APUNTA el aparato, tambien
+          parado. Es la que hace que el mapa gire al girar el celular en la
+          mano, que es justo lo que se siente en Google.
+
+      Manda el GPS cuando se esta moviendo de verdad; parado, la brujula.    */
+  var BRUJULA = { grados: null, vivo: false };
+
+  function oirBrujula() {
+    if (BRUJULA.vivo) return;
+    BRUJULA.vivo = true;
+    function leer(e) {
+      var g = null;
+      //  Android da el rumbo en `webkitCompassHeading` o en `alpha` invertido.
+      if (typeof e.webkitCompassHeading === 'number') g = e.webkitCompassHeading;
+      else if (e.absolute && typeof e.alpha === 'number') g = 360 - e.alpha;
+      if (g == null || isNaN(g)) return;
+      BRUJULA.grados = (g + 360) % 360;
+    }
+    try {
+      addEventListener('deviceorientationabsolute', leer, true);
+      addEventListener('deviceorientation', leer, true);
+    } catch (e) {}
+  }
+
+  /*  El rumbo entre dos puntos, para cuando el GPS no lo diga pero se vea que
+      el domiciliario avanzo. Formula de siempre. */
+  function rumboEntre(a, b) {
+    var g = Math.PI / 180;
+    var y = Math.sin((b.lng - a.lng) * g) * Math.cos(b.lat * g);
+    var x = Math.cos(a.lat * g) * Math.sin(b.lat * g)
+          - Math.sin(a.lat * g) * Math.cos(b.lat * g) * Math.cos((b.lng - a.lng) * g);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+
+  /*  Girar de golpe marea. Se va acercando al rumbo nuevo por el lado corto —
+      de 350° a 10° son 20 grados a la derecha, no 340 a la izquierda. */
+  function suavizar(actual, destino) {
+    if (actual == null) return destino;
+    var d = ((destino - actual + 540) % 360) - 180;
+    return (actual + d * 0.25 + 360) % 360;
+  }
+
   /*  VIGILANCIA CONTINUA, para el viaje. Aqui no se busca la mejor lectura y
       se para: se acompana al domiciliario todo el camino, asi que cada lectura
       nueva manda aunque sea peor — se esta moviendo, y quedarse con la mejor de
@@ -1254,6 +1304,7 @@
         lat: pos.coords.latitude, lng: pos.coords.longitude,
         error: pos.coords.accuracy == null ? 9999 : pos.coords.accuracy,
         rumbo: pos.coords.heading,
+        velocidad: pos.coords.speed,
       });
     }
 
@@ -1284,31 +1335,20 @@
       intemperie; bajo techo no llega nunca y por eso hay tope.            */
   var VENTANA = 12000;
 
-  /*  QUE TAN BUENA ES LA LECTURA, DICHO EN PANTALLA.
+  /*  AQUI HUBO UN MEDIDOR DE PRECISION, Y SE QUITA A PROPOSITO.
 
-      Sin esto, "el punto esta cerca pero no donde estoy" es una queja que no
-      se puede perseguir: no hay forma de saber si el telefono esta dando 15
-      metros o 1.200. Ahora el numero esta a la vista.
+      Mientras se perseguia el punto de inicio equivocado hacia falta ver
+      cuantos metros de margen daba el telefono: sin ese numero la queja no se
+      podia rastrear. Ya se encontro —la app le preguntaba al GPS del
+      NAVEGADOR y no al del telefono— y con el modulo nativo el punto cae donde
+      debe.
 
-      Y por encima de 100 metros no es un GPS lento: es que Android tiene la
-      ubicacion en modo APROXIMADA para esta app. Ese permiso devuelve el punto
-      corrido a proposito, siempre, y no mejora por esperar. Se dice como se
-      arregla, porque nadie lo va a adivinar.                              */
-  /*  Mientras BUSCA no se dice nada: el mapa ya se ve, el punto ya esta ahi y
-      se va corrigiendo solo. Avisar cada segundo de que se esta buscando es
-      ruido, y taparlo con un cartel es peor.
-
-      Solo se habla cuando la busqueda TERMINO y el resultado sirve poco. */
-  function pintarPrecision(p, definitivo) {
+      Dejarlo puesto seria cobrarle al domiciliario el costo de un diagnostico
+      ya terminado: una pastilla roja diciendo "231 m" mientras esta parado en
+      la puerta correcta. Si vuelve a hacer falta, esta en el historial.    */
+  function pintarPrecision() {
     var el = $('mapa-precision');
-    if (!el) return;
-    if (!p || !definitivo) { el.hidden = true; return; }
-    var m = Math.round(p.error);
-    if (m <= 40) { el.hidden = true; return; }   // normal: no se molesta a nadie
-    el.hidden = false;
-    el.className = m > 100 ? 'mp-prec mala' : 'mp-prec media';
-    el.textContent = '\u00b1' + m + ' m \u00b7 tocar';
-    MAPA.margen = m;
+    if (el) el.hidden = true;
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -1329,25 +1369,23 @@
 
      El segundo es el que nadie adivina, y es el que explica un punto de inicio
      "cerca pero no donde estoy".                                          */
-  function abrirGps(motivo) {
+  /*  SOLO CUANDO LA UBICACION ESTA NEGADA DE VERDAD.
+
+      Aqui tambien habia un caso "aproximada", que salia cuando el margen
+      pasaba de 200 metros. Se quita: le salio a Sergio teniendo la ubicacion
+      precisa concedida. Un margen grande puede ser simplemente estar bajo
+      techo, y acusar al usuario de tener mal un ajuste que tiene bien es
+      peor que callarse. Lo que si es un hecho comprobable —y lo unico que
+      queda— es que el sistema responda "permiso negado".                  */
+  function abrirGps() {
     var t = $('gps-t'), s = $('gps-s'), pasos = $('gps-pasos');
-    var aprox = motivo === 'aproximada';
-    if (t) t.textContent = aprox ? 'Tu ubicaci\u00f3n est\u00e1 en modo aproximado' : 'Falta tu ubicaci\u00f3n';
-    if (s) {
-      s.textContent = aprox
-        ? 'El tel\u00e9fono la est\u00e1 dando corrida a prop\u00f3sito' + (MAPA.margen ? ' (\u00b1' + MAPA.margen + ' m)' : '')
-          + '. No mejora esperando: hay que cambiarla en los ajustes.'
-        : 'Sin ella el mapa no sabe desde d\u00f3nde arrancar.';
-    }
+    if (t) t.textContent = 'Falta tu ubicación';
+    if (s) s.textContent = 'Sin ella el mapa no sabe desde dónde arrancar.';
     if (pasos) {
-      pasos.innerHTML = aprox
-        ? ['Ajustes del tel\u00e9fono', 'Aplicaciones \u2192 <b>Cobra Domicilios</b>',
-           'Permisos \u2192 Ubicaci\u00f3n', 'Activar <b>Usar ubicaci\u00f3n precisa</b>']
-            .map(function (x) { return '<li>' + x + '</li>'; }).join('')
-        : ['Ajustes del tel\u00e9fono', 'Aplicaciones \u2192 <b>Cobra Domicilios</b>',
-           'Permisos \u2192 Ubicaci\u00f3n', 'Elegir <b>Permitir mientras se usa</b>',
-           'Y activar <b>Usar ubicaci\u00f3n precisa</b>']
-            .map(function (x) { return '<li>' + x + '</li>'; }).join('');
+      pasos.innerHTML = ['Ajustes del teléfono', 'Aplicaciones → <b>Cobra Domicilios</b>',
+        'Permisos → Ubicación', 'Elegir <b>Permitir mientras se usa</b>',
+        'Y activar <b>Usar ubicación precisa</b>']
+        .map(function (x) { return '<li>' + x + '</li>'; }).join('');
     }
     if ($('ov-gps')) $('ov-gps').hidden = false;
   }
@@ -1360,7 +1398,7 @@
     try {
       if (!navigator.permissions || !navigator.permissions.query) return;
       navigator.permissions.query({ name: 'geolocation' }).then(function (r) {
-        if (r && r.state === 'denied') abrirGps('negado');
+        if (r && r.state === 'denied') abrirGps();
       }).catch(function () {});
     } catch (e) {}
   }
@@ -1450,6 +1488,7 @@
       return;
     }
 
+    MAPA.mapaId = acc.mapaId || '';
     try { await cargarGoogle(acc.clave); }
     catch (e) { mapaAviso('El mapa no cargó', 'Revisa la conexión y vuelve a entrar.', false); return; }
 
@@ -1469,7 +1508,7 @@
     MAPA.casa = casa;
     mapaAviso(null);
 
-    MAPA.mapa = new google.maps.Map($('mapa-lienzo'), {
+    var opciones = {
       center: casa, zoom: 16,
       /* Se puede acercar, alejar y mirar alrededor — es un mapa de verdad,
          no una foto. Lo que se quita es lo que estorba en un celular. Los
@@ -1477,7 +1516,13 @@
          se orienta por la panadería de la esquina, no por el número. */
       mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
       zoomControl: false, clickableIcons: true, gestureHandling: 'greedy'
-    });
+    };
+    /*  Con `mapId` el mapa deja de ser un mosaico de fotos y pasa a ser
+        vectorial: eso es lo unico que le permite GIRAR e inclinarse. Sin el,
+        Google ignora `setHeading` sin decir nada — no falla, simplemente no
+        pasa nada, que es la clase de silencio que cuesta una tarde. */
+    if (MAPA.mapaId) { opciones.mapId = MAPA.mapaId; opciones.tilt = 0; opciones.heading = 0; }
+    MAPA.mapa = new google.maps.Map($('mapa-lienzo'), opciones);
     MAPA.marcaCasa = new google.maps.Marker({
       map: MAPA.mapa, position: casa, title: p.cliente || 'Destino'
     });
@@ -1582,13 +1627,7 @@
         trazos++;
         trazar(casa, { lat: p.lat, lng: p.lng });
       }
-      if (definitivo) {
-        MAPA.buscando = null;
-        /* Mas de 200 metros con el GPS a tope no es un satelite lento: es el
-           permiso aproximado. Se ofrece la explicacion UNA vez por pedido, sin
-           taparle el mapa — la pastilla se queda ahi por si la quiere luego. */
-        if (p.error > 200 && !MAPA.avisoGps) { MAPA.avisoGps = true; abrirGps('aproximada'); }
-      }
+      if (definitivo) MAPA.buscando = null;
     });
     /* Sin GPS no hay l\u00ednea, pero el mapa con la casa marcada ya sirve para
        orientarse. No se avisa nada: no falt\u00f3 nada importante. */
@@ -1644,13 +1683,39 @@
 
     //  1) La cámara va detrás del domiciliario, y el punto se vuelve flecha.
     seguir(true);
+    oirBrujula();
     MAPA.mapa.setZoom(18);
-    if (MAPA.yo) MAPA.mapa.panTo(MAPA.yo);
+    if (MAPA.mapaId) MAPA.mapa.setTilt(45);   //  inclinado, como en Google
+    if (MAPA.yo) encuadrarViaje(MAPA.yo, MAPA.rumbo);
+
     MAPA.vigia = vigilar(function (p) {
+      /*  Que rumbo se usa. El del GPS solo vale si se esta moviendo: parado,
+          `heading` llega en cero o en null y el mapa se quedaria mirando al
+          norte aunque el domiciliario haya dado media vuelta. */
+      var r = null;
+      if (p.rumbo != null && !isNaN(p.rumbo) && (p.velocidad == null || p.velocidad > 0.6)) r = p.rumbo;
+      else if (MAPA.yo) {
+        var mov = rumboEntre(MAPA.yo, p);
+        //  Solo si de verdad se movio: a menos de cinco metros el rumbo
+        //  calculado es ruido del GPS y hace bailar el mapa.
+        if (metrosEntre(MAPA.yo, p) > 5) r = mov;
+      }
+      if (r == null && BRUJULA.grados != null) r = BRUJULA.grados;
+      if (r != null) { MAPA.rumbo = suavizar(MAPA.rumbo, r); p.rumbo = MAPA.rumbo; }
+
       pintarYo(p);
       pintarPrecision(p, true);
-      if (MAPA.siguiendo && MAPA.mapa) MAPA.mapa.panTo({ lat: p.lat, lng: p.lng });
+      if (MAPA.siguiendo) encuadrarViaje(p, MAPA.rumbo);
     });
+
+    /*  La brujula sola tambien mueve el mapa, sin esperar al GPS: es lo que
+        hace que gire al girar el telefono estando quieto. */
+    MAPA.giro = setInterval(function () {
+      if (!MAPA.andando || !MAPA.siguiendo || !MAPA.mapaId) return;
+      if (BRUJULA.grados == null || !MAPA.yo) return;
+      MAPA.rumbo = suavizar(MAPA.rumbo, BRUJULA.grados);
+      MAPA.mapa.setHeading(MAPA.rumbo);
+    }, 250);
 
     //  2) Los puntos corriendo. El truco es mover el `offset` del símbolo: la
     //     línea no se toca, solo se desplazan los puntos por encima.
@@ -1688,9 +1753,35 @@
     toast('Ruta iniciada');
   }
 
+  /*  Centrar en viaje NO es centrar y ya: el domiciliario tiene que ver LO QUE
+      VIENE, no lo que dejo atras. Se le pone abajo en la pantalla y el camino
+      ocupa el resto, igual que en Google. Y si el mapa puede girar, se gira
+      hacia donde va. */
+  function encuadrarViaje(p, rumbo) {
+    if (!MAPA.mapa) return;
+    MAPA.mapa.panTo({ lat: p.lat, lng: p.lng });
+    if (MAPA.mapaId && rumbo != null) MAPA.mapa.setHeading(rumbo);
+    /*  `panBy` corre la camara hacia adelante despues de centrar. Como el
+        `panTo` de arriba es absoluto, esto no se va acumulando. */
+    var alto = ($('mapa-lienzo') && $('mapa-lienzo').clientHeight) || 0;
+    if (alto) MAPA.mapa.panBy(0, Math.round(alto * 0.20));
+  }
+
+  function metrosEntre(a, b) {
+    var g = Math.PI / 180, R = 6371000;
+    var dLat = (b.lat - a.lat) * g, dLng = (b.lng - a.lng) * g;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+      + Math.cos(a.lat * g) * Math.cos(b.lat * g) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+
   function detenerRuta() {
     if (MAPA.vigia) { MAPA.vigia.parar(); MAPA.vigia = null; }
     if (MAPA.latido) { clearInterval(MAPA.latido); MAPA.latido = null; }
+    if (MAPA.giro) { clearInterval(MAPA.giro); MAPA.giro = null; }
+    //  Se deja el mapa derecho y mirando al norte, como estaba.
+    if (MAPA.mapa && MAPA.mapaId) { MAPA.mapa.setTilt(0); MAPA.mapa.setHeading(0); }
+    MAPA.rumbo = null;
     if (MAPA.linea) MAPA.linea.setOptions({ strokeOpacity: .9, icons: [] });
     if (MAPA.despierto) { try { MAPA.despierto.release(); } catch (e) {} MAPA.despierto = null; }
     MAPA.andando = false;
@@ -1759,7 +1850,6 @@
         return;
       }
 
-      if (t.closest('#mapa-precision')) { abrirGps('aproximada'); return; }
       if (t.closest('#gps-cerrar')) { if ($('ov-gps')) $('ov-gps').hidden = true; return; }
       if (t.closest('#gps-reintentar')) {
         if ($('ov-gps')) $('ov-gps').hidden = true;

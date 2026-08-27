@@ -804,7 +804,23 @@ async function accNavegador(tenant: string) {
     mensaje: "Se acabo el cupo de mapas de este mes.",
     usado: permiso.usado, tope: permiso.tope });
 
-  return ok({ ok: true, clave, usado: permiso.usado, tope: permiso.tope });
+  /*  EL "MAP ID": lo que hace que el mapa pueda GIRAR.
+
+      Un mapa de Google normal esta hecho de fotos de cuadritos y no gira: se
+      queda con el norte arriba pase lo que pase. Para que gire hay que pedirle
+      la version vectorial, y esa solo se entrega si se le manda un
+      identificador de estilo creado en la consola de Google.
+
+      Va aqui y no escrito en la pagina porque es del restaurante, no del
+      programa. Si no esta configurado se responde vacio y la pagina hace lo de
+      siempre: mapa con el norte arriba y la flecha girando sola. Se ve peor,
+      pero funciona — nunca dejar sin mapa a un domiciliario por un ajuste que
+      alguien no hizo.                                                     */
+  return ok({
+    ok: true, clave,
+    mapaId: Deno.env.get("MAPAS_MAP_ID") || "",
+    usado: permiso.usado, tope: permiso.tope,
+  });
 }
 
 /* ══════════════════════════════════════════════════════════════════════
