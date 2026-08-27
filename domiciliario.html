@@ -8,9 +8,21 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="domiciliario.css?v=1792400000">
+<link rel="stylesheet" href="domiciliario.css?v=1792410000">
 </head>
 <body>
+<!-- ══ EL VELO ══
+     Tapa la app hasta que el archivo de programa haya arrancado de verdad.
+     Sin esto, si el JavaScript no llega o revienta, lo que queda a la vista es
+     la MAQUETA: "Buenas noches, Julián", "Laura Restrepo · Cra 34 #9-18 apto
+     502", "Cobrar $46.500". Clientes que no existen, sin login y sin ningún
+     aviso. Un domiciliario podría salir a entregarle a nadie.
+     Se quita en `init()`, y solo si todo salió bien. -->
+<div class="dm-velo" id="velo">
+  <div class="dm-spin"></div>
+  <p id="velo-txt">Abriendo…</p>
+</div>
+
 <!-- ══ ENTRAR ══
      El domiciliario NO se registra solo: su cuenta la crea el restaurante en
      Configuración › Usuarios y roles. Aquí solo entra con lo que le dieron. -->
@@ -300,7 +312,11 @@
 <div class="toast" id="toast" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg><span id="toast-msg">Pedido #1042 entregado</span></div>
 
 </div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="domiciliario.js?v=1792400000"></script>
+<!-- La copia LOCAL, como las otras 26 pantallas. Si esto se pide a un CDN y
+     el CDN no contesta, el archivo entero de la app muere antes de arrancar
+     y en el domiciliario queda a la vista la maqueta con clientes falsos.
+     Ya paso una vez con la pantalla de cocina. -->
+<script src="vendor/supabase-2.js?v=1789520000"></script>
+<script src="domiciliario.js?v=1792410000"></script>
 </body>
 </html>

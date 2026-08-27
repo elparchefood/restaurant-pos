@@ -828,19 +828,58 @@
     } catch (e) { console.warn('[domi] tiempo real:', e); }
   }
 
-  async function init() {
-    conectarEventos();
-    var s = await sb.auth.getSession();
-    if (s && s.data && s.data.session) {
-      var ok = await cargarPerfil();
-      if (ok) { await arrancar(); return; }
-      await sb.auth.signOut();
+  /* El velo solo se quita cuando de verdad hay algo que mostrar. Si algo
+     falla, se dice QUE fallo y se ofrece reintentar — nunca se destapa la
+     maqueta. */
+  function quitarVelo() {
+    var v = $('velo');
+    if (v) v.hidden = true;
+  }
+  function veloDice(txt, malo) {
+    var v = $('velo'), t = $('velo-txt');
+    if (!v || !t) return;
+    v.hidden = false;
+    t.textContent = txt;
+    if (!malo) return;
+    var sp = v.querySelector('.dm-spin');
+    if (sp) sp.remove();
+    if (!v.querySelector('.dm-reintentar')) {
+      var b = document.createElement('button');
+      b.className = 'dm-reintentar';
+      b.textContent = 'Reintentar';
+      b.onclick = function () { location.reload(); };
+      v.appendChild(b);
     }
-    var lg = $('ov-login');
-    if (lg) lg.hidden = false;
+  }
+
+  async function init() {
+    try {
+      conectarEventos();
+      veloDice('Comprobando tu sesión…');
+      var s = await sb.auth.getSession();
+      if (s && s.data && s.data.session) {
+        veloDice('Cargando tu turno…');
+        var ok = await cargarPerfil();
+        if (ok) { await arrancar(); quitarVelo(); return; }
+        await sb.auth.signOut();
+      }
+      var lg = $('ov-login');
+      if (lg) lg.hidden = false;
+      quitarVelo();
+    } catch (e) {
+      console.error('[domi] no pudo abrir:', e);
+      veloDice('No se pudo abrir la app. Revisa tu conexión.', true);
+    }
   }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else { init(); }
+
+  /* Si algo revienta despues de arrancar, que no quede la app a medias en
+     silencio: se ve el aviso y se puede reintentar. */
+  window.addEventListener('error', function (ev) {
+    var v = document.getElementById('velo');
+    if (v && !v.hidden) veloDice('No se pudo abrir la app: ' + (ev.message || ''), true);
+  });
 })();

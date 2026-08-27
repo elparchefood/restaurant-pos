@@ -151,7 +151,11 @@
     </div>
   </main>
 </div>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- La copia LOCAL, como las otras 26 pantallas. Si esto se pide a un CDN y
+     el CDN no contesta, el archivo entero de la app muere antes de arrancar
+     y en el domiciliario queda a la vista la maqueta con clientes falsos.
+     Ya paso una vez con la pantalla de cocina. -->
+<script src="vendor/supabase-2.js?v=1789520000"></script>
   <script src="pos-core.js?v=1792130000"></script>
 <script src="pos-nav.js?v=1792360000"></script>
 <script src="pos-solo-app.js?v=1792150000"></script>

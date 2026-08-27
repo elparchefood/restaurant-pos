@@ -15,6 +15,26 @@ svg{display:block}
 a{color:var(--brand);text-decoration:none}a:hover{color:var(--brand-press)}
 ::-webkit-scrollbar{width:0}
 .tnum{font-variant-numeric:tabular-nums}
+/* EL VELO. Va con `display:flex` desde el arranque: si el programa nunca
+   corre, nunca se quita, y la maqueta no se ve. Es a proposito que sea al
+   reves de lo normal — tapar por defecto y destapar al final. */
+.dm-velo{
+  position:fixed; inset:0; z-index:9999; background:#FCFCFD;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+}
+.dm-velo[hidden]{display:none !important;}
+.dm-velo p{margin:0;font-size:13px;font-weight:600;color:#64748B;text-align:center;max-width:34ch;padding:0 24px;}
+.dm-velo .dm-reintentar{
+  border:none;border-radius:10px;background:#5B6BFF;color:#fff;
+  padding:11px 22px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;
+}
+.dm-spin{
+  width:34px;height:34px;border-radius:50%;
+  border:3px solid #E2E8F0;border-top-color:#5B6BFF;
+  animation:dmGira .8s linear infinite;
+}
+@keyframes dmGira{to{transform:rotate(360deg)}}
+
 .dev{width:100%;height:100dvh;min-height:100vh;background:#FCFCFD;overflow:hidden;display:flex;flex-direction:column;position:relative}
 /* LA BARRA DE ESTADO FALSA YA NO EXISTE (26-ago-2026).
    Era un dibujo de la maqueta —una hora fija «7:42», un «4G» y una pila— que
