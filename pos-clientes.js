@@ -52,19 +52,38 @@
     return String(s || '').trim().toLowerCase().replace(/(^|\s)\S/g, function (t) { return t.toUpperCase(); });
   }
 
+  /* ¿Esta direccion dice algo? Antes la pregunta era "¿tiene calle?", y con eso
+     bastaba para BORRAR un conjunto entero al guardarlo: la calle de un
+     conjunto es opcional —hay clientes que no la dan— y lo que lo identifica
+     es el nombre. El cliente escribia el conjunto, guardaba, y al volver a
+     abrir estaba todo vacio. */
+  function tieneAlgo(d) {
+    return !!(String(d.dir || '').trim() || String(d.conjunto || '').trim()
+      || String(d.unidad || '').trim() || String(d.barrio || '').trim());
+  }
+
   // ── Traducción entre las dos formas ──────────────────────────────────
   function deDB(r) {
     var dirs = Array.isArray(r.direcciones) ? r.direcciones : [];
     dirs = dirs.map(function (d) {
-      if (d && typeof d === 'object') return { id: d.id || dirId(), dir: d.dir || '', barrio: d.barrio || '' };
-      return { id: dirId(), dir: String(d || ''), barrio: '' };
-    }).filter(function (d) { return String(d.dir).trim(); });
+      if (d && typeof d === 'object') {
+        return {
+          id: d.id || dirId(), dir: d.dir || '', barrio: d.barrio || '',
+          /* Un conjunto trae SUS campos. Antes se recortaba a dir+barrio y el
+             nombre del conjunto se perdia en el viaje a la base. */
+          tipo: d.tipo === 'conjunto' ? 'conjunto' : 'casa',
+          conjunto: d.conjunto || '', unidad: d.unidad || '',
+        };
+      }
+      return { id: dirId(), dir: String(d || ''), barrio: '', tipo: 'casa', conjunto: '', unidad: '' };
+    }).filter(function (d) { return tieneAlgo(d); });
     if (!dirs.length && (r.direccion || r.barrio)) {
       dirs = [{ id: dirId(), dir: r.direccion || '', barrio: r.barrio || '' }];
     }
     // La dirección ACTIVA es la última usada, que es la que la tabla guarda
     // suelta en `direccion` (es la que el cliente pidió la última vez).
-    var act = dirs.filter(function (d) { return d.dir === r.direccion; })[0] || dirs[dirs.length - 1] || null;
+    var act = dirs.filter(function (d) { return d.dir && d.dir === r.direccion; })[0]
+      || dirs[dirs.length - 1] || null;
     return {
       id: r.id, nombre: r.nombre || '', tel: r.telefono || '',
       // Segundo numero: solo contacto. La identidad y los puntos son del
@@ -74,14 +93,20 @@
       dir:    act ? act.dir    : '',
       barrio: act ? act.barrio : '',
       dirId:  act ? act.id     : null,
+      conjunto: act ? (act.conjunto || '') : '',
+      unidad:   act ? (act.unidad   || '') : '',
       tipdoc: r.tipdoc || '', numdoc: r.numdoc || '', email: r.email || '', notas: r.notas || '',
     };
   }
 
   function aDB(c) {
     var dirs = (Array.isArray(c.direcciones) ? c.direcciones : []).map(function (d) {
-      return { id: d.id || dirId(), dir: String(d.dir || '').trim(), barrio: titulo(d.barrio || '') };
-    }).filter(function (d) { return d.dir; });
+      return {
+        id: d.id || dirId(), dir: String(d.dir || '').trim(), barrio: titulo(d.barrio || ''),
+        tipo: d.tipo === 'conjunto' ? 'conjunto' : 'casa',
+        conjunto: titulo(d.conjunto || ''), unidad: String(d.unidad || '').trim(),
+      };
+    }).filter(function (d) { return tieneAlgo(d); });
     var act = dirs.filter(function (d) { return d.id === c.dirId; })[0] || dirs[dirs.length - 1] || null;
     return {
       nombre: c.nombre || '', telefono: c.tel || '',
@@ -89,7 +114,10 @@
       direcciones: dirs,
       // `direccion` y `barrio` sueltos = la dirección activa. Otras pantallas
       // y las funciones del servidor los leen así, no como lista.
-      direccion: act ? act.dir : null,
+      /* Si el conjunto no dio calle, aqui va el nombre: esta columna es la que
+         leen las demas pantallas para decir DONDE es, y dejarla vacia haria
+         que el pedido apareciera como "Sin direccion". */
+      direccion: act ? (act.dir || act.conjunto || null) : null,
       barrio:    act ? act.barrio : null,
       tipdoc: c.tipdoc || null, numdoc: c.numdoc || null,
       email:  c.email  || null, notas:  c.notas  || null,

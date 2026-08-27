@@ -1349,7 +1349,8 @@ function renderDetBtn() {
   const externo    = S.courier   === 'externo';
   const extDirecto = externo && !S.cobramos;
   const hasCliente = !!S.cliente;
-  const hasDir     = recogo || !S.cliente || !!S.cliente.dir; // recogo no necesita dir
+  //  El nombre del conjunto cuenta como direccion: es lo que la identifica.
+  const hasDir     = recogo || !S.cliente || !!S.cliente.dir || !!S.cliente.conjunto;
   const courierOk  = recogo || externo || !!S.asignado;
   const incompleto = !hasCliente || !courierOk || !hasDir;
 
@@ -1368,7 +1369,8 @@ function renderDetBtn() {
   chips.push(`<span class="d-detbtn-chip${hasCliente ? '' : ' miss'}">${svgInline('user', 10)}${S.cliente ? S.cliente.nombre : 'Sin cliente'}</span>`);
 
   // Dirección faltante (naranja urgente)
-  if (S.cliente && !S.cliente.dir && !recogo) {
+  //  Un conjunto con nombre y sin calle NO es un pedido sin direccion.
+  if (S.cliente && !S.cliente.dir && !S.cliente.conjunto && !recogo) {
     chips.push(`<span class="d-detbtn-chip miss">${svgInline('mappin', 10)} Sin dirección</span>`);
   }
 
@@ -1418,12 +1420,15 @@ function renderClienteCard() {
     const esc = s => String(s || '').replace(/</g,'&lt;');
     addrHTML = `<select class="d-cli-dirsel" data-cli-dirsel onclick="event.stopPropagation()">` +
       dirs.map(d => {
-        const txt = (d.barrio ? d.barrio + ' · ' : '') + (d.dir || 'Sin dirección');
+        /* Un conjunto puede no tener calle —es opcional a proposito— y lo que
+           lo identifica es el nombre. Poner "Sin direccion" ahi seria mentir. */
+        const donde = [d.conjunto, d.unidad, d.dir].filter(Boolean).join(' · ');
+        const txt = (d.barrio ? d.barrio + ' · ' : '') + (donde || 'Sin dirección');
         return `<option value="${d.id}"${d.id === c.dirId ? ' selected' : ''}>${esc(txt)}</option>`;
       }).join('') +
       `</select>`;
   } else {
-    addrHTML = c.dir || 'Sin dirección';
+    addrHTML = [c.conjunto, c.unidad, c.dir].filter(Boolean).join(' · ') || 'Sin dirección';
   }
   el.innerHTML = `<div class="d-cliente has">
     <span class="d-cli-avatar">${ini}</span>
@@ -1505,7 +1510,7 @@ function renderCliList(q) {
       <span class="d-cli-avatar">${ini}</span>
       <span class="d-clirow-main">
         <span class="d-clirow-name">${c.nombre}</span>
-        <span class="d-clirow-sub">${svgInline('phone', 11)} ${c.tel || '—'} <span class="d-cl-meta" style="margin:0">·</span> ${svgInline('mappin', 11)} ${c.dir || 'Sin dirección'}</span>
+        <span class="d-clirow-sub">${svgInline('phone', 11)} ${c.tel || '—'} <span class="d-cl-meta" style="margin:0">·</span> ${svgInline('mappin', 11)} ${[c.conjunto, c.unidad, c.dir].filter(Boolean).join(' · ') || 'Sin dirección'}</span>
       </span>
       <span class="d-clirow-edit" data-edit="${c.id}">${svgInline('edit', 13)} Editar</span></button>`;
   }).join('');
