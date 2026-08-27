@@ -2171,7 +2171,13 @@ async function urConfirmCreateUser(u) {
 async function urAddRole() {
   var usedColors=UR.roles.map(function(r){return r.color;});
   var nextColor=UR_SWATCH_COLORS.find(function(c){return usedColors.indexOf(c)<0;})||UR_SWATCH_COLORS[0];
-  var r={ id: urGenId('r'), name:'Nuevo rol', color:nextColor, system:false, perms:[], _isNew:true };
+  /*  UN ROL NUEVO NACE PUDIENDO TRABAJAR EN EL SALON.
+      Antes nacia con CERO permisos: quien creaba un rol y lo asignaba se
+      encontraba con una persona que no podia hacer absolutamente nada, y sin
+      ninguna pista de por que. Estos tres son el minimo para atender una mesa
+      y no tocan plata; las casillas quedan a la vista para quitarlos. */
+  var r={ id: urGenId('r'), name:'Nuevo rol', color:nextColor, system:false,
+          perms:['pedidos.crear','pedidos.cocina','catalogo.ver'], _isNew:true };
   UR.roles.push(r);
   urRenderRoles();
   urSelectRole(r.id);
