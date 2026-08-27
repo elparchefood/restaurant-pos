@@ -393,3 +393,7 @@ a{color:var(--brand);text-decoration:none}a:hover{color:var(--brand-press)}
 .gps-pasos li{margin-bottom:5px}
 .gps-pasos li:last-child{margin-bottom:0}
 .gps-pasos b{color:var(--ink);font-weight:700}
+
+/* El sello de version. Chiquito y gris: no es para el domiciliario, es para
+   saber que copia esta corriendo cuando algo no cuadra. */
+.dm-sello{font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;text-align:center;padding:2px 0}

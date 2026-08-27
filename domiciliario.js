@@ -768,6 +768,44 @@
     b.appendChild(img);
   }
 
+  /* ══════════════════════════════════════════════════════════════
+     QUE COPIA ESTA CORRIENDO
+     ══════════════════════════════════════════════════════════════
+     La app vive dentro de un navegador que guarda copias de la pagina. Se
+     arreglo algo, se subio, se probo — y el telefono siguio corriendo lo de
+     antes. Desde afuera eso se ve EXACTAMENTE IGUAL que "el arreglo no
+     sirvio", y por perseguir un fallo ya arreglado se pierde una tarde.
+
+     Dos cosas: el numero de la copia queda a la vista en el perfil, y la app
+     se pregunta sola si hay una mas nueva. Si la hay, se recarga saltandose lo
+     guardado. Una sola vez, con marca en la direccion, para que no entre en un
+     ciclo de recargarse a si misma.                                        */
+  function versionCorriendo() {
+    var s = document.querySelector('script[src*="domiciliario.js"]');
+    var m = s && (s.getAttribute('src') || '').match(/v=(\d+)/);
+    return m ? m[1] : '';
+  }
+
+  function pintarSello() {
+    var el = $('dm-sello');
+    if (el) el.textContent = 'Cobra Domicilios · ' + (versionCorriendo() || 'sin versión');
+  }
+
+  async function revisarVersion() {
+    try {
+      if (/[?&]rec=1/.test(location.search)) return;   // ya se recargo una vez
+      var mia = versionCorriendo();
+      if (!mia) return;
+      var r = await fetch(location.pathname + '?t=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) return;
+      var t = await r.text();
+      var m = t.match(/domiciliario\.js\?v=(\d+)/);
+      if (!m || m[1] === mia) return;
+      console.warn('[domi] copia vieja', mia, '→', m[1]);
+      location.replace(location.pathname + '?rec=1&t=' + Date.now());
+    } catch (e) {}
+  }
+
   function pintarTodo() {
     pintarInicio(); pintarLista(); pintarTurno(); pintarPerfil();
   }
@@ -2157,6 +2195,8 @@
     try {
       conectarEventos();
       conectarSwipe();
+      pintarSello();
+      revisarVersion();
       conectarSwipeMapa();
       pintarPunto();
       veloDice('Comprobando tu sesión…');
