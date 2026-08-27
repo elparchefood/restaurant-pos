@@ -84,6 +84,40 @@ del mapa. Ahora sale una banda roja y **no se dibuja la ruta ni se deja
 arrancar**: una linea bonita hasta un punto inventado es peor que no tener mapa,
 porque el domiciliario la sigue creyendo que va bien.
 
+### Un sitio con nombre no se busca como una calle
+
+Google tiene **dos indices** y no son intercambiables: el de direcciones
+(Geocoding), que sabe de calles y numeros, y el de sitios (Places), que sabe de
+conjuntos, centros comerciales, hospitales, colegios y aeropuertos. Una
+ciudadela no esta en el indice de calles — preguntarle por ella al de
+direcciones es buscar un telefono en el diccionario.
+
+`canonizar()` ya sabia distinguirlos (`estructurada: false` cuando no reconoce
+ningun tipo de via), pero esa distincion **no cambiaba la consulta**. Ahora si.
+El nombre puede aparecer de tres formas y las tres pasan a diario:
+
+1. **Registrado** como conjunto del restaurante — el mejor caso.
+2. **La direccion es el nombre**: "Centro Comercial Campanario", "Hospital San
+   Jose".
+3. **La direccion es solo el complemento y el nombre esta en el barrio**:
+   "Casa 32" + barrio "Llanos de Calibio". Este fue el caso real y es el mas
+   comun: el cajero escribe la casa en un campo y la ciudadela en el otro.
+
+Cuando hay nombre se busca por **Places Text Search**, con el ancla de la ciudad
+como sesgo (hay una "Ciudadela Comfandi" en media Colombia). El punto se guarda
+**por nombre, no por casa**: la casa 32 y la torre D llegan a la misma porteria,
+asi que comparten punto y a Google se le pregunta una sola vez por toda la
+ciudadela. Un resultado de Places **no se marca como aproximado** — es el sitio,
+con su nombre.
+
+**Si Places no contesta, se sigue por el camino de las direcciones.** Puede no
+estar habilitada en la cuenta de Google, y eso no puede dejar sin mapa al
+domiciliario.
+
+⚠️ **Places cuesta mas que Geocoding** (~$32 contra ~$5 por mil). Por eso solo
+se usa cuando hay nombre, y por eso el guardado por nombre importa: una
+ciudadela de 200 casas se pregunta una vez.
+
 ### "Iniciar" en vez de "Navegar con voz"
 
 El boton que sacaba a Google Maps era volver al problema que acababamos de

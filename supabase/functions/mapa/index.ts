@@ -220,6 +220,53 @@ async function puntoCiudad(tenant: string, ciudad: string, clave: string):
   return { lat: Number(loc.lat), lng: Number(loc.lng) };
 }
 
+/*  ═════════════════════════════════════════════════════════════════
+    BUSCAR POR NOMBRE, QUE NO ES LO MISMO QUE BUSCAR UNA DIRECCION
+    ═════════════════════════════════════════════════════════════════
+    Google tiene DOS indices y no son intercambiables:
+
+      • El de direcciones (Geocoding), que sabe de calles y numeros.
+      • El de sitios (Places), que sabe de conjuntos, centros comerciales,
+        hospitales, colegios, aeropuertos — lo que tiene nombre propio.
+
+    Una ciudadela no esta en el indice de calles. Preguntarle por ella al de
+    direcciones es como buscar un telefono en el diccionario: contesta algo,
+    y ese algo fue el centro de Cali.
+
+    Es tambien como busca una persona: nadie escribe la direccion de la
+    Ciudadela Llanos de Calibio, escribe el nombre y ya.
+
+    SI PLACES NO CONTESTA, SE SIGUE POR EL CAMINO VIEJO. Puede no estar
+    habilitada en la cuenta de Google, y eso no puede dejar sin mapa al
+    domiciliario: se responde null y quien llama busca como antes.        */
+async function buscarPorNombre(
+  texto: string, ancla: { lat: number; lng: number } | null, clave: string,
+): Promise<{ lat: number; lng: number; nombre: string; direccion: string } | null> {
+  let url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
+    + "?query=" + encodeURIComponent(texto)
+    + "&region=co&language=es&key=" + encodeURIComponent(clave);
+  //  El ancla aqui pesa mas que en las direcciones: hay una "Ciudadela
+  //  Comfandi" en media Colombia y la buena es la de esta ciudad.
+  if (ancla) url += "&location=" + ancla.lat + "," + ancla.lng + "&radius=50000";
+
+  const r = await fetch(url);
+  const j = await r.json().catch(() => null);
+  if (j?.status !== "OK" || !j?.results?.length) {
+    if (j?.status && j.status !== "ZERO_RESULTS") {
+      console.error("[mapa] places", j.status, j.error_message);
+    }
+    return null;
+  }
+  const p = j.results[0];
+  const loc = p.geometry?.location;
+  if (!loc) return null;
+  return {
+    lat: Number(loc.lat), lng: Number(loc.lng),
+    nombre: String(p.name || ""),
+    direccion: String(p.formatted_address || ""),
+  };
+}
+
 /*  HASTA DONDE PUEDE ESTAR UN DOMICILIO.
 
     50 km del centro de la ciudad. Es holgado a proposito: un corregimiento
@@ -864,14 +911,40 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
         || (direccionSinNombre(dir) ? cualConjunto(barrio, lista, true) : null))
     : null;
 
-  const clave = conj
-    ? "conjunto " + nucleo(conj) + " " + normTexto(ciudad)
+  /*  ¿ESTO ES UNA CALLE O ES UN SITIO CON NOMBRE?
+
+      No es un detalle: decide a cual de los dos indices de Google se le
+      pregunta, y preguntarle al equivocado devuelve un punto en otra ciudad
+      con toda la confianza del mundo.
+
+      Hay tres formas de que el nombre aparezca, y las tres pasan a diario:
+
+        1. Esta REGISTRADO como conjunto del restaurante. Es el mejor caso.
+        2. La direccion misma es un nombre — "Centro Comercial Campanario",
+           "Hospital San Jose"—. `canonizar` ya lo sabe: no le reconoce
+           ningun tipo de via y devuelve `estructurada: false`.
+        3. La direccion es SOLO un complemento —"Casa 32", "Torre D Apto
+           603"— y el nombre esta en el campo del barrio. Este fue el caso
+           de Llanos de Calibio, y es el mas comun de los tres: el cajero
+           escribe la casa en un campo y la ciudadela en el otro.        */
+  const cn = canonizar(dir);
+  const dirEsNombre = !cn.estructurada && !direccionSinNombre(dir);
+  const barrioEsNombre = !conj && !dirEsNombre && direccionSinNombre(dir)
+    && !!barrio && !canonizar(barrio).estructurada;
+
+  const nombre = conj ? conj : (dirEsNombre ? cn.canonica : (barrioEsNombre ? mayus(barrio) : ""));
+
+  /*  Y si hay nombre, el punto se guarda POR NOMBRE, no por casa. La casa 32
+      y la torre D del mismo conjunto llegan a la misma porteria: comparten
+      punto y a Google se le pregunta una sola vez por toda la ciudadela. */
+  const clave = nombre
+    ? "nombre " + nucleo(nombre) + " " + normTexto(ciudad)
     : normalizar(dir, barrio, ciudad);
   if (!clave) return mal("Falta la dirección");
 
-  const orden = conj
-    ? { canonica: conj, complemento: "", estructurada: true }
-    : canonizar(dir);
+  const orden = nombre
+    ? { canonica: mayus(nombre), complemento: dirEsNombre ? "" : mayus(dir), estructurada: true }
+    : cn;
 
   //  1) ¿Ya la tenemos, y todavia vale?
   //     `vence_at` solo lo llevan los puntos que calculo Google: sus
@@ -936,15 +1009,47 @@ async function accGeocodificar(tenant: string, body: Record<string, unknown>) {
         - Y despues SE MIDE. Si lo que contesto queda a mas de 50 km del
           centro de la ciudad, no se acepta. Medir es mas seguro que
           prohibir: atrapa el error de ciudad sin romper las afueras.     */
-  //  A un conjunto NO se le agrega el barrio: el nombre propio ya lo
-  //  identifica, y meterle mas palabras solo confunde la busqueda.
+  //  A un sitio con nombre NO se le agrega el barrio: el nombre propio ya lo
+  //  identifica, y meterle mas palabras solo confunde la busqueda. (Y cuando
+  //  el nombre SALIO del barrio, pegarselo seria repetirlo dos veces.)
   const partes = [orden.canonica];
-  if (barrio && !conj) partes.push(barrio);
+  if (barrio && !nombre) partes.push(barrio);
   if (ciudad) partes.push(ciudad);
   const texto = partes.filter(Boolean).join(", ");
 
   const ancla = await puntoCiudad(tenant, ciudad, cuenta.clave);
 
+  /*  CAMINO 1: TIENE NOMBRE. Se le pregunta al indice de sitios.
+      Al nombre NO se le pega el barrio ni el numero de casa: el nombre
+      propio ya identifica el sitio y lo demas solo le estorba a la
+      busqueda. El "Casa 32" se queda como complemento, que es lo que el
+      domiciliario lee en la tarjeta del pedido.                          */
+  if (nombre) {
+    const sitio = await buscarPorNombre(nombre + ", " + (ciudad || "Colombia"), ancla, cuenta.clave);
+    if (sitio) {
+      const lejos = ancla ? kmEntre(ancla, sitio) : 0;
+      if (lejos <= KM_MAXIMO) {
+        await sbRpc("fn_direccion_guardar", {
+          p_tenant: tenant, p_clave: clave, p_direccion: dir, p_barrio: barrio,
+          p_lat: sitio.lat, p_lng: sitio.lng, p_origen: "google_sitio",
+          p_place_id: null, p_exactitud: "PLACE", p_canonica: orden.canonica,
+        });
+        return ok({
+          lat: sitio.lat, lng: sitio.lng, origen: "google_sitio",
+          exactitud: "PLACE",
+          canonica: orden.canonica, complemento: orden.complemento,
+          /*  Un sitio de Places NO es aproximado: es el sitio, con su
+              nombre. Marcarlo de amarillo seria mentir al reves.       */
+          aproximada: false,
+          sitio: sitio.nombre, conjunto: conj || null,
+        });
+      }
+      console.error("[mapa] sitio lejano", nombre, Math.round(lejos) + " km");
+    }
+    //  Si Places no contesto, se sigue por el camino de las direcciones.
+  }
+
+  //  CAMINO 2: es una calle (o el nombre no dio nada). El de siempre.
   let url = "https://maps.googleapis.com/maps/api/geocode/json"
     + "?address=" + encodeURIComponent(texto)
     + "&components=" + encodeURIComponent("country:CO")
