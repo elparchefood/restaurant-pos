@@ -91,7 +91,17 @@
      La app le dice "Asignado" porque desde el lado del domiciliario eso es
      lo que significa: es suyo y falta recogerlo. `preparacion` NO se le
      muestra: la cocina todavía lo está haciendo. */
-  var ESTADO_APP = { listo: 'asignado', camino: 'camino', entregado: 'entregado' };
+  /* Los estados del sistema, traducidos a los tres que le importan a quien
+     lleva la moto. Lo que no este en esta tabla cae en 'asignado', que es lo
+     prudente: si no sabemos en que va, al menos aparece. */
+  var ESTADO_APP = {
+    recibido:    'asignado',
+    preparacion: 'asignado',
+    listo:       'asignado',
+    camino:      'camino',
+    en_camino:   'camino',
+    entregado:   'entregado',
+  };
   var ETIQUETA = { asignado: 'Asignado', camino: 'En camino', entregado: 'Entregado' };
   var CLASE = { asignado: 'b-warn', camino: 'b-brand', entregado: 'b-ok' };
 
@@ -186,7 +196,15 @@
       .select('id,customer_name,notes,total,delivery_fee,payment_method,paid_amount,'
             + 'delivery_status,delivered_at,opened_at,estado_at,status')
       .eq('domiciliario_id', S.yo.id)
-      .in('delivery_status', ['listo', 'camino', 'entregado'])
+      /* NO se filtra por estado. Antes pedia `listo`, `camino` o `entregado`,
+         y medido en la base esos dos primeros NO EXISTEN: en 140 domicilios
+         los unicos valores que aparecen son `recibido`, `preparacion` y
+         `entregado`. O sea que la app solo podia mostrar pedidos YA
+         ENTREGADOS — justo los que no sirven.
+         Y filtrar por un vocabulario de estados es fragil: cada restaurante
+         puede usar los suyos. Lo que de verdad define el trabajo de un
+         domiciliario es «me lo asignaron y todavia no lo he entregado», y eso
+         no depende de como se llamen los estados. */
       .neq('status', 'cancelled')
       .gte('opened_at', hoy.toISOString())
       .order('opened_at', { ascending: true });
