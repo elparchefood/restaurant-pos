@@ -282,6 +282,16 @@
               <div class="cf-form-field">
                 <label class="cf-form-label" for="gen-city">Ciudad</label>
                 <input class="cf-form-input" id="gen-city" placeholder="Ej. Medellin" autocomplete="off">
+                <!-- ESTE CAMPO NO ES SOLO PARA EL RECIBO, Y ESO NO SE VEIA.
+                     Es donde Cobra busca TODAS las direcciones de domicilio. Con
+                     la ciudad equivocada, Google contesta una casa de esa otra
+                     ciudad y el mapa manda al domiciliario a cien kilometros,
+                     sin que nada chille. Paso dos veces antes de que alguien
+                     mirara este campo. -->
+                <div class="cf-form-hint" style="margin-top:6px;font-size:11.5px;color:#64748B;line-height:1.5">
+                  Aqu&iacute; es donde Cobra busca las direcciones de tus domicilios.
+                  Si dice otra ciudad, el mapa manda al domiciliario all&aacute;.
+                </div>
               </div>
               <div class="cf-form-field">
                 <label class="cf-form-label" for="gen-country">Pais</label>
