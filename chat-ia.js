@@ -1145,6 +1145,20 @@ function pintarMapasDelHilo() {
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢','🙏'];
 let _activeMsgId = null;
 
+/*  Lo que probablemente quiere imprimir: el ULTIMO mensaje del cliente. Casi
+    siempre la nota es justo lo que acaba de escribir, y copiarla a mano de un
+    chat es la clase de trabajo que sobra. Se propone, no se impone: el cuadro
+    se abre con ese texto y se puede borrar. */
+function _notaSugerida() {
+  try {
+    for (var i = (S.messages || []).length - 1; i >= 0; i--) {
+      var m = S.messages[i];
+      if (m.direction === 'in' && m.body && !m.media_type) return String(m.body).trim();
+    }
+  } catch (e) {}
+  return '';
+}
+
 function msgTriggerHTML(m) {
   return `<button class="ci-msg-trigger" data-msg-id="${escHtml(m.id)}" title="Opciones" onclick="openMsgPopup(event, '${escHtml(m.id)}')">
     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
