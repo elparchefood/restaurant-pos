@@ -1,3 +1,112 @@
+/* ══ LOS AVISOS SON DE COBRA, NO DEL NAVEGADOR ════════════════════
+
+   Esta pantalla tenia 30 `alert`, `confirm` y `prompt`. Sergio se encontro uno
+   al guardar el asistente y se ve exactamente como lo que es: una ventana gris
+   del sistema, con el titulo "cobra-pos" y un boton "Aceptar", encima de un
+   producto que no se parece en nada a eso.
+
+   Tres razones para que no vuelva a pasar, y ninguna es de gusto:
+
+   1. NO SE PARECE AL PRODUCTO. Un dueno que ve una ventana del sistema no
+      piensa "me falto un dato": piensa que algo se rompio.
+   2. CONGELAN LA PAGINA. `confirm` para el programa entero mientras espera.
+      En una pantalla que esta guardando, eso es tiempo en el que no se sabe
+      si guardo o no.
+   3. EN EL EJECUTABLE SE VEN PEOR TODAVIA, y `prompt` directamente NO EXISTE
+      en Electron: devuelve null siempre. O sea que en el .exe de Sergio esa
+      pregunta no se podia contestar — no era fea, era imposible.
+
+   Se reemplazan por tres cosas del tamano justo: un aviso que se va solo, una
+   pregunta de si/no, y una de escribir algo. Las tres devuelven promesa, asi
+   que quien las usa se lee igual que antes con un `await` delante.        */
+var _cfgAvisoT = null;
+function cfgAviso(msg, tipo) {
+  var el = document.getElementById('cfg-aviso');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'cfg-aviso';
+    document.body.appendChild(el);
+  }
+  el.className = 'cfg-aviso' + (tipo === 'mal' ? ' mal' : '');
+  el.textContent = msg;
+  el.hidden = false;
+  clearTimeout(_cfgAvisoT);
+  /*  Un error se lee mas despacio que un "listo": no es solo texto, es texto
+      que hay que entender para decidir que hacer. */
+  _cfgAvisoT = setTimeout(function () { el.hidden = true; }, tipo === 'mal' ? 6500 : 3000);
+}
+
+/*  La pregunta de si/no. Devuelve promesa: `if (!await cfgPreguntar(...)) return;`
+    se lee igual que el `confirm` que reemplaza.
+
+    El boton que confirma va con el VERBO de lo que va a pasar ("Eliminar",
+    "Enviar"), nunca "Aceptar". Quien lee rapido lee los botones, no el texto,
+    y "Aceptar" no dice que se acepta.                                      */
+function cfgPreguntar(texto, verbo, peligro) {
+  return new Promise(function (listo) {
+    var ov = document.createElement('div');
+    ov.className = 'cfg-ov';
+    var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    ov.innerHTML = '<div class="cfg-dlg" role="dialog" aria-modal="true">'
+      + '<p>' + esc(texto).replace(/\n/g, '<br>') + '</p>'
+      + '<div class="cfg-dlg-pie">'
+      + '<button type="button" class="lm-btn-ghost" data-no>Cancelar</button>'
+      + '<button type="button" class="' + (peligro ? 'cf-btn-danger' : 'lm-btn-primary') + '" data-si>'
+      + esc(verbo || 'Continuar') + '</button>'
+      + '</div></div>';
+    function cerrar(v) {
+      document.removeEventListener('keydown', tecla);
+      ov.remove();
+      listo(v);
+    }
+    function tecla(e) { if (e.key === 'Escape') cerrar(false); }
+    ov.querySelector('[data-no]').onclick = function () { cerrar(false); };
+    ov.querySelector('[data-si]').onclick = function () { cerrar(true); };
+    /*  Tocar el fondo es cancelar, nunca confirmar: el gesto de "salirme de
+        aqui" no puede borrar nada. */
+    ov.onclick = function (e) { if (e.target === ov) cerrar(false); };
+    document.addEventListener('keydown', tecla);
+    document.body.appendChild(ov);
+    setTimeout(function () { ov.querySelector('[data-si]').focus(); }, 30);
+  });
+}
+
+/*  Y la de escribir algo, que es la que en el ejecutable no funcionaba en
+    absoluto. Devuelve el texto, o null si cancela.                        */
+function cfgPedirTexto(texto, ejemplo, valor) {
+  return new Promise(function (listo) {
+    var ov = document.createElement('div');
+    ov.className = 'cfg-ov';
+    var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    ov.innerHTML = '<div class="cfg-dlg" role="dialog" aria-modal="true">'
+      + '<p>' + esc(texto).replace(/\n/g, '<br>') + '</p>'
+      + '<input class="cf-input" id="cfg-dlg-in" value="' + esc(valor || '') + '" '
+      + 'placeholder="' + esc(ejemplo || '') + '" autocomplete="off">'
+      + '<div class="cfg-dlg-pie">'
+      + '<button type="button" class="lm-btn-ghost" data-no>Cancelar</button>'
+      + '<button type="button" class="lm-btn-primary" data-si>Guardar</button>'
+      + '</div></div>';
+    var inp = ov.querySelector('#cfg-dlg-in');
+    function cerrar(v) {
+      document.removeEventListener('keydown', tecla);
+      ov.remove();
+      listo(v);
+    }
+    function tecla(e) {
+      if (e.key === 'Escape') cerrar(null);
+      if (e.key === 'Enter' && document.activeElement === inp) cerrar(inp.value.trim() || null);
+    }
+    ov.querySelector('[data-no]').onclick = function () { cerrar(null); };
+    ov.querySelector('[data-si]').onclick = function () { cerrar(inp.value.trim() || null); };
+    ov.onclick = function (e) { if (e.target === ov) cerrar(null); };
+    document.addEventListener('keydown', tecla);
+    document.body.appendChild(ov);
+    setTimeout(function () { inp.focus(); inp.select(); }, 30);
+  });
+}
+
 ﻿﻿/* configuracion.js — Mesas y zonas · Cobra POS */
 /* Depende de: pos-core.js (sb, $) */
 
@@ -3162,6 +3271,24 @@ async function _empLoadCatalog() {
   return _empCatalog;
 }
 
+/*  Borrar un empaque. Sale de dentro del manejador de clics porque ahora
+    pregunta, y preguntar es esperar: un manejador de clics no puede esperar
+    sin volverse `async`, y volverlo `async` afectaria a los otros veinte
+    botones que atiende. */
+async function opBorrarEmpaque(pid) {
+  var usado = Object.keys(_opDraft.empaqueProdCfg || {}).some(function(k){ return _opDraft.empaqueProdCfg[k] === pid; })
+           || Object.keys(_opDraft.empaqueCatCfg || {}).some(function(k){ return (_opDraft.empaqueCatCfg[k] || {}).packId === pid; })
+           || Object.keys(_opDraft.empaquePresCfg || {}).some(function(k){ return _opDraft.empaquePresCfg[k] === pid; });
+  if (usado && !await cfgPreguntar(
+    'Este empaque está asignado. Al eliminarlo, esos productos volverán a heredar su categoría.',
+    'Eliminar', true)) return;
+  _opDraft.empaquePacks = (_opDraft.empaquePacks || []).filter(function(p){ return p.id !== pid; });
+  Object.keys(_opDraft.empaqueProdCfg || {}).forEach(function(k){ if (_opDraft.empaqueProdCfg[k] === pid) delete _opDraft.empaqueProdCfg[k]; });
+  Object.keys(_opDraft.empaqueCatCfg || {}).forEach(function(k){ if ((_opDraft.empaqueCatCfg[k] || {}).packId === pid) _opDraft.empaqueCatCfg[k].packId = null; });
+  Object.keys(_opDraft.empaquePresCfg || {}).forEach(function(k){ if (_opDraft.empaquePresCfg[k] === pid) delete _opDraft.empaquePresCfg[k]; });
+  opRenderEmpEsp(); opCheckDirty();
+}
+
 function opRenderEmpEsp() {
   var wrap = $('op-emp-cats');
   if (!wrap) return;
@@ -3509,18 +3636,7 @@ function opBindEvents() {
         _opDraft.empaqueCatCfg[cid] = cc;
         opRenderEmpEsp(); opCheckDirty(); return;
       }
-      if (t.dataset.empPackDel) {
-        var pid = t.dataset.empPackDel;
-        var usado = Object.keys(_opDraft.empaqueProdCfg || {}).some(function(k){ return _opDraft.empaqueProdCfg[k] === pid; })
-                 || Object.keys(_opDraft.empaqueCatCfg || {}).some(function(k){ return (_opDraft.empaqueCatCfg[k] || {}).packId === pid; })
-                 || Object.keys(_opDraft.empaquePresCfg || {}).some(function(k){ return _opDraft.empaquePresCfg[k] === pid; });
-        if (usado && !confirm('Este empaque está asignado. Al eliminarlo, esos productos volverán a heredar su categoría. ¿Eliminar?')) return;
-        _opDraft.empaquePacks = (_opDraft.empaquePacks || []).filter(function(p){ return p.id !== pid; });
-        Object.keys(_opDraft.empaqueProdCfg || {}).forEach(function(k){ if (_opDraft.empaqueProdCfg[k] === pid) delete _opDraft.empaqueProdCfg[k]; });
-        Object.keys(_opDraft.empaqueCatCfg || {}).forEach(function(k){ if ((_opDraft.empaqueCatCfg[k] || {}).packId === pid) _opDraft.empaqueCatCfg[k].packId = null; });
-        Object.keys(_opDraft.empaquePresCfg || {}).forEach(function(k){ if (_opDraft.empaquePresCfg[k] === pid) delete _opDraft.empaquePresCfg[k]; });
-        opRenderEmpEsp(); opCheckDirty(); return;
-      }
+      if (t.dataset.empPackDel) { opBorrarEmpaque(t.dataset.empPackDel); return; }
       // prompt() NO existe en Electron → formulario inline
       if (t.id === 'op-emp-pack-new') { _empPackForm = true; opRenderEmpEsp(); var ni = $('op-emp-pack-nombre'); if (ni) ni.focus(); return; }
       if (t.id === 'op-emp-pack-cancel') { _empPackForm = false; opRenderEmpEsp(); return; }
@@ -3932,11 +4048,10 @@ async function wlEnviar(id) {
   if (!L) return;
   var NL = String.fromCharCode(10);
   var pend = (L._c && L._c.pendiente) || 0;
-  if (!confirm('Se va a enviar la plantilla "' + ((L.filtros && L.filtros.plantilla) || '') + '"' + NL
+  if (!await cfgPreguntar('Se va a enviar la plantilla "' + ((L.filtros && L.filtros.plantilla) || '') + '"' + NL
     + 'a los contactos de "' + L.nombre + '" que quepan en el cupo de hoy.' + NL + NL
     + 'Quedan ' + pend + ' pendientes en total.' + NL + NL
-    + 'Ya puedes cerrar esta pantalla: el envio sigue solo.' + NL + NL
-    + 'Enviar la tanda de hoy?')) return;
+    + 'Ya puedes cerrar esta pantalla: el envio sigue solo.', 'Enviar la tanda de hoy')) return;
 
   var btn = document.getElementById('wlBtn-' + id);
   var res = document.getElementById('wlRes-' + id);
@@ -3998,11 +4113,10 @@ function wlEsc(t) {
 /* Detener a mitad de camino. Lo ya enviado queda enviado —no se le puede
    quitar un mensaje a nadie—; lo que para es lo que falta. */
 async function wlDetener(id) {
-  if (!confirm('Detener el envio?' + String.fromCharCode(10) + String.fromCharCode(10)
-    + 'Lo que ya salio no se puede devolver. Los que falten quedan pendientes '
-    + 'para cuando quieras seguir.')) return;
+  if (!await cfgPreguntar('Lo que ya salió no se puede devolver. Los que falten quedan '
+    + 'pendientes para cuando quieras seguir.', 'Detener el envío', true)) return;
   try { await sb.from('pos_wa_listas').update({ envio_activo: false }).eq('id', id); }
-  catch (e) { alert('No se pudo detener: ' + (e.message || e)); }
+  catch (e) { cfgAviso('No se pudo detener: ' + (e.message || e), 'mal'); }
   await wlCargar();
 }
 
@@ -4715,7 +4829,7 @@ function horarioInit() {
       { onConflict: 'branch_id' }
     );
     saveBtn.disabled = false;
-    if (!error) { markSaved(); } else { alert('Error guardando horarios: ' + error.message); }
+    if (!error) { markSaved(); } else { cfgAviso('Error guardando horarios: ' + error.message, 'mal'); }
   });
 
   loadHorario();
@@ -4894,7 +5008,7 @@ async function blRender(){
   }).join('');
 }
 async function blDel(tipo,id){ var ten=await blGetTenant(); await sb.rpc('lista_negra_eliminar',{p_tenant:ten,p_tipo:tipo,p_id:id}); blRender(); }
-async function blDelPersona(id){ if(!confirm('¿Quitar esta persona de la lista negra? (se borran sus números y direcciones)')) return; var ten=await blGetTenant(); await sb.rpc('lista_negra_eliminar',{p_tenant:ten,p_tipo:'persona',p_id:id}); blRender(); }
+async function blDelPersona(id){ if(!await cfgPreguntar('Se borran sus números y direcciones.', 'Quitarla de la lista negra', true)) return; var ten=await blGetTenant(); await sb.rpc('lista_negra_eliminar',{p_tenant:ten,p_tipo:'persona',p_id:id}); blRender(); }
 function blOpenAdd(){
   var ov=document.createElement('div'); ov.className='bl-ov2';
   ov.innerHTML='<div class="bl-box2"><div class="bl-title2">🚫 Agregar a lista negra</div>'
@@ -4908,12 +5022,12 @@ function blOpenAdd(){
   ov.querySelector('.bl-c2').onclick=close; ov.onclick=function(e){ if(e.target===ov) close(); };
   ov.querySelector('.bl-s2').onclick=async function(){
     var btn=this, t=ov.querySelector('#blaT').value.trim(), d=ov.querySelector('#blaD').value.trim();
-    if(!t && !d){ alert('Pon al menos el teléfono o la dirección'); return; }
+    if(!t && !d){ cfgAviso('Pon al menos el teléfono o la dirección', 'mal'); return; }
     btn.disabled=true; btn.textContent='Guardando…';
     try{ var ten=await blGetTenant();
       await sb.rpc('lista_negra_agregar',{p_tenant:ten,p_nombre:ov.querySelector('#blaN').value.trim()||null,p_razon:ov.querySelector('#blaR').value.trim()||null,p_tel:t||null,p_dir:d||null,p_dir_norm:d?blNormDir(d):null,p_auto:false});
       close(); blRender();
-    }catch(e){ btn.disabled=false; btn.textContent='🚫 Bloquear'; alert('No se pudo agregar'); }
+    }catch(e){ btn.disabled=false; btn.textContent='🚫 Bloquear'; cfgAviso('No se pudo agregar', 'mal'); }
   };
 }
 
@@ -5246,7 +5360,7 @@ var _storedZonas = [];
 
   async function connectGmail() {
     var branchId = _cfgBranchId || (window._pos && window._pos.state && window._pos.state.branchId) || '';
-    if (!branchId) { alert('No se encontro el ID de la sucursal. Recarga la pagina e intenta de nuevo.'); return; }
+    if (!branchId) { cfgAviso('No se encontro el ID de la sucursal. Recarga la pagina e intenta de nuevo.', 'mal'); return; }
     // Baseline: recordar la conexion ACTUAL para no confundirla con la nueva (evita que
     // el poll detecte el correo viejo y cierre la ventana de Google antes de tiempo).
     var baselineConn = null;
@@ -5288,13 +5402,13 @@ var _storedZonas = [];
       if (attempts >= 30) {
         clearInterval(pollTimer);
         if (btn) { btn.textContent = origText; btn.disabled = false; }
-        alert('No se detecto la conexion con Gmail. Intenta de nuevo.');
+        cfgAviso('No se detecto la conexion con Gmail. Intenta de nuevo.', 'mal');
       }
     }, 3000);
   }
 
     async function disconnectGmail() {
-    if (!confirm('Desconectar Gmail? El bot dejara de verificar transferencias automaticamente.')) return;
+    if (!await cfgPreguntar('El bot dejará de verificar transferencias automáticamente.', 'Desconectar Gmail', true)) return;
     var branchId = _cfgBranchId || (window._pos && window._pos.state && window._pos.state.branchId) || '';
     if (branchId) {
       try { await sb.from('ia_config').update({ gmail_email: null, gmail_refresh_token: null, gmail_connected_at: null }).eq('branch_id', branchId); }
@@ -5934,7 +6048,7 @@ var _storedZonas = [];
       if (typeof window.domiConfirmarAprobados === 'function') {
         try { await window.domiConfirmarAprobados(); } catch (e) {}
       }
-    } else { alert('Error guardando: ' + error.message); }
+    } else { cfgAviso('Error guardando: ' + error.message, 'mal'); }
   });
 
   // ── Variables (constructor: dato / frase) ───────────────
@@ -6065,10 +6179,10 @@ var _storedZonas = [];
         if (ta.id) { var ct = $("charc-" + ta.id); if (ct) ct.textContent = ta.value.length + " / " + (parseInt(ta.dataset.max) || 1200); }
         markDirty();
       } else {
-        alert('No se pudo mejorar: ' + (data.error || 'Error desconocido'));
+        cfgAviso('No se pudo mejorar: ' + (data.error || 'Error desconocido'), 'mal');
       }
     } catch(err) {
-      alert('Error al conectar con IA: ' + err.message);
+      cfgAviso('Error al conectar con IA: ' + err.message, 'mal');
     } finally {
       btn.classList.remove('loading');
       btn.innerHTML = SPARKLE_HTML + '<span>Mejorar con IA</span>';
@@ -6766,8 +6880,8 @@ async function cfgQrSave(){
   var btn = cfgQrLeerBtn();
   // Sin esto Meta rechaza el mensaje y el cliente no recibe nada.
   if (btn){
-    if (btn.tipo === 'url' && !btn.url){ alert('Escribe el enlace del boton.'); return; }
-    if (btn.tipo !== 'url' && !(btn.opciones||[]).length){ alert('Agrega al menos una opcion.'); return; }
+    if (btn.tipo === 'url' && !btn.url){ cfgAviso('Escribe el enlace del boton.', 'mal'); return; }
+    if (btn.tipo !== 'url' && !(btn.opciones||[]).length){ cfgAviso('Agrega al menos una opcion.', 'mal'); return; }
   }
   var reg = { k:k, t:t };
   if (btn) reg.btn = btn;
@@ -7095,9 +7209,9 @@ function wcSelNinguno(){ WC.sel = {}; wcRender(); }
 async function wcBorrarSeleccionados(){
   var ids = Object.keys(WC.sel);
   if (!ids.length) return;
-  var msg = 'Vas a ELIMINAR ' + ids.length + ' contacto' + (ids.length===1?'':'s') + ' de forma permanente.\n\n'
-          + 'Esto no se puede deshacer. Si solo quieres dejar de mandarles publicidad, usa “No enviarle” en vez de borrar.\n\n¿Continuar?';
-  if (!confirm(msg)) return;
+  var msg = 'Vas a eliminar ' + ids.length + ' contacto' + (ids.length===1?'':'s') + ' de forma permanente.\n\n'
+          + 'Esto no se puede deshacer. Si solo quieres dejar de mandarles publicidad, usa “No enviarle” en vez de borrar.';
+  if (!await cfgPreguntar(msg, 'Eliminar ' + ids.length + (ids.length===1?' contacto':' contactos'), true)) return;
   var msgEl = document.getElementById('wcMsg');
   var setMsg = function(t, ok){ if (msgEl){ msgEl.style.color = ok ? '#16A34A' : '#DC2626'; msgEl.textContent = t; } };
   setMsg('Eliminando…', true);
@@ -7124,7 +7238,7 @@ async function wcNoAtender(id, valor){
     var it = WC.items.find(function(x){ return x.id === id; });
     if (it) it.no_atender = valor;
     wcStats(); wcRender();
-  } catch(e){ alert('No se pudo actualizar: ' + (e.message||e)); }
+  } catch(e){ cfgAviso('No se pudo actualizar: ' + (e.message||e), 'mal'); }
 }
 // ── Listas ────────────────────────────────────────────────────────────
 function wcFiltrosActuales(){
@@ -7231,12 +7345,12 @@ async function wcGuardarLista(){
   } catch(e){ setMsg('No se pudo guardar: ' + (e.message||e), false); }
 }
 async function wcBorrarLista(id){
-  if (!confirm('¿Eliminar esta lista? Los contactos no se borran, solo la lista.')) return;
+  if (!await cfgPreguntar('Los contactos no se borran, solo la lista.', 'Eliminar la lista', true)) return;
   try {
     await sb.from('pos_wa_listas').delete().eq('id', id);
     WC.listas = WC.listas.filter(function(x){ return x.id !== id; });
     wcRenderListas();
-  } catch(e){ alert('No se pudo eliminar: ' + (e.message||e)); }
+  } catch(e){ cfgAviso('No se pudo eliminar: ' + (e.message||e), 'mal'); }
 }
 (function(){
   function hook(){
@@ -7524,14 +7638,21 @@ var _wtpRango = null;
   if (document.readyState !== 'loading') seguirCursor();
   else document.addEventListener('DOMContentLoaded', seguirCursor);
 })();
-function wtpChip(k){
+/*  ⚠️ ESTE ERA EL PEOR DE TODOS, y no por feo.
+
+    Usaba `prompt`, y `prompt` NO EXISTE en Electron: devuelve null siempre.
+    O sea que en el ejecutable de Sergio —que es donde el trabaja— este dato
+    no se podia escribir. No era una ventana horrible: era una funcion que no
+    se podia usar, y desde afuera se ve igual que un boton que no hace nada. */
+async function wtpChip(k){
   var cue = document.getElementById('wtpCuerpo');
   if (!cue) return;
   var def = WTP_CHIPS[k], ej = def ? def.ej : '', nom = def ? def.n : '';
   if (k === 'libre'){
-    ej = prompt('Escribe un EJEMPLO de ese dato (Meta lo exige para revisar la plantilla).\nPor ejemplo: "Salchipapa 2x1"');
-    if (!ej || !ej.trim()) return;
-    ej = ej.trim(); nom = '✏️ ' + (ej.length > 22 ? ej.slice(0, 22) + '…' : ej);
+    ej = await cfgPedirTexto('Escribe un EJEMPLO de ese dato. Meta lo exige para revisar la plantilla.',
+      'Salchipapa 2x1');
+    if (!ej) return;
+    nom = '✏️ ' + (ej.length > 22 ? ej.slice(0, 22) + '…' : ej);
   }
   var chip = document.createElement('span');
   chip.contentEditable = 'false';
@@ -7688,9 +7809,9 @@ async function wtpCrear(){
   wtpPreview(); wtpCerrarCreador(); wtpCargar();
 }
 async function wtpBorrar(nombre){
-  if (!confirm('¿Eliminar la plantilla "'+nombre+'"? Si estaba aprobada, dejarás de poder enviarla.')) return;
+  if (!await cfgPreguntar('Si estaba aprobada, dejarás de poder enviarla.', 'Eliminar “'+nombre+'”', true)) return;
   var d = await wtpCall({ action:'delete', nombre: nombre });
-  if (d.error){ alert(d.error); return; }
+  if (d.error){ cfgAviso(d.error, 'mal'); return; }
   wtpCargar();
 }
 (function(){
@@ -8052,13 +8173,13 @@ window.mpQrSubir = async function (id, input) {
   var path = 'qr/' + MP.branchId + '/' + id + '.' + ext;
   try {
     var up = await sb.storage.from('chat-media').upload(path, file, { upsert: true, contentType: file.type });
-    if (up.error) { console.error('QR de cuenta, error al subir:', up.error); alert('No se pudo subir el QR.'); return; }
+    if (up.error) { console.error('QR de cuenta, error al subir:', up.error); cfgAviso('No se pudo subir el QR.', 'mal'); return; }
     var pub = sb.storage.from('chat-media').getPublicUrl(path);
     /* Se le pega la hora para que el navegador no muestre el QR viejo cuando
        se reemplaza: mismo nombre de archivo, misma URL, imagen distinta. */
     m.qr_url = pub.data.publicUrl + '?t=' + Date.now();
     MP.dirty = true; _mpRender();
-  } catch (e) { console.error('QR de cuenta:', e); alert('No se pudo subir el QR.'); }
+  } catch (e) { console.error('QR de cuenta:', e); cfgAviso('No se pudo subir el QR.', 'mal'); }
 };
 
 window.mpQrQuitar = function (id) {
@@ -8079,11 +8200,11 @@ window.mpAddMetodo=function(){
   var nuevo={id:_mpUid(),nombre:'',digital:false,tipo:'efectivo',activo:true,orden:MP.metodos.length,porDefecto:false,cuenta:'',banco:'',instrucciones:'',canales:['mesa','rapida','domicilio'],comision:0};
   MP.metodos.push(nuevo); MP.sel=nuevo.id; MP.dirty=true; _mpRender();
 };
-window.mpDelete=function(id){ var m=_mpFind(id);
+window.mpDelete=async function(id){ var m=_mpFind(id);
   /* Puntos y Saldo no se borran: no son un metodo que el restaurante creo,
      son un modulo. Para dejar de usarlos se apagan. */
-  if(_mpEsFijo(m)){ alert('"'+m.nombre+'" no se elimina. Si no quieres usarlo, apágalo con "Se puede usar".'); return; }
-  if(m&&m.nombre&&!confirm('¿Eliminar "'+m.nombre+'"? Las ventas antiguas conservan su método; solo deja de aparecer para cobrar.')) return; MP.metodos=MP.metodos.filter(function(x){return x.id!==id;}); if(MP.sel===id) MP.sel=null; MP.dirty=true; _mpRender(); };
+  if(_mpEsFijo(m)){ cfgAviso('"'+m.nombre+'" no se elimina. Si no quieres usarlo, apágalo con "Se puede usar".', 'mal'); return; }
+  if(m&&m.nombre&&!await cfgPreguntar('Las ventas antiguas conservan su método; solo deja de aparecer para cobrar.', 'Eliminar “'+m.nombre+'”', true)) return; MP.metodos=MP.metodos.filter(function(x){return x.id!==id;}); if(MP.sel===id) MP.sel=null; MP.dirty=true; _mpRender(); };
 window.mpQrUpload=async function(input){
   var file=input&&input.files&&input.files[0]; if(!file) return;
   try{
@@ -8094,7 +8215,7 @@ window.mpQrUpload=async function(input){
     var pub=sb.storage.from('chat-media').getPublicUrl(path);
     MP.qrUrl=(pub&&pub.data&&pub.data.publicUrl)||'';
     MP.dirty=true; _mpRender();
-  }catch(e){ alert('No se pudo subir el QR: '+(e&&e.message||e)); }
+  }catch(e){ cfgAviso('No se pudo subir el QR: '+(e&&e.message||e), 'mal'); }
 };
 window.mpQrClear=function(){ MP.qrUrl=''; MP.dirty=true; _mpRender(); };
 window.mpSave=async function(){
@@ -8130,7 +8251,7 @@ window.mpSave=async function(){
     if(btn){ btn.textContent='Guardado ✓'; }
     _mpToast('Métodos de pago guardados ✓');
     setTimeout(function(){ var b=document.getElementById('mp-save'); if(b){ b.textContent='Guardar cambios'; } _mpUpdateSaveBtn(); },1200);
-  }catch(e){ alert('Error al guardar: '+(e&&e.message||e)); var b=document.getElementById('mp-save'); if(b){ b.disabled=false; b.textContent='Guardar cambios'; } }
+  }catch(e){ cfgAviso('Error al guardar: '+(e&&e.message||e), 'mal'); var b=document.getElementById('mp-save'); if(b){ b.disabled=false; b.textContent='Guardar cambios'; } }
 };
 function _mpUpdateSaveBtn(){ var b=document.getElementById('mp-save'); if(!b)return; b.disabled=!MP.dirty; b.style.opacity=MP.dirty?'1':'.5'; }
 function _mpToast(msg){

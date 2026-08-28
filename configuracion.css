@@ -1847,3 +1847,46 @@ div.master[data-tab].cia-active { display: flex !important; }
 .cf-fila-t { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 700; color: #0F172A;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cf-fila-s { font-size: 12px; color: #64748B; white-space: nowrap; flex-shrink: 0; }
+
+
+/*  ══ AVISOS Y PREGUNTAS PROPIAS ════════════════════════════════
+    Reemplazan a `alert`, `confirm` y `prompt`. Ver el porque en el
+    encabezado de `cfgAviso` en configuracion.js.                          */
+.cfg-aviso{
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:2000;
+  display:flex; align-items:center; gap:10px; max-width:min(560px, 92vw);
+  padding:12px 18px; border-radius:12px;
+  background:#0F172A; color:#fff; font-size:13px; font-weight:600; line-height:1.5;
+  box-shadow:0 12px 30px -8px rgba(15,23,42,.5);
+  animation:cfgSube .3s cubic-bezier(.2,.8,.2,1);
+}
+/*  El error va en rojo y NO se va tan rapido: un error hay que entenderlo
+    para decidir que hacer, y eso se lee mas despacio que un "listo".      */
+.cfg-aviso.mal{background:#B91C1C;}
+@keyframes cfgSube{
+  from{transform:translateX(-50%) translateY(12px);opacity:0;}
+  to{transform:translateX(-50%) translateY(0);opacity:1;}
+}
+
+.cfg-ov{
+  position:fixed; inset:0; z-index:2100; display:flex;
+  align-items:center; justify-content:center; padding:24px;
+  background:rgba(15,23,42,.32); backdrop-filter:blur(2px);
+  animation:cfgFade .18s ease;
+}
+@keyframes cfgFade{from{opacity:0;}to{opacity:1;}}
+.cfg-dlg{
+  width:440px; max-width:100%; background:#fff; border-radius:16px;
+  padding:22px; box-shadow:0 30px 70px -20px rgba(15,23,42,.4);
+  animation:cfgPop .22s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes cfgPop{
+  from{transform:scale(.96) translateY(8px);opacity:0;}
+  to{transform:scale(1) translateY(0);opacity:1;}
+}
+.cfg-dlg p{margin:0 0 16px; font-size:13.5px; line-height:1.6; color:#0F172A;}
+/*  `cf-input` y no `cc-input`: es la clase de entrada que ESTA pantalla usa
+    (la otra aparece una sola vez y no la define esta hoja). Una caja de texto
+    sin estilo dentro de una ventana con estilo se ve peor que no tenerla. */
+.cfg-dlg .cf-input{width:100%; margin-bottom:16px;}
+.cfg-dlg-pie{display:flex; gap:9px; justify-content:flex-end;}
