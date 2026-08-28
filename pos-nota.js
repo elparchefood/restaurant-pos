@@ -27,25 +27,49 @@
   /* En térmica NO hay grises: todo sale negro o no sale. Los adornos van en
      línea gruesa y letra grande; una sombra o un degradado salen como un
      moteado sucio. Por eso aquí no hay un solo color que no sea #000. */
-  /*  ⚠️ 72 mm, NO 80.
+  /*  ⚠️ EL ANCHO NO SE ESCRIBE A MANO. NUNCA.
 
-      El rollo mide 80 mm pero la cabeza solo imprime unos 72: los ocho que
-      faltan son el margen fisico del papel. Puse 80 y la primera nota salio
-      torcida y con las esquinas derechas comidas — lo que se sale del area
-      imprimible no se recorta limpio, empuja el resto.
+      La primera nota salio torcida y con las esquinas derechas comidas porque
+      puse 80 mm — el ancho del ROLLO. La cabeza imprime unos 8 mm menos: ese
+      margen es fisico y lo que se sale no se recorta limpio, empuja el resto.
+      Sergio tuvo que mandarla asi porque el domicilio no daba espera.
 
-      72 mm es el mismo ancho con el que ya salen bien los recibos de esta
-      misma impresora (ver `_buildReceiptDomicilio`). No hay que inventarlo:
-      estaba medido en el archivo de al lado.                              */
-  var BASE =
-    '*{margin:0;padding:0;box-sizing:border-box}' +
-    'body{font-family:Georgia,"Times New Roman",serif;width:72mm;max-width:72mm;' +
+      Y el numero bueno ya estaba medido en el archivo de al lado: los recibos
+      de esta misma impresora salen a 72 desde hace meses. Copie el dato
+      equivocado teniendo el bueno a la vista.
+
+      Asi que ya no lo escribe nadie: sale de `pos_print_config.paper_width`,
+      que es lo que el restaurante escogio en Impresoras. Un negocio con rollo
+      de 58 tiene 50 de area util, y con un 72 escrito a mano le pasaria
+      exactamente lo mismo que a Sergio hoy — pero a el nadie se lo va a
+      arreglar en caliente.                                                 */
+  /*  10 mm y no 8, MEDIDO EN LA IMPRESORA DE SERGIO: "en 80 mm siempre se
+      corta". Los 72 salian de los recibos que ya funcionaban, pero un recibo
+      es texto suelto —si le sobra un milimetro por la derecha no se nota— y
+      una nota lleva marco: ahi el milimetro se ve, y se ve como un error.
+
+      Dos milimetros de mas de margen no le quitan nada a la nota. Una esquina
+      cortada la arruina entera.                                            */
+  var MARGEN_MM = 10;         // lo que el papel no imprime, a lado y lado
+  var ANCHO_MM  = 70;         // hasta que la impresora diga lo suyo
+
+  function anchoUtil(rollo) {
+    var w = parseInt(rollo, 10);
+    if (!w || w < 40 || w > 120) return ANCHO_MM;
+    return Math.max(38, w - MARGEN_MM);
+  }
+
+  function base() {
+    return '*{margin:0;padding:0;box-sizing:border-box}' +
+    'body{font-family:Georgia,"Times New Roman",serif;width:' + ANCHO_MM + 'mm;' +
+    'max-width:' + ANCHO_MM + 'mm;' +
     'margin:0;padding:5mm 4mm;color:#000;background:#fff}' +
     '.t{font-size:18px;line-height:1.35;text-align:center;white-space:pre-wrap;' +
     'word-wrap:break-word;font-weight:700}' +
     '.f{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;font-weight:700;' +
     'letter-spacing:.18em;text-transform:uppercase;text-align:center;margin-top:5mm}' +
     '.r{border-top:1px solid #000}';
+  }
 
   /*  Las siete. Cada una recibe el texto YA escapado y devuelve el cuerpo.
       El orden es el que Sergio vio en la muestra, para que "la 7" siga siendo
@@ -131,7 +155,7 @@
     if (!m) m = MARCOS[MARCOS.length - 1];
     var firma = (conFirma && negocio)
       ? '<div class="f">' + esc(negocio) + '</div>' : '';
-    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' + BASE +
+    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' + base() +
            '</style></head><body>' + m.pinta(esc(texto)) + firma + '</body></html>';
   }
 
@@ -151,6 +175,28 @@
       _negocio = (r && r.data && r.data.name) || '';
     } catch (e) {}
     return _negocio;
+  }
+
+  /*  El ancho del rollo que el restaurante escogio en Impresoras. Si no se
+      puede leer, se queda el de siempre: una nota con un margen de mas se
+      manda igual; una que no se puede imprimir, no.                       */
+  async function medirPapel() {
+    try {
+      var sbx = window.sb || (window._pos && window._pos.sb);
+      var bid = (window._pos && window._pos.state && window._pos.state.branchId)
+        || (window.S && window.S.branchId) || localStorage.getItem('pos.branchId');
+      if (!sbx || !bid) return;
+      var r = await sbx.from('pos_print_config').select('paper_width').eq('branch_id', bid).maybeSingle();
+      var w = r && r.data && r.data.paper_width;
+      if (w) ANCHO_MM = anchoUtil(w);
+      /*  Y si el modulo de impresion ya lo midio, manda el suyo: es el que
+          habla con la impresora, y dos sitios calculando el mismo ancho es
+          como se llega a que la previa y el papel no coincidan. */
+      if (typeof window.posAnchoPapel === 'function') {
+        var w2 = window.posAnchoPapel();
+        if (w2) ANCHO_MM = w2;
+      }
+    } catch (e) {}
   }
 
   var _sel = 'esquinas', _firma = true;
@@ -180,6 +226,7 @@
   window.posNotaAbrir = async function (textoInicial) {
     if (document.getElementById('nota-ov')) return;
     await negocioDe();
+    await medirPapel();
 
     var ov = document.createElement('div');
     ov.id = 'nota-ov';
@@ -202,8 +249,12 @@
       '.nota-chip{border:1px solid #ECEEF2;background:#fff;border-radius:999px;padding:6px 13px;' +
       'font-family:inherit;font-size:12.5px;font-weight:600;color:#475569;cursor:pointer}' +
       '.nota-chip.on{background:#EEF2FF;border-color:#5B6BFF;color:#5B6BFF;font-weight:700}' +
-      '#nota-prev{width:80mm;max-width:100%;height:300px;border:1px solid #ECEEF2;' +
-      'border-radius:10px;background:#fff;display:block;margin:0 auto}' +
+      /*  LA PREVIA MIDE LO MISMO QUE EL PAPEL.
+          Estaba a 80 mm mientras el papel imprime 72: por eso en pantalla se
+          veia entera y salio cortada. Una vista previa mas ancha que el papel
+          no es una previa, es una trampa. */
+      '#nota-prev{width:' + ANCHO_MM + 'mm;max-width:100%;height:300px;' +
+      'border:1px solid #ECEEF2;border-radius:10px;background:#fff;display:block;margin:0 auto}' +
       '.nota-fila{display:flex;gap:9px;justify-content:space-between;align-items:center;margin-top:18px;flex-wrap:wrap}' +
       '.nota-btn{border:1px solid #ECEEF2;background:#fff;border-radius:11px;padding:10px 16px;' +
       'font-family:inherit;font-size:13.5px;font-weight:700;color:#475569;cursor:pointer}' +
@@ -217,7 +268,7 @@
         '<textarea id="nota-txt" placeholder="Escribe aqu&iacute; la nota del cliente&hellip;"></textarea>' +
         '<span class="nota-lbl">Marco</span>' +
         '<div id="nota-marcos"></div>' +
-        '<span class="nota-lbl">As&iacute; va a salir</span>' +
+        '<span class="nota-lbl">As&iacute; va a salir · ' + ANCHO_MM + ' mm</span>' +
         '<iframe id="nota-prev" title="Vista previa de la nota"></iframe>' +
         '<div class="nota-fila">' +
           '<button type="button" class="nota-btn" id="nota-firma"></button>' +

@@ -84,7 +84,7 @@
       : '';
 
     return '<!DOCTYPE html><html><head><meta charset="UTF-8">'
-      + '<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;width:80mm;max-width:80mm;margin:0;padding:6px 8px;color:#000;line-height:1.35;}</style>'
+      + '<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;width:' + _anchoMM + 'mm;max-width:' + _anchoMM + 'mm;margin:0;padding:6px 8px;color:#000;line-height:1.35;}</style>'
       + '</head><body>'
       // VENTA RÁPIDA: título + etiqueta. El barrio NO se imprime (solo sirve al
       // repartidor) y el cliente baja al bloque de datos, alineado a la izquierda.
@@ -202,7 +202,7 @@
     if (!footer) footer = '¡Gracias por tu pedido!';   // sin emoji: lo pone cada restaurante en su pie
 
     var sep = '<div style="border-top:1px dashed #000;margin:7px 0"></div>';
-    var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;font-size:12.5px;width:72mm;max-width:72mm;margin:0;padding:8px 6px;color:#000;line-height:1.35}table{width:100%;border-collapse:collapse}td{word-break:break-word}.pcol{width:26%;white-space:nowrap;text-align:right;vertical-align:top}</style></head><body>';
+    var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;font-size:12.5px;width:' + _anchoMM + 'mm;max-width:' + _anchoMM + 'mm;margin:0;padding:8px 6px;color:#000;line-height:1.35}table{width:100%;border-collapse:collapse}td{word-break:break-word}.pcol{width:26%;white-space:nowrap;text-align:right;vertical-align:top}</style></head><body>';
     // Encabezado del negocio
     h += '<div style="text-align:center;margin-bottom:2px"><div style="font-size:17px;font-weight:900;letter-spacing:.5px">'+negocio+'</div>';
     if (dirLocal) h += '<div style="font-size:10.5px;color:#333">'+dirLocal+'</div>';
@@ -405,6 +405,37 @@
 
     Un modulo compartido no puede exigir que otro modulo haya cargado antes. Se
     busca por varios lados y se usa el primero que aparezca.               */
+/*  ══ EL ANCHO DE LO QUE SE IMPRIME ═══════════════════════════════════════
+
+    Tres sitios de este archivo escribían su propio ancho, y no coincidían: la
+    comanda a 80 mm, el recibo a 72, el marco que los lleva a la impresora a
+    80. El ancho del ROLLO es 80, pero la cabeza imprime unos 10 menos — ese
+    margen es del papel y lo que se sale no se recorta limpio: empuja el resto
+    y se lleva el borde derecho.
+
+    O sea que la comanda lleva meses saliendo cortada por la derecha, solo que
+    no se notaba porque su contenido es texto suelto y sobra sitio. La nota
+    lleva marco, y ahí sí se vio — Sergio la tuvo que mandar con las esquinas
+    comidas porque el domicilio no daba espera.
+
+    Ahora hay UN ancho, sale de `pos_print_config.paper_width` (lo que el
+    restaurante escogió en Impresoras) y lo usan los tres. Un negocio con rollo
+    de 58 recibe 48 sin que nadie toque nada.
+
+    Los 10 mm de margen los midió Sergio en su impresora: "en 80 mm siempre se
+    corta". Dos milímetros de más no le quitan nada a un recibo; una esquina
+    cortada arruina una nota entera.                                        */
+  var MARGEN_MM = 10;
+  var _anchoMM = 70;          // hasta que la impresora diga lo suyo
+
+  function _anchoUtil(rollo) {
+    var w = parseInt(rollo, 10);
+    if (!w || w < 40 || w > 120) return 70;
+    return Math.max(38, w - MARGEN_MM);
+  }
+
+  window.posAnchoPapel = function () { return _anchoMM; };
+
   function _sbRef() {
     return (window._pos && window._pos.sb) || window.sb || null;
   }
@@ -427,7 +458,10 @@
       if (!sb || !branchId) return '';
       var now = Date.now();
       if (!_printerCache || now - _printerCacheTs > 30000) {
-        var cfg = await sb.from('pos_print_config').select('same_printer_for_all, default_system_printer').eq('branch_id', branchId).maybeSingle();
+        var cfg = await sb.from('pos_print_config').select('same_printer_for_all, default_system_printer, paper_width').eq('branch_id', branchId).maybeSingle();
+        /*  Se aprovecha la misma consulta: el ancho viaja al lado de la
+            impresora y no cuesta una llamada aparte. */
+        if (cfg && cfg.data && cfg.data.paper_width) _anchoMM = _anchoUtil(cfg.data.paper_width);
         var prs = await sb.from('pos_printers').select('system_name, area, is_default').eq('branch_id', branchId);
         _printerCache = { cfg: (cfg && cfg.data) || {}, printers: (prs && prs.data) || [] };
         _printerCacheTs = now;
@@ -470,7 +504,9 @@
     if (existing) existing.remove();
     var iframe = document.createElement('iframe');
     iframe.id = 'pos-print-frame';
-    iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:80mm;height:600px;border:none;visibility:hidden';
+    /*  El marco donde se arma la pagina antes de mandarla: si mide mas que el
+        papel, el navegador maqueta con un ancho que la impresora no tiene. */
+    iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:' + _anchoMM + 'mm;height:600px;border:none;visibility:hidden';
     document.body.appendChild(iframe);
     var doc = iframe.contentDocument || iframe.contentWindow.document;
     doc.open(); doc.write(html); doc.close();
