@@ -677,7 +677,7 @@ async function inicioCaja() {
 /* ── Las comandas ───────────────────────────────────────────────────────── */
 async function cargarComandas() {
   try {
-    const CAMPOS = 'id, channel, status, estado, estado_at, table_id, turno, customer_name, notes, total, total_final, paid_amount, created_at, delivered_at, visible_cocina';
+    const CAMPOS = 'id, channel, status, estado, estado_at, table_id, turno, customer_name, notes, total, total_final, paid_amount, created_at, delivered_at, closed_at, visible_cocina';
     /* `completed` es un pedido TERMINADO (verificado en la base: los completed
        ya estan cobrados y entregados). `paid` NO se excluye: una venta rapida
        se paga ANTES de cocinarse y tiene que seguir en pantalla. */
@@ -905,7 +905,19 @@ function minutosDe(o) {
     apunta la primera vez que se ven y de ahi no se mueve. */
 function paroEn(o) {
   if (estadoDe(o) !== 'listo') { S.paro.delete(o.id); return null; }
-  const t = o.delivered_at || o.estado_at;
+
+  /*  DE DONDE SALE LA HORA DE SALIDA, en orden de lo mas exacto a lo menos.
+
+      Hacia falta `closed_at` y por eso el orden de las mesas salia revuelto:
+      una comanda de salon que nadie marco lista no tiene `estado_at` ni
+      `delivered_at`, asi que TODAS caian al respaldo —la hora en que la
+      pantalla las vio— y ese respaldo las sella a la vez, en el mismo
+      instante, al recargar. Empate general y orden al azar.
+
+      `closed_at` es cuando se cobro la mesa, que para el salon es cuando los
+      clientes se fueron: no es la hora exacta en que salio el plato, pero
+      ordena bien, que es para lo que se usa.                             */
+  const t = o.delivered_at || o.estado_at || o.closed_at;
   if (t) {
     const ms = new Date(t).getTime();
     if (isFinite(ms)) return ms;
