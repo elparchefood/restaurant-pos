@@ -3939,6 +3939,119 @@
     domicilio: { nombre: 'Domicilio',    sub: 'te pide la dirección' },
   };
 
+  /*  ══ LA DIRECCION QUE EL CLIENTE YA TIENE ═══════════════════════
+
+      Sergio, 28-ago-2026: «seria mucho trabajo que cada vez que vaya a pasar
+      un pedido para domicilio me aparezca como al vacio sabiendo que ese
+      cliente ya tiene una direccion guardada». Y ademas: «un cliente puede
+      tener varias direcciones... la otra igual queda guardada».
+
+      Dos reglas que salen de ahi:
+
+      1. SE OFRECEN LAS QUE YA TIENE. Escribir de nuevo una direccion que el
+         sistema ya sabe no es solo lento: es la forma mas facil de que quede
+         escrita distinta a la de la vez pasada, y entonces son dos
+         direcciones donde habia una.
+
+      2. AGREGAR UNA NUEVA NO BORRA LA VIEJA. La misma persona pide a la casa
+         y a la oficina. La nueva se AGREGA a la lista; la vieja sigue ahi
+         para la proxima.
+
+      Las direcciones viven en `pos_clientes.direcciones`, una lista de
+      `{dir, barrio}`, mas la principal en `direccion`/`barrio`. Se juntan las
+      dos fuentes y se quitan las repetidas: hay fichas viejas donde la
+      principal tambien esta en la lista.                                   */
+  function vsDirsDe(cli) {
+    const out = [];
+    const vistas = new Set();
+    const meter = (dir, barrio) => {
+      const d = String(dir || '').trim();
+      if (!d) return;
+      const llave = d.toLowerCase().replace(/\s+/g, ' ');
+      if (vistas.has(llave)) return;
+      vistas.add(llave);
+      out.push({ dir: d, barrio: String(barrio || '').trim() });
+    };
+    if (cli) {
+      meter(cli.direccion, cli.barrio);
+      (Array.isArray(cli.direcciones) ? cli.direcciones : []).forEach(x => {
+        if (x) meter(x.dir || x.direccion, x.barrio);
+      });
+    }
+    return out;
+  }
+
+  async function vsPedirDireccion(sbM, ord, hayMesa) {
+    let cli = null;
+    if (ord.cliente_id) {
+      try {
+        const { data } = await sbM.from('pos_clientes')
+          .select('id,nombre,telefono,direccion,barrio,direcciones')
+          .eq('id', ord.cliente_id).maybeSingle();
+        cli = data;
+      } catch (e) { /* sin ficha se pide todo, como antes */ }
+    }
+    const guardadas = vsDirsDe(cli);
+
+    /*  Y la que el PEDIDO ya trae, si trae alguna. Un pedido que fue domicilio
+        y volvio a mesa conserva su direccion en las notas, y puede no estar en
+        la ficha del cliente — se escribio a mano esa vez. Va de primera:
+        cuando existe, casi siempre es a donde va otra vez.                */
+    (function () {
+      const t = String(ord.notes || '');
+      if (!t.trim()) return;
+      const corte = t.indexOf('[');
+      const dir = (corte >= 0 ? t.slice(0, corte) : t).replace(/[—\-·,\s]+$/, '').trim();
+      if (!dir) return;
+      const mB = t.match(/\[barrio:([^\]]*)\]/i);
+      const llave = dir.toLowerCase().replace(/\s+/g, ' ');
+      const yaEsta = guardadas.some(g => g.dir.toLowerCase().replace(/\s+/g, ' ') === llave);
+      if (!yaEsta) guardadas.unshift({ dir: dir, barrio: mB ? mB[1].trim() : '' });
+    })();
+
+    let elegida = null;
+
+    if (guardadas.length) {
+      const pick = await vsElegir({
+        title: 'A d\u00f3nde lo llevamos',
+        msg: (cli && cli.nombre ? '<strong>' + _esc(cli.nombre) + '</strong> ya tiene ' : 'Este cliente ya tiene ')
+          + (guardadas.length === 1 ? 'esta direcci\u00f3n' : 'estas direcciones') + ' guardada'
+          + (guardadas.length === 1 ? '' : 's') + '.',
+        opciones: guardadas.map((d, i) => ({
+          id: String(i), titulo: d.dir, sub: d.barrio || 'sin barrio',
+        })).concat([{ id: 'nueva', titulo: '+ Otra direcci\u00f3n', sub: 'se agrega a las que ya tiene' }]),
+      });
+      if (pick === null) return null;
+      if (pick !== 'nueva') elegida = guardadas[Number(pick)] || null;
+    }
+
+    const d = await vsFormulario({
+      title: elegida ? 'Confirmar el domicilio' : 'Pasar a domicilio',
+      msg: 'El pedido se manda a domicilios' + (hayMesa ? ' y la mesa queda libre' : '') + '.',
+      okLabel: 'Pasar a domicilio',
+      campos: [
+        { id: 'dir', label: 'Direcci\u00f3n', ej: 'Cra 9B #63N-58', obliga: true, valor: elegida ? elegida.dir : '' },
+        { id: 'barrio', label: 'Barrio', ej: 'Bello Horizonte', valor: elegida ? elegida.barrio : '' },
+        { id: 'tel', label: 'Tel\u00e9fono', ej: '3001234567', tipo: 'tel', valor: (cli && cli.telefono) || '' },
+        { id: 'fee', label: 'Valor del domicilio', ej: '5000', tipo: 'number' },
+      ],
+    });
+    if (!d) return null;
+
+    /*  Si es una direccion que no tenia, se le guarda a la ficha. Solo si hay
+        ficha: sin cliente identificado no hay a quien guardarsela, y el pedido
+        sale igual — esto es una comodidad, no un requisito.                */
+    const yaEstaba = guardadas.some(g => g.dir.toLowerCase().replace(/\s+/g, ' ') === d.dir.toLowerCase().replace(/\s+/g, ' '));
+    if (cli && cli.id && !yaEstaba) {
+      try {
+        const lista = (Array.isArray(cli.direcciones) ? cli.direcciones.slice() : []);
+        lista.push({ dir: d.dir, barrio: d.barrio || '' });
+        await sbM.from('pos_clientes').update({ direcciones: lista }).eq('id', cli.id);
+      } catch (e) { console.warn('[pasar] no se pudo guardar la direccion:', e && e.message); }
+    }
+    return d;
+  }
+
   function vsLiberarMesaCampos() {
     return { status: 'libre', current_order_id: null, sesion_at: null,
              esperando_at: null, comiendo_at: null, pendiente_pago_at: null, comiendo_method: null };
@@ -3954,7 +4067,7 @@
     let ord = null;
     try {
       const { data } = await sbM.from('pos_orders')
-        .select('id,total,subtotal,delivery_fee,channel,table_id,branch_id,status')
+        .select('id,total,subtotal,delivery_fee,channel,table_id,branch_id,status,cliente_id,customer_name,notes')
         .eq('id', ordId).maybeSingle();
       ord = data;
     } catch (e) {}
@@ -4005,18 +4118,11 @@
         MISMO formato que escribe la pantalla de domicilios — es el que lee la
         app del domiciliario.                                              */
     if (destino === 'domicilio') {
-      const d = await vsFormulario({
-        title: 'Pasar a domicilio',
-        msg: 'El pedido se manda a domicilios' + (ctx.tableId ? ' y la mesa queda libre' : '') + '.',
-        okLabel: 'Pasar a domicilio',
-        campos: [
-          { id: 'dir', label: 'Dirección', ej: 'Cra 9B #63N-58', obliga: true },
-          { id: 'barrio', label: 'Barrio', ej: 'Bello Horizonte' },
-          { id: 'tel', label: 'Teléfono', ej: '3001234567', tipo: 'tel' },
-          { id: 'fee', label: 'Valor del domicilio', ej: '5000', tipo: 'number' },
-        ],
-      });
+      const d = await vsPedirDireccion(sbM, ord, !!ctx.tableId);
       if (!d) return;
+      /*  El MISMO formato de notas que escribe la pantalla de domicilios: es
+          el que lee la app del domiciliario. Inventar otro aqui dejaria el
+          pedido sin direccion en la moto.                                  */
       cambios.notes = ((d.dir ? d.dir + ' ' : '')
         + (d.barrio ? '[barrio:' + d.barrio.toUpperCase() + ']' : '')
         + (d.tel ? ' [tel:' + d.tel + ']' : '')).trim() || null;

@@ -885,7 +885,21 @@ function zonaDe(o) {
 function tituloDe(o) {
   const z = zonaDe(o);
   if (z === 'salon')  return S.mesas.get(o.table_id) || 'Mesa';
-  if (z === 'rapido') return 'Turno ' + (o.turno ? '#' + String(o.turno).padStart(3,'0') : '');
+  /*  EL NOMBRE MANDA SOBRE EL TURNO (Sergio, 28-ago-2026).
+
+      Un pedido que llega del salon trae el nombre del cliente — «Juan
+      Quintana»— y aparecia como «Turno #004». Desde la cocina, un numero que
+      nadie dijo nunca en voz alta no sirve para llamar a nadie: el mesero
+      grita el nombre.
+
+      El turno se queda para las ventas rapidas de mostrador, que es donde
+      nadie pregunta el nombre y el numero SI es como se llama al cliente. Es
+      la misma regla que ya usa la tarjeta de venta rapida en el salon. */
+  if (z === 'rapido') {
+    const nom = String(o.customer_name || '').trim();
+    if (nom) return nom;
+    return 'Turno ' + (o.turno ? '#' + String(o.turno).padStart(3,'0') : '');
+  }
   /* En domicilio va el BARRIO, no el nombre ni la dirección: es una pantalla
      colgada en la pared que ve todo el que pasa. El barrio sí sirve — dice si
      hay que empacar para viaje. */
