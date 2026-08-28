@@ -452,6 +452,12 @@ async function cargarBase() {
   const marca = b.brands && (Array.isArray(b.brands) ? b.brands[0] : b.brands);
   S.negocio = (marca && marca.name) || b.name || 'Cocina';
   S.cobroAdelantado = !!b.cobro_adelantado;
+  /*  Y la leyenda tampoco menciona lo que no puede pasar: si el restaurante
+      cobra al final, "Pendiente de pago" es un color que nunca va a salir, y
+      explicar un color que no existe solo hace la leyenda mas larga. El id
+      `lg-pago` estaba puesto desde hace tiempo esperando justo esto. */
+  var lgp = $('lg-pago');
+  if (lgp) lgp.hidden = !S.cobroAdelantado;
   /* El nombre del restaurante NO va: el cocinero no lo necesita en su turno.
      Queda la sede, que es lo unico que hace falta cuando hay varias. */
   $('sede').textContent = 'Cocina' + (b.name ? ' · ' + b.name : '');
@@ -838,6 +844,21 @@ function estadoDe(o) {
 }
 
 function debePagar(o) {
+  /*  SIN COBRO ADELANTADO NO HAY NADA ROJO. NUNCA (Sergio, 28-ago-2026).
+
+      El rojo dice "esto no se puede preparar todavia porque no han pagado". En
+      un restaurante que cobra al final, eso es FALSO para todos los pedidos: se
+      prepara primero y se cobra despues. Un rojo permanente en pantalla no
+      avisa de nada — se vuelve el color normal, y el dia que aparezca uno de
+      verdad nadie lo va a mirar.
+
+      Estaba puesto solo para el salon. La venta rapida caia mas abajo, al
+      calculo de lo pagado, y salia roja igual en un negocio que cobra al final.
+
+      El interruptor sigue existiendo y se puede prender: lo que cambia es que
+      apagado no se ve en cocina, que es lo que Sergio pidio.             */
+  if (!S.cobroAdelantado) return false;
+
   const canal = String(o.channel || '').toLowerCase();
   // El domicilio se paga al recibir: en cocina no va ningún dato de pago.
   if (canal === 'domicilio' || canal === 'whatsapp') return false;
@@ -846,7 +867,6 @@ function debePagar(o) {
      partir de lo pagado, porque entonces las dos pantallas podrían decir
      cosas distintas de la misma mesa. */
   if (canal === 'salon') {
-    if (!S.cobroAdelantado) return false;
     const est = S.mesaEstado.get(o.id);
     if (est) return est === 'pendiente_pago';
   }

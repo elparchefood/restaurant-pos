@@ -918,6 +918,17 @@
                   </div>
                 </div>
                 <div id="op-cocina-tonos" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px"></div>
+                <!-- El volumen, PEGADO a sus tonos. Al meter los colores en
+                     medio se habia quedado al final del bloque, debajo del
+                     volumen del otro sonido: dos barras iguales seguidas y
+                     ninguna forma de saber cual era cual. -->
+                <div class="op-row" style="margin-top:12px">
+                  <div class="op-row-text"><div class="op-label">Volumen</div></div>
+                  <div class="op-control" style="display:flex;align-items:center;gap:10px">
+                    <input type="range" id="op-cocina-vol" min="0" max="100" step="5" style="width:170px">
+                    <span id="op-cocina-vol-val" style="font-size:12.5px;font-weight:700;color:#475569;min-width:38px;text-align:right">80%</span>
+                  </div>
+                </div>
               </div>
               <div style="margin-top:20px;padding-top:18px;border-top:1px solid #F1F5F9">
                 <div class="op-row">
@@ -936,17 +947,19 @@
                   </div>
                 </div>
                 <div id="op-cocina-avisa" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px"></div>
-                <div class="op-row" style="margin-top:12px">
+                <!-- El titulo ARRIBA y los tonos debajo, como el de cocina.
+                     Metidos en una fila de dos columnas, los diez tonos no
+                     caben: se salian por la derecha y se montaban encima del
+                     titulo, que ademas hacia creer que faltaban tonos. -->
+                <div class="op-row" style="margin-top:16px">
                   <div class="op-row-text"><div class="op-label">Tono del timbre</div></div>
-                  <div class="op-control" style="display:flex;align-items:center;gap:10px">
-                    <div id="op-avisa-tonos" style="display:flex;gap:8px;flex-wrap:wrap"></div>
-                  </div>
                 </div>
+                <div id="op-avisa-tonos" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px"></div>
                 <div class="op-row" style="margin-top:12px">
                   <div class="op-row-text"><div class="op-label">Volumen</div></div>
                   <div class="op-control" style="display:flex;align-items:center;gap:10px">
-                    <input type="range" id="op-cocina-vol" min="0" max="100" step="5" style="width:170px">
-                    <span id="op-cocina-vol-val" style="font-size:12.5px;font-weight:700;color:#475569;min-width:38px;text-align:right">80%</span>
+                    <input type="range" id="op-avisa-vol" min="0" max="100" step="5" style="width:170px">
+                    <span id="op-avisa-vol-val" style="font-size:12.5px;font-weight:700;color:#475569;min-width:38px;text-align:right">80%</span>
                   </div>
                 </div>
               </div>
@@ -3305,7 +3318,7 @@
 <script src="pos-notify.js?v=1792390000"></script>
 <script src="pos-vars.js?v=1790460000"></script>
 <script src="pos-vars-ui.js?v=1790530000"></script>
-<script src="configuracion.js?v=1792730000"></script>
+<script src="configuracion.js?v=1792860000"></script>
 </body>
 </html>
 

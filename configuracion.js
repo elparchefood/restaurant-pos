@@ -2907,6 +2907,19 @@ function opRenderCocinaAvisa() {
     });
   });
 
+  var sl = $('op-avisa-vol'), vl = $('op-avisa-vol-val');
+  if (sl) {
+    sl.value = av.vol == null ? 80 : av.vol;
+    if (vl) vl.textContent = sl.value + '%';
+    sl.oninput = function () {
+      av.vol = parseInt(sl.value, 10) || 0;
+      if (vl) vl.textContent = av.vol + '%';
+      opCheckDirty(); opPintarResumenes();
+    };
+    //  Se oye al SOLTAR: en cada paso de la barra serian veinte pitidos.
+    sl.onchange = function () { try { window.posTocarTono(av.tono, av.vol); } catch (e) {} };
+  }
+
   var tn = $('op-avisa-tonos');
   if (tn) {
     var lista = (typeof window.posTonosCocina === 'function')
