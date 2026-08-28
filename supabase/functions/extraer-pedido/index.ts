@@ -519,12 +519,28 @@ function matchProducto(
   const options = adicOptions(matched, presId, allMods);
   const varNames = new Set(varParts.map(v => norm(v)));
   const adiciones: ModOpt[] = [];
+  /*  \u26a0\ufe0f LO QUE NO ERA UNA ADICION NO SE TIRA (Sergio, 22-ago \u2014 el caso del
+      agua). Este bucle emparejaba cada palabra de `adiciones` contra las
+      adiciones DE ESTE producto y, si no encontraba ninguna, la descartaba en
+      silencio.
+
+      El cliente pidio \u00absalchipapa y un agua\u00bb. El modelo puso \u00abagua\u00bb en las
+      adiciones de la salchipapa \u2014 no es una adicion de la salchipapa, no
+      emparejo con nada, y el agua DESAPARECIO del pedido. Nadie se entera: el
+      pedido se ve completo, y la botella no se cobra ni se prepara.
+
+      Se guardan aparte y quien llama decide. Un texto que no es adicion de
+      este producto casi siempre es OTRO producto.                        */
+  const sueltas: string[] = [];
   if (adicTexto) {
     for (const raw of adicTexto.split(/[,;]+|\by\b/)) {
       const a = norm(raw);
       if (!a) continue;
       const opt = options.find(o => norm(o.name) === a || a.includes(norm(o.name)) || norm(o.name).includes(a));
-      if (opt && !varNames.has(norm(opt.name)) && !adiciones.some(x => x.id === opt.id)) adiciones.push(opt);
+      if (opt && !varNames.has(norm(opt.name)) && !adiciones.some(x => x.id === opt.id)) { adiciones.push(opt); continue; }
+      //  Ya era variante de este producto: ni adicion ni producto, se ignora.
+      if (opt && varNames.has(norm(opt.name))) continue;
+      if (!opt) sueltas.push(String(raw).trim());
     }
   }
 
@@ -542,7 +558,7 @@ function matchProducto(
     product_name: displayName,
     unit_price: price, cantidad, tamano: presName, pres_id: presId,
     variantes: variantesObj, tipo: varParts.join(", "),
-    adiciones, adic_options: options, notas, matched: true,
+    adiciones, adic_options: options, notas, matched: true, sueltas,
     // Banderas de "esto no se pudo resolver solo" → el modal las muestra para
     // que el operador confirme en vez de guardar algo inventado.
     tamano_confirmar: tamanoConfirmar,
@@ -710,6 +726,45 @@ BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corre
       .filter(m => m.direction === "in" && tieneTexto(m))
       .map(m => limpiarCuerpo(String(m.body || ""))).join(" ");
     const productos = productosRaw.map(p => matchProducto(p, allProducts, allMods, allCats, clienteTexto, (cfgDomiRow?.[0] as Record<string, unknown>) || null));
+
+    /*  \u2550\u2550 SEGUNDA PASADA: LO QUE NO ERA ADICION \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+
+        El modelo mete en `adiciones` cosas que no lo son: el cliente dice
+        \u00absalchipapa Y un agua\u00bb, y ese \u00abY\u00bb suena a adicion. Hasta hoy esa agua
+        se perdia.
+
+        Aqui se le da una segunda oportunidad: si el texto NO es adicion de su
+        producto pero SI existe en la carta, se convierte en su propia linea.
+        Y si no existe en la carta, se pega a las notas \u2014 mal puesto, pero
+        VISIBLE. Perderlo en silencio es lo unico que no puede pasar.
+
+        \u26a0\ufe0f Esto solo AGREGA, nunca quita. Es a proposito: si se equivoca, el
+        operador ve un producto de mas en el modal y lo borra de un clic. El
+        error de hoy es al reves \u2014 un producto de MENOS, que no se ve. Es la
+        trampa de Emily (17-ago) y por eso este arreglo se hizo asi y no
+        tocando el motor de emparejado.                                    */
+    const extra: Array<Record<string, unknown>> = [];
+    for (const p of productos) {
+      /*  `undefined` y no `delete`: TypeScript no deja borrar una propiedad
+          que el tipo declara, y al convertir a JSON lo indefinido desaparece
+          igual. El mismo resultado sin pelearse con el compilador. */
+      const pAny = p as unknown as Record<string, unknown>;
+      const sueltas = (pAny.sueltas as string[]) || [];
+      pAny.sueltas = undefined;
+      for (const txt of sueltas) {
+        const cand = matchProducto({ nombre: txt, cantidad: 1 }, allProducts, allMods, allCats,
+          clienteTexto, (cfgDomiRow?.[0] as Record<string, unknown>) || null);
+        if (cand && cand.matched) {
+          console.log('[extraer] "' + txt + '" no era adicion de ' + p.product_name + ': entra como producto');
+          extra.push(cand);
+        } else {
+          p.notas = [p.notas, txt].filter(Boolean).join(' \u00b7 ');
+          console.log('[extraer] "' + txt + '" no es adicion ni esta en la carta: va a notas');
+        }
+      }
+    }
+    if (extra.length) productos.push(...extra);
+
     const subtotal = productos.reduce((s, p) => {
       const adic = ((p.adiciones as ModOpt[]) || []).reduce((a, x) => a + (Number(x.price) || 0), 0);
       return s + ((Number(p.unit_price) || 0) + adic) * (Number(p.cantidad) || 1);
