@@ -4045,6 +4045,27 @@
       if (!ok) return;
     }
 
+    /*  ⚠️ QUE NO DESAPAREZCA DE LA COCINA (Sergio lo vio en la primera
+        prueba: «desaparece de la columna de mesa pero no aparece en la de
+        para llevar»).
+
+        La pantalla de cocina no trae los pedidos de una sola forma: trae los
+        que tienen `visible_cocina`, y APARTE trae todos los de canal `salon`.
+        Esa segunda consulta existe porque una comanda de salon con cobro
+        adelantado NO lleva `visible_cocina` — se ve en cocina solo por ser
+        de salon.
+
+        Entonces al cambiarle el canal se caia de las dos: ya no era de salon,
+        y nunca tuvo la marca. Desaparecia del todo, que es lo peor que puede
+        pasar en una cocina: un plato que hay que hacer y que ya nadie ve.
+
+        Se le pone la marca al salir del salon. Solo si el pedido YA se habia
+        enviado (`in_progress`): uno que todavia se esta armando no tiene por
+        que aparecerle a la cocina de repente.                             */
+    if (ord.channel === 'salon' && destino !== 'salon' && ord.status === 'in_progress') {
+      cambios.visible_cocina = true;
+    }
+
     //  Y si viene de domicilio a una mesa, el domicilio tampoco se cobra.
     if (cambios.channel === 'salon' && (Number(ord.delivery_fee) || 0) > 0) {
       cambios.delivery_fee = 0;
