@@ -234,6 +234,22 @@ let DYN_CATEGORY_NAMES: string[] = [];     // nombres de categorías (una catego
    distinguir dos productos que se llaman igual en categorias distintas. */
 let DYN_PROD_MAP: Array<{ key: string; name: string; cat: string; opciones: string[] }> = [];
 
+/*  ¿ESTA CATEGORIA ES DE ACOMPAÑAR, NO DE COMER?
+
+    Adiciones, bebidas, salsas, postres. La distincion importa al elegir EL
+    PLATO: nadie pide "unos maicitos" queriendo la adicion de maicitos que va
+    encima de otra cosa.
+
+    Vive aqui, suelta, porque la usan dos sitios que antes no se hablaban: el
+    que carga la carta y el que desempata cuando un nombre esta en varias
+    categorias.                                                            */
+const RE_CAT_ACOMPANA =
+  /\b(adicion(?:es|al)?|adición|extras?|bebidas?|salsas?|toppings?|acompañamientos?|acompanamientos?|postres?|complementos?)\b/i;
+
+function esCategoriaDeAcompanar(cat: string): boolean {
+  return RE_CAT_ACOMPANA.test(String(cat || ""));
+}
+
 // Sinónimos coloquiales de tipos de comida (mecánica general)
 const CAT_SINONIMOS: Record<string, string[]> = {
   hamburguesa: ["hamburguesa", "amburguesa", "hamburgesa", "burguer", "burger", "burgers"],
@@ -3351,6 +3367,33 @@ INTENCION, no las palabras exactas.` },
         Math.abs(a.length - normN.length) - Math.abs(b.length - normN.length))[0]);
     }
     if (mismos.length === 1) return { name: mismos[0].name, cat: mismos[0].cat };
+
+    /*  UNA ADICION NO COMPITE POR SER EL PLATO (27-ago-2026, caso real).
+
+        Una clienta escribio "Maicitos personal por favor" y Paco le pregunto:
+        "¿Hamburguesa, Adicion o Salchipapa especial?". La pregunta ya era rara
+        —"personal" no existe en hamburguesas— pero el motor SI tiene una regla
+        para eso: si el tamano dicho solo lo tiene una de las candidatas, esa
+        es. No sirvio, y la razon estaba en la carta: la ADICION "Maicitos"
+        tambien tiene Personal y Familiar. Dos candidatas con "personal", y el
+        desempate se rendia.
+
+        El arreglo no es afinar el desempate sino quitar de la lista lo que
+        nunca debio estar: nadie pide "unos maicitos" queriendo la adicion que
+        va ENCIMA de otra cosa. Si el cliente la nombra de verdad ("con adicion
+        de maicitos") la palabra esta en el texto y se respeta.
+
+        Se descartan solo si queda algo: mas vale preguntar de mas que dejar al
+        cliente sin lo que pidio.                                          */
+    if (mismos.length > 1 && !RE_CAT_ACOMPANA.test(clienteTexto)) {
+      const platos = mismos.filter(m => !esCategoriaDeAcompanar(m.cat));
+      if (platos.length && platos.length < mismos.length) {
+        console.log(`[categoria] "${nombre}": fuera ${mismos.length - platos.length} candidata(s) de acompañar`);
+        mismos = platos;
+        if (mismos.length === 1) return { name: mismos[0].name, cat: mismos[0].cat };
+      }
+    }
+
     /* LO QUE PIDIO MANDA SOBRE UNA PALABRA SUELTA DEL MENSAJE.
 
        "una PERSONAL super queso y un PERRO especial": son DOS platos. La
@@ -3403,6 +3446,9 @@ INTENCION, no las palabras exactas.` },
       } else if (catElegida) {
         const fila = DYN_PROD_MAP.find(e => e.key === normalizarTexto(amb.nombre) && e.cat === catElegida);
         if (fila) { productoDetectado = fila.name; productoCategoriaDet = fila.cat; }
+        /*  Lo que dijo al pedirlo sigue valiendo: se arrastra para que el
+            tamano y la variante se busquen tambien ahi. */
+        if (amb.texto) stAmb.texto_al_pedir = amb.texto;
         delete stAmb.producto_ambiguo;
       } else {
         amb.intentos = (amb.intentos || 0) + 1;
@@ -3460,7 +3506,19 @@ INTENCION, no las palabras exactas.` },
         // preguntar la categoría (frase configurable) y esperar la respuesta
         const mismos = DYN_PROD_MAP.filter(e => e.key === normalizarTexto(primero.name));
         const cats = [...new Set(mismos.map(m => m.cat))];
-        (state as unknown as Record<string, unknown>).producto_ambiguo = { nombre: primero.name, cats, intentos: 0 };
+        /*  SE GUARDA EL TEXTO CON EL QUE LO PIDIO, y esto arregla la segunda
+            mitad del mismo caso: la clienta dijo "Maicitos PERSONAL", Paco le
+            pregunto de que categoria, ella contesto "Salchipapa" — y Paco le
+            pregunto "¿familiar o personal?", que ella ya habia dicho dos
+            mensajes antes.
+
+            El tamano se busca en EL MENSAJE ACTUAL, y el mensaje actual era
+            "Salchipapa" a secas. Lo que dijo al principio se quedaba en el
+            mensaje anterior, que nadie volvia a leer. Preguntar dos veces lo
+            mismo es de las cosas que mas cansan a un cliente.            */
+        (state as unknown as Record<string, unknown>).producto_ambiguo = {
+          nombre: primero.name, cats, intentos: 0, texto: clienteTexto,
+        };
         /* EN SINGULAR, PERO EN ESPAÑOL (19-ago). Quitarle la "s" a todo dejaba
            "Adicione" y "Salchipapa tradicionale" en un mensaje que lee el
            cliente. La regla del idioma: si antes de la "es" hay consonante se
@@ -4388,7 +4446,15 @@ INTENCION, no las palabras exactas.` },
       currentProductData = await loadProductData(state.producto, branchId, state.producto_categoria);
       pasos = buildAllPasos(currentProductData, cfg, frasesCfg, nombreConfirmar, !!nombreKnown);
       if (currentProductData) {
-        const tNorm = " " + normalizarTexto(sig.texto) + " ";
+        /*  El mensaje de ahora MAS el que hizo el pedido, si hubo una pregunta
+            de por medio. Si no, "personal" dicho antes de "¿de que categoria?"
+            se pierde y se pregunta dos veces. Se usa una sola vez y se suelta:
+            arrastrarlo pedido tras pedido haria que un tamano viejo se colara
+            en el plato siguiente. */
+        const stX = state as unknown as Record<string, unknown>;
+        const previo = String(stX.texto_al_pedir || "");
+        if (previo) delete stX.texto_al_pedir;
+        const tNorm = " " + normalizarTexto(sig.texto + (previo ? " " + previo : "")) + " ";
         /* Tambien en plural: "3 coca colas PERSONALES". */
         const enTexto = (nom: string) => {
           const b = normalizarTexto(nom);
