@@ -4213,6 +4213,27 @@
     const cambios = { channel: destino };
     let mesaDestino = null;
 
+    /*  ══ CUANTO VALEN LOS PRODUCTOS, APARTE ════════════════════════
+
+        Sergio, en la prueba: el pedido pasado a domicilio mostraba
+        «Pedido $0» aunque cada producto tenia su precio y el total estaba
+        bien.
+
+        La causa: cada pantalla saca ese renglon de un sitio distinto. El
+        salon lo suma de los items —por eso los 101 pedidos de salon de la
+        base tienen `subtotal` en cero y nunca se noto— y domicilios lo lee de
+        la columna `subtotal`, que si escribe al crear. Un pedido que nace en
+        una pantalla y termina en la otra cae justo en esa grieta.
+
+        Se calcula y se guarda en TODOS los pases, no solo en el que fallo:
+        el dia que otra pantalla lea esa columna, el numero ya va a estar.
+
+        Sale del total, que es el numero que nunca miente porque es el que se
+        cobra: total menos el domicilio menos el empaque.                  */
+    const _empaque = Number(ord.packaging_fee) || 0;
+    const _productos = Math.max(0, (Number(ord.total) || 0) - (Number(ord.delivery_fee) || 0) - _empaque);
+    cambios.subtotal = _productos;
+
     /*  → MESA. Solo las LIBRES: ofrecer una ocupada seria ofrecer perder el
         otro pedido.                                                       */
     if (destino === 'salon') {
@@ -4255,8 +4276,7 @@
       cambios.table_id = null;
       //  El total llevaba el domicilio viejo (si venia de domicilio): se
       //  quita el de antes y se pone el de ahora.
-      const base = (Number(ord.total) || 0) - (Number(ord.delivery_fee) || 0);
-      cambios.total = base + fee;
+      cambios.total = _productos + _empaque + fee;
     }
 
     /*  → PARA LLEVAR. Si venia de domicilio, el cobro del domicilio SE QUITA:
