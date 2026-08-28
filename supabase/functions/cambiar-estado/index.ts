@@ -192,6 +192,54 @@ Deno.serve(async (req: Request) => {
        Se busca la conversacion del CLIENTE (no la del pedido) solo cuando el
        aviso al celular no llego. Si llego, no se hace nada: seria decirle lo
        mismo dos veces. */
+    /*  ── LA ETIQUETA TAMBIEN ES PARA LOS PEDIDOS DE LA PAGINA ──────────
+        (28-ago-2026, caso de Sergio: "tiene el estado en camino pero no tiene
+        la etiqueta, y es el unico")
+
+        Un pedido hecho por la pagina no nace enlazado a ninguna conversacion,
+        asi que la busqueda de arriba —por `order_id`— no encuentra nada y todo
+        el bloque de abajo se salta: ni mensaje ni ETIQUETA. Y si ademas el
+        cliente tiene los avisos del celular activados, tampoco se toma el
+        camino de respaldo, porque ya se le aviso por ahi.
+
+        El mensaje esta bien callado; la etiqueta no. Es lo que el restaurante
+        mira en la bandeja para saber por donde va cada pedido, y no depende de
+        como se entero el cliente.
+
+        Asi que si la conversacion del cliente esta LIBRE —sin pedido, o con
+        uno ya entregado— se enlaza a este. Con eso la etiqueta entra ahora y
+        los siguientes cambios de estado la encuentran de una. Si su chat ya
+        esta ocupado con otro pedido vivo NO se toca: ponerle la etiqueta ahi
+        seria mentir sobre el otro pedido.                                  */
+    if (!conv) {
+      try {
+        const oc0 = await sbGet(`/pos_orders?id=eq.${order_id}&select=cliente_id`) as Array<Record<string, unknown>> | null;
+        const cid0 = oc0?.[0]?.cliente_id;
+        if (cid0) {
+          const libres = await sbGet(
+            `/chat_conversations?cliente_id=eq.${cid0}&channel=eq.whatsapp` +
+            `&select=id,channel,labels,tenant_id,order_id&order=last_message_at.desc&limit=1`
+          ) as Array<Record<string, unknown>> | null;
+          const c0 = libres?.[0];
+          if (c0) {
+            let libre = !c0.order_id;
+            if (!libre) {
+              const otra = await sbGet(
+                `/pos_orders?id=eq.${c0.order_id}&select=delivery_status,status&limit=1`
+              ) as Array<Record<string, unknown>> | null;
+              const od = otra?.[0];
+              libre = !od || od.delivery_status === "entregado" || od.status === "cancelled";
+            }
+            if (libre) {
+              await sbPatch(`/chat_conversations?id=eq.${c0.id}`, { order_id });
+              conv = c0;
+              console.log(`[estado] ${order_id}: chat del cliente enlazado para poder etiquetarlo`);
+            }
+          }
+        }
+      } catch (_e) { /* enlazar es una mejora, nunca frena el cambio de estado */ }
+    }
+
     if (!conv && !pushLlego) {
       try {
         const oc = await sbGet(`/pos_orders?id=eq.${order_id}&select=cliente_id`) as Array<Record<string, unknown>> | null;
