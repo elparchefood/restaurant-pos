@@ -2131,6 +2131,10 @@
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
               Ver en el mapa
             </button>
+            <button data-action="pasar-dots" data-orden-id="${d.id}" data-desde="domicilio" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:#475569;border-radius:7px;text-align:left" onmouseover="this.style.background='#F8FAFC'" onmouseout="this.style.background='none'">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16H3m0 0 3-3m-3 3 3 3"/><path d="M17 8h4m0 0-3-3m3 3-3 3"/></svg>
+              Pasar a otro modo
+            </button>
             <button data-domi-action="cancel" data-domi-id="${d.id}" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:#DC2626;border-radius:7px;text-align:left" onmouseover="this.style.background='#FEF2F2'" onmouseout="this.style.background='none'">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               Cancelar pedido
@@ -2717,6 +2721,9 @@
             </span>
           </div>
         </div>
+        <!-- Los mismos tres puntos que en la mesa: un pedido para llevar
+             tambien se puede volver de mesa o de domicilio. -->
+        <button class="lm-icon-sm" data-action="pasar-dots" data-orden-id="${o.id}" data-desde="rapido">${SVG_DOTS(14)}</button>
       </div>
       <div class="vs-rail-fixed-top">
         <div class="vs-info-row">
@@ -3277,6 +3284,17 @@
             vsToast('Error al cancelar: ' + (err.message || String(err)));
           }
         });
+        break;
+      }
+      /*  Desde venta rapida y desde domicilios se abre el menu de modos
+          directo, sin paso intermedio: ahi no hay «cambiar de mesa» que
+          separar del resto, y una lista de tres es mas corta que dos
+          preguntas seguidas.                                             */
+      case 'pasar-dots': {
+        document.querySelectorAll('.vs-dots-menu').forEach(x => x.remove());
+        const _menuD = document.getElementById('vs-domi-menu-' + el.dataset.ordenId);
+        if (_menuD) _menuD.hidden = true;
+        vsPasarPedido(el.dataset.ordenId, el.dataset.desde || 'rapido', {});
         break;
       }
       case 'mover-mesa': {
@@ -3877,90 +3895,100 @@
     });
   }
 
-  /*  ══ CAMBIAR DE MESA ════════════════════════════════════
+  /*  ══ PASAR UN PEDIDO YA HECHO ════════════════════════════
 
-      Lo importante aqui no es mover el pedido — eso es un campo— sino que la
-      mesa nueva llegue con TODO el estado de la vieja: en que va (esperando,
-      comiendo, pendiente de pago) y desde cuando. Copiar solo «ocupada»
-      reiniciaria los relojes, y una mesa que lleva 40 minutos aparecería
-      recien sentada. El unico que no se copia es `current_order_id`, que es
-      justamente lo que cambia de dueno.                                   */
-  async function vsMoverDeMesa(tableId) {
-    const sbM = window._pos && window._pos.sb;
-    if (!sbM) return;
-    const vieja = state.tables.find(t => t.id === tableId);
-    const ordId = (state.currentOrder && state.currentOrder.id) || (vieja && vieja.current_order_id);
-    if (!ordId) { vsToast('Esta mesa no tiene un pedido para mover'); return; }
+      Sergio, 28-ago-2026: «lo mismo deberia poderse hacer desde venta rapida y
+      desde domicilio... en las 3 tiene que ver los modos».
 
-    const libres = state.tables.filter(t => t.id !== tableId && t.status === 'libre');
-    if (!libres.length) { vsToast('No hay ninguna mesa libre ahora mismo'); return; }
+      UN SOLO MOTOR para las seis combinaciones (mesa→llevar, mesa→domicilio,
+      llevar→mesa, llevar→domicilio, domicilio→mesa, domicilio→llevar) mas el
+      cambio de mesa a mesa. Escribirlas por separado en las tres pantallas
+      serian tres sitios donde arreglar el mismo fallo, y el dia que uno se
+      quede sin arreglar nadie lo va a notar: los pedidos seguirian
+      moviendose, solo que mal.
 
-    const elegida = await vsElegir({
-      title: 'Cambiar de mesa',
-      msg: 'El pedido se pasa completo, con su estado y su tiempo.',
-      opciones: libres.map(t => ({
-        id: t.id,
-        titulo: 'Mesa ' + (t.name || t.number || ''),
-        sub: (t.zone_name ? t.zone_name + ' · ' : '') + (t.capacity ? t.capacity + ' puestos' : 'libre'),
-      })),
-    });
-    if (!elegida) return;
+      EL PEDIDO NO SE RECREA NUNCA. Mismo id, mismos productos, y en cocina
+      conserva el tiempo que llevaba. Cancelar y rehacer le quitaria a la
+      cocina algo que ya esta haciendo para devolverselo con el reloj en cero.
 
-    try {
-      const { error: e1 } = await sbM.from('pos_orders').update({ table_id: elegida }).eq('id', ordId);
-      if (e1) throw e1;
-      const { error: e2 } = await sbM.from('pos_tables').update({
-        status: vieja.status, current_order_id: ordId, sesion_at: vieja.sesion_at || new Date().toISOString(),
-        esperando_at: vieja.esperando_at || null, comiendo_at: vieja.comiendo_at || null,
-        pendiente_pago_at: vieja.pendiente_pago_at || null, comiendo_method: vieja.comiendo_method || null,
-      }).eq('id', elegida);
-      if (e2) throw e2;
-      const { error: e3 } = await sbM.from('pos_tables').update({
-        status: 'libre', current_order_id: null, sesion_at: null,
-        esperando_at: null, comiendo_at: null, pendiente_pago_at: null, comiendo_method: null,
-      }).eq('id', tableId);
-      if (e3) throw e3;
+      Lo que se lee de la base y no del estado de la pantalla es el pedido: las
+      tres pantallas lo guardan en su propia forma, y una consulta de una fila
+      cuesta menos que tres formas de equivocarse.                        */
+  const VS_MODOS = {
+    salon:     { nombre: 'Mesa',         sub: 'eliges la mesa' },
+    rapido:    { nombre: 'Para llevar',  sub: 'cobras y listo' },
+    domicilio: { nombre: 'Domicilio',    sub: 'te pide la dirección' },
+  };
 
-      const nueva = state.tables.find(t => t.id === elegida);
-      if (nueva) {
-        nueva.status = vieja.status; nueva.current_order_id = ordId;
-        nueva.sesion_at = vieja.sesion_at; nueva.esperando_at = vieja.esperando_at;
-        nueva.comiendo_at = vieja.comiendo_at; nueva.pendiente_pago_at = vieja.pendiente_pago_at;
-      }
-      vieja.status = 'libre'; vieja.current_order_id = null; vieja.sesion_at = null;
-      state.selectedTableId = elegida;
-      if (state.currentOrder) state.currentOrder.table_id = elegida;
-      render();
-      vsToast('Pedido movido a la Mesa ' + ((nueva && (nueva.name || nueva.number)) || ''));
-    } catch (err) {
-      vsToast('No se pudo mover: ' + (err.message || String(err)));
-    }
+  function vsLiberarMesaCampos() {
+    return { status: 'libre', current_order_id: null, sesion_at: null,
+             esperando_at: null, comiendo_at: null, pendiente_pago_at: null, comiendo_method: null };
   }
 
-  /*  ══ CAMBIAR DE MODO ════════════════════════════════════
-
-      El pedido sigue siendo el MISMO — mismo id, mismos productos, mismo
-      total, y en cocina se queda con el tiempo que llevaba. Lo unico que
-      cambia es por donde sale. Por eso no se cancela y se rehace: eso le
-      quitaria a la cocina un pedido que ya esta haciendo y le pondria uno
-      nuevo con el reloj en cero.
-
-      A domicilio hay que preguntarle la direccion. No se puede adivinar, y un
-      domicilio sin direccion es un pedido que nadie puede entregar.       */
-  async function vsMoverDeModo(tableId, modo) {
+  async function vsPasarPedido(ordId, desde, ctx, destinoForzado) {
     const sbM = window._pos && window._pos.sb;
-    if (!sbM) return;
-    const mesa = state.tables.find(t => t.id === tableId);
-    const ordId = (state.currentOrder && state.currentOrder.id) || (mesa && mesa.current_order_id);
-    if (!ordId) { vsToast('Esta mesa no tiene un pedido para mover'); return; }
-    const numStr = mesa ? (mesa.name || String(mesa.number || '')) : '';
+    if (!sbM || !ordId) { vsToast('No encuentro ese pedido'); return; }
+    ctx = ctx || {};
 
-    const cambios = { channel: modo, table_id: null };
+    //  El pedido, de la base: es la unica version que las tres pantallas
+    //  comparten.
+    let ord = null;
+    try {
+      const { data } = await sbM.from('pos_orders')
+        .select('id,total,subtotal,delivery_fee,channel,table_id,branch_id,status')
+        .eq('id', ordId).maybeSingle();
+      ord = data;
+    } catch (e) {}
+    if (!ord) { vsToast('No encuentro ese pedido'); return; }
 
-    if (modo === 'domicilio') {
+    let destino = destinoForzado || null;
+    if (!destino) {
+      destino = await vsElegir({
+        title: 'Pasar el pedido a',
+        msg: 'Sigue siendo el mismo pedido: mismos productos y el tiempo que lleva en cocina.',
+        opciones: Object.keys(VS_MODOS).filter(k => k !== desde)
+          .map(k => ({ id: k, titulo: VS_MODOS[k].nombre, sub: VS_MODOS[k].sub })),
+      });
+      if (!destino) return;
+    }
+    /*  'mesa' es como se llama en el menu y 'salon' como se llama en la base.
+        Se unifica AQUI, en la entrada, y no en cada sitio que lo use: un
+        nombre con dos formas es un fallo esperando el dia que alguien mire
+        solo una de las dos.                                               */
+    if (destino === 'mesa') destino = 'salon';
+
+    const cambios = { channel: destino };
+    let mesaDestino = null;
+
+    /*  → MESA. Solo las LIBRES: ofrecer una ocupada seria ofrecer perder el
+        otro pedido.                                                       */
+    if (destino === 'salon') {
+      const libres = state.tables.filter(t => t.status === 'libre' && t.id !== ctx.tableId);
+      if (!libres.length) { vsToast('No hay ninguna mesa libre ahora mismo'); return; }
+      const elegida = await vsElegir({
+        title: desde === 'salon' ? 'Cambiar de mesa' : 'Pasar a una mesa',
+        msg: desde === 'salon'
+          ? 'El pedido se pasa completo, con su estado y su tiempo.'
+          : 'El pedido pasa al salón y la mesa queda ocupada.',
+        opciones: libres.map(t => ({
+          id: t.id,
+          titulo: 'Mesa ' + (t.name || t.number || ''),
+          sub: (t.zone_name ? t.zone_name + ' · ' : '') + (t.capacity ? t.capacity + ' puestos' : 'libre'),
+        })),
+      });
+      if (!elegida) return;
+      mesaDestino = state.tables.find(t => t.id === elegida);
+      cambios.table_id = elegida;
+    }
+
+    /*  → DOMICILIO. La direccion no se puede adivinar, y un domicilio sin
+        direccion es un pedido que nadie puede entregar. Las notas van con el
+        MISMO formato que escribe la pantalla de domicilios — es el que lee la
+        app del domiciliario.                                              */
+    if (destino === 'domicilio') {
       const d = await vsFormulario({
         title: 'Pasar a domicilio',
-        msg: 'El pedido de la <strong>Mesa ' + numStr + '</strong> se manda a domicilios. La mesa queda libre.',
+        msg: 'El pedido se manda a domicilios' + (ctx.tableId ? ' y la mesa queda libre' : '') + '.',
         okLabel: 'Pasar a domicilio',
         campos: [
           { id: 'dir', label: 'Dirección', ej: 'Cra 9B #63N-58', obliga: true },
@@ -3970,68 +3998,117 @@
         ],
       });
       if (!d) return;
-      /*  El mismo formato de notas que escribe la pantalla de domicilios — es
-          el que lee la app del domiciliario. Inventar otro aqui dejaria el
-          pedido sin direccion en la moto.                                 */
       cambios.notes = ((d.dir ? d.dir + ' ' : '')
         + (d.barrio ? '[barrio:' + d.barrio.toUpperCase() + ']' : '')
         + (d.tel ? ' [tel:' + d.tel + ']' : '')).trim() || null;
       const fee = parseInt(d.fee, 10) || 0;
       cambios.delivery_fee = fee;
       cambios.delivery_status = 'recibido';
-      const totalActual = Number(state.currentOrder && state.currentOrder.total) || 0;
-      if (totalActual > 0) cambios.total = totalActual + fee;
-    } else {
-      /*  UN NUMERO DE TURNO, porque la cocina lo pinta.
+      cambios.table_id = null;
+      //  El total llevaba el domicilio viejo (si venia de domicilio): se
+      //  quita el de antes y se pone el de ahora.
+      const base = (Number(ord.total) || 0) - (Number(ord.delivery_fee) || 0);
+      cambios.total = base + fee;
+    }
 
-          En la columna de Para llevar el titulo de la tarjeta es «Turno
-          #007». Un pedido que llega del salon no trae turno, y sin esto la
-          comanda apareceria titulada «Turno» a secas — sin nada con que
-          llamarla desde la cocina, que es justo para lo que sirve el titulo.
-
-          Se toma el siguiente de los de HOY en esta sede. La pantalla de
-          venta rapida lleva su propia cuenta en el equipo, y esa no se puede
-          leer desde aqui; preguntarle a los pedidos del dia da el mismo
-          numero sin depender de que equipo sea.                          */
+    /*  → PARA LLEVAR. Si venia de domicilio, el cobro del domicilio SE QUITA:
+        ya nadie lo va a llevar, y dejarlo cobrado es cobrarle al cliente un
+        viaje que no existe.                                               */
+    if (destino === 'rapido') {
+      cambios.table_id = null;
+      if ((Number(ord.delivery_fee) || 0) > 0) {
+        cambios.delivery_fee = 0;
+        cambios.total = (Number(ord.total) || 0) - (Number(ord.delivery_fee) || 0);
+      }
+      /*  UN NUMERO DE TURNO, porque la cocina lo pinta: en esa columna el
+          titulo de la tarjeta es «Turno #007», y sin numero saldria «Turno» a
+          secas — sin nada con que llamarla desde la cocina. Se toma el
+          siguiente de los de hoy en la sede: la cuenta que lleva venta rapida
+          vive en SU equipo y no se puede leer desde aqui.                */
       try {
         const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
         let q = sbM.from('pos_orders').select('turno')
           .eq('channel', 'rapido').gte('opened_at', hoy.toISOString());
-        //  Sin sede el filtro se omite: mejor un numero de mas que una
-        //  consulta que revienta por pasarle `undefined`.
-        const bid = (mesa && mesa.branch_id) || (state.currentOrder && state.currentOrder.branch_id);
-        if (bid) q = q.eq('branch_id', bid);
+        if (ord.branch_id) q = q.eq('branch_id', ord.branch_id);
         const { data: ult } = await q.order('turno', { ascending: false }).limit(1);
         cambios.turno = (((ult && ult[0] && ult[0].turno) || 0) + 1);
       } catch (e) { /* sin turno la tarjeta sale sin numero, pero sale */ }
 
       const ok = await vsConfirm({
         title: 'Pasar a Para llevar',
-        msg: 'El pedido de la <strong>Mesa ' + numStr + '</strong> pasa a Para llevar y la mesa queda libre. En cocina se mueve de columna, con el tiempo que lleva.',
+        msg: 'El pedido pasa a Para llevar'
+          + (ctx.tableId ? ' y la mesa queda libre' : '')
+          + ((Number(ord.delivery_fee) || 0) > 0 ? '. Se quita el cobro del domicilio' : '')
+          + '. En cocina se mueve de columna, con el tiempo que lleva.',
         okLabel: 'Sí, pasarlo',
       });
       if (!ok) return;
     }
 
+    //  Y si viene de domicilio a una mesa, el domicilio tampoco se cobra.
+    if (cambios.channel === 'salon' && (Number(ord.delivery_fee) || 0) > 0) {
+      cambios.delivery_fee = 0;
+      cambios.total = (Number(ord.total) || 0) - (Number(ord.delivery_fee) || 0);
+    }
+
     try {
       const { error: e1 } = await sbM.from('pos_orders').update(cambios).eq('id', ordId);
       if (e1) throw e1;
-      const { error: e2 } = await sbM.from('pos_tables').update({
-        status: 'libre', current_order_id: null, sesion_at: null,
-        esperando_at: null, comiendo_at: null, pendiente_pago_at: null, comiendo_method: null,
-      }).eq('id', tableId);
-      if (e2) throw e2;
-      if (mesa) { mesa.status = 'libre'; mesa.current_order_id = null; mesa.sesion_at = null; }
-      state.selectedTableId = null;
-      state.currentOrder = null;
-      state.orderItems = [];
+
+      //  La mesa de la que sale, si salia de una.
+      const vieja = ctx.tableId ? state.tables.find(t => t.id === ctx.tableId) : null;
+      if (ctx.tableId) {
+        const { error: e2 } = await sbM.from('pos_tables').update(vsLiberarMesaCampos()).eq('id', ctx.tableId);
+        if (e2) throw e2;
+      }
+
+      //  La mesa a la que llega. Si viene de otra mesa se copia su estado y
+      //  sus tiempos — si no, los relojes se reiniciarian y una mesa de 40
+      //  minutos apareceria recien sentada. Si viene de fuera del salon,
+      //  empieza ocupada ahora.
+      if (mesaDestino) {
+        const campos = vieja
+          ? { status: vieja.status, current_order_id: ordId,
+              sesion_at: vieja.sesion_at || new Date().toISOString(),
+              esperando_at: vieja.esperando_at || null, comiendo_at: vieja.comiendo_at || null,
+              pendiente_pago_at: vieja.pendiente_pago_at || null,
+              comiendo_method: vieja.comiendo_method || null }
+          : { status: 'ocupada', current_order_id: ordId, sesion_at: new Date().toISOString() };
+        const { error: e3 } = await sbM.from('pos_tables').update(campos).eq('id', mesaDestino.id);
+        if (e3) throw e3;
+        Object.assign(mesaDestino, campos);
+      }
+
+      if (vieja) Object.assign(vieja, vsLiberarMesaCampos());
+      state.selectedTableId = mesaDestino ? mesaDestino.id : null;
+      if (!mesaDestino) { state.currentOrder = null; state.orderItems = []; }
       render();
-      vsToast(modo === 'domicilio'
-        ? 'Pedido pasado a Domicilios — mesa liberada'
-        : 'Pedido pasado a Para llevar — mesa liberada');
+      vsToast(mesaDestino
+        ? 'Pedido movido a la Mesa ' + (mesaDestino.name || mesaDestino.number || '')
+        : 'Pedido pasado a ' + VS_MODOS[destino].nombre);
+      /*  Y SE RECARGA DE VERDAD. Este pedido acaba de cambiar de lista: si
+          era un domicilio y ahora es de mesa, tiene que desaparecer de una
+          pestana y aparecer en la otra. `render()` solo repinta lo que ya
+          esta en memoria — el pedido movido seguiria viendose donde estaba,
+          y eso es peor que no moverlo: pareceria que esta en dos sitios. */
+      try { await loadData(); } catch (e) { console.warn('[pasar] recarga:', e && e.message); }
     } catch (err) {
       vsToast('No se pudo pasar: ' + (err.message || String(err)));
     }
+  }
+
+  //  Las tres puertas de entrada. Cada pantalla llama a la suya.
+  function vsMoverDeMesa(tableId) {
+    const mesa = state.tables.find(t => t.id === tableId);
+    const ordId = (state.currentOrder && state.currentOrder.id) || (mesa && mesa.current_order_id);
+    if (!ordId) { vsToast('Esta mesa no tiene un pedido para mover'); return; }
+    vsPasarPedido(ordId, 'salon', { tableId }, 'mesa');
+  }
+  function vsMoverDeModo(tableId, modo) {
+    const mesa = state.tables.find(t => t.id === tableId);
+    const ordId = (state.currentOrder && state.currentOrder.id) || (mesa && mesa.current_order_id);
+    if (!ordId) { vsToast('Esta mesa no tiene un pedido para mover'); return; }
+    vsPasarPedido(ordId, 'salon', { tableId }, modo);
   }
 
   function vsConfirm({ title, msg, okLabel = 'Confirmar', variant = 'brand', cancelLabel = 'Cancelar' }) {
