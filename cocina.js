@@ -702,18 +702,23 @@ async function cargarComandas() {
        ventas rapida y domicilios. */
     const desde = await inicioCaja();
     const consultas = [
+      /*  SIN `delivered_at is null` (Sergio, 28-ago-2026).
+
+          Esa linea borraba de la pantalla todo lo ya entregado, y con ella la
+          cocina perdia de vista su propio trabajo: a media noche la pantalla
+          decia "1 comanda" cuando llevaban veinte. Lo que acota esto no es el
+          estado sino EL TURNO DE CAJA: entra lo de este turno y se va solo al
+          cerrar. */
       conTope(sb.from('pos_orders').select(CAMPOS)
         .eq('branch_id', S.branchId)
         .eq('visible_cocina', true)
         .gte('created_at', desde)
-        .is('delivered_at', null)
         .not('status', 'in', FUERA)
         .order('created_at', { ascending: true }), 15, 'las comandas')
     ];
     if (idsMesa.length) {
       consultas.push(conTope(sb.from('pos_orders').select(CAMPOS)
         .in('id', idsMesa)
-        .is('delivered_at', null)
         .not('status', 'in', FUERA), 15, 'las comandas de las mesas'));
     }
     const partes = await Promise.all(consultas);
@@ -725,11 +730,23 @@ async function cargarComandas() {
     const ords = [...porId.values()].sort((a,b) => String(a.created_at).localeCompare(String(b.created_at)));
 
     const vivos = (ords || []).filter(o => {
-      /* Del salón solo entra la mesa que el plano tiene ocupada. Si el mesero
-         la liberó, la comanda se va de las dos pantallas a la vez. */
-      if (zonaDe(o) === 'salon' && !S.mesaEstado.has(o.id)) return false;
-      /* Los estados que ya pasaron por cocina no vuelven a entrar. */
-      if (['en_camino','entregado'].indexOf(o.estado) >= 0) return false;
+      /*  LO YA TERMINADO SE QUEDA, EN MORADO Y ABAJO (Sergio, 28-ago-2026).
+
+          Aqui habia dos filtros que lo borraban: uno sacaba del salon la mesa
+          que ya se libero y otro sacaba lo que estaba en camino o entregado.
+          Los dos por la misma idea equivocada — que la cocina solo quiere ver
+          lo que le falta.
+
+          Y lo que la cocina quiere ver es SU TRABAJO: lo que va saliendo,
+          cuanto lleva hecho, y poder mirar atras cuando alguien pregunta por
+          un pedido de hace media hora. Lo pendiente manda arriba; lo terminado
+          se hunde y se apaga, pero no desaparece.
+
+          Se sigue botando la mesa liberada SI todavia estaba pendiente: eso no
+          es trabajo hecho sino una comanda que alguien abandono, y dejarla
+          arriba pidiendo cocina seria peor.                               */
+      const terminado = ['listo','en_camino','entregado'].indexOf(o.estado) >= 0;
+      if (!terminado && zonaDe(o) === 'salon' && !S.mesaEstado.has(o.id)) return false;
       /*  UNA COMANDA LISTA YA NO SE VA SOLA (Sergio, 28-ago-2026).
 
           Antes desaparecia a los 30 segundos. El cocinero que se daba la
@@ -789,7 +806,10 @@ async function cargarComandas() {
 
 /* ── Qué estado le toca a cada comanda ──────────────────────────────────── */
 function estadoDe(o) {
-  if (o.estado === 'listo') return 'listo';
+  /*  Entregado y en camino se pintan como LISTO: para la cocina son lo mismo
+      —ya salio de sus manos— y tener tres moradas distintas solo obligaria al
+      cocinero a aprenderse una diferencia que no le sirve de nada. */
+  if (['listo','en_camino','entregado'].indexOf(o.estado) >= 0) return 'listo';
   if (debePagar(o)) return 'pago';
   return 'prep';
 }
