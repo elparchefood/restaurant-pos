@@ -53,6 +53,19 @@ async function fijarExistencia(
     p_agotado:  campos.agotado  === undefined ? null : campos.agotado,
   });
 }
+/*  DE QUE BOLSA SALE EL STOCK: la comun de la marca (modo `global`, con la
+    sede en blanco) o la de esta sucursal. Ya se calculaba mas abajo, pero los
+    botones contestan ANTES de llegar ahi — y con la sede equivocada
+    escribirian en una bolsa que nadie mira.                                */
+async function sedeDeExistencia(branchId: string): Promise<string | null> {
+  try {
+    const br = (await sbGet(`/branches?id=eq.${branchId}&select=brand_id,brands(inventario_modo)`) as Array<Record<string, unknown>> | null) || [];
+    const mk = br[0]?.brands as { inventario_modo?: string } | Array<{ inventario_modo?: string }> | null;
+    const modo = (Array.isArray(mk) ? mk[0]?.inventario_modo : mk?.inventario_modo) || "global";
+    return modo === "sucursal" ? branchId : null;
+  } catch { return null; }
+}
+
 function fmtNum(n: number) {
   // hasta 3 decimales, sin ceros sobrantes
   return (Math.round(n * 1000) / 1000).toString();
@@ -544,7 +557,104 @@ Deno.serve(async (req: Request) => {
        Sirve para probar una lista larga antes de aplicarla de verdad — que es
        justo lo que hace falta cuando el gerente cuenta todo el inventario. */
     const simular = body.simular === true || body.dry === true;
-    if (!branch_id || !mensaje) return json({ error: "branch_id y message requeridos" }, 400);
+    /*  El boton que se toco. No lo escribe una persona, asi que no hay que
+        interpretarlo — que es donde se equivoca todo lo demas.           */
+    const accion = String(body.accion || "").trim();
+    if (!branch_id || (!mensaje && !accion)) return json({ error: "branch_id y message requeridos" }, 400);
+
+    /*  ══ ARREGLAR UN INSUMO A TOQUES ═══════════════════════════
+
+        Sergio, 28-ago-2026. La respuesta de «¿que falta?» era una lista para
+        leer: para arreglar algo habia que volver a escribirlo entero, con el
+        nombre exacto. Ahora la lista se toca.
+
+        Va arriba del todo y sin pasar por el modelo: un boton ya dice
+        exactamente que se quiere. Preguntarle a la IA que significa «Se
+        acabo» cuando el boton se llama `inv_cero_<id>` seria pagar por
+        adivinar algo que ya sabemos.                                       */
+    if (accion.startsWith("inv_")) {
+      const sede = await sedeDeExistencia(branch_id);
+      const insId = accion.replace(/^inv_(ins|cero|cant)_/, "");
+      const iR = (await sbGet(`/iv_insumos?id=eq.${insId}&select=id,nombre,buy_unit,use_unit,conversion,control_manual,sub_inventario,iv_existencias(branch_id,stock,stock_servicio,agotado_manual)`) as Array<Record<string, unknown>> | null) || [];
+      const ins = iR[0];
+      if (!ins) return json({ reply: "Ese insumo ya no está en el inventario 🤔." });
+      const filas = (ins.iv_existencias as Array<Record<string, unknown>>) || [];
+      const ex = filas.find((e) => ((e.branch_id as string | null) || null) === sede) || {};
+      const nombre = String(ins.nombre);
+      const unidad = String(ins.buy_unit || "");
+
+      if (accion.startsWith("inv_ins_")) {
+        const hay = num(ex.stock) + (ins.sub_inventario ? num(ex.stock_servicio) : 0);
+        return json({
+          reply: `*${nombre}* — ahora hay ${fmtNum(hay)} ${unidad}.
+
+¿Qué hago?`,
+          botones: { tipo: "botones", opciones: [
+            { id: `inv_cero_${insId}`, titulo: "Se acabó" },
+            { id: `inv_cant_${insId}`, titulo: "Poner cantidad" },
+          ] },
+        });
+      }
+
+      if (accion.startsWith("inv_cero_")) {
+        /*  «Se acabo» quiere decir cosas distintas segun el insumo: el que se
+            lleva a mano solo se MARCA agotado (su cantidad nunca fue de fiar),
+            y el que se cuenta se pone en cero de verdad. Tratarlos igual
+            dejaria el pollo en cero cuando lo unico cierto es que se acabo. */
+        if (ins.control_manual) await fijarExistencia(insId, sede, { agotado: true });
+        else await fijarExistencia(insId, sede, { stock: 0, ...(ins.sub_inventario ? { servicio: 0 } : {}) });
+        await sbPost(`/pos_gerente_ops`, {
+          branch_id, telefono: telGerente, mensaje: "[botón] se acabó",
+          insumo_id: insId, insumo: nombre, accion: "set",
+          cantidad: 0, stock_antes: num(ex.stock), stock_despues: 0, unidad,
+        });
+        return json({ reply: `✓ *${nombre}* queda como agotado. Cuando llegue, dime _“hay 3 ${unidad} de ${nombre.toLowerCase()}”_.` });
+      }
+
+      if (accion.startsWith("inv_cant_")) {
+        /*  Pisa la espera anterior en vez de fallar por clave repetida. Sin
+            `merge-duplicates` el insert choca con la fila que ya existe y no
+            escribe nada — en silencio, con 201 y todo: el numero que llegue
+            despues no encontraria a que corresponde. */
+        await fetch(`${SUPABASE_URL}/rest/v1/pos_gerente_espera?on_conflict=branch_id,telefono`, {
+          method: "POST",
+          headers: { ...H, Prefer: "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify({ branch_id, telefono: telGerente, dato: `cant:${insId}`, creado_at: new Date().toISOString() }),
+        });
+        return json({ reply: `¿Cuántos ${unidad} de *${nombre}* hay? Escríbeme solo el número.` });
+      }
+    }
+
+    /*  Y el numero suelto que viene despues de haberlo preguntado. Se mira
+        antes que el modelo: un «2» a secas no es una frase de inventario, y
+        mandarselo a la IA solo puede terminar mal.
+
+        La espera caduca a los 10 minutos: un dato de hace una hora haciendo
+        creer que se pregunto algo es peor que no tener nada.               */
+    if (/^[\d.,]+$/.test(mensaje)) {
+      const eR = (await sbGet(`/pos_gerente_espera?branch_id=eq.${branch_id}&telefono=eq.${encodeURIComponent(telGerente)}&select=dato,creado_at&limit=1`) as Array<Record<string, unknown>> | null) || [];
+      const esp = eR[0];
+      const fresca = esp && (Date.now() - new Date(String(esp.creado_at)).getTime()) < 10 * 60 * 1000;
+      if (fresca && String(esp!.dato).startsWith("cant:")) {
+        const insId = String(esp!.dato).slice(5);
+        const cant = num(mensaje.replace(",", "."));
+        const sede = await sedeDeExistencia(branch_id);
+        const iR = (await sbGet(`/iv_insumos?id=eq.${insId}&select=id,nombre,buy_unit,control_manual,sub_inventario,iv_existencias(branch_id,stock)`) as Array<Record<string, unknown>> | null) || [];
+        const ins = iR[0];
+        await sbPatch(`/pos_gerente_espera?branch_id=eq.${branch_id}&telefono=eq.${encodeURIComponent(telGerente)}`, { dato: "" });
+        if (ins && cant >= 0) {
+          const filas = (ins.iv_existencias as Array<Record<string, unknown>>) || [];
+          const antes = num((filas.find((e) => ((e.branch_id as string | null) || null) === sede) || {}).stock);
+          await fijarExistencia(insId, sede, { stock: cant, ...(ins.control_manual ? { agotado: false } : {}) });
+          await sbPost(`/pos_gerente_ops`, {
+            branch_id, telefono: telGerente, mensaje: `[botón] ${mensaje}`,
+            insumo_id: insId, insumo: String(ins.nombre), accion: "set",
+            cantidad: cant, stock_antes: antes, stock_despues: cant, unidad: String(ins.buy_unit || ""),
+          });
+          return json({ reply: `✓ *${ins.nombre}*: ${fmtNum(cant)} ${ins.buy_unit || ""}` });
+        }
+      }
+    }
 
     const modoAbrir  = TURNO_ABRIR.test(mensaje);
     const modoCerrar = TURNO_CERRAR.test(mensaje);
@@ -716,8 +826,23 @@ Deno.serve(async (req: Request) => {
           + bajos.map((i) => `• ${i.nombre} — ${decir(i.sub ? i.stock + i.servicio : i.stock, i)}`).join("\n") + "\n";
       }
       if (!agotados.length && !bajos.length) reply += "\nTodo con stock. 👍\n";
-      reply += `\nDime “hay 3 galones de salsa bbq” y lo actualizo.`;
-      return json({ reply, consulta: true });
+      reply += `\nDime “hay 3 galones de salsa bbq”, o toca uno de la lista.`;
+      /*  La lista trae primero lo agotado, que es lo que se va a querer
+          arreglar. Diez es el maximo de WhatsApp; si hay mas, los demas se
+          siguen viendo escritos arriba — no se pierde nada, solo no se
+          pueden tocar. */
+      const tocables = agotados.concat(bajos).slice(0, 10);
+      return json({ reply, consulta: true,
+        botones: tocables.length ? {
+          tipo: "lista", texto_boton: "Arreglar uno", titulo_seccion: "Por comprar",
+          opciones: tocables.map((i) => ({
+            id: `inv_ins_${i.id}`,
+            titulo: i.nombre,
+            desc: (i.sub ? i.stock + i.servicio : i.stock) <= 0
+              ? "se acabó"
+              : `quedan ${decir(i.sub ? i.stock + i.servicio : i.stock, i)}`,
+          })),
+        } : null });
     }
 
     if (!ops.length && fallo) {

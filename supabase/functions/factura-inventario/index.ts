@@ -274,6 +274,50 @@ function cambioFuerte(l: Linea): boolean {
   return viejo > 0 && nuevo > 0 && Math.abs(nuevo - viejo) / viejo > 0.03;
 }
 
+/*  ══ LOS BOTONES ══════════════════════════════════════════
+    Sergio, 28-ago-2026: «si me hubiera salido un cuestionario yo hubiera
+    podido corregir que no eran 3 salsas de tomate sino dos».
+
+    Hasta ahora todo se contestaba escribiendo, y escribir es justo lo que
+    falla: «aplica todo menos el maiz» hay que interpretarlo, y interpretar
+    se equivoca. Un boton no se interpreta — trae un identificador que
+    escribimos nosotros y vuelve tal cual.
+
+    Tres botones es el maximo de WhatsApp, y alcanzan justo para las tres
+    cosas que se pueden querer con una factura: aplicarla, arreglar algo, o
+    botarla. Lo demas (que linea, que cantidad) va en pasos siguientes, que
+    es mejor que amontonarlo: en cada momento hay una sola pregunta.       */
+function botonesFactura(hayListos: boolean): Record<string, unknown> {
+  const ops: Array<Record<string, string>> = [];
+  if (hayListos) ops.push({ id: "fac_aplicar", titulo: "Aplicar todo" });
+  ops.push({ id: "fac_corregir", titulo: "Corregir algo" });
+  ops.push({ id: "fac_descartar", titulo: "Descartar" });
+  return { tipo: "botones", opciones: ops };
+}
+
+/*  LAS CANTIDADES QUE SE OFRECEN, CON LA CUENTA YA HECHA.
+
+    Un boton que dice «2» obliga a pensar. Uno que dice «2 — a $17.000» se
+    reconoce de un vistazo, porque ese es el precio de siempre y el ojo lo
+    sabe. La cuenta la hacemos nosotros, que para eso tenemos los dos numeros:
+    el total de la linea y el precio guardado.                             */
+function botonesCantidad(i: number, l: Linea): Record<string, unknown> {
+  const total = num(l.valor_total), viejo = num(l.precio_viejo);
+  const leida = num(l.cant_final) || num(l.cantidad) || 1;
+  const cands: number[] = [];
+  if (viejo > 0 && total > 0) {
+    const sug = Math.round(total / viejo);
+    if (sug >= 1) cands.push(sug);
+  }
+  if (!cands.includes(leida)) cands.push(leida);
+  const ops = cands.slice(0, 2).map((c) => ({
+    id: `fac_cant_${i}_${c}`,
+    titulo: `${fmtNum(c)}${total > 0 && c > 0 ? " — a " + fmtCOP(Math.round(total / c)) : ""}`.slice(0, 20),
+  }));
+  ops.push({ id: `fac_otra_${i}`, titulo: "Otra cantidad" });
+  return { tipo: "botones", opciones: ops };
+}
+
 function armarMensaje(prov: string, total: number, lineas: Linea[]): string {
   const listos = lineas.filter((l) => l.ok);
   const dudas  = lineas.filter((l) => !l.ok);
@@ -346,7 +390,11 @@ Deno.serve(async (req: Request) => {
     const branch_id = String(b.branch_id || "");
     const phone     = String(b.phone || "");
     const mediaUrl  = b.media_url ? String(b.media_url) : "";
-    const mensaje   = String(b.message || "").trim();
+    let   mensaje   = String(b.message || "").trim();
+    /*  El identificador del boton que se toco. Va aparte del texto: el texto
+        de un boton cabe en 20 caracteres y dos lineas de una factura pueden
+        acabar diciendo casi lo mismo; el id no se confunde nunca.         */
+    const accion    = String(b.accion || "").trim();
     if (!branch_id) return json({ error: "branch_id requerido" }, 400);
 
     const insumos = await cargarInsumos(branch_id);
@@ -395,7 +443,49 @@ REGLAS:
       await sbPost(`/iv_facturas_pendientes`, {
         branch_id, telefono: phone, proveedor: prov, total, lineas, media_url: mediaUrl,
       });
-      return json({ reply: armarMensaje(prov, total, lineas), factura: true });
+      return json({ reply: armarMensaje(prov, total, lineas), factura: true,
+        botones: botonesFactura(lineas.some((l) => l.ok)) });
+    }
+
+    /*  ══ DESHACER ════════════════════════════════════════════
+        Sergio, 28-ago-2026. Si una factura entra mal, hoy toca corregir insumo
+        por insumo — y antes hay que darse cuenta de CUALES quedaron mal, que
+        es la parte dificil. Con un boton, lo peor que puede pasar es un toque.
+
+        Va aqui arriba, antes de buscar la factura pendiente, porque cuando se
+        deshace ya NO hay ninguna pendiente: se acaba de aplicar. Ponerlo mas
+        abajo lo habria hecho inalcanzable justo cuando hace falta.
+
+        Cada cambio guardo lo que habia ANTES (cantidad y precio) y una marca
+        de lote: los que entraron juntos se van juntos. Deshacer no es
+        «restar lo que sume» sino «volver a poner lo que habia», que no es lo
+        mismo: entre medias pudo haberse vendido, y restar dejaria el numero
+        peor de como estaba.
+
+        ⚠️ Se deshace UNA sola vez: `deshecho_at` lo marca. Un boton viejo
+        tocado dos veces no puede volver a bajar el stock.                  */
+    if (accion.startsWith("fac_deshacer_")) {
+      const lote = accion.slice("fac_deshacer_".length);
+      const ops = (await sbGet(`/pos_gerente_ops?lote=eq.${lote}&deshecho_at=is.null&select=*`) as Array<Record<string, unknown>> | null) || [];
+      if (!ops.length) return json({ reply: "Eso ya estaba deshecho, o ya no lo puedo revertir 🤔." });
+      const vueltos: string[] = [];
+      for (const op of ops) {
+        const insId = String(op.insumo_id || "");
+        if (!insId) continue;
+        await sbPost(`/rpc/fn_iv_fijar_existencia`, {
+          p_insumo: insId, p_branch: await sedeExistencia(branch_id),
+          p_stock: num(op.stock_antes), p_servicio: null, p_agotado: null,
+        });
+        if (op.precio_antes != null) {
+          await sbPatch(`/iv_insumos?id=eq.${insId}`, { precio: num(op.precio_antes), updated_at: new Date().toISOString() });
+        }
+        vueltos.push(`• *${op.insumo}*: vuelve a ${fmtNum(num(op.stock_antes))} ${op.unidad || ""}`);
+      }
+      await sbPatch(`/pos_gerente_ops?lote=eq.${lote}`, { deshecho_at: new Date().toISOString() });
+      return json({ reply: `↩️ *Deshecho*
+${vueltos.join("\n")}
+
+El inventario quedó como estaba antes de la factura.` });
     }
 
     // ── B) LLEGÓ TEXTO: confirmar o enseñar un sinónimo ────────────────
@@ -403,6 +493,103 @@ REGLAS:
     if (!pend.length) return json({ sin_factura: true });
     const f = pend[0];
     let lineas = (f.lineas as Linea[]) || [];
+
+    /*  ══ LO QUE HACE CADA BOTON ════════════════════════════════
+
+        Dos de ellos no hacen nada nuevo: «Aplicar todo» y «Descartar» se
+        convierten en el «si» y el «no» de siempre y siguen por el mismo
+        camino de abajo. Eso es a proposito — si el boton tuviera su propio
+        codigo para aplicar, el dia que cambie una regla habria que acordarse
+        de cambiarla en dos sitios, y no nos vamos a acordar.
+
+        Los otros si son nuevos, y son los que hacen falta para corregir sin
+        escribir.                                                          */
+    if (accion === "fac_aplicar") mensaje = "si";
+    else if (accion === "fac_descartar") mensaje = "no";
+    else if (accion === "fac_corregir") {
+      /*  La lista trae SOLO lo que se va a aplicar: corregir una linea que
+          Cobra no reconocio no tiene sentido — esa se resuelve diciendo que
+          insumo es, que es otra conversacion. */
+      const filas = lineas.map((l, i) => ({ l, i })).filter((x) => x.l.ok);
+      if (!filas.length) {
+        return json({ reply: "Todavía no hay ninguna línea lista para corregir. Dime primero a qué insumo corresponde cada una." });
+      }
+      return json({
+        reply: "¿Cuál corrijo?",
+        botones: { tipo: "lista", texto_boton: "Ver líneas", titulo_seccion: "Líneas de la factura",
+          opciones: filas.slice(0, 10).map(({ l, i }) => ({
+            id: `fac_lin_${i}`,
+            titulo: String(l.insumo || l.desc),
+            desc: `+${fmtNum(num(l.cant_final))} ${l.buy_unit || ""} · ${fmtCOP(num(l.precio_unit))} c/u`,
+          })) },
+      });
+    }
+    else if (/^fac_lin_\d+$/.test(accion)) {
+      const i = Number(accion.split("_")[2]);
+      const l = lineas[i];
+      if (!l) return json({ reply: "Esa línea ya no está en la factura 🤔." });
+      return json({
+        reply: `*${l.insumo || l.desc}* — la factura da ${fmtCOP(num(l.valor_total))} en esa línea.` +
+               `
+
+¿Cuántos ${l.buy_unit || "entraron"}?`,
+        botones: botonesCantidad(i, l),
+      });
+    }
+    else if (/^fac_cant_\d+_\d+$/.test(accion)) {
+      const [, , si, sc] = accion.split("_");
+      const i = Number(si), cant = Number(sc);
+      const l = lineas[i];
+      if (!l || !(cant > 0)) return json({ reply: "No entendí esa cantidad 🤔." });
+      /*  Cambiar la cantidad cambia el precio unitario, y no al reves: el
+          total de la linea es lo que dice el papel y no se toca nunca. */
+      lineas = lineas.map((x, k) => k !== i ? x : {
+        ...x, cant_final: cant, cant_ajustada: false, cant_leida: undefined,
+        precio_unit: num(x.valor_total) > 0 ? num(x.valor_total) / cant : 0,
+      });
+      await sbPatch(`/iv_facturas_pendientes?id=eq.${f.id}`, { lineas, esperando: null });
+      return json({
+        reply: `✓ *${l.insumo || l.desc}*: ${fmtNum(cant)} ${l.buy_unit || ""}` +
+               `${num(l.valor_total) > 0 ? " a " + fmtCOP(Math.round(num(l.valor_total) / cant)) + " c/u" : ""}` +
+               `
+
+` + armarMensaje(String(f.proveedor || ""), num(f.total), lineas),
+        botones: botonesFactura(lineas.some((x) => x.ok)),
+      });
+    }
+    else if (/^fac_otra_\d+$/.test(accion)) {
+      const i = Number(accion.split("_")[2]);
+      const l = lineas[i];
+      if (!l) return json({ reply: "Esa línea ya no está en la factura 🤔." });
+      /*  Se anota QUE se esta esperando. Sin esto, el numero suelto que
+          escriba despues no significaria nada: «2» no dice de que. */
+      await sbPatch(`/iv_facturas_pendientes?id=eq.${f.id}`, { esperando: `cant:${i}` });
+      return json({ reply: `Escríbeme cuántos ${l.buy_unit || "entraron"} de *${l.insumo || l.desc}*. Solo el número.` });
+    }
+
+    /*  Y si veniamos esperando un numero suelto, aqui se recoge. Se mira
+        ANTES que todo lo demas: un «2» a secas no es un sinonimo ni un si. */
+    const esperando = String(f.esperando || "");
+    if (esperando.startsWith("cant:") && /^[\d.,]+$/.test(mensaje)) {
+      const i = Number(esperando.slice(5));
+      const cant = num(mensaje.replace(",", "."));
+      const l = lineas[i];
+      if (l && cant > 0) {
+        lineas = lineas.map((x, k) => k !== i ? x : {
+          ...x, cant_final: cant, cant_ajustada: false, cant_leida: undefined,
+          precio_unit: num(x.valor_total) > 0 ? num(x.valor_total) / cant : 0,
+        });
+        await sbPatch(`/iv_facturas_pendientes?id=eq.${f.id}`, { lineas, esperando: null });
+        return json({
+          reply: `✓ *${l.insumo || l.desc}*: ${fmtNum(cant)} ${l.buy_unit || ""}
+
+` +
+                 armarMensaje(String(f.proveedor || ""), num(f.total), lineas),
+          botones: botonesFactura(lineas.some((x) => x.ok)),
+        });
+      }
+    }
+
     const m = norm(mensaje);
 
     if (/^(no|cancela|descarta|dejalo|olvidalo)\b/.test(m)) {
@@ -590,10 +777,13 @@ REGLAS:
       .some((w) => w.length >= 4 && conteo.get(w) === 1 && pedido.has(w));
 
     const hechos: string[] = [], sinTocar: string[] = [];
+    //  Lo que entra junto se puede deshacer junto.
+    const lote = crypto.randomUUID();
     for (const l of aplicar) {
       const ins = insumos.find((i) => i.id === l.insumo_id);
       if (!ins) continue;
       const antes = ins.stock;
+      const precioAntes = ins.precio;
       const suma = num(l.cant_final);
       const despues = antes + suma;
       const patch: Record<string, unknown> = { stock: despues, updated_at: new Date().toISOString() };
@@ -618,8 +808,12 @@ REGLAS:
       // Rastro, igual que los cambios por texto.
       await sbPost(`/pos_gerente_ops`, {
         branch_id, telefono: phone, mensaje: `[factura] ${l.desc}`,
-        insumo_id: ins.id, insumo: ins.nombre, accion: "factura",
+        insumo_id: ins.id, insumo: ins.nombre, accion: "factura", lote,
         cantidad: suma, stock_antes: antes, stock_despues: despues, unidad: ins.buy_unit,
+        //  El precio tambien se puede haber movido: sin esto, deshacer
+        //  devolveria la cantidad y dejaria el precio nuevo puesto.
+        precio_antes: precioAntes,
+        precio_despues: tocaPrecio ? Math.round(nuevoPrecio) : precioAntes,
       });
       // Si vino de una duda ya resuelta, se guarda el sinónimo para la próxima.
       if (!alias.some((a) => String(a.alias_norm) === norm(l.desc))) {
@@ -642,6 +836,11 @@ REGLAS:
           `\n\nSi alguno ya es el precio de siempre, dímelo y lo cambio.` : "") +
         (quedan ? `\n\nQuedaron ${quedan} sin aplicar porque no supe a qué insumo van. Mándame la foto otra vez cuando quieras enseñármelos.` : ""),
       aplicado: hechos.length,
+      /*  El deshacer se ofrece JUSTO despues de aplicar, que es cuando se
+          mira el resultado y se ve el error. Un boton escondido en un menu
+          para esto no sirve: cuando haga falta, nadie va a ir a buscarlo. */
+      botones: hechos.length ? { tipo: "botones", pie: "Vuelve todo como estaba",
+        opciones: [{ id: `fac_deshacer_${lote}`, titulo: "Deshacer" }] } : null,
     });
   } catch (e) {
     return json({ error: String(e) }, 500);

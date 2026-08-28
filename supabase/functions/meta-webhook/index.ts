@@ -95,11 +95,25 @@ Deno.serve(async (req) => {
           for (const msg of messages) {
             const fromPhone  = msg.from as string;
             const externalId = msg.id as string;
-            const msgType    = msg.type as string;
+            /*  `let` y no `const`: una nota de voz del gerente se transcribe
+                y pasa a comportarse como texto desde ese momento. */
+            let msgType      = msg.type as string;
 
             let bodyText = "";
             let mediaUrl: string | null = null;
             let mediaType: string | null = null;
+            /*  EL ID DEL BOTON QUE SE TOCO.
+
+                Hasta ahora solo se guardaba el TEXTO del boton, y para el chat
+                con clientes basta. Para el inventario no: el texto de un boton
+                cabe en 20 caracteres, asi que dos lineas de una factura pueden
+                terminar con botones que dicen casi lo mismo. El id no se
+                confunde nunca — lo escribimos nosotros y viaja de ida y de
+                vuelta sin que nadie lo escriba a mano.
+
+                Va aparte de `bodyText` a proposito: el flujo de clientes
+                depende de ese texto y no se toca.                          */
+            let accionId = "";
 
             if (msgType === "text") {
               bodyText = ((msg.text as Record<string, unknown>)?.body as string) || "";
@@ -116,6 +130,7 @@ Deno.serve(async (req) => {
               const lr = (inter.list_reply as Record<string, unknown>) || {};
               const titulo = String(br.title || lr.title || "").trim();
               const idBtn  = String(br.id || lr.id || "").trim();
+              accionId = idBtn;
               const desc   = String(lr.description || "").trim();
               bodyText = titulo || idBtn || "[interactive]";
               if (titulo && desc) bodyText = titulo + " — " + desc;
@@ -192,7 +207,61 @@ Deno.serve(async (req) => {
               if (dupG?.length) continue;
               await sbPost(`/rest/v1/pos_gerente_procesados`, { external_id: externalId });
 
+              /*  ══ LAS NOTAS DE VOZ ═════════════════════════════════
+
+                  Sergio, 28-ago-2026. Hasta ahora el bot contestaba «solo
+                  entiendo texto y fotos», y eso obliga a soltar lo que se este
+                  cargando para escribir. Poder decirle «llegaron dos galones de
+                  salsa de tomate y una paca de coca cola» mientras se descarga
+                  el carro es la diferencia entre actualizar el inventario o
+                  dejarlo para despues — y «despues» es como el inventario se
+                  desactualiza.
+
+                  No hay motor nuevo: se transcribe con Whisper, igual que ya
+                  hace Paco con los audios de los clientes, y lo transcrito
+                  entra por el MISMO camino que un texto escrito. Asi todo lo
+                  que ya se entiende por escrito se entiende hablado, sin
+                  ensenarle nada aparte.
+
+                  Si la transcripcion falla, se dice lo de siempre — pero
+                  nunca se queda callado.                                    */
+              if (msgType === "audio" && mediaUrl && OPENAI_KEY) {
+                try {
+                  const ar = await fetch(mediaUrl);
+                  if (ar.ok) {
+                    const buf = await ar.arrayBuffer();
+                    //  Menos de 100 bytes no es audio; mas de 20 MB no lo toma
+                    //  Whisper y ademas nadie dicta 20 MB de inventario.
+                    if (buf.byteLength > 100 && buf.byteLength < 20 * 1024 * 1024) {
+                      const ext = (mediaUrl.split("?")[0].split(".").pop() || "ogg").toLowerCase();
+                      const fd = new FormData();
+                      fd.append("file", new Blob([buf]), `audio.${ext}`);
+                      fd.append("model", "whisper-1");
+                      fd.append("language", "es");
+                      const tr = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+                        method: "POST", headers: { Authorization: `Bearer ${OPENAI_KEY}` }, body: fd,
+                      });
+                      if (tr.ok) {
+                        const tj = await tr.json();
+                        const dicho = String(tj.text || "").trim();
+                        if (dicho) {
+                          bodyText = dicho;
+                          msgType = "text";
+                          console.log("[gerente] audio transcrito:", dicho.slice(0, 90));
+                        }
+                      } else { console.error("whisper gerente:", (await tr.text()).slice(0, 200)); }
+                    }
+                  }
+                } catch (e) { console.error("audio gerente:", e); }
+              }
+
               let reply = "";
+              /*  Los botones o la lista que acompanan la respuesta, con la
+                  misma forma que ya usa `meta-send` para los clientes. Aqui se
+                  arma el envio a mano y no llamando a `meta-send` porque esa
+                  funcion parte de una CONVERSACION de cliente, y un gerente no
+                  tiene conversacion: su rama es otra desde el principio.   */
+              let botones: Record<string, unknown> | null = null;
               /*  QUIEN CONTESTO. Sin esto, cuando el bot se atasca no hay como
                   saber si fue la factura, el inventario por texto o el saludo
                   de "solo entiendo texto": los tres devuelven 200 y desde
@@ -208,6 +277,7 @@ Deno.serve(async (req) => {
                   });
                   const fd = await fr.json();
                   reply = fd.reply || "No pude leer esa factura 🤔.";
+                  botones = fd.botones || null;
                   ruta = "factura-foto";
                 } catch (e) { console.error("factura-inventario:", e); reply = "Hubo un error leyendo la factura."; }
               } else if (msgType === "text" && bodyText) {
@@ -218,14 +288,16 @@ Deno.serve(async (req) => {
                   const fr = await fetch(`${SUPABASE_URL}/functions/v1/factura-inventario`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
-                    body: JSON.stringify({ branch_id, phone: fromPhone, message: bodyText }),
+                    body: JSON.stringify({ branch_id, phone: fromPhone, message: bodyText, accion: accionId }),
                   });
                   const fd = await fr.json();
                   /* SOLO si de verdad hay una factura esperando. Antes bastaba
                      con que la funcion contestara CUALQUIER cosa: cuando se
                      rompio por la mudanza del stock, devolvia "No encuentro
                      insumos" a todo, y eso bloqueaba el inventario por texto. */
-                  if (fd.reply && fd.sin_factura !== true) { reply = fd.reply; ruta = "factura-texto"; }
+                  if (fd.reply && fd.sin_factura !== true) {
+                    reply = fd.reply; botones = fd.botones || null; ruta = "factura-texto";
+                  }
                 } catch (_e) { /* si falla, sigue el flujo normal de texto */ }
               }
               if (!reply && msgType === "text" && bodyText) {
@@ -233,7 +305,7 @@ Deno.serve(async (req) => {
                   const gr = await fetch(`${SUPABASE_URL}/functions/v1/gerente-inventario`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
-                    body: JSON.stringify({ branch_id, message: bodyText, phone: fromPhone }),
+                    body: JSON.stringify({ branch_id, message: bodyText, phone: fromPhone, accion: accionId }),
                   });
                   const gd = await gr.json();
                   /*  Si la funcion contesta 200 pero sin `reply`, eso NO es
@@ -241,6 +313,7 @@ Deno.serve(async (req) => {
                       Se deja dicho en el rastro para no volver a quedarnos sin
                       pista como el 28-ago. */
                   reply = gd.reply || "No pude procesar eso 🤔.";
+                  botones = gd.botones || null;
                   ruta = gd.reply ? "gerente" : "gerente-sin-respuesta";
                 } catch (e) { console.error("gerente-inventario:", e); reply = "Hubo un error procesando el inventario."; }
               }
@@ -270,12 +343,53 @@ Deno.serve(async (req) => {
                 });
               } catch (e) { console.error("rastro gerente:", e); }
               if (phoneId && accessToken) {
+                /*  LOS LIMITES SON DE WHATSAPP, NO NUESTROS: hasta 3 botones de
+                    20 caracteres, o una lista de hasta 10 filas con titulo de
+                    24. Pasarse no da error — Meta RECHAZA el mensaje entero, y
+                    el gerente se queda sin respuesta sin saber por que. Por eso
+                    se corta aqui, que es el ultimo sitio antes de salir.   */
+                const payload: Record<string, unknown> = botones && botones.tipo
+                  ? (function () {
+                      const ops = (botones!.opciones as Array<Record<string, unknown>>) || [];
+                      const cuerpo = { text: String(reply).slice(0, 1024) };
+                      const pie = botones!.pie ? { footer: { text: String(botones!.pie).slice(0, 60) } } : {};
+                      if (String(botones!.tipo) === "lista") {
+                        return { messaging_product: "whatsapp", to: fromPhone, type: "interactive",
+                          interactive: { type: "list", body: cuerpo, ...pie, action: {
+                            button: String(botones!.texto_boton || "Ver").slice(0, 20),
+                            sections: [{ title: String(botones!.titulo_seccion || "Opciones").slice(0, 24),
+                              rows: ops.slice(0, 10).map((o, i) => ({
+                                id: String(o.id || ("op_" + i)).slice(0, 200),
+                                title: String(o.titulo || "").slice(0, 24),
+                                ...(o.desc ? { description: String(o.desc).slice(0, 72) } : {}),
+                              })).filter((r) => r.title) } ] } } };
+                      }
+                      return { messaging_product: "whatsapp", to: fromPhone, type: "interactive",
+                        interactive: { type: "button", body: cuerpo, ...pie, action: {
+                          buttons: ops.slice(0, 3).map((o, i) => ({ type: "reply", reply: {
+                            id: String(o.id || ("btn_" + i)).slice(0, 256),
+                            title: String(o.titulo || "").slice(0, 20) } }))
+                            .filter((b) => b.reply.title) } } };
+                    })()
+                  : { messaging_product: "whatsapp", to: fromPhone, type: "text", text: { body: reply } };
                 try {
-                  await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
+                  const rw = await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
                     method: "POST",
                     headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-                    body: JSON.stringify({ messaging_product: "whatsapp", to: fromPhone, type: "text", text: { body: reply } }),
+                    body: JSON.stringify(payload),
                   });
+                  /*  SI META RECHAZA EL INTERACTIVO, SE MANDA EL TEXTO IGUAL.
+                      Un boton mal formado no puede costarle al gerente la
+                      respuesta entera: la informacion es lo que importa, los
+                      botones son la comodidad.                             */
+                  if (!rw.ok && botones) {
+                    console.error("WA interactivo rechazado:", (await rw.text()).slice(0, 300));
+                    await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
+                      method: "POST",
+                      headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+                      body: JSON.stringify({ messaging_product: "whatsapp", to: fromPhone, type: "text", text: { body: reply } }),
+                    });
+                  }
                 } catch (e) { console.error("WA send gerente:", e); }
               }
               continue; // no crear conversación de cliente ni disparar el bot
