@@ -7,19 +7,8 @@
 const REG = {
   nombre: '', negocio: '', email: '', pass: '',
   refCode: '', plan: 'pro', branches: 1,
-  billing: 'annual', totalMes: 0, totalCiclo: 0
+  billing: 'mensual', totalMes: 0, totalCiclo: 0
 };
-
-// Precios base (COP/mes/sucursal)
-const PRECIOS_BASE = { starter: 149000, pro: 249000 };
-
-// Descuento por volumen
-function volDiscount(n) {
-  if (n >= 10) return .30;
-  if (n >= 4)  return .20;
-  if (n >= 2)  return .10;
-  return 0;
-}
 
 // ── Navegación entre vistas ─────────────────────────
 function goStep(step) {
@@ -125,191 +114,239 @@ function handleDatos() {
   calcPrices();
 }
 
-// ── PLAN ─────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════════════════
+   PASO 2 — EL PLAN
+   ---------------------------------------------------------------------------
+   Diseño entregado por Sergio el 28-ago-2026. Tres cosas de esta parte, que es
+   la que decide cuánto se le cobra a cada restaurante:
 
-// Seleccionar plan
+   1. LOS PRECIOS SALEN DE LA BASE (`pos_planes`), no del código. Estaban
+      escritos aquí, y por eso la pantalla podía mostrar un precio mientras la
+      consola cobraba otro: cambiar un precio obligaba a acordarse de cambiarlo
+      en dos sitios, y nadie se acuerda. Los números de abajo son sólo el
+      salvavidas por si la consulta falla, y hoy son los correctos.
+
+   2. LOS DOS DESCUENTOS SE APLICAN EN ORDEN, y el orden lo decidió Sergio:
+      *"primero se calcula el precio con descuento por sucursales, y al total ya
+      descontado se le hace el descuento si paga trimestral o anual"*. Está así
+      en los términos y en la pantalla de cuenta suspendida. Los tres sitios
+      tienen que dar el mismo número o alguien va a reclamar con razón.
+
+   3. LOS TRAMOS SON 8+ / 4–7 / 2–3. Aquí decían 10+ y 4–9, que es la versión
+      vieja: un restaurante con 8 sucursales veía 20% cuando le toca 30%. En la
+      consola ya estaba corregido; esta pantalla —la que ve el cliente— no.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// Precios base (COP/mes/sucursal). Se sobrescriben con los de `pos_planes`.
+const PRECIOS_BASE = { starter: 149000, pro: 249000 };
+
+const PERIODOS = {
+  mensual:    { meses: 1,  off: 0,    ciclo: '/ mes',       largo: 'mensual'    },
+  trimestral: { meses: 3,  off: 0.10, ciclo: '/ trimestre', largo: 'trimestral' },
+  anual:      { meses: 12, off: 0.20, ciclo: '/ año',       largo: 'anual'      },
+};
+
+// Descuento por volumen
+function volDiscount(n) {
+  if (n >= 8) return .30;
+  if (n >= 4) return .20;
+  if (n >= 2) return .10;
+  return 0;
+}
+
+/* Lo que cuesta UNA sucursal al mes con los dos descuentos puestos. Es la cifra
+   grande de la tarjeta: la gente compara planes por sucursal, no por factura. */
+function unitMensual(plan, branches, billing) {
+  const base = PRECIOS_BASE[plan] || 0;
+  const per  = PERIODOS[billing] || PERIODOS.mensual;
+  return base * (1 - volDiscount(branches)) * (1 - per.off);
+}
+// Lo que transfiere HOY: el mes, el trimestre o el año completo.
+function montoAhora(plan, branches, billing) {
+  const per = PERIODOS[billing] || PERIODOS.mensual;
+  return unitMensual(plan, branches, billing) * per.meses * branches;
+}
+// Y a cuánto le sale el mes, para poder compararlo con el precio mensual.
+function mensualEfectivo(plan, branches, billing) {
+  return unitMensual(plan, branches, billing) * branches;
+}
+
+/* Los precios de verdad. Si la consulta falla quedan los de arriba: lo que no
+   puede pasar es una pantalla en blanco o en $0 mientras carga. */
+async function cargarPrecios() {
+  try {
+    const r = await sb.from('pos_planes').select('plan,precio').eq('a_la_venta', true);
+    if (r.error || !r.data || !r.data.length) return;
+    r.data.forEach(p => { if (p.precio != null) PRECIOS_BASE[p.plan] = Number(p.precio); });
+    pintarPlan();
+  } catch (e) {
+    console.warn('[registro] no se pudieron leer los precios:', e && e.message);
+  }
+}
+
+// ── Los controles ────────────────────────────────────
+function engancharPlan() {
+  const raiz = $('plan-root');
+  if (!raiz) return;
+
+  raiz.querySelectorAll('[data-branches]').forEach(b => {
+    b.addEventListener('click', () => setChip(parseInt(b.dataset.branches, 10)));
+  });
+  const menos = $('branch-minus'), mas = $('branch-plus');
+  if (menos) menos.addEventListener('click', () => stepBranch(-1));
+  if (mas)   mas.addEventListener('click',   () => stepBranch(1));
+
+  raiz.querySelectorAll('[data-billing]').forEach(b => {
+    b.addEventListener('click', () => setBilling(b.dataset.billing));
+  });
+
+  /* La tarjeta entera selecciona, pero el botón de dentro NO puede propagar el
+     clic: contaría dos veces y la selección parpadearía. */
+  raiz.querySelectorAll('.p2-card').forEach(card => {
+    card.addEventListener('click', () => selectPlan(card.dataset.plan));
+    card.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectPlan(card.dataset.plan); }
+    });
+  });
+  ['starter', 'pro'].forEach(id => {
+    const b = $('choose-' + id);
+    if (b) b.addEventListener('click', e => { e.stopPropagation(); selectPlan(id); });
+  });
+
+  const verPro = $('ver-pro');
+  if (verPro) verPro.addEventListener('click', e => { e.stopPropagation(); selectPlan('pro'); });
+
+  const atras = $('btn-back');
+  if (atras) atras.addEventListener('click', () => goStep('datos'));
+  const seguir = $('btn-continue');
+  if (seguir) seguir.addEventListener('click', handlePlanContinue);
+}
+
 function selectPlan(plan) {
+  if (plan !== 'starter' && plan !== 'pro') return;
   REG.plan = plan;
-  $('card-starter').classList.toggle('on', plan === 'starter');
-  $('card-pro').classList.toggle('on', plan === 'pro');
-  $('radio-starter').classList.toggle('on', plan === 'starter');
-  $('radio-pro').classList.toggle('on', plan === 'pro');
-  $('radio-starter').innerHTML = plan === 'starter'
-    ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'
-    : '';
-  $('radio-pro').innerHTML = plan === 'pro'
-    ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'
-    : '';
-  calcPrices();
+  pintarPlan();
 }
-
-// Chips de sucursales
 function setChip(n) {
-  REG.branches = n;
-  $('branch-count').textContent = n;
-  [1,2,5,10].forEach(v => {
-    const c = $('chip-' + v);
-    if (c) c.classList.toggle('on', v === n);
-  });
-  updateDiscountNote();
-  calcPrices();
+  REG.branches = Math.max(1, Math.min(99, parseInt(n, 10) || 1));
+  pintarPlan();
 }
-
-// Stepper ±1
 function stepBranch(delta) {
-  const n = Math.max(1, Math.min(50, REG.branches + delta));
-  REG.branches = n;
-  $('branch-count').textContent = n;
-  // sincronizar chips
-  [1,2,5,10].forEach(v => {
-    const c = $('chip-' + v);
-    if (c) c.classList.toggle('on', v === n);
-  });
-  updateDiscountNote();
-  calcPrices();
+  setChip(REG.branches + delta);
 }
-
-// Billing toggle
 function setBilling(mode) {
+  if (!PERIODOS[mode]) return;
   REG.billing = mode;
-  $('bill-monthly').classList.toggle('on', mode === 'monthly');
-  $('bill-annual').classList.toggle('on', mode === 'annual');
-  calcPrices();
+  pintarPlan();
 }
 
-// Discount note
-function updateDiscountNote() {
-  const note = $('discount-note');
-  const pct  = Math.round(volDiscount(REG.branches) * 100);
-  if (pct > 0) {
-    note.hidden = false;
-    $('discount-note-text').innerHTML = 'Estás ahorrando <strong>' + pct + '%</strong> por volumen';
-  } else {
-    note.hidden = true;
+/* ── La animación de las cifras ────────────────────────────────────────
+   260 ms contando desde el valor anterior hasta el nuevo. Es lo que hace que se
+   ENTIENDA que el precio bajó al añadir sucursales o al pasar a anual: un
+   número que cambia de golpe se lee como si siempre hubiera dicho eso. */
+const _cifras = {};
+function animarCifra(el, hasta, colaHtml) {
+  if (!el) return;
+  const id = el.id || (el.id = 'c' + Math.random().toString(36).slice(2));
+  const desde = _cifras[id];
+  _cifras[id] = hasta;
+  const pinta = v => { el.innerHTML = COPF(v) + (colaHtml || ''); };
+  if (desde == null || desde === hasta || !window.requestAnimationFrame ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    pinta(hasta);
+    return;
   }
+  let t0 = null;
+  const DUR = 260;
+  const paso = t => {
+    if (t0 === null) t0 = t;
+    const p = Math.min(1, (t - t0) / DUR);
+    pinta(desde + (hasta - desde) * (1 - Math.pow(1 - p, 3)));   // easeOutCubic
+    if (p < 1) requestAnimationFrame(paso);
+  };
+  requestAnimationFrame(paso);
 }
 
-// Compare toggle
-function toggleCompare() {
-  const body = $('compare-body');
-  const chev = $('compare-chev');
-  const isOpen = body.classList.toggle('open');
-  chev.classList.toggle('up', isOpen);
-}
+function _ver(id, mostrar) { const e = $(id); if (e) e.hidden = !mostrar; }
+function _txt(id, val)     { const e = $(id); if (e) e.textContent = val; }
 
-// Cálculo de precios
-function calcPrices() {
-  const b = REG.branches;
-  const annual = REG.billing === 'annual';
-  const disc = volDiscount(b);
+// ── Pintar ───────────────────────────────────────────
+function pintarPlan() {
+  if (!$('plan-root')) return;
+  const off = volDiscount(REG.branches);
+  const per = PERIODOS[REG.billing] || PERIODOS.mensual;
 
-  ['starter', 'pro'].forEach(plan => {
-    const base = PRECIOS_BASE[plan];
-    const conVol = base * (1 - disc);
-    const unitMes = annual ? conVol * (10 / 12) : conVol;
-    const totalCiclo = annual ? unitMes * 12 * b : unitMes * b;
-    const ahorroMes = (base * b) - (unitMes * b);
-    const porDia = unitMes / 30;
+  document.querySelectorAll('[data-branches]').forEach(b => {
+    b.classList.toggle('on', parseInt(b.dataset.branches, 10) === REG.branches);
+  });
+  _txt('branch-count', REG.branches);
 
-    const strikeEl  = $(plan + '-strike');
-    const priceEl   = $(plan + '-price');
-    const perdayEl  = $(plan + '-perday');
-    const saveEl    = $(plan + '-save');
-    const saveAmtEl = $(plan + '-save-amount');
-    const totalEl   = $(plan + '-total');
-    const totalCEl  = $(plan + '-total-cycle');
-    const totalBEl  = $(plan + '-total-branches');
-
-    // precio tachado: solo si hay descuento (volumen O anual)
-    const hasDisc = disc > 0 || annual;
-    if (strikeEl) {
-      strikeEl.hidden = !hasDisc;
-      strikeEl.textContent = hasDisc ? COPF(base) : '';
-    }
-
-    if (priceEl) priceEl.textContent = COPF(unitMes);
-    if (perdayEl) perdayEl.textContent = 'Equiv. ' + COPF(porDia) + '/día';
-
-    // ahorro badge
-    if (saveEl) {
-      saveEl.hidden = ahorroMes <= 0;
-      if (saveAmtEl) saveAmtEl.textContent = COPF(ahorroMes);
-    }
-
-    // total
-    if (totalEl) totalEl.textContent = COPF(totalCiclo);
-    if (totalCEl) totalCEl.textContent = annual ? '/año' : '/mes';
-    if (totalBEl) totalBEl.textContent = b + (b === 1 ? ' sucursal' : ' sucursales');
+  document.querySelectorAll('[data-billing]').forEach(b => {
+    b.classList.toggle('on', b.dataset.billing === REG.billing);
   });
 
-  // guardar para el plan seleccionado
-  const selBase = PRECIOS_BASE[REG.plan];
-  const selDisc = volDiscount(b);
-  const selVol  = selBase * (1 - selDisc);
-  const selUnit = annual ? selVol * (10 / 12) : selVol;
-  const selTotal = annual ? selUnit * 12 * b : selUnit * b;
-  REG.totalMes  = selUnit;
-  REG.totalCiclo = selTotal;
+  _ver('volume-off', off > 0);
+  _txt('volume-off-pct', '−' + Math.round(off * 100) + '%');
 
-  updateFooter();
+  ['starter', 'pro'].forEach(id => {
+    const base = PRECIOS_BASE[id] || 0;
+    const unit = unitMensual(id, REG.branches, REG.billing);
+    const card = $('card-' + id);
+    if (card) card.classList.toggle('on', id === REG.plan);
+
+    animarCifra($('price-' + id), unit, '<span class="p2-per">/ mes</span>');
+    _txt('perday-' + id, COPF(unit / 30));
+
+    _ver('strike-' + id, unit < base - 0.5);
+    _txt('strike-' + id, COPF(base));
+
+    const pct = Math.round((1 - unit / (base || 1)) * 100);
+    _ver('savepill-' + id, pct > 0);
+    _txt('savepill-' + id, 'Ahorra ' + pct + '%');
+
+    /* El botón de la tarjeta elegida dice "Seleccionado" con su check; el de la
+       otra vuelve a invitar. Sin esto las dos se ven iguales y no hay manera de
+       saber cuál se está comprando. */
+    const btn = $('choose-' + id);
+    if (btn) {
+      btn.innerHTML = (id === REG.plan)
+        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Seleccionado'
+        : 'Elegir ' + (id === 'pro' ? 'Pro' : 'Starter');
+    }
+  });
+
+  REG.totalMes   = mensualEfectivo(REG.plan, REG.branches, REG.billing);
+  REG.totalCiclo = montoAhora(REG.plan, REG.branches, REG.billing);
+
+  const nombrePlan = REG.plan === 'pro' ? 'Pro' : 'Starter';
+  _txt('foot-plan', nombrePlan);
+  _txt('foot-branches', REG.branches === 1 ? '1 sucursal' : REG.branches + ' sucursales');
+  _txt('foot-billing', per.largo);
+  _ver('foot-off', off > 0);
+  _txt('foot-off', '−' + Math.round(off * 100) + '%');
+  animarCifra($('foot-amount'), REG.totalCiclo, '');
+  _txt('foot-cycle', per.ciclo);
+  _ver('foot-eq', REG.billing !== 'mensual');
+  _txt('foot-eq', '≈ ' + COPF(REG.totalMes) + '/mes');
+  _txt('btn-continue-label', 'Continuar con ' + nombrePlan);
 }
 
-function updateFooter() {
-  const annual = REG.billing === 'annual';
-  const disc = volDiscount(REG.branches);
-  const pct  = Math.round((disc + (annual ? (2/12) : 0)) * 100);
-
-  $('foot-plan').textContent     = REG.plan === 'pro' ? 'Pro' : 'Starter';
-  $('foot-branches').textContent = REG.branches + (REG.branches === 1 ? ' sucursal' : ' sucursales');
-  $('foot-billing').textContent  = annual ? 'Anual' : 'Mensual';
-  $('foot-amount').textContent   = COPF(REG.totalMes);
-  $('foot-cycle').textContent    = '/mes';
-
-  const eqEl = $('foot-eq');
-  if (annual) {
-    eqEl.textContent = '· Total ' + COPF(REG.totalCiclo) + '/año';
-  } else {
-    eqEl.textContent = '';
-  }
-
-  const offEl = $('foot-off');
-  const offPctEl = $('foot-off-pct');
-  if (pct > 0) {
-    offEl.hidden = false;
-    offPctEl.textContent = pct + '%';
-  } else {
-    offEl.hidden = true;
-  }
-}
+/* Se conserva el nombre viejo: lo llaman `handleDatos` y el arranque. */
+function calcPrices() { pintarPlan(); }
 
 // Continuar desde plan → pago
 function handlePlanContinue() {
-  const btn = $('btn-continue');
-  const txt = $('btn-continue-text');
-  btn.classList.add('loading');
-  btn.disabled = true;
-  txt.innerHTML = '<span class="ps-spin"></span> Un momento…';
-
-  setTimeout(() => {
-    btn.classList.remove('loading');
-    btn.disabled = false;
-    txt.textContent = 'Continuar con este plan';
-
-    // Actualizar vista de pago
-    const annual = REG.billing === 'annual';
-    $('pago-sub').textContent =
-      'Plan ' + (REG.plan === 'pro' ? 'Pro' : 'Starter') +
-      ' · ' + REG.branches + ' sucursal' + (REG.branches > 1 ? 'es' : '') +
-      ' · ' + (annual ? 'Anual' : 'Mensual');
-    $('pago-monto').textContent = COPF(REG.totalCiclo);
-
-    goStep('pago');
-  }, 800);
+  const per = PERIODOS[REG.billing] || PERIODOS.mensual;
+  $('pago-sub').textContent =
+    'Plan ' + (REG.plan === 'pro' ? 'Pro' : 'Starter') +
+    ' · ' + REG.branches + ' sucursal' + (REG.branches > 1 ? 'es' : '') +
+    ' · pago ' + per.largo;
+  $('pago-monto').textContent = COPF(REG.totalCiclo);
+  goStep('pago');
 }
 
 // ── PAGO (paso 3) ────────────────────────────────────
 let uploadedFile = null;
-let uploadedUrl  = '';
 
 function handleFile(file) {
   if (!file) return;
@@ -339,30 +376,52 @@ async function handlePago() {
   btn.disabled = true; txt.innerHTML = '<span class="au-spin"></span> Subiendo…';
 
   try {
-    // 1. Subir comprobante a storage
-    const ext = uploadedFile.name.split('.').pop();
-    const path = `${Date.now()}_${REG.email.replace('@','_')}.${ext}`;
-    const { error: upErr } = await sb.storage.from('comprobantes').upload(path, uploadedFile, { upsert: false });
-    if (upErr) throw upErr;
-    const { data: urlData } = sb.storage.from('comprobantes').getPublicUrl(path);
-    uploadedUrl = urlData.publicUrl;
+    /*  ══ EL ENVIO VA POR EL SERVIDOR, NO DESDE AQUI ═════════════════
 
-    // 2. Insertar en pos_registrations
-    const { error: dbErr } = await sb.from('pos_registrations').insert({
-      nombre: REG.nombre,
-      negocio: REG.negocio,
-      email: REG.email,
-      password_tmp: REG.pass,
-      plan: REG.plan,
-      branches: REG.branches,
-      total_mes: Math.round(REG.totalMes),
-      total_ciclo: Math.round(REG.totalCiclo),
-      billing: REG.billing,
-      ref_code: REG.refCode || null,
-      comprobante_url: uploadedUrl,
-      status: 'pending'
+        Lo que habia aqui insertaba la solicitud directo en `pos_registrations`
+        y guardaba la contraseña en texto plano (`password_tmp`), esperando a
+        que alguien la aprobara. Tres problemas, y el tercero era mortal:
+
+        · Una contraseña en texto plano en la base es una contraseña regalada.
+        · El comprobante se guardaba con `getPublicUrl`, y ese balde dejo de ser
+          publico el 24-ago justamente porque lleva datos bancarios.
+        · Y escribia en columnas que NO EXISTEN (`password_tmp`, `branches`,
+          `total_mes`, `ref_code`). O sea que **nadie podia registrarse**: la
+          insercion fallaba siempre. No se habia notado porque todavia no hay
+          clientes nuevos, y se habria notado el primer dia de la publicidad.
+
+        Ahora es `provision` → `registrar` quien crea la cuenta con la clave que
+        la persona escogio (el sistema de acceso la guarda cifrada y nosotros no
+        la vemos nunca) y deja la solicitud esperando aprobacion.             */
+    const ext = String(uploadedFile.name || '').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+    /*  El nombre del archivo NO lleva el correo: esa cadena viajaba dentro de
+        la direccion guardada en la base. Al azar, y quien lo tiene que abrir lo
+        encuentra por la solicitud. */
+    const nom = ((crypto && crypto.randomUUID) ? crypto.randomUUID()
+                 : String(Date.now()) + '-' + Math.floor(Math.random() * 1e9)) + '.' + ext;
+    const { error: upErr } = await sb.storage.from('comprobantes')
+      .upload(nom, uploadedFile, { contentType: uploadedFile.type, upsert: false });
+    if (upErr) throw upErr;
+
+    const r = await fetch(SUPABASE_URL + '/functions/v1/provision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+      body: JSON.stringify({
+        action: 'registrar',
+        nombre: REG.nombre, negocio: REG.negocio, email: REG.email, clave: REG.pass,
+        plan: REG.plan, sucursales: REG.branches,
+        /*  `monto_total` es lo que transfiere HOY (el mes, el trimestre o el
+            año); `total_ciclo` es a cuanto le sale el mes. Se guardan los dos
+            porque responden preguntas distintas: contra el primero se compara
+            el comprobante, el segundo es lo comparable entre clientes. */
+        monto_total: Math.round(REG.totalCiclo),
+        total_ciclo: Math.round(REG.totalMes),
+        billing: REG.billing,
+        comprobante_url: nom,
+      })
     });
-    if (dbErr) throw dbErr;
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || 'No se pudo completar el registro.');
 
     fillConfirm();
     goStep('confirmado');
@@ -373,11 +432,11 @@ async function handlePago() {
 }
 
 function fillConfirm() {
-  const annual = REG.billing === 'annual';
+  const per = PERIODOS[REG.billing] || PERIODOS.mensual;
   $('cf-plan').textContent     = REG.plan === 'pro' ? 'Pro' : 'Starter';
   $('cf-branches').textContent = REG.branches + ' sucursal' + (REG.branches > 1 ? 'es' : '');
-  $('cf-ciclo').textContent    = annual ? 'Anual' : 'Mensual';
-  $('cf-monto').textContent    = COPF(REG.totalCiclo) + (annual ? '/año' : '/mes');
+  $('cf-ciclo').textContent    = per.largo.charAt(0).toUpperCase() + per.largo.slice(1);
+  $('cf-monto').textContent    = COPF(REG.totalCiclo) + ' ' + per.ciclo;
   $('cf-email').textContent    = REG.email;
 }
 
@@ -387,5 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') handleLogin();
   });
   // estado inicial
-  calcPrices();
+  engancharPlan();
+  pintarPlan();
+  cargarPrecios();   // y cuando lleguen los de la base, se vuelve a pintar
 });

@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="assets/brand/favicon-192.png">
   <link rel="apple-touch-icon" href="assets/brand/favicon-192.png">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="login.css?v=1789510000">
+  <link rel="stylesheet" href="login.css?v=1798410000">
 </head>
 <body>
 
@@ -264,237 +264,179 @@
 </div><!-- /auth-root -->
 
 
-<!-- ════════════════════════════════════════
-     PLAN ROOT — full page (planes.html exacto)
-     ════════════════════════════════════════ -->
-<div class="ps-root" id="plan-root" hidden>
-  <div class="ps-shell">
-
-    <!-- Head -->
-    <div class="ps-head">
-      <div class="ps-brand">
-        <div class="ps-logo">L</div>
+<!-- ══════════════════════════════════════════════════════════════════════════
+     PASO 2 — ELEGIR EL PLAN
+     Diseño entregado por Sergio el 28-ago-2026 (carpeta "Selección de Plan").
+     Reemplaza al bloque `ps-` anterior, que era la versión vieja de esta misma
+     pantalla. `goStep('plan')` esconde el resto de la página y muestra esto.
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="p2-root" id="plan-root" hidden>
+  <div class="p2-shell">
+    <header class="p2-head">
+      <div class="p2-brand">
+        <span class="p2-logo"><img src="assets/brand/cobra-logo.png?v=2" alt="Cobra POS"></span>
         <div>
-          <div class="ps-brand-name">Cobra POS</div>
-          <div class="ps-brand-sub">Plataforma de gestión</div>
+          <div class="p2-brand-name">Cobra POS</div>
+          <div class="p2-brand-sub">Crear tu cuenta</div>
         </div>
       </div>
-      <div class="ps-step">Paso 2 de 3 · Elige tu plan</div>
-    </div>
+      <h1 class="p2-title">Elige el plan <em>de tu restaurante</em></h1>
+      <div class="p2-step">Paso 2 de 3</div>
+    </header>
 
-    <!-- Intro -->
-    <div class="ps-intro">
-      <div class="ps-eyebrow">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-        Planes y precios
-      </div>
-      <h2 class="ps-title">Elige el plan que impulsa tu negocio</h2>
-      <p class="ps-lede">Sin contratos forzosos. Cambia de plan en cualquier momento. Cancela cuando quieras.</p>
-    </div>
-
-    <!-- Controls -->
-    <div class="ps-controls">
-      <div class="ps-branchbar">
-        <div class="ps-branch-left">
-          <div class="ps-branch-ic">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-          </div>
-          <div>
-            <div class="ps-branch-title">Sucursales</div>
-            <div class="ps-branch-hint">¿Cuántos locales tienes?</div>
-          </div>
+    <div class="p2-controls">
+      <div class="p2-branchbar">
+        <div class="p2-branch-title"><span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"></path><path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"></path><path d="M3 9h18"></path><path d="M8 21v-6h4v6"></path></svg></span> Sucursales</div>
+        <div class="p2-presets" id="branch-presets">
+          <button class="p2-chip on" type="button" data-branches="1">1</button>
+          <button class="p2-chip" type="button" data-branches="2">2</button>
+          <button class="p2-chip" type="button" data-branches="4">4</button>
+          <button class="p2-chip" type="button" data-branches="8">8+</button>
         </div>
-        <div class="ps-branch-right">
-          <div class="ps-presets">
-            <button class="ps-chip on" id="chip-1" onclick="setChip(1)">1</button>
-            <button class="ps-chip" id="chip-2" onclick="setChip(2)">2</button>
-            <button class="ps-chip" id="chip-5" onclick="setChip(5)">5</button>
-            <button class="ps-chip" id="chip-10" onclick="setChip(10)">10</button>
-          </div>
-          <div class="ps-stepper">
-            <button id="stepper-minus" onclick="stepBranch(-1)">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </button>
-            <span class="ps-count" id="branch-count">1</span>
-            <button id="stepper-plus" onclick="stepBranch(1)">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </button>
-          </div>
+        <div class="p2-stepper">
+          <button type="button" id="branch-minus" aria-label="Una sucursal menos"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+          <span class="p2-count" id="branch-count">1</span>
+          <button type="button" id="branch-plus" aria-label="Una sucursal más"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
         </div>
       </div>
-
-      <div class="ps-billing">
-        <button class="ps-bill" id="bill-monthly" onclick="setBilling('monthly')">Mensual</button>
-        <button class="ps-bill on" id="bill-annual" onclick="setBilling('annual')">
-          Anual
-          <span class="ps-bill-save">2 meses gratis</span>
-        </button>
+      <div class="p2-billing" id="billing">
+        <button class="p2-bill on" type="button" data-billing="mensual">Mensual</button>
+        <button class="p2-bill" type="button" data-billing="trimestral">Trimestral <span class="p2-bill-save">−10%</span></button>
+        <button class="p2-bill" type="button" data-billing="anual">Anual <span class="p2-bill-save">−20% + mapas</span></button>
       </div>
+      <div class="p2-off" id="volume-off" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg> Descuento por volumen <strong id="volume-off-pct">−10%</strong></div>
     </div>
 
-    <!-- Discount note -->
-    <div class="ps-discount-note" id="discount-note" hidden>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-      <span id="discount-note-text">Estás ahorrando <strong>10%</strong> por volumen</span>
-    </div>
+    <div class="p2-grid">
+      <!-- ── Starter ── -->
+      <div class="p2-card" id="card-starter" role="button" tabindex="0" data-plan="starter">
+        <div class="p2-panel">
+          <div class="p2-panel-top">
+            <span class="p2-eyebrow">Punto de venta completo</span>
+            <span class="p2-savepill" id="savepill-starter" hidden>Ahorra 0%</span>
+          </div>
+          <h2 class="p2-headline">Perfecto para abrir<em>y operar tu restaurante</em></h2>
+          <div class="p2-pricerow">
+            <span class="p2-price" id="price-starter">$149.000<span class="p2-per">/ mes</span></span>
+            <span class="p2-strike" id="strike-starter" hidden>$149.000</span>
+          </div>
+          <div class="p2-price-sub">por sucursal · ≈ <span id="perday-starter">$4.967</span> al día</div>
+          <div class="p2-cta-row">
+            <button class="p2-choose" id="choose-starter" type="button">Elegir Starter</button>
+            <div class="p2-note">
+              <span class="p2-note-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.2L19 10l-5.1 1.8L12 17l-1.9-5.2L5 10l5.1-1.8L12 3z"></path></svg></span>
+              <span class="p2-note-txt">¿Vas a crecer pronto?</span>
+              <button class="p2-note-btn" type="button" id="ver-pro">Compara con Pro</button>
+            </div>
+          </div>
+        </div>
+        <div class="p2-feats">
+          <div class="p2-feat"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Salón, llevar y domicilio</span><span class="p2-tip">Un solo flujo de venta para los tres modos de servicio.</span></div>
+          <div class="p2-feat"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Pantalla de cocina</span><span class="p2-tip">App Android con los pedidos en orden de preparación.</span></div>
+          <div class="p2-feat"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Caja y cierre de turno</span><span class="p2-tip">Apertura, movimientos, arqueo y cierre con diferencias.</span></div>
+          <div class="p2-feat"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Comandas e impresoras</span><span class="p2-tip">Impresión automática por estación y tirilla al cliente.</span></div>
+          <div class="p2-feat"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Mesas y zonas</span><span class="p2-tip">Mapa de tu salón con el estado de cada mesa en tiempo real.</span></div>
+          <div class="p2-feat"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Clientes y reservas</span><span class="p2-tip">Base de clientes, historial de consumo y agenda de reservas.</span></div>
+          <div class="p2-feat hl"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Precios, tamaños y adiciones</span><span class="p2-tip">Categorías, variantes y adiciones con precio propio.</span></div>
+          <div class="p2-feat"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Usuarios, roles y PIN</span><span class="p2-tip">Permisos por rol y PIN de administrador para acciones sensibles.</span></div>
+          <div class="p2-feat hl"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Carta con IA</span><span class="p2-tip">Sube una foto de tu carta y la IA la digitaliza por ti.</span></div>
+          <div class="p2-feat"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Informes de ventas</span><span class="p2-tip">Ventas por día, método de pago y ticket promedio.</span></div>
+        </div>
+        <div class="p2-limits">
+          <span class="p2-limit">Sucursales ilimitadas</span>
+          <span class="p2-limit">1 marca</span>
+          <span class="p2-limit">Hasta 5 usuarios</span>
+          <span class="p2-limit">IA solo para leer tu carta</span>
+          <span class="p2-limit">Sin facturación DIAN</span>
+        </div>
+        <div class="p2-works">
+          <span class="p2-works-label">Funciona con</span>
+          <span class="p2-works-list">
+            <span class="p2-work">Android</span>
+            <span class="p2-work">Impresoras térmicas</span>
+            <span class="p2-work">Tablet y escritorio</span>
+            <span class="p2-work">Pantalla de cocina</span>
+          </span>
+        </div>
+      </div>
 
-    <!-- Plan grid -->
-    <div class="ps-grid">
-
-      <!-- Starter -->
-      <button class="ps-card" id="card-starter" onclick="selectPlan('starter')">
-        <div class="ps-card-head">
-          <div class="ps-radio" id="radio-starter"></div>
-          <div>
-            <div class="ps-plan-name">Starter</div>
-            <div class="ps-plan-tag">Para negocios que arrancan. Todo lo esencial para operar.</div>
+      <!-- ── Pro ── -->
+      <div class="p2-card on pro" id="card-pro" role="button" tabindex="0" data-plan="pro">
+        <div class="p2-panel">
+          <div class="p2-panel-top">
+            <span class="p2-eyebrow">Punto de venta + asistente IA</span>
+            <span class="p2-savepill" id="savepill-pro" hidden>Ahorra 0%</span>
+          </div>
+          <h2 class="p2-headline">Perfecto para crecer<em>y atender sin parar</em></h2>
+          <div class="p2-pricerow">
+            <span class="p2-price" id="price-pro">$249.000<span class="p2-per">/ mes</span></span>
+            <span class="p2-strike" id="strike-pro" hidden>$249.000</span>
+          </div>
+          <div class="p2-price-sub">por sucursal · ≈ <span id="perday-pro">$8.300</span> al día</div>
+          <div class="p2-cta-row">
+            <button class="p2-choose" id="choose-pro" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Seleccionado</button>
+            <div class="p2-note">
+              <span class="p2-note-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.2L19 10l-5.1 1.8L12 17l-1.9-5.2L5 10l5.1-1.8L12 3z"></path></svg></span>
+              <span class="p2-note-txt">¿No sabes si te sirve?</span>
+              <a class="p2-note-btn" href="mailto:contacto@cobrapos.app?subject=Quiero%20saber%20si%20Cobra%20me%20sirve">Habla con nosotros</a>
+            </div>
           </div>
         </div>
-        <div class="ps-price-block">
-          <div class="ps-price-row">
-            <span class="ps-strike" id="starter-strike" hidden></span>
-            <span class="ps-price" id="starter-price">—</span>
-            <span class="ps-per">/mes por sucursal</span>
-          </div>
-          <div class="ps-price-meta">
-            <span class="ps-perday" id="starter-perday"></span>
-            <span class="ps-save" id="starter-save" hidden>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              <span id="starter-save-amount"></span> de ahorro
-            </span>
-          </div>
+        <div class="p2-feats">
+          <div class="p2-feat hl"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Asistente 24/7</span><span class="p2-tip">Contesta tu WhatsApp y toma el pedido solo, también fuera de horario.</span></div>
+          <div class="p2-feat"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Aviso de pedido en camino</span><span class="p2-tip">El cliente recibe la notificación cuando su pedido sale.</span></div>
+          <div class="p2-feat"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Bandeja WhatsApp, FB e IG</span><span class="p2-tip">Todas tus conversaciones de los tres canales en una sola pantalla.</span></div>
+          <div class="p2-feat"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Insumos, recetas y costo</span><span class="p2-tip">Descuento automático de insumos y margen real por plato.</span></div>
+          <div class="p2-feat"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Inventario por WhatsApp</span><span class="p2-tip">Registra entradas, salidas y ajustes escribiéndole al asistente.</span></div>
+          <div class="p2-feat"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Puntos y premios</span><span class="p2-tip">Fidelización con puntos acumulables y recompensas.</span></div>
+          <div class="p2-feat"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>App del domiciliario</span><span class="p2-tip">App Android con rutas, entregas y cobro en la mano del domiciliario.</span></div>
+          <div class="p2-feat"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Informes de rentabilidad</span><span class="p2-tip">Horas pico, desempeño de meseros y utilidad por producto.</span></div>
+          <div class="p2-feat hl"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Comprobantes verificados</span><span class="p2-tip">Lee el comprobante de pago y lo confirma contra tu banco.</span></div>
+          <div class="p2-feat hl"><span class="p2-tick"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>Facturación DIAN</span><span class="p2-tip">Emisión y envío de documentos electrónicos validados por la DIAN.</span></div>
         </div>
-        <div class="ps-card-total" id="starter-total-wrap">
-          Total: <strong id="starter-total">—</strong> <span id="starter-total-cycle"></span> · <span id="starter-total-branches"></span>
+        <div class="p2-limits">
+          <span class="p2-limit">Sucursales y marcas ilimitadas</span>
+          <span class="p2-limit">Hasta 15 usuarios</span>
+          <span class="p2-limit">5.000 mensajes del asistente / mes</span>
+          <span class="p2-limit">1.000 documentos DIAN / mes</span>
         </div>
-        <ul class="ps-feats" style="margin-top:16px">
-          <li><span class="ps-tick"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>POS Mesero y Cajera</li>
-          <li><span class="ps-tick"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>Pantalla de cocina</li>
-          <li><span class="ps-tick"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>Menú digital ilimitado</li>
-          <li><span class="ps-tick"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>Informes básicos</li>
-          <li><span class="ps-tick"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>Soporte por chat</li>
-        </ul>
-      </button>
-
-      <!-- Pro -->
-      <button class="ps-card pro on" id="card-pro" onclick="selectPlan('pro')">
-        <div class="ps-pop">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          Más popular
-        </div>
-        <div class="ps-card-head">
-          <div class="ps-radio on" id="radio-pro">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-          </div>
-          <div>
-            <div class="ps-plan-name">Pro</div>
-            <div class="ps-plan-tag">Para negocios en crecimiento. IA, multi-sucursal y reportes avanzados.</div>
-          </div>
-        </div>
-        <div class="ps-price-block">
-          <div class="ps-price-row">
-            <span class="ps-strike" id="pro-strike" hidden></span>
-            <span class="ps-price" id="pro-price">—</span>
-            <span class="ps-per">/mes por sucursal</span>
-          </div>
-          <div class="ps-price-meta">
-            <span class="ps-perday" id="pro-perday"></span>
-            <span class="ps-save" id="pro-save" hidden>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              <span id="pro-save-amount"></span> de ahorro
-            </span>
-          </div>
-        </div>
-        <div class="ps-card-total">
-          Total: <strong id="pro-total">—</strong> <span id="pro-total-cycle"></span> · <span id="pro-total-branches"></span>
-        </div>
-        <div class="ps-reason">🤖 Incluye asistente IA integrado al sistema para consultar ventas, sugerir decisiones y automatizar reportes.</div>
-        <div class="ps-inherit">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-          Todo lo del plan Starter, más:
-        </div>
-        <ul class="ps-feats">
-          <li class="hl"><span class="ps-tick"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>Chat IA integrado al POS</li>
-          <li class="hl"><span class="ps-tick"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>Multi-sucursal unificado</li>
-          <li><span class="ps-tick"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>Informes avanzados</li>
-          <li><span class="ps-tick"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>API & webhooks</li>
-          <li><span class="ps-tick"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>Soporte prioritario 24/7</li>
-        </ul>
-      </button>
-    </div>
-
-    <!-- Compare -->
-    <div class="ps-compare" style="margin-top:18px">
-      <button class="ps-compare-toggle" id="compare-toggle" onclick="toggleCompare()">
-        <span>Comparar planes en detalle</span>
-        <span class="ps-chev" id="compare-chev">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-        </span>
-      </button>
-      <div class="ps-compare-body" id="compare-body">
-        <div class="ps-compare-inner">
-          <table class="ps-table">
-            <thead>
-              <tr>
-                <th class="ps-th-feat">Característica</th>
-                <th>Starter</th>
-                <th class="ps-th-pro">Pro</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr class="ps-grouprow"><td colspan="3">Operación diaria</td></tr>
-              <tr><td class="ps-td-feat">POS Mesero</td><td><span class="ps-yes">✓</span></td><td class="ps-td-pro"><span class="ps-yes">✓</span></td></tr>
-              <tr><td class="ps-td-feat">POS Cajera</td><td><span class="ps-yes">✓</span></td><td class="ps-td-pro"><span class="ps-yes">✓</span></td></tr>
-              <tr><td class="ps-td-feat">Pantalla cocina</td><td><span class="ps-yes">✓</span></td><td class="ps-td-pro"><span class="ps-yes">✓</span></td></tr>
-              <tr><td class="ps-td-feat">Menú digital</td><td><span class="ps-detail">Ilimitado</span></td><td class="ps-td-pro"><span class="ps-detail">Ilimitado</span></td></tr>
-              <tr class="ps-grouprow"><td colspan="3">Informes</td></tr>
-              <tr><td class="ps-td-feat">Dashboard básico</td><td><span class="ps-yes">✓</span></td><td class="ps-td-pro"><span class="ps-yes">✓</span></td></tr>
-              <tr><td class="ps-td-feat">Informes avanzados</td><td><span class="ps-no">—</span></td><td class="ps-td-pro"><span class="ps-yes">✓</span></td></tr>
-              <tr><td class="ps-td-feat">Exportar PDF/Excel</td><td><span class="ps-no">—</span></td><td class="ps-td-pro"><span class="ps-yes">✓</span></td></tr>
-              <tr class="ps-grouprow"><td colspan="3">IA & Automatización</td></tr>
-              <tr><td class="ps-td-feat">Chat IA integrado</td><td><span class="ps-no">—</span></td><td class="ps-td-pro"><span class="ps-yes">✓</span></td></tr>
-              <tr><td class="ps-td-feat">Sugerencias automáticas</td><td><span class="ps-no">—</span></td><td class="ps-td-pro"><span class="ps-yes">✓</span></td></tr>
-              <tr class="ps-grouprow"><td colspan="3">Multi-sucursal</td></tr>
-              <tr><td class="ps-td-feat">Sucursales</td><td><span class="ps-detail">1</span></td><td class="ps-td-pro"><span class="ps-detail">Ilimitadas</span></td></tr>
-              <tr><td class="ps-td-feat">Vista unificada</td><td><span class="ps-no">—</span></td><td class="ps-td-pro"><span class="ps-yes">✓</span></td></tr>
-              <tr class="ps-grouprow"><td colspan="3">Soporte</td></tr>
-              <tr><td class="ps-td-feat">Chat en horario hábil</td><td><span class="ps-yes">✓</span></td><td class="ps-td-pro"><span class="ps-yes">✓</span></td></tr>
-              <tr><td class="ps-td-feat">Soporte prioritario 24/7</td><td><span class="ps-no">—</span></td><td class="ps-td-pro"><span class="ps-yes">✓</span></td></tr>
-            </tbody>
-          </table>
+        <div class="p2-works">
+          <span class="p2-works-label">Funciona con</span>
+          <span class="p2-works-list">
+            <span class="p2-work">WhatsApp</span>
+            <span class="p2-work">Instagram</span>
+            <span class="p2-work">Facebook</span>
+            <span class="p2-work">DIAN</span>
+            <span class="p2-work">Bancos</span>
+            <span class="p2-work">Android</span>
+          </span>
         </div>
       </div>
     </div>
 
-    <!-- Footer sticky -->
-    <div class="ps-foot">
-      <div>
-        <div class="ps-foot-label">
-          <strong id="foot-plan">Pro</strong>
-          · <span id="foot-branches">1 sucursal</span>
-          · <span id="foot-billing">Anual</span>
-          <span class="ps-foot-off" id="foot-off" hidden><span id="foot-off-pct"></span> off</span>
-        </div>
-        <div class="ps-foot-total">
-          <span class="ps-foot-amount" id="foot-amount">—</span>
-          <span class="ps-foot-cycle" id="foot-cycle">/mes</span>
-          <span class="ps-foot-eq" id="foot-eq"></span>
-        </div>
-      </div>
-      <div class="ps-foot-actions">
-        <button class="ps-btn ghost" id="btn-back" onclick="goStep('datos')">← Atrás</button>
-        <button class="ps-btn primary" id="btn-continue" onclick="handlePlanContinue()">
-          <span id="btn-continue-text">Continuar con este plan</span>
-        </button>
-      </div>
+    <div class="p2-faq">
+      <div class="p2-faq-item"><span class="p2-faq-q">¿Contrato?</span><span>ninguno, no hay permanencia.</span></div>
+      <div class="p2-faq-item"><span class="p2-faq-q">¿Instalación?</span><span>la hacemos contigo, sin costo.</span></div>
+      <div class="p2-faq-item"><span class="p2-faq-q">¿Cambio de plan?</span><span>cuando quieras, escríbenos.</span></div>
     </div>
 
-    <!-- Trust -->
-    <div class="ps-trust">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-      Sin cargo automático · Cancela cuando quieras · Datos cifrados SSL
-    </div>
-
+    <footer class="p2-foot">
+      <div class="p2-foot-info">
+        <div class="p2-foot-label">Plan <strong id="foot-plan">Pro</strong> · <span id="foot-branches">1 sucursal</span> · <span id="foot-billing">mensual</span><span class="p2-foot-off" id="foot-off" hidden>−10%</span></div>
+        <div class="p2-foot-total">
+          <span class="p2-foot-amount" id="foot-amount">$249.000</span>
+          <span class="p2-foot-cycle" id="foot-cycle">/ mes</span>
+          <span class="p2-foot-eq" id="foot-eq" hidden>≈ $207.500/mes</span>
+        </div>
+      </div>
+      <div class="p2-foot-right">
+        <span class="p2-trust"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline></svg> Pago seguro · COP · Sin permanencia</span>
+        <div class="p2-actions">
+          <button class="p2-btn ghost" type="button" id="btn-back">Atrás</button>
+          <button class="p2-btn primary" type="button" id="btn-continue"><span id="btn-continue-label">Continuar con Pro</span> <span class="p2-badge"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span></button>
+        </div>
+      </div>
+    </footer>
   </div>
 </div><!-- /plan-root -->
 
@@ -505,6 +447,6 @@
 <script src="pos-core.js?v=1798400000"></script>
   <script src="pos-plan.js?v=1792461000"></script>
 <script src="pos-brand.js?v=1790530000"></script>
-<script src="login.js?v=1789510000"></script>
+<script src="login.js?v=1798410000"></script>
 </body>
 </html>

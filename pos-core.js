@@ -155,11 +155,12 @@ function daysAgoISO(n) {
       const { data: { session } } = await sb.auth.getSession();
       if (!session) {
         /*  HAY PANTALLAS QUE EXISTEN JUSTAMENTE PARA QUIEN NO TIENE CUENTA.
-            Antes la regla era "si no estas en login, fuera", y con eso
-            `register.html` rebotaba al login: quien iba a registrarse nunca
-            llegaba a ver los planes. Un cliente nuevo no puede tener sesion
-            todavia — esa es la definicion de cliente nuevo. */
-        var PUBLICAS = ['login', 'register'];
+            Hoy la unica es `login.html`, que lleva dentro todo el registro:
+            entrar, elegir plan, pagar. Un cliente nuevo no puede tener sesion
+            todavia — esa es la definicion de cliente nuevo — asi que cualquier
+            pantalla que se le añada al registro tiene que entrar en esta lista
+            o rebotara al login sin decir por que. */
+        var PUBLICAS = ['login'];
         var ruta = window.location.pathname;
         var esPublica = PUBLICAS.some(function (p) { return ruta.includes(p); });
         if (!esPublica) window.location.href = 'login.html';
