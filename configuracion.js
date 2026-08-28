@@ -6699,7 +6699,7 @@ async function cfgQrPersist(){
    lista negra. Las listas guardan los FILTROS (no los contactos), así se
    recalculan solas.
    ══════════════════════════════════════════════════════════════════════════ */
-var WC = { items: [], filtro: 'todos', tope: 60, listas: [], branchId: '', tenantId: '', sel: {} };
+var WC = { items: [], filtro: 'todos', excluir: [], tope: 60, listas: [], branchId: '', tenantId: '', sel: {} };
 
 async function wcBranch(){
   if (WC.branchId) return WC.branchId;
@@ -6762,7 +6762,7 @@ async function wcCargar(){
     var rl = await sb.from('pos_wa_listas').select('*').eq('branch_id', bid).order('created_at',{ascending:false});
     WC.listas = rl.data || [];
   } catch(e){ WC.listas = []; }
-  wcStats(); wcRender(); wcRenderListas();
+  wcStats(); wcExcluirOpciones(); wcExcluirChips(); wcRender(); wcRenderListas();
 }
 function wcStats(){
   var c = document.getElementById('wcStats'); if (!c) return;
@@ -6789,6 +6789,110 @@ function wcFiltro(f){
   if (sel && sel.value !== f) sel.value = f;
   wcRender();
 }
+
+/*  ═══ LAS EXCLUSIONES ═══════════════════════════════════════
+
+    Se pueden apilar varias, y se ven como pastillas con su equis: una lista de
+    exclusiones que no se VE es una forma segura de mandar una campana a quien
+    no debia. El desplegable ofrece los mismos criterios del filtro, menos
+    "todos" — excluir a todos no es una campana, es no mandar nada.        */
+function wcExcluirOpciones(){
+  var sel = document.getElementById('wcExcluirSel');
+  var org = document.getElementById('wcFiltroSel');
+  if (!sel || !org) return;
+  //  Se copian del desplegable de arriba para que nunca se desincronicen:
+  //  un criterio nuevo aparece en los dos sitios sin tocar nada.
+  var html = '<option value="">Sin excluir a nadie</option>';
+  Array.prototype.forEach.call(org.querySelectorAll('optgroup'), function(g){
+    var ops = Array.prototype.filter.call(g.querySelectorAll('option'), function(o){
+      return o.value && o.value !== 'todos' && (WC.excluir || []).indexOf(o.value) < 0;
+    });
+    if (!ops.length) return;
+    html += '<optgroup label="' + wcEsc(g.getAttribute('label') || '') + '">'
+          + ops.map(function(o){ return '<option value="' + wcEsc(o.value) + '">' + o.innerHTML + '</option>'; }).join('')
+          + '</optgroup>';
+  });
+  sel.innerHTML = html;
+  sel.value = '';
+}
+
+function wcExcluirNombre(v){
+  var org = document.getElementById('wcFiltroSel');
+  var o = org && org.querySelector('option[value="' + v + '"]');
+  return o ? (o.textContent || v) : v;
+}
+
+function wcExcluirChips(){
+  var box = document.getElementById('wcExcluirChips');
+  if (!box) return;
+  box.innerHTML = (WC.excluir || []).map(function(v){
+    return '<span style="display:inline-flex;align-items:center;gap:5px;background:#FEF2F2;color:#B91C1C;'
+      + 'border:1px solid #FECACA;border-radius:999px;padding:3px 6px 3px 10px;font-size:11.5px;font-weight:700">'
+      + wcEsc(wcExcluirNombre(v))
+      + '<button type="button" onclick="wcExcluirQuitar(&quot;' + v + '&quot;)" title="Quitar"'
+      + ' style="border:none;background:transparent;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0 2px">×</button>'
+      + '</span>';
+  }).join('');
+}
+
+function wcExcluirAgregar(v){
+  if (!v) return;
+  WC.excluir = WC.excluir || [];
+  if (WC.excluir.indexOf(v) < 0) WC.excluir.push(v);
+  WC.tope = 60;
+  wcExcluirOpciones(); wcExcluirChips(); wcRender();
+}
+
+function wcExcluirQuitar(v){
+  WC.excluir = (WC.excluir || []).filter(function(x){ return x !== v; });
+  WC.tope = 60;
+  wcExcluirOpciones(); wcExcluirChips(); wcRender();
+}
+/*  ═══ EL CRITERIO, EN UN SOLO SITIO ═══════════════════════════════
+
+    Lo usan los dos lados: el filtro (a quien SI) y las exclusiones (a quien
+    NO). Tenerlo dos veces seria garantizar que algun dia "filtrar instalada" y
+    "excluir instalada" digan cosas distintas y nadie se entere hasta que una
+    campana salga mal.
+
+    Y tiene su gemelo en la base (`fn_wa_criterio`), que es el que de verdad
+    arma la lista al enviar: esta pantalla solo ENSENA a quien le va a llegar.
+    Si los dos se separan, lo que se ve deja de ser lo que se manda — ya paso:
+    aqui "perdidos" eran 60 dias y en el servidor 30, y todo el que llevara
+    entre 31 y 59 recibia un mensaje que en pantalla no aparecia.           */
+function wcCumple(x, criterio){
+  var ped = +x.n_pedidos || 0;
+  switch (criterio){
+    case 'todos':                 return true;
+    case 'no_escribio':           return !x.ya_escribio;
+    case 'escribio':              return !!x.ya_escribio;
+    case 'guardado':              return !!x.guardado;
+    case 'pedidos':               return ped > 0;
+    case 'sin_nombre':            return !x.tiene_nombre;
+    case 'registrado':            return !!x.registrado_app;
+    case 'puntos':                return (+x.puntos || 0) > 0;
+    case 'saldo':                 return (+x.saldo || 0) > 0;
+    case 'una_vez':               return ped === 1;
+    case 'sin_pedidos':           return ped === 0;
+    case 'frecuentes':            return ped >= 3;
+    case 'perdidos': {
+      /* Perdido es quien YA compro y lleva mas de 60 dias sin volver. Quien
+         nunca compro no esta perdido: nunca lo tuviste. */
+      if (ped <= 0) return false;
+      var u = x.ultimo_pedido ? new Date(x.ultimo_pedido).getTime() : 0;
+      return !!u && (Date.now() - u) >= 60*24*60*60*1000;
+    }
+    case 'registrado_sin_app':    return !!(x.registrado_app && !x.instalada_app);
+    case 'sin_app_iphone':        return !!(x.registrado_app && !x.instalada_app && x.plataforma_app === 'ios');
+    case 'sin_app_android':       return !!(x.registrado_app && !x.instalada_app && x.plataforma_app === 'android');
+    case 'sin_app_sin_dato':      return !!(x.registrado_app && !x.instalada_app && !x.plataforma_app);
+    case 'instalada':             return !!x.instalada_app;
+    case 'instalada_sin_pedidos': return !!(x.instalada_app && ped === 0);
+    case 'escribio_sin_pedido':   return !!(x.ya_escribio && ped === 0);
+    default:                      return false;
+  }
+}
+
 // Contactos que pasan los filtros actuales.
 function wcFiltrados(){
   var q = (document.getElementById('wcBuscar')||{}).value || '';
@@ -6796,38 +6900,11 @@ function wcFiltrados(){
   var soloEnv = (document.getElementById('wcSoloEnviables')||{}).checked;
   return WC.items.filter(function(x){
     if (soloEnv && (x.no_atender || x.en_lista_negra)) return false;
-    if (WC.filtro === 'no_escribio' && x.ya_escribio) return false;
-    if (WC.filtro === 'escribio'    && !x.ya_escribio) return false;
-    if (WC.filtro === 'guardado'    && !x.guardado) return false;
-    if (WC.filtro === 'pedidos'     && !((+x.n_pedidos||0) > 0)) return false;
-    if (WC.filtro === 'sin_nombre'  && x.tiene_nombre) return false;
-    /* Los que cruzan con la app (20-ago). La vista ya los trae calculados: el
-       navegador no tiene que cruzar tres tablas por su cuenta. */
-    if (WC.filtro === 'registrado'  && !x.registrado_app) return false;
-    if (WC.filtro === 'puntos'      && !((+x.puntos||0) > 0)) return false;
-    if (WC.filtro === 'saldo'       && !((+x.saldo||0) > 0)) return false;
-    if (WC.filtro === 'una_vez'     && (+x.n_pedidos||0) !== 1) return false;
-    if (WC.filtro === 'sin_pedidos' && (+x.n_pedidos||0) > 0) return false;
-    /* Para la campana de instalar la app (21-ago): a quien se registro sin
-       instalarla se le manda el tutorial + bono; a quien la instalo y no ha
-       pedido, un empujon para estrenar su saldo de bienvenida. */
-    if (WC.filtro === 'registrado_sin_app'    && !(x.registrado_app && !x.instalada_app)) return false;
-    /* Los tres de abajo REPARTEN 'registrado_sin_app' por aparato, sin
-       traslapes: el video de iPhone, el de Android o la plantilla general.
-       Nadie cae en dos grupos, nadie recibe el mensaje dos veces. */
-    if (WC.filtro === 'sin_app_iphone'   && !(x.registrado_app && !x.instalada_app && x.plataforma_app === 'ios')) return false;
-    if (WC.filtro === 'sin_app_android'  && !(x.registrado_app && !x.instalada_app && x.plataforma_app === 'android')) return false;
-    if (WC.filtro === 'sin_app_sin_dato' && !(x.registrado_app && !x.instalada_app && !x.plataforma_app)) return false;
-    if (WC.filtro === 'instalada'             && !x.instalada_app) return false;
-    if (WC.filtro === 'instalada_sin_pedidos' && !(x.instalada_app && (+x.n_pedidos||0) === 0)) return false;
-    if (WC.filtro === 'escribio_sin_pedido'   && !(x.ya_escribio && (+x.n_pedidos||0) === 0)) return false;
-    if (WC.filtro === 'frecuentes'            && !((+x.n_pedidos||0) >= 3)) return false;
-    if (WC.filtro === 'perdidos'){
-      /* Perdido es quien YA compro y lleva mas de 60 dias sin volver. Quien
-         nunca compro no esta perdido: nunca lo tuviste. */
-      if (!((+x.n_pedidos||0) > 0)) return false;
-      var u = x.ultimo_pedido ? new Date(x.ultimo_pedido).getTime() : 0;
-      if (!u || (Date.now() - u) < 60*24*60*60*1000) return false;
+    if (!wcCumple(x, WC.filtro || 'todos')) return false;
+    /*  Basta con cumplir UNA exclusion para quedar fuera: si el dueno dijo
+        "estos no", no hay medias tintas. */
+    for (var i = 0; i < (WC.excluir || []).length; i++){
+      if (wcCumple(x, WC.excluir[i])) return false;
     }
     if (q){
       // Se busca por nombre Y por número. El número solo se compara si lo que
@@ -6944,6 +7021,11 @@ async function wcNoAtender(id, valor){
 function wcFiltrosActuales(){
   return {
     filtro: WC.filtro,
+    /*  Van GUARDADAS con la lista, no solo aplicadas en pantalla. La lista se
+        vuelve a armar cada vez que se envia —para recoger contactos nuevos— y
+        si las exclusiones no viajaran con ella, la segunda tanda le llegaria a
+        justo los que se quiso dejar fuera. */
+    excluir: (WC.excluir || []).slice(),
     buscar: ((document.getElementById('wcBuscar')||{}).value || '').trim(),
     solo_enviables: !!(document.getElementById('wcSoloEnviables')||{}).checked,
   };
@@ -6965,12 +7047,18 @@ var WC_FILTRO_LBL = {
 };
 // Cuántos contactos tiene HOY una lista guardada (se recalcula al vuelo).
 function wcContarLista(f){
-  var prev = { filtro: WC.filtro, buscar: (document.getElementById('wcBuscar')||{}).value, solo: (document.getElementById('wcSoloEnviables')||{}).checked };
+  /*  Se cuenta con LOS MISMOS criterios con los que se va a enviar,
+      exclusiones incluidas: un numero que no las reste diria "420 contactos" y
+      saldrian 190, y a esa altura ya nadie confia en el numero. */
+  var prev = { filtro: WC.filtro, excluir: WC.excluir,
+               buscar: (document.getElementById('wcBuscar')||{}).value,
+               solo: (document.getElementById('wcSoloEnviables')||{}).checked };
+  WC.excluir = Array.isArray(f.excluir) ? f.excluir : [];
   WC.filtro = f.filtro || 'todos';
   if (document.getElementById('wcBuscar')) document.getElementById('wcBuscar').value = f.buscar || '';
   if (document.getElementById('wcSoloEnviables')) document.getElementById('wcSoloEnviables').checked = f.solo_enviables !== false;
   var n = wcFiltrados().length;
-  WC.filtro = prev.filtro;
+  WC.filtro = prev.filtro; WC.excluir = prev.excluir;
   if (document.getElementById('wcBuscar')) document.getElementById('wcBuscar').value = prev.buscar;
   if (document.getElementById('wcSoloEnviables')) document.getElementById('wcSoloEnviables').checked = prev.solo;
   return n;
@@ -6986,6 +7074,12 @@ function wcRenderListas(){
     var n = wcContarLista(f);
     var desc = [WC_FILTRO_LBL[f.filtro] || 'Todos'];
     if (f.buscar) desc.push('busca “'+wcEsc(f.buscar)+'”');
+    /*  Las exclusiones se DICEN en el resumen. Una lista que dice "Con
+        pedidos" y por dentro deja fuera a media base es una trampa esperando
+        a que alguien la mande sin mirar. */
+    (f.excluir || []).forEach(function(v){
+      desc.push('menos ' + ((WC_FILTRO_LBL[v] || v).toLowerCase()));
+    });
     if (f.solo_enviables !== false) desc.push('sin lista negra');
     return '<div style="display:flex;align-items:center;gap:10px;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;margin-bottom:8px">'
       + '<div style="flex:1;min-width:0">'
@@ -7003,6 +7097,8 @@ function wcAplicarLista(id){
   var f = l.filtros || {};
   if (document.getElementById('wcBuscar')) document.getElementById('wcBuscar').value = f.buscar || '';
   if (document.getElementById('wcSoloEnviables')) document.getElementById('wcSoloEnviables').checked = f.solo_enviables !== false;
+  WC.excluir = Array.isArray(f.excluir) ? f.excluir.slice() : [];
+  wcExcluirOpciones(); wcExcluirChips();
   wcFiltro(f.filtro || 'todos');
 }
 async function wcGuardarLista(){
