@@ -3,6 +3,44 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 📝 La pantalla de elegir plan — 28-ago-2026
+
+Sergio entregó el diseño (carpeta *Selección de Plan*) y se puso tal cual:
+tarjetas con degradado y cápsula blanca, características con tooltip, y las
+cifras contando al cambiar de sucursales o de período.
+
+**Dónde vive.** En `login.html`, que es el registro de verdad: entrar → datos →
+plan → pago → confirmado, todo en una página. `register.html` era una segunda
+versión del mismo flujo a la que **no enlazaba nadie**; se borró. Dos pantallas
+de precios es la forma más segura de que alguien arregle la que no se ve.
+
+**Lo que se corrigió de paso, y era grave:**
+
+- **Nadie podía registrarse.** El envío insertaba en `pos_registrations`
+  columnas que no existen (`password_tmp`, `branches`, `total_mes`, `ref_code`),
+  así que fallaba **siempre**. No se había notado porque aún no hay clientes
+  nuevos; se habría notado el primer día de la publicidad. Ahora va por
+  `provision` → `registrar`, que ya existía y hace lo correcto.
+- Guardaba la **contraseña en texto plano** esperando aprobación, y pedía una
+  URL pública de un balde que dejó de ser público el 24-ago.
+- Los tramos por sucursales estaban en la versión vieja (10+ / 4–9): un
+  restaurante con 8 sedes veía 20% cuando le toca 30%. En la consola ya estaba
+  corregido; **en la pantalla que ve el cliente, no**.
+- Los precios estaban escritos en el código. Ahora salen de `pos_planes`.
+
+**Y una trampa que vale para cualquier pantalla con animación de cifras:** el
+contador iba con `requestAnimationFrame`, y en una pestaña que no se está
+mirando el navegador **no lo llama ni una vez**. El precio no es que se viera
+feo: se quedaba en el anterior. Ahora, si no puede animar, pinta el número y ya,
+y hay un repaso final por si la animación queda a medias.
+
+**Los tres períodos** (mensual, trimestral −10%, anual −20%) y el orden de los
+descuentos —volumen primero, período después— son los mismos aquí, en los
+términos y en la pantalla de cuenta suspendida. Comprobado en producción:
+Pro 1 sede da 249.000 / 672.300 / 2.390.400.
+
+---
+
 ## 💳 Cobrar la suscripción — 28-ago-2026
 
 El botón de suspender ya cortaba (26-ago), pero cortaba y ya: sacaba al usuario
