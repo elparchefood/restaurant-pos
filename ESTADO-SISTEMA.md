@@ -1,7 +1,56 @@
 # ESTADO DEL SISTEMA — Cobra POS
-> Última actualización: 2026-08-24
+> Última actualización: 2026-08-28
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
+
+## 💳 Cobrar la suscripción — 28-ago-2026
+
+El botón de suspender ya cortaba (26-ago), pero cortaba y ya: sacaba al usuario
+al login. Un restaurante suspendido no tenía ninguna manera de ponerse al día
+sin llamar por teléfono. Sergio lo dijo exacto:
+
+> *"la cuenta sigue existiendo y todos sus datos siguen existiendo. Lo único es
+> que cuando inicia sesión le aparece un modal que no lo deja hacer
+> absolutamente nada hasta que no pague. El modal lo lleva al pago, y el pagar
+> ya vuelve a recuperar todo su acceso."*
+
+**Cómo quedó, de punta a punta:**
+
+1. `pos-core.js` pregunta `tenants.status` al arrancar (cacheado 30 min, y ante
+   cualquier fallo **se entra** — nunca cerrarle el restaurante a quien sí pagó).
+2. Si no está `active`, **no cierra la sesión**: trae `pos-suspendida.js` (sólo
+   entonces; las pantallas de un cliente al día no lo descargan nunca) y tapa
+   todo. No se cierra con Escape, ni por fuera, ni con el tabulador.
+3. Esa pantalla pide `provision` → `cuenta_estado`, que devuelve el plan, las
+   sucursales, **los tres precios calculados en el servidor** y la cuenta de
+   cobro de la plataforma (`plataforma_cobro`, que el navegador no lee directo).
+4. El restaurante elige período, transfiere y sube el comprobante →
+   `provision` → `renovar` inserta una fila `pending` en
+   **`pos_pagos_suscripcion`**. El monto lo calcula el servidor; si viniera del
+   navegador, cualquiera se pondría al día por $1.000.
+5. En la consola (`admin-reg`) ese cliente sale con la etiqueta *Pago por
+   revisar*: se ve el comprobante y **Aprobar pago y reactivar** hace las dos
+   cosas en un gesto.
+6. La pantalla del restaurante pregunta cada minuto: al aprobarse, **se recarga
+   sola**. Sin cerrar sesión, sin llamar a preguntar si ya quedó.
+
+**Lo que esto SÍ es y lo que NO es.** Es un cobro, no una cerradura: tapa la
+pantalla, no la base. Quien sepa de navegadores se quita el aviso de encima; lo
+que no puede es ver datos de otro restaurante, porque de eso se encargan los
+permisos del servidor. Poner el bloqueo en la base cortaría también la propia
+pantalla de pago, que es justo lo que tiene que funcionar.
+
+**Por qué el pago no reactiva al instante.** Se paga por transferencia y se sube
+una foto; reactivar con sólo subirla sería regalar el sistema. Cuando haya
+pasarela (Wompi/Bold) la confirmación llega firmada por el banco y la
+reactivación sí es automática — cambia de dónde sale el "sí pagó", no esta
+pantalla.
+
+**Y en los términos** (§4, *Falta de pago*): la cuenta y sus datos se conservan;
+a los **6 meses** de suspensión sin ningún pago pueden eliminarse, avisando por
+correo con 15 días.
+
+---
 
 ## 🔴→🟢 La tarde del punto azul — 27-ago-2026
 
