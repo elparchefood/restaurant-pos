@@ -12,6 +12,43 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const META_API_BASE = "https://graph.facebook.com/v22.0";
 
+/*  ══ POR QUE ESTO VA POR PLANTILLA Y NO POR TEXTO SUELTO ═════════════
+
+    Sergio, 27-ago-2026: «hace varios dias que al cerrar la caja no envia
+    nada». Y tenia razon en el diagnostico.
+
+    WhatsApp solo deja mandar un mensaje escrito a mano si esa persona le
+    escribio al negocio en las ultimas 24 horas. Un gerente no le escribe al
+    WhatsApp de su propio restaurante — no tiene por que—, asi que esa ventana
+    esta cerrada CASI SIEMPRE. El aviso funcionaba los primeros dias, cuando el
+    numero acababa de escribir probando, y despues dejo de salir sin que nada
+    fallara: Meta lo rechazaba y el rechazo se quedaba en el registro.
+
+    Fuera de la ventana solo pasan las PLANTILLAS aprobadas. Por eso ahora se
+    intenta primero la plantilla, y el texto suelto queda de respaldo: sirve
+    mientras Meta aprueba la plantilla, y para el restaurante que todavia no la
+    tenga creada en su cuenta.
+
+    ⚠️ LA PLANTILLA ES DE CADA RESTAURANTE, no de Cobra: vive en la cuenta de
+    WhatsApp de cada uno. Un cliente nuevo tiene que tenerla creada con este
+    mismo nombre, o se queda con el respaldo (que solo sale dentro de las 24
+    horas). Mismo caso que `pedido_confirmado`.
+
+    Los parametros de una plantilla NO PUEDEN llevar salto de linea, tabulador
+    ni mas de cuatro espacios seguidos — Meta la rechaza sin explicar cual fue.
+    Por eso la lista viaja en UNA linea separada por puntos medios, y los
+    saltos de verdad estan en el cuerpo aprobado.                            */
+const PLANTILLA = "insumos_por_comprar";
+const PLANTILLA_IDIOMA = "es";
+
+/*  Un parametro seguro: sin saltos, sin tabuladores, sin espacios de sobra, y
+    cortado antes del limite de Meta. Vacio nunca — tambien lo rechaza. */
+function param(v: string, max = 700): string {
+  const t = String(v || "").replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+  if (!t) return "-";
+  return t.length > max ? t.slice(0, max - 1) + "\u2026" : t;
+}
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -72,16 +109,64 @@ Deno.serve(async (req) => {
     if (!numeros.length) return json({ ok: true, enviado: false, razon: "sin_gerentes" });
 
     // ── Qué está bajo ────────────────────────────────────────────────
-    const insumos = await sbGet(
+    /*  ⚠️ CUANTO HAY NO ESTA EN `iv_insumos`. Se mudo a `iv_existencias` el
+        24-ago-2026: el insumo es de la MARCA (siempre es el mismo pollo), y
+        cuanto hay es de la SEDE.
+
+        Esta consulta se quedo pidiendo `stock` y `agotado_manual` en la tabla
+        vieja. PostgREST responde error por columna inexistente, `sbGet`
+        devuelve null al no ser `ok`, la lista queda vacia y la funcion sale
+        por "nada_bajo" — con exito y sin quejarse.
+
+        Ese es el motivo REAL de que Sergio llevara dias sin recibir el aviso
+        al cerrar caja. La ventana de 24 horas de WhatsApp tambien lo habria
+        frenado, pero nunca se llegaba a intentar: la lista salia vacia antes.
+
+        Se trae junto con el insumo y se escoge la fila de la bolsa que
+        corresponde: en modo `global` es la que tiene la sede VACIA — una sola
+        bolsa para toda la marca.                                           */
+    let sedeEx: string | null = null;
+    try {
+      const brR = await sbGet(`/rest/v1/branches?id=eq.${branchId}&select=brand_id,brands(inventario_modo)`) as
+        Array<Record<string, unknown>> | null;
+      const bb = brR?.[0] || {};
+      const mk = bb.brands as { inventario_modo?: string } | Array<{ inventario_modo?: string }> | null;
+      const modo = (Array.isArray(mk) ? mk[0]?.inventario_modo : mk?.inventario_modo) || "global";
+      if (modo === "sucursal") sedeEx = branchId;
+    } catch { /* con la duda, la bolsa comun */ }
+
+    const crudos = await sbGet(
       `/rest/v1/iv_insumos?branch_id=eq.${branchId}&activo=eq.true` +
-      `&select=nombre,stock,min_stock,buy_unit,use_unit,conversion,control_manual,agotado_manual`
+      `&select=nombre,min_stock,buy_unit,use_unit,conversion,control_manual,` +
+      `iv_existencias(branch_id,stock,agotado_manual)`
     ) as Array<Record<string, unknown>> | null;
 
-    const bajos = (insumos || []).filter(i => {
+    //  Y si la consulta falla, se DICE. Un aviso que no sale por un error de
+    //  la base no puede reportarse como "no habia nada bajo": eso es
+    //  exactamente lo que escondio este fallo durante dias.
+    if (!crudos) return json({ ok: false, enviado: false, razon: "no_se_pudo_leer_inventario" }, 500);
+
+    const insumos = crudos.map(i => {
+      const filas = (i.iv_existencias || []) as Array<Record<string, unknown>>;
+      const e = filas.find(f => (f.branch_id || null) === sedeEx) || {};
+      return { ...i, stock: e.stock, agotado_manual: e.agotado_manual };
+    });
+
+    const bajos = insumos.filter(i => {
       if (i.control_manual && i.agotado_manual) return true;
+      /*  LO QUE ESTA EN CERO SE AVISA SIEMPRE, tenga minimo o no.
+
+          Antes, sin minimo no se vigilaba — y de los 41 insumos de El Parche,
+          23 no tienen minimo puesto. Entre ellos la Coca Cola 1.5, que el
+          27-ago estaba en negativo y no habria salido en ningun aviso.
+
+          El minimo sirve para avisar ANTES de que se acabe ("quedan 2 kilos,
+          compra"). Que se haya acabado no necesita minimo: es un hecho.   */
+      const stock = Number(i.stock) || 0;
+      if (stock <= 0) return true;
       const min = Number(i.min_stock) || 0;
-      if (min <= 0) return false;                 // sin mínimo no se vigila
-      return (Number(i.stock) || 0) <= min;
+      if (min <= 0) return false;                 // sin mínimo no se vigila ANTES de acabarse
+      return stock <= min;
     }).map(i => ({
       nombre: String(i.nombre || ""),
       stock: Number(i.stock) || 0,
@@ -98,7 +183,30 @@ Deno.serve(async (req) => {
     const lineas = bajos.map(i => i.agotado
       ? `• ${i.nombre} — se acabó`
       : `• ${i.nombre} — quedan ${i.stock}${i.unidad ? " " + i.unidad : ""}${i.equiv ? " (" + i.equiv + ")" : ""}`);
-    const texto = `🛒 *Por comprar* — cierre de caja\n\n${lineas.join("\n")}\n\n${bajos.length} insumo${bajos.length === 1 ? "" : "s"}.`;
+    const cuantos = `${bajos.length} insumo${bajos.length === 1 ? "" : "s"}`;
+    const texto = `🛒 *Por comprar* — cierre de caja\n\n${lineas.join("\n")}\n\n${cuantos}.`;
+
+    /*  La misma lista, en una sola linea, para que quepa en un parametro de
+        plantilla. Si son muchos se corta y se dice cuantos faltan: mejor un
+        aviso con los diez primeros que ningun aviso.                       */
+    const sueltas = bajos.map(i => i.agotado
+      ? `${i.nombre} — se acabó`
+      : `${i.nombre} — quedan ${i.stock}${i.unidad ? " " + i.unidad : ""}`);
+    const MAX = 10;
+    const resumen = sueltas.length > MAX
+      ? sueltas.slice(0, MAX).join(" · ") + ` · y ${sueltas.length - MAX} más`
+      : sueltas.join(" · ");
+
+    //  Como se llama el negocio, para que el gerente sepa de cual sede le
+    //  hablan: quien maneja dos sedes recibe dos mensajes iguales.
+    let negocio = "tu restaurante";
+    try {
+      const brR = await sbGet(`/rest/v1/branches?id=eq.${branchId}&select=name,brands(name)`) as
+        Array<Record<string, unknown>> | null;
+      const b = brR?.[0] || {};
+      const mk = b.brands as { name?: string } | Array<{ name?: string }> | null;
+      negocio = String((Array.isArray(mk) ? mk[0]?.name : mk?.name) || b.name || negocio);
+    } catch { /* sin nombre, el aviso sale igual */ }
 
     // ── Con qué número se manda ──────────────────────────────────────
     const canales = await sbGet(
@@ -110,22 +218,49 @@ Deno.serve(async (req) => {
     }
 
     // ── Mandarlo ─────────────────────────────────────────────────────
+    const enviar = (cuerpo: Record<string, unknown>) =>
+      fetch(`${META_API_BASE}/${meta.phone_id}/messages`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${meta.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ messaging_product: "whatsapp", ...cuerpo }),
+      });
+
     const resultados: Array<Record<string, unknown>> = [];
     for (const numero of numeros) {
       try {
-        const r = await fetch(`${META_API_BASE}/${meta.phone_id}/messages`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${meta.access_token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messaging_product: "whatsapp", to: numero,
-            type: "text", text: { body: texto },
-          }),
+        //  1) La plantilla. Es la unica que pasa fuera de las 24 horas, o sea
+        //     casi siempre.
+        let r = await enviar({
+          to: numero, type: "template",
+          template: {
+            name: PLANTILLA, language: { code: PLANTILLA_IDIOMA },
+            components: [{ type: "body", parameters: [
+              { type: "text", text: param(negocio, 60) },
+              { type: "text", text: param(cuantos, 40) },
+              { type: "text", text: param(resumen) },
+            ] }],
+          },
         });
-        const d = await r.json().catch(() => ({}));
-        /* OJO: Meta rechaza los mensajes libres si el gerente no le ha escrito
-           al negocio en las últimas 24 horas. No es un error del sistema — es
-           una regla de WhatsApp. Se reporta tal cual para poder distinguirlo. */
-        resultados.push({ numero, ok: r.ok, error: r.ok ? null : (d?.error?.message || "rechazado") });
+        let d = await r.json().catch(() => ({}));
+        let via = "plantilla";
+
+        /*  2) Y si la plantilla no existe o no esta aprobada todavia, se
+            intenta el texto suelto. No sustituye a la plantilla —solo sale
+            dentro de las 24 horas— pero es mejor que nada mientras Meta
+            revisa, y es lo unico que tiene un restaurante que aun no la creo
+            en su cuenta.
+
+            Si tambien falla el texto, casi siempre es la ventana cerrada. NO
+            es un fallo de Cobra, y decirlo asi es lo que evita que alguien se
+            ponga a buscar un error que no existe.                          */
+        if (!r.ok) {
+          console.error("[aviso-insumos] plantilla", numero, String(d?.error?.message || ""));
+          r = await enviar({ to: numero, type: "text", text: { body: texto } });
+          d = await r.json().catch(() => ({}));
+          via = "texto";
+        }
+
+        resultados.push({ numero, ok: r.ok, via, error: r.ok ? null : (d?.error?.message || "rechazado") });
       } catch (e) {
         resultados.push({ numero, ok: false, error: String(e).slice(0, 120) });
       }

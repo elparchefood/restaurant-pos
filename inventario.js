@@ -34,6 +34,7 @@ let togglePrepOn = true;
 let toggleManualOn = false;   // "Control manual (el cocinero avisa)" del insumo en edición
 let toggleSubOn = false;      // "Sub-inventario (Bodega/En servicio)"
 let toggleMermaOn = false;    // "Puede tener merma" (las bebidas no)
+let toggleAgotaOn = true;     // "Si se acaba, no se puede vender el producto"
 let toggleVenderBodegaOn = false;
 let compraQty = {};
 let compraPrices = {};
@@ -417,6 +418,9 @@ async function loadInsumos() {
     prep:       i.prep_requerido,
     controlManual: !!i.control_manual,
     merma:      !!i.merma_activa,
+    //  Sin el dato se asume QUE SI AGOTA: es como se comportaba antes, y
+    //  equivocarse hacia "no bloquea" seria dejar vender lo que no hay.
+    agota:      i.agota_producto !== false,
     agotadoManual: !!existenciaDe(i).agotado_manual,
     sub:        !!i.sub_inventario,
     servicio:   parseFloat(existenciaDe(i).stock_servicio) || 0,
@@ -2167,6 +2171,8 @@ function abrirEditorInsumo(insId) {
   toggleManualOn = ins?!!ins.controlManual:false;
   toggleSubOn = ins?!!ins.sub:false;
   toggleMermaOn = ins?!!ins.merma:false;
+  toggleAgotaOn = ins ? (ins.agota !== false) : true;
+  updateToggleAgotaUI();
   toggleVenderBodegaOn = ins?!!ins.venderBodega:false;
   { const s=document.getElementById('ins-servicio'); if (s) s.value = ins?(ins.servicio||''):''; }
   { const a=document.getElementById('ins-aviso-bodega'); if (a) a.value = ins?(ins.avisoBodega||''):''; }
@@ -2334,6 +2340,12 @@ function updateToggleManualUI() {
 // y nunca se merman; la carne, el queso o las verduras sí. Cada dueño decide
 // cuáles, y solo esos aparecen al registrar una merma.
 function toggleMerma() { toggleMermaOn=!toggleMermaOn; updateToggleMermaUI(); }
+function toggleAgota() { toggleAgotaOn=!toggleAgotaOn; updateToggleAgotaUI(); }
+function updateToggleAgotaUI() {
+  const box=document.getElementById('toggle-agota'); if (box) box.classList.toggle('on',toggleAgotaOn);
+  const sw=document.getElementById('toggle-agota-sw');
+  if (sw) { sw.classList.toggle('on',toggleAgotaOn); const lbl=sw.querySelector('.iv-switch-label'); if (lbl) lbl.textContent=toggleAgotaOn?'S\u00ed':'No'; }
+}
 function updateToggleMermaUI() {
   const box=document.getElementById('toggle-merma'); if (box) box.classList.toggle('on',toggleMermaOn);
   const sw=document.getElementById('toggle-merma-sw');
@@ -2390,16 +2402,42 @@ async function guardarInsumo() {
   // Sub-inventario
   const servicio = toggleSubOn ? (parseFloat(document.getElementById('ins-servicio')?.value)||0) : 0;
   const avisoBodega = toggleSubOn ? (document.getElementById('ins-aviso-bodega')?.value||'').trim() : '';
-  const payload  = { nombre, categoria:cat, cat_color:catColor, prep_requerido:togglePrepOn, control_manual:toggleManualOn, merma_activa:toggleMermaOn, sub_inventario:toggleSubOn, stock_servicio:servicio, vender_bodega:(toggleSubOn && toggleVenderBodegaOn), aviso_bodega:avisoBodega, buy_unit:buyUnit, use_unit:useUnit, precio, conversion, stock, min_stock:min, updated_at:new Date().toISOString() };
-  // Si se APAGA el control manual, se limpia el "agotado manual" (para que no quede pegado).
-  // Si sigue manual, no se toca aquí (se maneja con el botón rápido "Se acabó / Ya hay").
-  if (!toggleManualOn) payload.agotado_manual = false;
+  /*  ⚠️ AQUI SOLO VA LO QUE ES DEL INSUMO, NO CUANTO HAY.
+
+      Esto llevaba mandando `stock`, `stock_servicio` y `agotado_manual` a
+      `iv_insumos`, y esas tres columnas se MUDARON a `iv_existencias` el
+      24-ago (el insumo es de la marca; cuanto hay es de la sede). La base
+      rechazaba el guardado entero por columna inexistente... y nadie miraba
+      el error: se cerraba el panel, salia "Insumo guardado" y la lista en
+      pantalla se actualizaba sola.
+
+      O sea que desde el 23-ago editar un insumo NO GUARDABA NADA. Ni el
+      nombre, ni el minimo, ni los interruptores. Y se veia bien hasta que
+      alguien recargaba. Un fallo que se disfraza de exito es peor que uno
+      que revienta.
+
+      Dos cosas cambian: el `payload` se queda solo con lo del insumo, y el
+      resultado SE MIRA. Lo de cuanto hay va por `fn_iv_fijar_existencia`,
+      que es el camino que ya usaban los otros cuatro botones.            */
+  const payload  = { nombre, categoria:cat, cat_color:catColor, prep_requerido:togglePrepOn, control_manual:toggleManualOn, merma_activa:toggleMermaOn, sub_inventario:toggleSubOn, agota_producto:toggleAgotaOn, vender_bodega:(toggleSubOn && toggleVenderBodegaOn), aviso_bodega:avisoBodega, buy_unit:buyUnit, use_unit:useUnit, precio, conversion, min_stock:min, updated_at:new Date().toISOString() };
   const agotadoManualFinal = toggleManualOn ? (_insPrev ? !!_insPrev.agotadoManual : false) : false;
   const extra = { sub:toggleSubOn, servicio, venderBodega:(toggleSubOn && toggleVenderBodegaOn), avisoBodega };
   if (editId) {
     // Se guarda EXACTAMENTE igual que siempre. Lo único nuevo viene después.
     const _stockAntes = (function(){ const p=insumos.find(i=>i.id===editId); return p ? (parseFloat(p.stock)||0) : null; })();
-    await iv_sb.from('iv_insumos').update(payload).eq('id',editId);
+    const _up = await iv_sb.from('iv_insumos').update(payload).eq('id',editId);
+    if (_up.error) { console.error('guardarInsumo:', _up.error); showToast('No se pudo guardar: ' + _up.error.message); return; }
+
+    /*  Y cuanto hay, por su propio camino. Iba dentro del mismo guardado y por
+        eso se perdia: el stock y lo que hay en la nevera son de la SEDE, no
+        del insumo. Si el control manual se apaga se limpia tambien el
+        "se acabo", para que no quede pegado. */
+    try {
+      const campos = { stock: stock };
+      if (toggleSubOn) campos.servicio = servicio;
+      if (!toggleManualOn) campos.agotado = false;
+      await ivFijarExistencia(editId, campos);
+    } catch (e) { console.error('guardarInsumo existencia:', e); showToast('Se guardó el insumo, pero no la cantidad: ' + e.message); }
     ivAvisarCambio();
     const ins=insumos.find(i=>i.id===editId);
     if (ins) Object.assign(ins,{nombre,cat,catColor,prep:togglePrepOn,controlManual:toggleManualOn,agotadoManual:agotadoManualFinal,buyUnit,useUnit,precio,conversion,stock,min,...extra});
@@ -2421,7 +2459,13 @@ async function guardarInsumo() {
     /* brand_id: el insumo es de la MARCA. Sin esto, la otra sede no lo
        vería y habría que crearlo dos veces. */
     const {data,error}=await iv_sb.from('iv_insumos').insert({...payload,tenant_id:tenantId,branch_id:branchId,brand_id:brandId,activo:true}).select().single();
-    if (error) { console.error('guardarInsumo:',error); alert('Error al guardar'); return; }
+    if (error) { console.error('guardarInsumo:',error); showToast('No se pudo crear: ' + error.message); return; }
+    //  El insumo nace sin existencia: la fila de cuanto hay se crea aparte.
+    try {
+      const campos = { stock: stock };
+      if (toggleSubOn) campos.servicio = servicio;
+      await ivFijarExistencia(data.id, campos);
+    } catch (e) { console.error('guardarInsumo existencia:', e); }
     insumos.push({id:data.id,nombre,cat,catColor,prep:togglePrepOn,controlManual:toggleManualOn,agotadoManual:agotadoManualFinal,buyUnit,useUnit,precio,conversion,stock,min,...extra});
   }
   closePanel('panel-insumo');
@@ -3229,7 +3273,11 @@ async function iaGuardarReceta() {
       cat_color: catColor,
       prep_requerido: true,
       buy_unit:  ing.unit, use_unit: ing.unit,
-      precio:    0, conversion: 1, stock: 0, min_stock: 0,
+      //  `stock` NO va aqui: se mudo a `iv_existencias` el 24-ago. Con el
+      //  puesto, la base rechaza el insert entero y la carta importada se
+      //  queda sin ese ingrediente. Un insumo nuevo nace en cero de todos
+      //  modos, asi que no hace falta escribirlo en ningun lado.
+      precio:    0, conversion: 1, min_stock: 0,
       updated_at: new Date().toISOString(),
     };
     payload.brand_id = brandId;   // el insumo es de la marca, no de la sede

@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="inventario.css?v=1785050000">
+<link rel="stylesheet" href="inventario.css?v=1792890000">
 </head>
 <body>
 
@@ -529,6 +529,16 @@
         <div style="flex:1"><div class="tt">Control manual (el cocinero avisa)</div><div class="tx">El sistema descuenta, pero NO lo da por agotado por cantidad. Se marca a mano cuando se acaba (para pollo, carne, etc. que no se pesan).</div></div>
         <span class="iv-switch" id="toggle-manual-sw"><span class="iv-switch-label">No</span><span class="iv-switch-track"><span class="iv-switch-knob"></span></span></span>
       </div>
+      <!-- HAY INSUMOS QUE NO AGOTAN EL PRODUCTO (Sergio, 27-ago-2026).
+           «cuando se acaba la salsa barbecue marca el producto como agotado y
+           no quiero que sea asi: se puede preparar igual con otras salsas».
+           Va aqui, pegado al de control manual, porque los dos hablan de lo
+           mismo: cuando se considera que algo se acabo. -->
+      <div class="iv-toggle on" id="toggle-agota" onclick="toggleAgota()">
+        <span style="display:flex;color:#DC2626"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg></span>
+        <div style="flex:1"><div class="tt">Si se acaba, no se puede vender el producto</div><div class="tx">D&eacute;jalo en <b>S&iacute;</b> para lo imprescindible: la carne, el pan, la gaseosa. Ponlo en <b>No</b> para salsas y acompa&ntilde;amientos, que se pueden reemplazar y el plato sale igual. Aunque est&eacute; en No, el insumo se sigue descontando, se sigue viendo en rojo y sigue saliendo en el aviso de compras: lo &uacute;nico que cambia es que no bloquea la venta.</div></div>
+        <span class="iv-switch on" id="toggle-agota-sw"><span class="iv-switch-label">S&iacute;</span><span class="iv-switch-track"><span class="iv-switch-knob"></span></span></span>
+      </div>
       <div class="iv-toggle" id="toggle-merma" onclick="toggleMerma()">
         <span style="display:flex;color:#DC2626"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></span>
         <div style="flex:1"><div class="tt">Puede tener merma</div><div class="tx">Actívalo en lo que de verdad se daña, se vence o se cae: carne, pollo, queso, verduras. <b>Déjalo en No</b> para lo empaquetado (gaseosas, agua), que es exacto y nunca merma. Solo lo que esté en Sí aparecerá al registrar una merma.</div></div>
@@ -809,7 +819,7 @@
      y los precios— asi que para dejar que el cocinero mirara el stock habia
      que darle tambien la carta entera. -->
 <script>if(window.posRequirePin) posRequirePin(['catalogo.editar','inventario.ver','inventario.compras']);</script>
-<script src="inventario.js?v=1792030000"></script>
+<script src="inventario.js?v=1792890000"></script>
 <script src="pos-brand.js?v=1790530000"></script>
 <script src="pos-solo-app.js?v=1792150000"></script>
 </body>

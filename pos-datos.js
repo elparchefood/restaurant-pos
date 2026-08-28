@@ -120,7 +120,7 @@
       /* Viajan tambien brand_id/branch_id: pos-stock filtra los insumos por
          marca o por sede segun el modo de inventario, y sin esos campos no
          podria hacer el MISMO filtro que hace hoy. */
-      s.from('iv_insumos').select('id,nombre,control_manual,sub_inventario,vender_bodega,aviso_bodega,buy_unit,use_unit,conversion,brand_id,branch_id,tenant_id').eq('tenant_id', tid),
+      s.from('iv_insumos').select('id,nombre,control_manual,sub_inventario,vender_bodega,aviso_bodega,agota_producto,buy_unit,use_unit,conversion,brand_id,branch_id,tenant_id').eq('tenant_id', tid),
       s.from('iv_recetas').select('product_id,insumo_id,variant_option_id,cantidades,mod_option_id,brand_id,branch_id,tenant_id').eq('tenant_id', tid),
       /* De que MARCA es esta sede, y si el inventario es uno solo para toda la
          marca o uno por sucursal. Dos preguntas que el detector de agotados

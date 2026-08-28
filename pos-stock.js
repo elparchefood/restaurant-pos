@@ -25,21 +25,54 @@
   //  · sub-inventario ON  → disponible si hay EN SERVICIO; si en servicio=0 pero hay
   //       en bodega y "vender de bodega" está ON, sigue disponible (con aviso); si no, agotado.
   //  · normal            → si su stock llegó a 0.
+  /*  ⚠️ CERO NO ES `> 0`. Sergio, 27-ago-2026: la Coca Cola 1.5 estaba
+      agotada y la pantalla de ventas la dejaba pedir. Le ofrecio una a un
+      cliente y tuvo que ir a cambiarsela.
+
+      En la nevera quedaban `0.00000000000000000001` paquetes. Eso es una
+      billonesima de botella — cero para cualquiera menos para un `> 0`, que
+      contestaba "si hay". Sale de dividir: una botella de un paquete de doce
+      es 1/12, que en decimal no termina; al restar doce veces queda polvo.
+
+      El polvo ya se limpia en la base al escribir, pero el margen se queda
+      aqui tambien: esta funcion es la que decide si se puede vender algo, y
+      esa decision no puede depender de que la limpieza de otro lado corriera.
+      Una millonesima de unidad de compra es, en el peor caso, una
+      millonesima de galon.                                                */
+  var NADA = 0.000001;
+
   function insAgotado(insId) {
     var i = S._ins[insId];
     if (!i) return false;
+
+    /*  HAY INSUMOS QUE NO AGOTAN EL PRODUCTO (Sergio, 27-ago-2026).
+
+        «cuando se acaba la salsa barbecue marca el producto como agotado, y no
+        quiero que sea asi: se puede preparar igual con otras salsas. Mientras
+        que si falta otro ingrediente importante, si no se puede».
+
+        Es una distincion de cocina y solo la sabe el restaurante — el mismo
+        insumo puede ser imprescindible en un sitio y un acompanamiento en
+        otro. Aqui solo se obedece.
+
+        Ojo: esto NO lo saca del inventario. Se sigue descontando, se sigue
+        viendo en rojo y sigue saliendo en el aviso de compras. Lo unico que
+        deja de hacer es bloquear la venta. Confundir las dos cosas dejaria al
+        restaurante sin saber que hay que comprar salsa.                    */
+    if (i.agota === false) return false;
+
     if (i.manual) return !!i.agotadoManual;
     if (i.sub) {
-      if (i.servicio > 0) return false;              // hay en servicio (nevera) → OK
-      if (i.stock > 0 && i.venderBodega) return false; // se acabó en servicio pero se puede vender de bodega
+      if (i.servicio > NADA) return false;              // hay en servicio (nevera) → OK
+      if (i.stock > NADA && i.venderBodega) return false; // se acabó en servicio pero se puede vender de bodega
       return true;                                    // sin servicio y sin bodega (o no se vende de bodega)
     }
-    return i.stock <= 0;
+    return i.stock <= NADA;
   }
   // Aviso a mostrar si el insumo se está vendiendo DESDE BODEGA (servicio=0, bodega>0, vender_bodega ON).
   function avisoBodegaIns(insId) {
     var i = S._ins[insId];
-    if (i && i.sub && i.servicio <= 0 && i.stock > 0 && i.venderBodega) {
+    if (i && i.sub && i.servicio <= NADA && i.stock > NADA && i.venderBodega) {
       return i.avisoBodega || (i.nombre + ': se acabó en servicio, queda en bodega.');
     }
     return null;
@@ -177,7 +210,7 @@
            orden de antes — marca, sede, restaurante. */
         if (!insumos) {
           if (!yaSeLaMarca) await averiguarMarca();
-          var qi = sb.from('iv_insumos').select('id,nombre,control_manual,sub_inventario,vender_bodega,aviso_bodega,brand_id,branch_id,tenant_id');
+          var qi = sb.from('iv_insumos').select('id,nombre,control_manual,sub_inventario,vender_bodega,aviso_bodega,agota_producto,brand_id,branch_id,tenant_id');
           if (brandId) qi = qi.eq('brand_id', brandId);
           else if (branchId) qi = qi.eq('branch_id', branchId);
           else if (tenantId) qi = qi.eq('tenant_id', tenantId);
@@ -224,6 +257,10 @@
           S._ins[i.id] = { nombre: i.nombre, stock: num(e.stock), manual: !!i.control_manual,
                            agotadoManual: !!e.agotado_manual, sub: !!i.sub_inventario,
                            servicio: num(e.stock_servicio), venderBodega: !!i.vender_bodega,
+                           /*  Sin el dato se asume QUE SI AGOTA. Un blob guardado
+                               ayer no trae la columna nueva, y equivocarse hacia
+                               "no bloquea" seria dejar vender lo que no hay. */
+                           agota: i.agota_producto !== false,
                            avisoBodega: i.aviso_bodega || '' };
         });
         (recetas || []).forEach(function (r) {
