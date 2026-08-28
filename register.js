@@ -8,7 +8,7 @@ var SUBMITTING    = false;
 
 var PRICES   = { starter: 99000, pro: 249000 };
 var TIERS    = [
-  {min: 10, off: 0.30},
+  {min: 8, off: 0.30},
   {min: 4,  off: 0.20},
   {min: 2,  off: 0.10},
   {min: 1,  off: 0},

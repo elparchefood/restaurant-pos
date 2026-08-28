@@ -40,9 +40,21 @@ var PLANS_DATA = [
   }
 ];
 
+/*  EL ESCALON GRANDE ARRANCA EN 8, NO EN 10 (Sergio, 24-ago, aplicado el 28).
+
+    Con el corte en 10 habia un cruce: una cadena de NUEVE locales pagaba
+    $1.072.800 y una de DIEZ pagaba $1.043.000 — casi $30.000 menos por tener
+    un local mas. Le convenia declarar una sucursal que no tiene, y a nadie le
+    gusta descubrir que el precio castiga por no crecer.
+
+    Pasa porque el descuento salta de golpe: el 30% sobre 10 pesa mas que el
+    20% sobre 9. De las tres salidas que se plantearon, Sergio eligio bajar el
+    escalon a 8: es la unica que arregla el cruce SIN mover ningun precio ya
+    publicado. Con 8 el salto queda plano ($834.400 con 7 y con 8) y a partir
+    de ahi siempre sube.                                                    */
 var TIERS = [
-  {min: 10, off: 0.30, label: '10+ sucursales'},
-  {min: 4,  off: 0.20, label: '4–9 sucursales'},
+  {min: 8, off: 0.30, label: '8+ sucursales'},
+  {min: 4,  off: 0.20, label: '4–7 sucursales'},
   {min: 2,  off: 0.10, label: '2–3 sucursales'},
   {min: 1,  off: 0,    label: '1 sucursal'}
 ];
