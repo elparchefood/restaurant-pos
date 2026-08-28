@@ -251,13 +251,23 @@ function animarCifra(el, hasta, colaHtml) {
   const desde = _cifras[id];
   _cifras[id] = hasta;
   const pinta = v => { el.innerHTML = COPF(v) + (colaHtml || ''); };
+  const DUR = 260;
+  /*  Y si no puede animar, PINTA EL NUMERO Y YA. `document.hidden` es el caso
+      que casi se cuela: en una pestaña que no se esta viendo el navegador no
+      llama a requestAnimationFrame ni una sola vez, asi que la animacion no es
+      que se vea fea — es que **el precio se queda en el anterior**. Un total
+      viejo en la pantalla de cobro no es un detalle visual. */
   if (desde == null || desde === hasta || !window.requestAnimationFrame ||
+      document.hidden ||
       window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     pinta(hasta);
     return;
   }
+  /*  Y por si el navegador deja la animacion a medias (cambio de pestaña
+      mientras corre), un ultimo repaso al final: si nadie pidio otra cifra
+      despues, la buena es esta. */
+  setTimeout(function () { if (_cifras[id] === hasta) pinta(hasta); }, DUR + 150);
   let t0 = null;
-  const DUR = 260;
   const paso = t => {
     if (t0 === null) t0 = t;
     const p = Math.min(1, (t - t0) / DUR);
