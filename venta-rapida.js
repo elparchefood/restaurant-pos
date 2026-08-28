@@ -99,7 +99,21 @@
   }
 
   /* ─── Render: comanda ────────────────────────────────────────── */
+  /*  El mismo traspaso, visto desde venta rapida: de aqui se puede pasar a
+      una mesa (el cliente decidio quedarse) o a domicilio.               */
+  function vrAbrirTraspaso() {
+    if (!window.posTraspaso || !S.cart.length) return;
+    posTraspaso.abrir({
+      origen: 'llevar', etiqueta: 'Para llevar',
+      items: S.cart, total: calcTotal(),
+      cliente: S.cliente || null,
+      alSalir: function () { S.cart = []; saveCart(); },
+    });
+  }
+
   function renderComanda() {
+    var _tr = document.querySelector('[data-action="traspaso"]');
+    if (_tr) _tr.hidden = !S.cart.length;
     const count = calcCount();
     const sub   = calcSubtotal();
     const total = calcTotal();
@@ -722,6 +736,9 @@
     });
 
     // Vaciar
+    var _btnTr = document.querySelector('[data-action="traspaso"]');
+    if (_btnTr) _btnTr.addEventListener('click', vrAbrirTraspaso);
+
     $('vr-btn-vaciar').addEventListener('click', function() {
       if (confirm('¿Vaciar el pedido?')) vaciarCart();
     });
@@ -1648,6 +1665,27 @@ async function loadCatalog() {
   document.addEventListener('DOMContentLoaded', function() {
     // Restaurar estado local
     loadCart();
+
+    /*  LO QUE LLEGA DE OTRA PANTALLA.
+
+    Se AGREGA a lo que haya, no lo reemplaza: quien traspasa puede estar
+    juntando dos pedidos a proposito, y borrarle lo que ya tenia seria
+    quitarle trabajo hecho sin avisar.
+
+    Y se dice de donde viene. Un pedido que aparece solo, sin explicacion, en
+    la pantalla equivocada es la clase de cosa que hace desconfiar del
+    programa entero.                                                       */
+    try {
+      var _tr = window.posTraspaso && posTraspaso.recoger('llevar');
+      if (_tr && _tr.items.length) {
+        S.cart = S.cart.concat(_tr.items);
+        if (_tr.cliente && !S.cliente) S.cliente = _tr.cliente;
+        saveCart();
+        setTimeout(function () {
+          try { vrAviso('Pedido traído de ' + (_tr.etiqueta || 'otra pantalla')); } catch (e) {}
+        }, 400);
+      }
+    } catch (e) { console.warn('[traspaso]', e && e.message); }
     loadClientes();
     loadTurno();
 

@@ -204,6 +204,27 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Eventos: síncrono, sin await, siempre se ejecuta primero ──────────
   attachEvents();
 
+  /*  LO QUE LLEGA DE OTRA PANTALLA.
+
+    Se AGREGA a lo que haya, no lo reemplaza: quien traspasa puede estar
+    juntando dos pedidos a proposito, y borrarle lo que ya tenia seria
+    quitarle trabajo hecho sin avisar.
+
+    Y se dice de donde viene. Un pedido que aparece solo, sin explicacion, en
+    la pantalla equivocada es la clase de cosa que hace desconfiar del
+    programa entero.                                                       */
+  try {
+    const _tr = window.posTraspaso && posTraspaso.recoger('domicilio');
+    if (_tr && _tr.items.length) {
+      S.cart = S.cart.concat(_tr.items);
+      if (_tr.cliente && !S.cliente) S.cliente = _tr.cliente;
+      setTimeout(function () {
+        try { renderCart(); } catch (e) {}
+        try { toast('Pedido traído de ' + (_tr.etiqueta || 'otra pantalla')); } catch (e) {}
+      }, 500);
+    }
+  } catch (e) { console.warn('[traspaso]', e && e.message); }
+
   // ── Auth + datos: async por separado ─────────────────────────────────
   (async () => {
     try {
@@ -1192,7 +1213,22 @@ function refreshBrowserQtys() {
   });
 }
 
+/*  Y desde domicilios: el cliente llamo, despues dijo que pasaba a
+    recogerlo. Mismo gesto.                                              */
+function dAbrirTraspaso() {
+  if (!window.posTraspaso || !S.cart.length) return;
+  var total = S.cart.reduce(function (s, i) { return s + (Number(i.price) || 0) * (Number(i.qty) || 1); }, 0);
+  posTraspaso.abrir({
+    origen: 'domicilio', etiqueta: 'Domicilio',
+    items: S.cart, total: total,
+    cliente: S.cliente || null,
+    alSalir: function () { S.cart = []; },
+  });
+}
+
 function renderCart() {
+  var _tr = document.querySelector('[data-action="traspaso"]');
+  if (_tr) _tr.hidden = !S.cart.length;
   const lines = $('cart-lines');
   const lbl   = $('cart-count-lbl');
   if (!lines) return;
@@ -2229,6 +2265,7 @@ function handleAction(action) {
   else if (action === 'nuevo')           { resetPedido(); openModal('modal-registro'); }
   else if (action === 'editar-ctx')      { openModal('modal-registro'); }
   else if (action === 'vaciar')          { clearCart(); }
+  else if (action === 'traspaso')        { dAbrirTraspaso(); }
   else if (action === 'guardar')         { toast('Pedido guardado (borrador)'); }
   else if (action === 'enviar')          { enviarACocina(); }
   else if (action === 'registro-next')   { document.body.classList.remove('d-gate'); closeModal('modal-registro'); renderContextHeader(); }

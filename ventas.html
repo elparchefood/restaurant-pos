@@ -88,7 +88,28 @@
   <script src="pos-metodos.js?v=1790540000"></script>
   <script src="pos-saldo.js?v=1790470001"></script>
   <script src="pos-mapa.js?v=1792480000"></script>
+  <link rel="stylesheet" href="pos-traspaso.css?v=1792900000">
+  <script src="pos-traspaso.js?v=1792900000"></script>
   <script src="modules/ventas-salon.js?v=1792730000"></script>
+  <script>
+  /*  VIENE UN PEDIDO DE OTRA PANTALLA (28-ago-2026).
+
+      Aqui NO se recibe: lo recibe `tomar-pedido` cuando se elige la mesa.
+      Pero sin decir nada, tocar "Mesa" en el menu de traspaso lleva a una
+      pantalla de mesas identica a siempre y parece que no paso nada — el
+      pedido esta guardado y esperando, pero eso no se ve por ningun lado.  */
+  document.addEventListener('DOMContentLoaded', function () {
+    try {
+      var t = window.posTraspaso && posTraspaso.hay('mesa');
+      if (!t) return;
+      var d = document.createElement('div');
+      d.className = 'tr-hint';
+      d.innerHTML = '<b>Elige la mesa</b> para el pedido de ' + (t.etiqueta || 'la otra pantalla')
+        + ' (' + t.n + (t.n === 1 ? ' ítem' : ' ítems') + ')';
+      document.body.appendChild(d);
+    } catch (e) {}
+  });
+  </script>
 
   <script>
     // Muestra error en el loader y agrega botón de reintento

@@ -76,6 +76,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 5. Cargar pedido activo de la mesa (si existe)
   await loadOpenOrder();
 
+  /*  LO QUE LLEGA DE OTRA PANTALLA.
+
+    Se AGREGA a lo que haya, no lo reemplaza: quien traspasa puede estar
+    juntando dos pedidos a proposito, y borrarle lo que ya tenia seria
+    quitarle trabajo hecho sin avisar.
+
+    Y se dice de donde viene. Un pedido que aparece solo, sin explicacion, en
+    la pantalla equivocada es la clase de cosa que hace desconfiar del
+    programa entero.                                                       */
+  try {
+    const _tr = window.posTraspaso && posTraspaso.recoger('mesa');
+    if (_tr && _tr.items.length) {
+      S.cart = S.cart.concat(_tr.items);
+      if (_tr.cliente && !S.clienteId) {
+        S.clienteId = _tr.cliente.id || null;
+        S.clienteNombre = _tr.cliente.nombre || '';
+        S.clienteTel = _tr.cliente.tel || '';
+        try { tpPintarCliente(); } catch (e) {}
+      }
+      setTimeout(function () {
+        try { toast('Pedido traído de ' + (_tr.etiqueta || 'otra pantalla')); } catch (e) {}
+      }, 400);
+    }
+  } catch (e) { console.warn('[traspaso]', e && e.message); }
+
   // 6. Renderizar vistas
   renderCatGrid();
   
@@ -575,7 +600,43 @@ async function tpMarcarComiendo(method) {
   } catch(e) { console.error('[TP] marcarComiendo:', e); }
 }
 
+/*  ══ PASAR EL PEDIDO A OTRA PANTALLA ══════════════════════════
+
+    Sergio, 28-ago-2026: el cliente pide en la mesa y a mitad de camino dice
+    «mejor para llevar». Hoy toca salirse, perder lo seleccionado y volver a
+    armarlo producto por producto.
+
+    SOLO ANTES DE ENVIAR A COCINA, y es decision suya: mientras la comanda
+    esta solo en pantalla, moverla no le afecta a nadie. Una vez enviada, la
+    cocina ya la tiene y la mesa esta ocupada — eso es otra funcion, que el
+    prefirio hacer aparte para que no choque con esta.
+
+    Por eso el enlace desaparece en cuanto existe `S.order`: un boton que a
+    veces hace una cosa y a veces otra es peor que dos botones.            */
+function tpPuedeTraspasar() {
+  return !!S.cart.length && !S.order;
+}
+function tpPintarTraspaso() {
+  const b = document.querySelector('[data-action="traspaso"]');
+  if (b) b.hidden = !tpPuedeTraspasar();
+}
+function tpAbrirTraspaso() {
+  if (!window.posTraspaso || !tpPuedeTraspasar()) return;
+  posTraspaso.abrir({
+    origen: 'mesa',
+    etiqueta: S.table && S.table.name ? String(S.table.name) : 'Esta mesa',
+    items: S.cart,
+    total: cartTotal(),
+    cliente: S.clienteId ? { id: S.clienteId, nombre: S.clienteNombre || '', tel: S.clienteTel || '' } : null,
+    aviso: 'La mesa queda libre. Nada se ha cobrado todav\u00eda.',
+    /*  La comanda se vacia AQUI, al salir. Si se dejara puesta, el pedido
+        existiria en dos pantallas a la vez y alguien cobraria dos veces. */
+    alSalir: function () { S.cart = []; },
+  });
+}
+
 function paintCartState() {
+  tpPintarTraspaso();
   const empty   = $('comanda-empty');
   const scroll  = $('cart-scroll');
   const foot    = $('comanda-foot');
@@ -1561,6 +1622,7 @@ function bindEvents() {
         // ("Cobrar" / "Cobrar y enviar a cocina", modules/ventas-salon.js). Este
         // botón dentro de la mesa era un atajo duplicado.
         case 'vaciar':       clearCart(); break;
+        case 'traspaso':     tpAbrirTraspaso(); break;
         default: break;
       }
     });
