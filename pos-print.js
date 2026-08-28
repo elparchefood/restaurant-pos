@@ -414,6 +414,22 @@
       var area = (docType === 'comanda') ? 'cocina' : 'caja';
       var match = _printerCache.printers.find(function(p) { return p.area === area && p.is_default; });
       if (!match) match = _printerCache.printers.find(function(p) { return p.area === area; });
+      /*  SI NO HAY UNA PARA ESA AREA, SE USA LA QUE HAYA (28-ago-2026).
+
+          El Parche tiene UNA sola impresora, registrada como de cocina. Todo lo
+          que fuera "recibo" buscaba una de caja, no encontraba ninguna, y salia
+          con el nombre VACIO — y con el nombre vacio no falla: imprime en la
+          impresora que Windows tenga por defecto, que puede ser una que ni
+          existe. Desde afuera eso es "no imprimio nada", sin un solo error.
+
+          Un restaurante con una impresora quiere que todo salga por ella. No
+          hay que hacerle configurar dos areas para algo que solo tiene una
+          respuesta posible.                                                */
+      if (!match) {
+        match = _printerCache.printers.find(function(p) { return p.is_default; })
+             || _printerCache.printers[0];
+        if (match) console.warn('[print] sin impresora de ' + area + ', se usa ' + match.system_name);
+      }
       return (match && match.system_name) ? match.system_name : '';
     } catch(e) { return ''; }
   }
