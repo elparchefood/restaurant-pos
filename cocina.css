@@ -484,12 +484,29 @@ svg{display:block;}
 .zona-lista::-webkit-scrollbar{width:calc(var(--u) * .38);height:calc(var(--u) * .38);}
 .zona-lista::-webkit-scrollbar-track{background:transparent;}
 .zona-lista::-webkit-scrollbar-thumb{
-  background:rgba(15,23,42,.16); border-radius:999px;
+  /*  Semitransparente de verdad: a .16 sobre blanco todavia se leia como una
+      linea gris solida. A .10 el fondo se ve a traves y la barra pasa a ser
+      una sombra del contenido, no un elemento mas de la pantalla.
+
+      Y bien redondeada: `999px` la deja en capsula — los extremos son
+      semicirculos perfectos por alto que este. El borde transparente con
+      `background-clip` la mete dos pixeles hacia adentro; sin eso toca el
+      borde de la zona y una capsula pegada al filo se ve cortada.        */
+  background:rgba(15,23,42,.10); border-radius:999px;
   border:2px solid transparent; background-clip:padding-box;
 }
-.zona-lista::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,.3);background-clip:padding-box;}
+.zona-lista::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,.22);background-clip:padding-box;}
 .zona-lista::-webkit-scrollbar-button,
 .zona-lista::-webkit-scrollbar-corner{display:none;height:0;width:0;}
-/*  Firefox no deja pintar el cursor por partes, pero sí pedirle que sea fina
-    y de qué color: mismo resultado con las dos palabras que existen. */
-.zona-lista{scrollbar-width:thin;scrollbar-color:rgba(15,23,42,.16) transparent;}
+/*  ⚠️ AQUI NO VA `scrollbar-width` NI `scrollbar-color`.
+
+    Lo tenia puesto para Firefox y me apago las esquinas redondeadas sin dar
+    ningun error. Es una regla del navegador poco conocida: en cuanto una hoja
+    declara `scrollbar-width`, Chrome DESCARTA todo lo de `::-webkit-scrollbar`
+    y pinta la barra a su manera — y a su manera es un rectangulo, porque
+    `scrollbar-color` solo deja escoger el color, no la forma.
+
+    O sea que la linea que puse pensando en un navegador que aqui nadie usa
+    (cocina corre en el ejecutable, que es Chromium) desactivaba justo lo que
+    Sergio pidio. Si algun dia hay que atender a Firefox, va en su propia
+    consulta `@supports`, nunca suelta.                                     */
