@@ -706,29 +706,17 @@ Deno.serve(async (req: Request) => {
           esta respuesta es la que llega al tocar el boton «¿Que falta?» de
           esa plantilla, asi que las dos son la misma conversacion. Si se
           vieran distintas, pareceria que contestan cosas distintas.       */
-      let reply = "📦 *POR COMPRAR*
-";
+      let reply = "📦 *POR COMPRAR*\n";
       if (agotados.length) {
-        reply += `
-❌ *SE ACABÓ (${agotados.length})*
-`
-          + agotados.map((i) => `• ${i.nombre}`).join("
-") + "
-";
+        reply += `\n❌ *SE ACABÓ (${agotados.length})*\n`
+          + agotados.map((i) => `• ${i.nombre}`).join("\n") + "\n";
       }
       if (bajos.length) {
-        reply += `
-⚠️ *QUEDA POCO (${bajos.length})*
-`
-          + bajos.map((i) => `• ${i.nombre} — ${decir(i.sub ? i.stock + i.servicio : i.stock, i)}`).join("
-") + "
-";
+        reply += `\n⚠️ *QUEDA POCO (${bajos.length})*\n`
+          + bajos.map((i) => `• ${i.nombre} — ${decir(i.sub ? i.stock + i.servicio : i.stock, i)}`).join("\n") + "\n";
       }
-      if (!agotados.length && !bajos.length) reply += "
-Todo con stock. 👍
-";
-      reply += `
-Dime “hay 3 galones de salsa bbq” y lo actualizo.`;
+      if (!agotados.length && !bajos.length) reply += "\nTodo con stock. 👍\n";
+      reply += `\nDime “hay 3 galones de salsa bbq” y lo actualizo.`;
       return json({ reply, consulta: true });
     }
 

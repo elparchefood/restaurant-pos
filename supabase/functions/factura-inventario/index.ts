@@ -54,6 +54,8 @@ type Linea = {
   /* Se sabe QUE insumo es pero no CUANTAS unidades trae el empaque. */
   duda_cantidad?: boolean;
   buy_unit?: string; cant_final?: number; precio_unit?: number; precio_viejo?: number;
+  cant_leida?: number;          // lo que decia la factura antes de cuadrar
+  cant_ajustada?: boolean;      // la cuenta dijo que esa cantidad no era
   ok?: boolean;                 // reconocido → se puede aplicar
   precio_raro?: boolean;        // el precio no cuadra con ese insumo
 };
@@ -142,6 +144,45 @@ function razonPrecio(valorTotal: number, cantFinal: number, precioConocido: numb
 }
 const precioCuadra = (r: number) => r <= 2.5 && r >= 0.4;
 
+/*  ══ LA CUENTA MANDA SOBRE LA LECTURA ═══════════════════════════
+
+    28-ago-2026. La factura de Porkis decia «2 galones de salsa de tomate,
+    $34.000» y Cobra propuso sumar TRES, con un precio de $11.333 que no
+    aparece en ningun lado de la factura. Sergio: «no se de donde saco ese
+    valor». De dividir: 34.000 entre los tres que creyo leer.
+
+    Lo que fallo no fue leer el numero — eso va a fallar siempre de vez en
+    cuando, es una foto de un papel con columnas pegadas. Lo que fallo es que
+    NADIE COMPROBO LA CUENTA, teniendo con que.
+
+    Porque el dato bueno estaba ahi al lado: la salsa esta a $17.000, y
+    34.000 / 17.000 = 2 EXACTO. Dos numeros que se conocen (el total de la
+    linea, que es el que mejor se lee porque es el que suma la factura, y el
+    precio que ya tenemos guardado) dicen la cantidad sin adivinar nada.
+
+    Se corrige solo cuando la evidencia es fuerte, no siempre:
+      · la cantidad leida NO hace cuadrar el precio (mas de 2% de diferencia),
+      · pero otra cantidad ENTERA lo deja practicamente clavado,
+      · y esa otra cantidad es distinta.
+    Que el total caiga por casualidad en un multiplo exacto del precio viejo
+    es mucho menos probable que un digito mal leido.
+
+    Y NO SE HACE EN SILENCIO: se dice en el mensaje que la factura decia otra
+    cosa, para que el gerente lo pueda desmentir. Corregir callado es como
+    equivocarse callado — la proxima vez nadie sabe cual de los dos numeros
+    mirar.                                                                */
+const CERCA = 0.02;                    // 2%: redondeos del proveedor, no cambios
+function cuadrarCantidad(valorTotal: number, cantFinal: number, precioViejo: number): number | null {
+  if (!(precioViejo > 0) || !(valorTotal > 0) || !(cantFinal > 0)) return null;
+  const dif = (p: number) => Math.abs(p - precioViejo) / precioViejo;
+  //  Si la cantidad leida ya cuadra, no hay nada que corregir.
+  if (dif(valorTotal / cantFinal) <= CERCA) return null;
+  const alt = Math.round(valorTotal / precioViejo);
+  if (alt < 1 || alt === cantFinal) return null;
+  if (dif(valorTotal / alt) > CERCA) return null;
+  return alt;
+}
+
 function resolver(l: Linea, insumos: Insumo[], alias: Array<Record<string, unknown>>): Linea {
   const d = norm(l.desc);
   const a = alias.find((x) => {
@@ -165,9 +206,11 @@ function resolver(l: Linea, insumos: Insumo[], alias: Array<Record<string, unkno
                    : precioCuadra(rEmpaque) ? facEmpaque
                    : 0;   // 0 = ninguna cuenta cuadra: no se adivina
       if (factor > 0) {
-        const cantFinal = l.cantidad * factor;
+        const leida = l.cantidad * factor;
+        const alt = cuadrarCantidad(l.valor_total, leida, ins.precio);
+        const cantFinal = alt ?? leida;
         return { ...l, insumo_id: ins.id, insumo: ins.nombre, factor, buy_unit: ins.buy_unit,
-          cant_final: cantFinal, precio_viejo: ins.precio,
+          cant_final: cantFinal, precio_viejo: ins.precio, cant_leida: leida, cant_ajustada: alt != null,
           precio_unit: cantFinal > 0 ? l.valor_total / cantFinal : 0, ok: true };
       }
       /* Se sabe QUE es, pero no CUANTO trae: se pregunta en vez de meter una
@@ -212,9 +255,11 @@ function resolver(l: Linea, insumos: Insumo[], alias: Array<Record<string, unkno
 
   if (claro) {
     const fac = usaEmpaque ? facE : 1;
-    const cf = l.cantidad * fac;
+    const leida = l.cantidad * fac;
+    const alt = cuadrarCantidad(l.valor_total, leida, mejor.precio);
+    const cf = alt ?? leida;
     return { ...l, insumo_id: mejor.id, insumo: mejor.nombre, factor: fac, buy_unit: mejor.buy_unit,
-      cant_final: cf, precio_viejo: mejor.precio,
+      cant_final: cf, precio_viejo: mejor.precio, cant_leida: leida, cant_ajustada: alt != null,
       precio_unit: cf > 0 ? l.valor_total / cf : 0, ok: true };
   }
   return { ...l, insumo_id: null, insumo: puntajes.slice(0, 2).map((x) => x.i.nombre).join(" o "),
@@ -243,6 +288,12 @@ function armarMensaje(prov: string, total: number, lineas: Linea[]): string {
          que el gerente la pueda desmentir de un vistazo. */
       if (num(l.factor) > 1) {
         t += `\n    (${fmtNum(l.cantidad)} × ${fmtNum(num(l.factor))} por empaque)`;
+      }
+      /*  Cuando la cuenta corrigio la lectura, se dice — con los dos numeros
+          a la vista, para que el gerente pueda desmentirlo mirando el papel. */
+      if (l.cant_ajustada) {
+        t += `\n    (leí ${fmtNum(num(l.cant_leida))}, pero a ${fmtCOP(l.precio_viejo || 0)} ` +
+             `la línea de ${fmtCOP(l.valor_total)} da ${fmtNum(num(l.cant_final))})`;
       }
       if (sube) {
         const arriba = (l.precio_unit || 0) > (l.precio_viejo || 0);

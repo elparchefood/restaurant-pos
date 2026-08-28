@@ -193,6 +193,11 @@ Deno.serve(async (req) => {
               await sbPost(`/rest/v1/pos_gerente_procesados`, { external_id: externalId });
 
               let reply = "";
+              /*  QUIEN CONTESTO. Sin esto, cuando el bot se atasca no hay como
+                  saber si fue la factura, el inventario por texto o el saludo
+                  de "solo entiendo texto": los tres devuelven 200 y desde
+                  afuera se ven identicos. */
+              let ruta = "";
               // ── FOTO DE FACTURA: la lee y propone reponer el inventario ──
               if (msgType === "image" && mediaUrl) {
                 try {
@@ -203,6 +208,7 @@ Deno.serve(async (req) => {
                   });
                   const fd = await fr.json();
                   reply = fd.reply || "No pude leer esa factura 🤔.";
+                  ruta = "factura-foto";
                 } catch (e) { console.error("factura-inventario:", e); reply = "Hubo un error leyendo la factura."; }
               } else if (msgType === "text" && bodyText) {
                 // Si hay una factura esperando confirmación, el texto es para ella
@@ -219,7 +225,7 @@ Deno.serve(async (req) => {
                      con que la funcion contestara CUALQUIER cosa: cuando se
                      rompio por la mudanza del stock, devolvia "No encuentro
                      insumos" a todo, y eso bloqueaba el inventario por texto. */
-                  if (fd.reply && fd.sin_factura !== true) reply = fd.reply;
+                  if (fd.reply && fd.sin_factura !== true) { reply = fd.reply; ruta = "factura-texto"; }
                 } catch (_e) { /* si falla, sigue el flujo normal de texto */ }
               }
               if (!reply && msgType === "text" && bodyText) {
@@ -230,7 +236,12 @@ Deno.serve(async (req) => {
                     body: JSON.stringify({ branch_id, message: bodyText, phone: fromPhone }),
                   });
                   const gd = await gr.json();
+                  /*  Si la funcion contesta 200 pero sin `reply`, eso NO es
+                      "no pude procesar": es un fallo que hay que poder ver.
+                      Se deja dicho en el rastro para no volver a quedarnos sin
+                      pista como el 28-ago. */
                   reply = gd.reply || "No pude procesar eso 🤔.";
+                  ruta = gd.reply ? "gerente" : "gerente-sin-respuesta";
                 } catch (e) { console.error("gerente-inventario:", e); reply = "Hubo un error procesando el inventario."; }
               }
               /* ESTE AVISO ES SOLO PARA LO QUE NO ES TEXTO NI FOTO (un audio,
@@ -242,7 +253,22 @@ Deno.serve(async (req) => {
                  cuanto la otra funcion contestaba algo. */
               if (!reply) {
                 reply = "👋 Hola. Por ahora solo entiendo *texto* y *fotos de facturas* para el inventario. Ej: “hay 3 kilos de carne” o “compré 2 pacas de gaseosa a 30 mil”.";
+                ruta = "saludo";
               }
+
+              /*  El rastro. Best-effort: si esto falla, el gerente igual
+                  recibe su respuesta — no se le rompe el inventario por no
+                  poder anotar. */
+              try {
+                await fetch(`${SUPABASE_URL}/rest/v1/pos_gerente_procesados?external_id=eq.${encodeURIComponent(externalId)}`, {
+                  method: "PATCH",
+                  headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
+                             "Content-Type": "application/json", Prefer: "return=minimal" },
+                  body: JSON.stringify({ branch_id, telefono: fromDigits, tipo: msgType,
+                    mensaje: String(bodyText || "").slice(0, 2000),
+                    respuesta: String(reply || "").slice(0, 4000), ruta }),
+                });
+              } catch (e) { console.error("rastro gerente:", e); }
               if (phoneId && accessToken) {
                 try {
                   await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
