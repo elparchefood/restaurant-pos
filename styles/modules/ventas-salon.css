@@ -1707,3 +1707,31 @@
 .vs-cmd-pagado{ font-size:10px; font-weight:700; color:#166534; background:#DCFCE7;
   border:1px solid #BBF7D0; padding:2px 7px; border-radius:20px; margin-right:8px; flex-shrink:0; }
 .vs-total-mesa{ color:#94A3B8; font-size:12px; }
+
+/*  ══ ELEGIR Y RELLENAR ═══════════════════════════════════════════════════
+    Para "Cambiar de mesa" (elegir entre las libres) y "Pasar a domicilio"
+    (pedir la dirección). Van dentro del mismo marco de `vs-confirm` a
+    propósito: en medio del servicio, una ventana con otro aire se lee como
+    otra parte del programa.                                                */
+.vs-elegir{
+  display:flex; flex-direction:column; gap:8px;
+  margin:14px 0 4px; max-height:46vh; overflow-y:auto;
+}
+.vs-elegir-op{
+  display:flex; flex-direction:column; gap:2px; width:100%;
+  padding:11px 13px; border:1px solid #ECEEF2; border-radius:10px;
+  background:#fff; font-family:inherit; text-align:left; cursor:pointer;
+  transition:background .12s, border-color .12s;
+}
+.vs-elegir-op:hover{background:#F8FAFC; border-color:#5B6BFF;}
+.vs-elegir-op b{font-size:13.5px; font-weight:700; color:#0F172A;}
+.vs-elegir-op small{font-size:11.5px; color:#64748B;}
+
+.vs-form{display:flex; flex-direction:column; gap:11px; margin:14px 0 4px; text-align:left;}
+.vs-form-campo{display:flex; flex-direction:column; gap:5px;}
+.vs-form-campo span{font-size:11.5px; font-weight:700; color:#475569;}
+.vs-form-campo input{
+  width:100%; padding:9px 11px; border:1px solid #ECEEF2; border-radius:9px;
+  font-family:inherit; font-size:13px; color:#0F172A; outline:none; background:#fff;
+}
+.vs-form-campo input:focus{border-color:#5B6BFF; box-shadow:0 0 0 3px rgba(91,107,255,.12);}

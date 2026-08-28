@@ -3219,7 +3219,22 @@
         const rect = dotsBtn.getBoundingClientRect();
         const menu = document.createElement('div');
         menu.className = 'vs-dots-menu';
-        menu.innerHTML = `<button class="vs-dots-menu-item vs-dots-menu-item--danger" data-action="cancelar-pedido-mesa" data-table-id="${tableId}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>Cancelar pedido</button>`;
+        /*  ══ MOVER UN PEDIDO QUE YA EXISTE ═════════════════════════
+
+            Sergio, 28-ago-2026. Lo del enlace «Pasar a…» de la comanda solo
+            sirve MIENTRAS se toma el pedido. Esto es lo otro: el pedido ya se
+            envio, esta en cocina, la gente esta comiendo — y de repente se
+            cambian de mesa, o dicen que se lo llevan.
+
+            Va en los tres puntos y no en un boton nuevo porque no es algo de
+            todos los dias: los botones grandes de la tarjeta son los de cada
+            servicio (imprimir, dividir, cobrar) y meter ahi algo que se usa
+            una vez al dia les quita sitio a los que se usan cien.        */
+        menu.innerHTML =
+          `<button class="vs-dots-menu-item" data-action="mover-mesa" data-table-id="${tableId}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16H3m0 0 3-3m-3 3 3 3"/><path d="M17 8h4m0 0-3-3m3 3-3 3"/></svg>Cambiar de mesa</button>` +
+          `<button class="vs-dots-menu-item" data-action="mover-modo" data-modo="rapido" data-table-id="${tableId}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>Pasar a Para llevar</button>` +
+          `<button class="vs-dots-menu-item" data-action="mover-modo" data-modo="domicilio" data-table-id="${tableId}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 17.5h-6l-2-9h-3"/><path d="M9 8.5h7l2 9"/></svg>Pasar a Domicilio</button>` +
+          `<button class="vs-dots-menu-item vs-dots-menu-item--danger" data-action="cancelar-pedido-mesa" data-table-id="${tableId}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>Cancelar pedido</button>`;
         menu.style.cssText = 'top:' + (rect.bottom + 4) + 'px;right:' + (window.innerWidth - rect.right) + 'px;';
         document.body.appendChild(menu);
         menu.querySelectorAll('[data-action]').forEach(el => el.addEventListener('click', handleAction));
@@ -3262,6 +3277,16 @@
             vsToast('Error al cancelar: ' + (err.message || String(err)));
           }
         });
+        break;
+      }
+      case 'mover-mesa': {
+        document.querySelectorAll('.vs-dots-menu').forEach(el => el.remove());
+        vsMoverDeMesa(tableId);
+        break;
+      }
+      case 'mover-modo': {
+        document.querySelectorAll('.vs-dots-menu').forEach(el => el.remove());
+        vsMoverDeModo(tableId, el.dataset.modo);
         break;
       }
       case 'liberar-mesa':
@@ -3783,6 +3808,230 @@
     t.textContent = msg;
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 3000);
+  }
+
+  /*  ══ ELEGIR ENTRE VARIAS ══════════════════════════════════
+      Mismo marco que `vsConfirm` para que no aparezca una ventana con otro
+      aire en medio del servicio. Devuelve el id elegido, o null.          */
+  function vsElegir({ title, msg, opciones }) {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'vs-confirm-overlay';
+      overlay.innerHTML = `
+        <div class="vs-confirm-card" style="max-width:420px">
+          <div class="vs-confirm-title">${title}</div>
+          ${msg ? `<div class="vs-confirm-msg">${msg}</div>` : ''}
+          <div class="vs-elegir">${opciones.map(o =>
+            `<button class="vs-elegir-op" data-op="${o.id}"><b>${o.titulo}</b>${o.sub ? `<small>${o.sub}</small>` : ''}</button>`
+          ).join('')}</div>
+          <div class="vs-confirm-actions"><button class="vs-c-cancel">Cancelar</button></div>
+        </div>`;
+      document.body.appendChild(overlay);
+      function close(r) { overlay.remove(); resolve(r); }
+      overlay.querySelectorAll('.vs-elegir-op').forEach(b =>
+        b.addEventListener('click', () => close(b.dataset.op)));
+      overlay.querySelector('.vs-c-cancel').addEventListener('click', () => close(null));
+      overlay.addEventListener('click', e => { if (e.target === overlay) close(null); });
+    });
+  }
+
+  /*  Un formulario corto, con el mismo marco. Devuelve un objeto con los
+      valores, o null si cancela.                                          */
+  function vsFormulario({ title, msg, campos, okLabel = 'Guardar' }) {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'vs-confirm-overlay';
+      overlay.innerHTML = `
+        <div class="vs-confirm-card" style="max-width:420px">
+          <div class="vs-confirm-title">${title}</div>
+          ${msg ? `<div class="vs-confirm-msg">${msg}</div>` : ''}
+          <div class="vs-form">${campos.map(c =>
+            `<label class="vs-form-campo"><span>${c.label}</span>
+              <input id="vsf-${c.id}" type="${c.tipo || 'text'}" placeholder="${c.ej || ''}" value="${c.valor || ''}" autocomplete="off"></label>`
+          ).join('')}</div>
+          <div class="vs-confirm-actions">
+            <button class="vs-c-cancel">Cancelar</button>
+            <button class="vs-c-ok brand">${okLabel}</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      function close(r) { overlay.remove(); resolve(r); }
+      overlay.querySelector('.vs-c-ok').addEventListener('click', () => {
+        const out = {};
+        let falta = null;
+        campos.forEach(c => {
+          const v = (overlay.querySelector('#vsf-' + c.id).value || '').trim();
+          out[c.id] = v;
+          if (c.obliga && !v && !falta) falta = c;
+        });
+        if (falta) {
+          const inp = overlay.querySelector('#vsf-' + falta.id);
+          inp.style.borderColor = '#DC2626'; inp.focus();
+          return;
+        }
+        close(out);
+      });
+      overlay.querySelector('.vs-c-cancel').addEventListener('click', () => close(null));
+      overlay.addEventListener('click', e => { if (e.target === overlay) close(null); });
+      setTimeout(() => { const p = overlay.querySelector('input'); if (p) p.focus(); }, 30);
+    });
+  }
+
+  /*  ══ CAMBIAR DE MESA ════════════════════════════════════
+
+      Lo importante aqui no es mover el pedido — eso es un campo— sino que la
+      mesa nueva llegue con TODO el estado de la vieja: en que va (esperando,
+      comiendo, pendiente de pago) y desde cuando. Copiar solo «ocupada»
+      reiniciaria los relojes, y una mesa que lleva 40 minutos aparecería
+      recien sentada. El unico que no se copia es `current_order_id`, que es
+      justamente lo que cambia de dueno.                                   */
+  async function vsMoverDeMesa(tableId) {
+    const sbM = window._pos && window._pos.sb;
+    if (!sbM) return;
+    const vieja = state.tables.find(t => t.id === tableId);
+    const ordId = (state.currentOrder && state.currentOrder.id) || (vieja && vieja.current_order_id);
+    if (!ordId) { vsToast('Esta mesa no tiene un pedido para mover'); return; }
+
+    const libres = state.tables.filter(t => t.id !== tableId && t.status === 'libre');
+    if (!libres.length) { vsToast('No hay ninguna mesa libre ahora mismo'); return; }
+
+    const elegida = await vsElegir({
+      title: 'Cambiar de mesa',
+      msg: 'El pedido se pasa completo, con su estado y su tiempo.',
+      opciones: libres.map(t => ({
+        id: t.id,
+        titulo: 'Mesa ' + (t.name || t.number || ''),
+        sub: (t.zone_name ? t.zone_name + ' · ' : '') + (t.capacity ? t.capacity + ' puestos' : 'libre'),
+      })),
+    });
+    if (!elegida) return;
+
+    try {
+      const { error: e1 } = await sbM.from('pos_orders').update({ table_id: elegida }).eq('id', ordId);
+      if (e1) throw e1;
+      const { error: e2 } = await sbM.from('pos_tables').update({
+        status: vieja.status, current_order_id: ordId, sesion_at: vieja.sesion_at || new Date().toISOString(),
+        esperando_at: vieja.esperando_at || null, comiendo_at: vieja.comiendo_at || null,
+        pendiente_pago_at: vieja.pendiente_pago_at || null, comiendo_method: vieja.comiendo_method || null,
+      }).eq('id', elegida);
+      if (e2) throw e2;
+      const { error: e3 } = await sbM.from('pos_tables').update({
+        status: 'libre', current_order_id: null, sesion_at: null,
+        esperando_at: null, comiendo_at: null, pendiente_pago_at: null, comiendo_method: null,
+      }).eq('id', tableId);
+      if (e3) throw e3;
+
+      const nueva = state.tables.find(t => t.id === elegida);
+      if (nueva) {
+        nueva.status = vieja.status; nueva.current_order_id = ordId;
+        nueva.sesion_at = vieja.sesion_at; nueva.esperando_at = vieja.esperando_at;
+        nueva.comiendo_at = vieja.comiendo_at; nueva.pendiente_pago_at = vieja.pendiente_pago_at;
+      }
+      vieja.status = 'libre'; vieja.current_order_id = null; vieja.sesion_at = null;
+      state.selectedTableId = elegida;
+      if (state.currentOrder) state.currentOrder.table_id = elegida;
+      render();
+      vsToast('Pedido movido a la Mesa ' + ((nueva && (nueva.name || nueva.number)) || ''));
+    } catch (err) {
+      vsToast('No se pudo mover: ' + (err.message || String(err)));
+    }
+  }
+
+  /*  ══ CAMBIAR DE MODO ════════════════════════════════════
+
+      El pedido sigue siendo el MISMO — mismo id, mismos productos, mismo
+      total, y en cocina se queda con el tiempo que llevaba. Lo unico que
+      cambia es por donde sale. Por eso no se cancela y se rehace: eso le
+      quitaria a la cocina un pedido que ya esta haciendo y le pondria uno
+      nuevo con el reloj en cero.
+
+      A domicilio hay que preguntarle la direccion. No se puede adivinar, y un
+      domicilio sin direccion es un pedido que nadie puede entregar.       */
+  async function vsMoverDeModo(tableId, modo) {
+    const sbM = window._pos && window._pos.sb;
+    if (!sbM) return;
+    const mesa = state.tables.find(t => t.id === tableId);
+    const ordId = (state.currentOrder && state.currentOrder.id) || (mesa && mesa.current_order_id);
+    if (!ordId) { vsToast('Esta mesa no tiene un pedido para mover'); return; }
+    const numStr = mesa ? (mesa.name || String(mesa.number || '')) : '';
+
+    const cambios = { channel: modo, table_id: null };
+
+    if (modo === 'domicilio') {
+      const d = await vsFormulario({
+        title: 'Pasar a domicilio',
+        msg: 'El pedido de la <strong>Mesa ' + numStr + '</strong> se manda a domicilios. La mesa queda libre.',
+        okLabel: 'Pasar a domicilio',
+        campos: [
+          { id: 'dir', label: 'Dirección', ej: 'Cra 9B #63N-58', obliga: true },
+          { id: 'barrio', label: 'Barrio', ej: 'Bello Horizonte' },
+          { id: 'tel', label: 'Teléfono', ej: '3001234567', tipo: 'tel' },
+          { id: 'fee', label: 'Valor del domicilio', ej: '5000', tipo: 'number' },
+        ],
+      });
+      if (!d) return;
+      /*  El mismo formato de notas que escribe la pantalla de domicilios — es
+          el que lee la app del domiciliario. Inventar otro aqui dejaria el
+          pedido sin direccion en la moto.                                 */
+      cambios.notes = ((d.dir ? d.dir + ' ' : '')
+        + (d.barrio ? '[barrio:' + d.barrio.toUpperCase() + ']' : '')
+        + (d.tel ? ' [tel:' + d.tel + ']' : '')).trim() || null;
+      const fee = parseInt(d.fee, 10) || 0;
+      cambios.delivery_fee = fee;
+      cambios.delivery_status = 'recibido';
+      const totalActual = Number(state.currentOrder && state.currentOrder.total) || 0;
+      if (totalActual > 0) cambios.total = totalActual + fee;
+    } else {
+      /*  UN NUMERO DE TURNO, porque la cocina lo pinta.
+
+          En la columna de Para llevar el titulo de la tarjeta es «Turno
+          #007». Un pedido que llega del salon no trae turno, y sin esto la
+          comanda apareceria titulada «Turno» a secas — sin nada con que
+          llamarla desde la cocina, que es justo para lo que sirve el titulo.
+
+          Se toma el siguiente de los de HOY en esta sede. La pantalla de
+          venta rapida lleva su propia cuenta en el equipo, y esa no se puede
+          leer desde aqui; preguntarle a los pedidos del dia da el mismo
+          numero sin depender de que equipo sea.                          */
+      try {
+        const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+        let q = sbM.from('pos_orders').select('turno')
+          .eq('channel', 'rapido').gte('opened_at', hoy.toISOString());
+        //  Sin sede el filtro se omite: mejor un numero de mas que una
+        //  consulta que revienta por pasarle `undefined`.
+        const bid = (mesa && mesa.branch_id) || (state.currentOrder && state.currentOrder.branch_id);
+        if (bid) q = q.eq('branch_id', bid);
+        const { data: ult } = await q.order('turno', { ascending: false }).limit(1);
+        cambios.turno = (((ult && ult[0] && ult[0].turno) || 0) + 1);
+      } catch (e) { /* sin turno la tarjeta sale sin numero, pero sale */ }
+
+      const ok = await vsConfirm({
+        title: 'Pasar a Para llevar',
+        msg: 'El pedido de la <strong>Mesa ' + numStr + '</strong> pasa a Para llevar y la mesa queda libre. En cocina se mueve de columna, con el tiempo que lleva.',
+        okLabel: 'Sí, pasarlo',
+      });
+      if (!ok) return;
+    }
+
+    try {
+      const { error: e1 } = await sbM.from('pos_orders').update(cambios).eq('id', ordId);
+      if (e1) throw e1;
+      const { error: e2 } = await sbM.from('pos_tables').update({
+        status: 'libre', current_order_id: null, sesion_at: null,
+        esperando_at: null, comiendo_at: null, pendiente_pago_at: null, comiendo_method: null,
+      }).eq('id', tableId);
+      if (e2) throw e2;
+      if (mesa) { mesa.status = 'libre'; mesa.current_order_id = null; mesa.sesion_at = null; }
+      state.selectedTableId = null;
+      state.currentOrder = null;
+      state.orderItems = [];
+      render();
+      vsToast(modo === 'domicilio'
+        ? 'Pedido pasado a Domicilios — mesa liberada'
+        : 'Pedido pasado a Para llevar — mesa liberada');
+    } catch (err) {
+      vsToast('No se pudo pasar: ' + (err.message || String(err)));
+    }
   }
 
   function vsConfirm({ title, msg, okLabel = 'Confirmar', variant = 'brand', cancelLabel = 'Cancelar' }) {
