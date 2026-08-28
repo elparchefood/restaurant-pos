@@ -464,3 +464,32 @@ svg{display:block;}
     es trabajo pendiente, sin tener que leerla. */
 .tk.listo{opacity:.62;}
 .tk.listo:hover{opacity:1;}
+
+/*  ══ LA BARRA DE SCROLL, CASI INVISIBLE (Sergio, 27-ago-2026) ═════════════
+
+    Era la barra que pone Windows por defecto: quince píxeles de canal gris con
+    un cursor gris encima, pegada al borde de la zona. En una pantalla que por
+    lo demás es blanca con tarjetas de color, esa franja gris es lo único que
+    no lo decidió nadie — se ve puesta a la fuerza, y encima se come ancho útil
+    justo donde las comandas van apretadas.
+
+    Se queda, pero como una insinuación: seis píxeles, sin canal, y el cursor
+    en gris tinta translúcido, que sobre blanco es casi nada y sobre las
+    tarjetas moradas se funde en vez de cortarlas.
+
+    No se quita del todo a propósito. Es la única señal de que abajo hay más
+    comandas: sin ella, el cocinero que ve la zona llena no tiene forma de
+    saber si eso es todo o si faltan tres pedidos por debajo del borde. En una
+    cocina eso no es un detalle estético, es un plato que no sale.           */
+.zona-lista::-webkit-scrollbar{width:calc(var(--u) * .38);height:calc(var(--u) * .38);}
+.zona-lista::-webkit-scrollbar-track{background:transparent;}
+.zona-lista::-webkit-scrollbar-thumb{
+  background:rgba(15,23,42,.16); border-radius:999px;
+  border:2px solid transparent; background-clip:padding-box;
+}
+.zona-lista::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,.3);background-clip:padding-box;}
+.zona-lista::-webkit-scrollbar-button,
+.zona-lista::-webkit-scrollbar-corner{display:none;height:0;width:0;}
+/*  Firefox no deja pintar el cursor por partes, pero sí pedirle que sea fina
+    y de qué color: mismo resultado con las dos palabras que existen. */
+.zona-lista{scrollbar-width:thin;scrollbar-color:rgba(15,23,42,.16) transparent;}
