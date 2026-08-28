@@ -171,6 +171,76 @@ function daysAgoISO(n) {
       window._pos.state.tenantId = user.user_metadata?.tenant_id || null;
       window._pos.state.branchId = user.user_metadata?.branch_id || null;
 
+      /*  ══ LA CUENTA SUSPENDIDA NO ENTRA ═══════════════════════════════════
+          Sergio, 28-ago-2026, antes de lanzar.
+
+          El botón de suspender existía en la pantalla de administración y
+          escribía bien `tenants.status`. Lo que NO existía es que alguien lo
+          mirara: el restaurante suspendido seguía vendiendo igual. Un botón
+          que dice que corta y no corta es peor que no tenerlo — te enteras el
+          primer mes que alguien no pague, que es justo cuando lo necesitas.
+
+          ── DOS DECISIONES QUE NO SON OBVIAS ──
+
+          1. SI NO SE PUEDE PREGUNTAR, SE ENTRA. Un corte de internet, la base
+             lenta o un error de permisos NO pueden cerrarle el restaurante a
+             un cliente que sí pagó. El silencio nunca se interpreta como
+             "suspendido": solo se cierra con un `status` que lo diga.
+
+          2. SE PREGUNTA UNA VEZ POR SESIÓN, no en cada pantalla. Cobra abre
+             quince pantallas al día y esto es un viaje al servidor; el estado
+             de la cuenta cambia una vez al mes, no cada minuto. Se guarda en
+             el equipo por 30 minutos. Quien suspenda a alguien a mitad de
+             servicio verá el efecto en media hora, y eso está bien: cortarle
+             la caja a alguien en pleno almuerzo no es lo que se quiere ni
+             siquiera cuando no ha pagado.                                    */
+      (async function comprobarCuenta() {
+        var LLAVE = 'pos.cuenta.estado';
+        var tid = window._pos.state.tenantId;
+        if (!tid) return;
+        try {
+          var g = JSON.parse(localStorage.getItem(LLAVE) || 'null');
+          if (g && g.tid === tid && (Date.now() - g.en) < 30 * 60000) {
+            if (g.estado && g.estado !== 'active') cerrarPorCuenta(g.estado);
+            return;
+          }
+        } catch (e) {}
+        var estado = null;
+        try {
+          var r = await sb.from('tenants').select('status').eq('id', tid).maybeSingle();
+          estado = (r && r.data && r.data.status) || null;
+        } catch (e) { return; }        // no se pudo preguntar → se entra
+        if (!estado) return;           // sin respuesta → se entra
+        try { localStorage.setItem(LLAVE, JSON.stringify({ tid: tid, estado: estado, en: Date.now() })); } catch (e) {}
+        if (estado !== 'active') cerrarPorCuenta(estado);
+      })();
+
+      /*  Y se dice QUÉ pasa y QUÉ hacer. Un "no puedes entrar" a secas deja a
+          un restaurante llamando a ver qué se rompió; esto le dice que hable
+          con Cobra, que es lo único que lo resuelve. Ventana propia, nunca un
+          cuadro del navegador. */
+      function cerrarPorCuenta(estado) {
+        try { sb.auth.signOut(); } catch (e) {}
+        var cancelada = estado === 'cancelled';
+        var d = document.createElement('div');
+        d.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.55);'
+          + 'display:flex;align-items:center;justify-content:center;padding:24px;'
+          + 'font-family:\'DM Sans\',system-ui,sans-serif';
+        d.innerHTML = '<div style="max-width:420px;background:#fff;border-radius:16px;padding:26px;'
+          + 'box-shadow:0 30px 70px -20px rgba(15,23,42,.4);text-align:center">'
+          + '<div style="font-size:17px;font-weight:800;color:#0F172A;margin-bottom:8px">'
+          + (cancelada ? 'Esta cuenta está cerrada' : 'Esta cuenta está suspendida') + '</div>'
+          + '<div style="font-size:13.5px;color:#475569;line-height:1.6;margin-bottom:18px">'
+          + (cancelada
+              ? 'El servicio de Cobra para este restaurante terminó. Tus datos siguen guardados.'
+              : 'El servicio está pausado. Escríbenos y lo reactivamos el mismo día.')
+          + '<br><br>sergio@cobrapos.app</div>'
+          + '<a href="login.html" style="display:inline-block;padding:10px 18px;border-radius:9px;'
+          + 'background:#5B6BFF;color:#fff;font-size:13px;font-weight:700;text-decoration:none">Entendido</a>'
+          + '</div>';
+        document.body.appendChild(d);
+      }
+
       /* ══ CONTEXTO: en qué MARCA y SUCURSAL se está trabajando ══
          Hasta hoy la sucursal salía del login y punto: cada pantalla leía
          `user_metadata.branch_id` por su cuenta (configuracion.js sola lo hacía
