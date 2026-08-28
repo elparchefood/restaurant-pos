@@ -124,7 +124,41 @@ async function boot() {
       S.user = user || null;
     } catch (e) { S.user = null; }
 
-    await Promise.all([loadChannels(), loadConversations(), loadIaMaster(), loadQuickReplies(), loadEtiquetas(), loadClientes()]);
+    /*  ══ NINGUNA CONSULTA PUEDE CONGELAR LA PANTALLA ══════════════════
+
+        Aqui habia un `Promise.all` con las seis cargas. Con `all`, si UNA se
+        queda colgada —la red del local, una respuesta que no llega— nada de lo
+        que viene despues llega a ejecutarse: ni el tiempo real, ni los
+        botones. La pantalla se queda a medio dibujar, sin error y sin rueda,
+        y desde afuera parece que "no cargo". Le paso a Sergio en pleno
+        servicio y es la segunda vez que este patron muerde.
+
+        Ahora cada una va con su plazo y se espera a TODAS por separado: la que
+        falle se queda sin sus datos, y el resto de la pantalla funciona. Si
+        alguna se cayo se dice, con un boton para reintentar — vale mas una
+        bandeja a medias y avisada que una pantalla muerta en silencio.    */
+    const conPlazo = (p, nombre) => Promise.race([
+      Promise.resolve(p),
+      new Promise((_, no) => setTimeout(() => no(new Error(nombre)), 15000)),
+    ]);
+    const cargas = [
+      ['los canales',      loadChannels],
+      ['las conversaciones', loadConversations],
+      ['el modo del asistente', loadIaMaster],
+      ['las respuestas rapidas', loadQuickReplies],
+      ['las etiquetas',    loadEtiquetas],
+      ['los clientes',     loadClientes],
+    ];
+    const res = await Promise.allSettled(
+      cargas.map(([n, fn]) => conPlazo(fn(), n))
+    );
+    const fallaron = res
+      .map((r, i) => (r.status === 'rejected' ? cargas[i][0] : null))
+      .filter(Boolean);
+    if (fallaron.length) {
+      console.error('[chat] no cargaron:', fallaron.join(', '));
+      avisarCargaIncompleta(fallaron);
+    }
     document.querySelectorAll('#iaModes .ia-modo-btn').forEach(function(b){
       b.addEventListener('click', function(){ setIaModo(b.dataset.iamodo); });
     });
@@ -4850,6 +4884,23 @@ async function pintarUsuarioActual() {
     }
   }
 }
+/*  Lo que NO cargo, dicho arriba y sin tapar la pantalla. Con boton para
+    reintentar, que es lo unico que la persona puede hacer al respecto. */
+function avisarCargaIncompleta(lista) {
+  var v = document.getElementById('ci-carga-aviso');
+  if (v) v.remove();
+  var d = document.createElement('div');
+  d.id = 'ci-carga-aviso';
+  d.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:9999;'
+    + 'background:#7F1D1D;color:#fff;padding:10px 16px;border-radius:12px;font-size:13px;'
+    + 'font-weight:600;display:flex;align-items:center;gap:12px;box-shadow:0 10px 30px rgba(0,0,0,.4)';
+  d.innerHTML = 'No cargo ' + escHtml(lista.join(', ')) + '.'
+    + '<button style="border:none;background:#fff;color:#7F1D1D;border-radius:8px;padding:6px 12px;'
+    + 'font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer" '
+    + 'onclick="location.reload()">Reintentar</button>';
+  document.body.appendChild(d);
+}
+
 function showFatalError(msg) {
   document.body.innerHTML = `<div style="display:flex;height:100vh;align-items:center;justify-content:center;font-family:sans-serif;color:#F43F5E;font-size:14px;gap:8px">${escHtml(msg)}</div>`;
 }
