@@ -1372,8 +1372,14 @@ function messageBubbleHTML(m) {
         return '<span class="ci-qr-chip">' + escHtml(o) + '</span>';
       }).join("") + '</div>';
     }
-    const cuerpoBtn = '<div>' + txt + '</div>'
-      + (_pay.tipo === "botones" ? '<div class="ci-wa-btns">' + extra + '</div>' : "");
+    /*  El pie va gris y chiquito debajo del cuerpo, como en el telefono: en
+        una plantilla suele decir cosas del tipo "responde SALIR para no
+        recibir mas", y si no se ve aqui, nadie sabe que se mando.        */
+    const pieHtml = _pay.pie
+      ? '<div class="ci-wa-pie">' + escHtml(_pay.pie) + '</div>' : "";
+    const cuerpoBtn = '<div>' + txt + '</div>' + pieHtml
+      + (_pay.tipo === "botones" && (_pay.botones || []).length
+          ? '<div class="ci-wa-btns">' + extra + '</div>' : "");
     return `<div class="ci-row ${dir}" data-msg-id="${m.id}">
       <div class="ci-bubble ${dir}">${menu}${cuerpoBtn}<div class="ci-meta">${time}${check}</div></div>
       ${_pay.tipo === "respuestas_rapidas" ? extra : ""}
@@ -2708,19 +2714,33 @@ async function sendQuickBotones(r) {
   const w = waWindowInfo();
   if (w.applies && !w.open) { showToast('Pasaron 24 h: usa una plantilla', 'info'); return; }
 
-  const etiquetas = (r.btn.tipo === 'url')
-    ? [r.btn.texto_boton || 'Abrir']
-    : (r.btn.opciones || []).map(o => o.titulo || o.texto).filter(Boolean);
-  const cuerpo = r.t + (etiquetas.length ? '\n\n' + etiquetas.map(t => '▸ ' + t).join('\n') : '');
+  /*  LA FORMA SE GUARDA, NO SE APLANA.
+
+      Antes los botones se pegaban al texto como "▸ Instalar App" y en la
+      bandeja quedaba un renglon mas, indistinguible del cuerpo. El cliente
+      veia un boton; el operador, texto. Sergio: "haz que yo lo pueda ver
+      exactamente igual, el boton en su posicion y con forma de boton".
+
+      La bandeja YA sabe dibujarlos (`payload.tipo === 'botones'`): lo que
+      faltaba era guardar la forma. El cuerpo se queda limpio.             */
+  const botones = (r.btn.tipo === 'url')
+    ? [{ titulo: r.btn.texto_boton || 'Abrir', url: r.btn.url || '' }]
+    : (r.btn.opciones || []).map(function (o) {
+        return { titulo: o.titulo || o.texto || '', url: o.url || '' };
+      }).filter(function (b) { return b.titulo; });
+  const payloadBtn = botones.length ? { tipo: 'botones', texto: r.t, botones: botones } : null;
+  const cuerpo = r.t;
 
   const tmpId = 'tmp_' + Date.now();
   S.messages.push({ id: tmpId, conversation_id: S.activeConvId, tenant_id: S.tenantId,
-    direction: 'out', body: cuerpo, delivery_status: 'sending', sent_at: new Date().toISOString() });
+    direction: 'out', body: cuerpo, payload: payloadBtn,
+    delivery_status: 'sending', sent_at: new Date().toISOString() });
   renderThread();
 
   const { data, error } = await sb.from('chat_messages').insert([{
     conversation_id: S.activeConvId, tenant_id: S.tenantId, direction: 'out',
-    body: cuerpo, delivery_status: 'sent', agent_id: S.user?.id || null, origen: 'humano',
+    body: cuerpo, payload: payloadBtn,
+    delivery_status: 'sent', agent_id: S.user?.id || null, origen: 'humano',
   }]).select().single();
   if (error) { S.messages = S.messages.filter(m => m.id !== tmpId); renderThread(); showToast('No se pudo enviar', 'error'); return; }
   S.messages = S.messages.map(m => m.id === tmpId ? data : m);

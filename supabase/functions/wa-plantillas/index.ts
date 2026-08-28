@@ -248,10 +248,27 @@ Deno.serve(async (req) => {
       let texto = String(bodyComp?.text || nombre);
       params.forEach((p, i) => { texto = texto.replace(new RegExp(`\\{\\{\\s*${i + 1}\\s*\\}\\}`, "g"), p); });
 
+      /*  LA FORMA DE LA PLANTILLA, no solo su texto.
+
+          Se guardaba unicamente el cuerpo, asi que en la bandeja una plantilla
+          con boton se veia como un parrafo suelto: el cliente veia un boton y
+          el operador no. Aqui ya se tienen los componentes que devolvio Meta —
+          se aprovechan para guardar el pie y los botones tal como salieron.  */
+      const pieComp = ((found?.components || []) as Array<Record<string, unknown>>)
+        .find((c) => String(c.type).toUpperCase() === "FOOTER");
+      const btnComp = ((found?.components || []) as Array<Record<string, unknown>>)
+        .find((c) => String(c.type).toUpperCase() === "BUTTONS");
+      const botones = (((btnComp?.buttons as Array<Record<string, unknown>>) || []))
+        .map((b) => ({ titulo: String(b.text || "Abrir"), url: String(b.url || "") }))
+        .filter((b) => b.titulo);
+      const payload = botones.length || pieComp
+        ? { tipo: "botones", texto, pie: String(pieComp?.text || ""), botones }
+        : null;
+
       const extId = d?.messages?.[0]?.id || null;
       await sbPost(`/chat_messages`, {
         conversation_id: convId, tenant_id: conv.tenant_id || tenant || null,
-        direction: "out", body: texto, delivery_status: "sent", external_id: extId,
+        direction: "out", body: texto, payload, delivery_status: "sent", external_id: extId,
       });
       await sbPatch(`/chat_conversations?id=eq.${convId}`, {
         last_message: texto, last_message_at: new Date().toISOString(), last_sender: "agent",

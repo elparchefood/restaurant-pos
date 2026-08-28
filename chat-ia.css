@@ -542,6 +542,18 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
   padding: 10px 13px;
   font-size: 14.5px; line-height: 1.45;
   position: relative;
+  /*  LOS SALTOS DE LINEA SE RESPETAN, como en WhatsApp.
+
+      Sin esto el navegador junta todo en un parrafo: una plantilla escrita en
+      cinco renglones —"1. Ingresa  2. Registrate  3. Recibe"— se veia aqui
+      como un chorro de texto mientras el cliente la leia en pasos. El operador
+      tiene que leer EXACTAMENTE lo que leyo el cliente; si no, no puede
+      juzgar si el mensaje quedo bien.
+
+      `pre-wrap` y no `pre`: los saltos se respetan, pero las lineas largas
+      siguen doblando solas dentro de la burbuja.                          */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .ci-bubble.in {
   background: #161821;
@@ -2127,3 +2139,31 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .ci-dw-tel2::placeholder { color: #585C6B; letter-spacing: 0; }
 .ci-dw-hint { margin-top: 5px; font-size: 11px; line-height: 1.45; color: #8B8FA3; }
 
+
+/*  ═══ LOS BOTONES DE WHATSAPP, COMO LOS VE EL CLIENTE ═══════════════════
+
+    En el telefono un boton va DEBAJO del mensaje, separado por una linea,
+    ancho completo y centrado. Aqui se veia como una linea mas de texto
+    ("▸ Instalar App") y no habia forma de saber que era tocable.        */
+.ci-wa-btns {
+  margin: 8px -13px -10px;
+  border-top: 1px solid rgba(255,255,255,.22);
+  display: flex; flex-direction: column;
+}
+.ci-bubble.in .ci-wa-btns { border-top-color: var(--border); }
+.ci-wa-btn {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 12px;
+  font-size: 14px; font-weight: 600;
+  color: #fff; text-decoration: none;
+  /*  El texto del boton NO lleva los saltos del cuerpo: es una etiqueta. */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ci-bubble.in .ci-wa-btn { color: #6EA8FF; }
+.ci-wa-btn + .ci-wa-btn { border-top: 1px solid rgba(255,255,255,.16); }
+.ci-bubble.in .ci-wa-btn + .ci-wa-btn { border-top-color: var(--border); }
+.ci-wa-btn:hover { background: rgba(255,255,255,.10); }
+.ci-bubble.in .ci-wa-btn:hover { background: rgba(110,168,255,.10); }
+
+/*  El pie de una plantilla: gris y chiquito, como en el telefono. */
+.ci-wa-pie { margin-top: 6px; font-size: 12px; opacity: .65; }
