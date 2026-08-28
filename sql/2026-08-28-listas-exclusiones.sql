@@ -27,7 +27,13 @@ create or replace function public.fn_wa_criterio(
   p_criterio      text,
   p_ya_escribio   boolean,
   p_guardado      boolean,
-  p_n_pedidos     integer,
+  --  NUMERIC y no INTEGER, y esto ya costo una lista que no salio.
+  --  `v_wa_contactos.n_pedidos` es numeric; Postgres NO convierte numeric a
+  --  integer por su cuenta al buscar la funcion, asi que la llamada no
+  --  encontraba ninguna y `fn_wa_armar_lista` moria con "function does not
+  --  exist". La lista quedaba en cero y parecia que no habia a quien mandarle.
+  --  Se declaran numeric los tres numeros: integer y bigint SI entran solos.
+  p_n_pedidos     numeric,
   p_tiene_nombre  boolean,
   p_registrado    boolean,
   p_instalada     boolean,
