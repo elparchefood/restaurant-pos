@@ -61,7 +61,6 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 
 const TARDE_MIN   = 15;    // minutos para el marco rojo
-const IRSE_SEG    = 30;    // lo que dura en pantalla una comanda ya lista
 const REFRESCO_MS = 20000; // la red por si se cae un evento en vivo
 
 const S = {
@@ -491,6 +490,16 @@ async function cargarBase() {
   S.tamCat   = op.tamCatCfg   || {};
   /* Qué tono suena al entrar una comanda. El TONO lo elige el dueño una vez
      para todo el restaurante; ENCENDERLO O NO es de cada aparato. */
+  /*  EL COLOR DE CADA ESTADO. Lo elige el dueno en Operacion; aqui solo se
+      vuelca a las variables que usa la hoja de estilos. Un color mal escrito
+      NO se pinta: se ignora y queda el de fabrica, porque una comanda sin
+      color de estado es peor que una con el color de siempre. */
+  const col = op.cocinaColores || {};
+  const esColor = v => /^#[0-9a-f]{6}$/i.test(String(v || '').trim());
+  [['prep', col.prep], ['pago', col.pago], ['listo', col.listo]].forEach(([k, v]) => {
+    if (esColor(v)) document.documentElement.style.setProperty('--c-' + k, String(v).trim());
+  });
+
   const cn = op.cocinaNotif || {};
   S.sonTono = cn.tono || 'caja';
   S.sonVol  = (typeof cn.vol === 'number') ? cn.vol : 80;
@@ -721,13 +730,16 @@ async function cargarComandas() {
       if (zonaDe(o) === 'salon' && !S.mesaEstado.has(o.id)) return false;
       /* Los estados que ya pasaron por cocina no vuelven a entrar. */
       if (['en_camino','entregado'].indexOf(o.estado) >= 0) return false;
-      /* Una comanda lista se queda 30 segundos y se va sola, con deshacer. */
-      if (o.estado === 'listo') {
-        const t = S.listas.get(o.id);
-        if (!t) { S.listas.set(o.id, Date.now()); return true; }
-        return (Date.now() - t) < IRSE_SEG * 1000;
-      }
-      S.listas.delete(o.id);
+      /*  UNA COMANDA LISTA YA NO SE VA SOLA (Sergio, 28-ago-2026).
+
+          Antes desaparecia a los 30 segundos. El cocinero que se daba la
+          vuelta a sacar algo volvia y ya no estaba: no habia como comprobar
+          que la habia marcado ni como deshacerlo, y la unica salida era
+          preguntarle a la caja.
+
+          Se queda hasta que el pedido salga de cocina de verdad —en camino o
+          entregado, que es lo que filtra la linea de arriba—. Y se va al final
+          de su zona, apagada, para que no le quite sitio a lo que falta. */
       return true;
     });
 
@@ -849,7 +861,16 @@ function pintar() {
 
   let sonar = false;
   Object.keys(porZona).forEach(z => {
-    const lista = porZona[z].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+    /*  ORDEN: primero lo que falta por hacer, por hora de llegada; lo ya
+        listo se hunde al final. Asi los primeros ocho de la pantalla son
+        siempre trabajo pendiente, y lo terminado queda abajo — a la vista si
+        se baja, sin estorbar si no. */
+    const lista = porZona[z].sort((a,b) => {
+      const la = estadoDe(a) === 'listo' ? 1 : 0;
+      const lb = estadoDe(b) === 'listo' ? 1 : 0;
+      if (la !== lb) return la - lb;
+      return new Date(a.created_at) - new Date(b.created_at);
+    });
     $('n-' + z).textContent = lista.length;
     const cont = $('z-' + z);
     if (!lista.length) {

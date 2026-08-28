@@ -2344,6 +2344,10 @@ var OP_DEFAULTS = {
      una vez para todo el restaurante; ENCENDERLO es de cada aparato, y eso
      vive en el aparato, no aqui. */
   cocinaNotif: { tono: 'caja', vol: 80 },
+  /*  El color de cada estado en la pantalla de cocina. En preparacion nace
+      VERDE: es el estado en el que esta casi siempre una comanda, y el naranja
+      de antes gritaba como si algo fuera mal (Sergio, 28-ago-2026). */
+  cocinaColores: { prep: '#16A34A', pago: '#DC2626', listo: '#7C3AED' },
   /* El de la app del domiciliario es OTRO a proposito: son dos aparatos
      distintos sonando en dos sitios distintos, y el dueno puede querer
      distinguirlos de oido. */
@@ -2809,6 +2813,7 @@ function opRenderAreas() {
 
   opRenderAreasCats();
   opRenderCocinaSon();
+  opRenderCocinaColores();
   opRenderDomiSon();
 }
 
@@ -2846,6 +2851,34 @@ function opRenderDomiSon() {
     //  Se oye al SOLTAR: en cada paso de la barra serian veinte pitidos.
     sl.onchange = function () { try { window.posTocarTono(dn.tono, dn.vol); } catch (e) {} };
   }
+}
+
+/*  Los tres colores. Se usa el selector del sistema (`type=color`) en vez de
+    una paleta nuestra: cualquiera sabe usarlo y no hay que mantener una lista
+    de colores bonitos que igual nunca tendra el que alguien quiere. */
+var OP_COCINA_ESTADOS = [
+  { id: 'prep',  nombre: 'En preparación', def: '#16A34A' },
+  { id: 'listo', nombre: 'Listo',           def: '#7C3AED' },
+  { id: 'pago',  nombre: 'Falta pagar',     def: '#DC2626' },
+];
+
+function opRenderCocinaColores() {
+  var d = _opDraft; if (!d) return;
+  var caja = $('op-cocina-colores'); if (!caja) return;
+  var cc = d.cocinaColores || (d.cocinaColores = { prep:'#16A34A', pago:'#DC2626', listo:'#7C3AED' });
+  caja.innerHTML = OP_COCINA_ESTADOS.map(function (e) {
+    var v = cc[e.id] || e.def;
+    return '<label style="display:flex;align-items:center;gap:9px;font-size:12.5px;font-weight:600;color:#475569">'
+      + '<input type="color" data-cocina-color="' + e.id + '" value="' + _empEsc(v) + '"'
+      + ' style="width:34px;height:30px;border:1px solid #ECEEF2;border-radius:8px;padding:2px;background:#fff;cursor:pointer">'
+      + _empEsc(e.nombre) + '</label>';
+  }).join('');
+  caja.querySelectorAll('[data-cocina-color]').forEach(function (i) {
+    i.addEventListener('input', function () {
+      cc[i.dataset.cocinaColor] = i.value;
+      opCheckDirty(); opPintarResumenes();
+    });
+  });
 }
 
 function opRenderCocinaSon() {

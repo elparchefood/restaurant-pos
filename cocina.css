@@ -165,10 +165,24 @@ svg{display:block;}
      sola fila de tarjetas apiladas: en su monitor solo cabian DOS por zona,
      6 en toda la pantalla. Con dos subcolumnas y la tarjeta compacta caben
      8 por zona = 24 en pantalla, que es el turno completo a la vista. */
-  display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:calc(var(--u) * .5); align-content:start;
+  /* CADA COMANDA CON SU PROPIO ALTO (Sergio, 28-ago-2026).
+
+     Con rejilla, dos tarjetas de la misma fila quedan igual de altas: al lado
+     de una comanda de seis productos, una de uno se estiraba hasta parecer
+     que le faltaba algo, y ese hueco no lo podia ocupar nadie. En una pantalla
+     de cocina el espacio es LO que se pelea.
+
+     Con columnas, cada tarjeta ocupa lo suyo y la siguiente sube a llenar el
+     hueco: al lado de una grande caben dos pequenas. Y el orden sigue siendo
+     el de llegada, leyendo la columna de arriba abajo como un periodico. */
+  columns:2; column-gap:calc(var(--u) * .5);
 }
-.zona-vacia{grid-column:1 / -1;}
+.zona-lista > *{
+  /* Sin esto el navegador parte una comanda por la mitad entre dos columnas:
+     media comanda abajo de una y la otra mitad arriba de la siguiente. */
+  break-inside:avoid; -webkit-column-break-inside:avoid; page-break-inside:avoid;
+  margin-bottom:calc(var(--u) * .5);
+}
 .zona-vacia{
   margin:auto; font-size:calc(var(--u) * 1.15); font-weight:700; color:#94A3B8;
   letter-spacing:.08em; text-transform:uppercase;
@@ -200,13 +214,42 @@ svg{display:block;}
 }
 .tk-min svg{width:calc(var(--u) * .9);height:calc(var(--u) * .9);flex:0 0 auto;opacity:.6;}
 
-/* Los tríos color/tint/ring de STATE_META, en degradado hacia el tono claro */
-.tk.prep {border-color:#FB923C;background:linear-gradient(180deg,#FDBA74 0%,#FFEDD5 52%,#FFF7ED 100%);}
-.tk.pago {border-color:#F87171;background:linear-gradient(180deg,#FCA5A5 0%,#FEE2E2 52%,#FEF2F2 100%);}
-.tk.listo{border-color:#A78BFA;background:linear-gradient(180deg,#C4B5FD 0%,#EDE9FE 52%,#F5F3FF 100%);}
-.tk.prep  .tk-estado{color:#7C2D12;} .tk.prep  .tk-estado i{background:#EA580C;}
-.tk.pago  .tk-estado{color:#7F1D1D;} .tk.pago  .tk-estado i{background:#DC2626;}
-.tk.listo .tk-estado{color:#4C1D95;} .tk.listo .tk-estado i{background:#7C3AED;}
+/*  EL COLOR DE CADA ESTADO LO ELIGE EL RESTAURANTE (Sergio, 28-ago-2026).
+
+    Estaba escrito aqui a mano. Ahora son variables que el programa rellena con
+    lo que el dueno haya guardado en Configuracion -> Operacion, y estos valores
+    son solo el punto de partida.
+
+    Cada estado necesita CUATRO tonos, no uno: el borde, el arranque del
+    degradado, el medio y el texto. Se calculan solos a partir del color
+    elegido —mezclandolo con blanco— para que nadie tenga que escoger cuatro
+    colores que combinen; con uno basta. */
+:root{
+  /* En preparacion nace VERDE: es el estado en el que esta casi siempre una
+     comanda, y el naranja de antes gritaba como si algo fuera mal. */
+  --c-prep:#16A34A; --c-pago:#DC2626; --c-listo:#7C3AED;
+}
+.tk.prep {border-color:color-mix(in srgb, var(--c-prep) 55%, #fff);
+          background:linear-gradient(180deg,
+            color-mix(in srgb, var(--c-prep) 38%, #fff) 0%,
+            color-mix(in srgb, var(--c-prep) 14%, #fff) 52%,
+            color-mix(in srgb, var(--c-prep) 6%, #fff) 100%);}
+.tk.pago {border-color:color-mix(in srgb, var(--c-pago) 55%, #fff);
+          background:linear-gradient(180deg,
+            color-mix(in srgb, var(--c-pago) 38%, #fff) 0%,
+            color-mix(in srgb, var(--c-pago) 14%, #fff) 52%,
+            color-mix(in srgb, var(--c-pago) 6%, #fff) 100%);}
+.tk.listo{border-color:color-mix(in srgb, var(--c-listo) 55%, #fff);
+          background:linear-gradient(180deg,
+            color-mix(in srgb, var(--c-listo) 38%, #fff) 0%,
+            color-mix(in srgb, var(--c-listo) 14%, #fff) 52%,
+            color-mix(in srgb, var(--c-listo) 6%, #fff) 100%);}
+.tk.prep  .tk-estado{color:color-mix(in srgb, var(--c-prep) 70%, #000);}
+.tk.pago  .tk-estado{color:color-mix(in srgb, var(--c-pago) 70%, #000);}
+.tk.listo .tk-estado{color:color-mix(in srgb, var(--c-listo) 70%, #000);}
+.tk.prep  .tk-estado i{background:var(--c-prep);}
+.tk.pago  .tk-estado i{background:var(--c-pago);}
+.tk.listo .tk-estado i{background:var(--c-listo);}
 
 /* Los productos: el texto más grande de la tarjeta */
 /* ── SEPARAR UN PRODUCTO DE OTRO (Sergio, 26-ago-2026) ─────────────────────
@@ -388,3 +431,15 @@ svg{display:block;}
 }
 @keyframes kSpin{to{transform:rotate(360deg);}}
 .k-cargando p{margin:0;font-size:calc(var(--u) * 1.2);font-weight:700;color:#64748B;letter-spacing:.06em;text-transform:uppercase;}
+
+/*  UNA COMANDA LISTA YA NO SE VA (Sergio, 28-ago-2026).
+
+    Antes desaparecia a los 30 segundos. El cocinero que se dio la vuelta a
+    sacar algo volvia y ya no estaba: no habia como comprobar que la habia
+    marcado, ni deshacerlo. Ahora se queda, apagada y al final de su zona, y
+    lo que la saca es que el pedido salga de cocina de verdad.
+
+    Se apaga a proposito: tiene que quedar claro de un vistazo que esa ya no
+    es trabajo pendiente, sin tener que leerla. */
+.tk.listo{opacity:.62;}
+.tk.listo:hover{opacity:1;}
