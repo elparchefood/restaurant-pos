@@ -592,6 +592,37 @@
     } catch(e) { return false; }
   }
 
+  /*  ══ ¿SALE LA COMANDA SOLA? ═════════════════════════════════
+
+      Sergio, 28-ago-2026: va a poner pantallas en la cocina y entonces la
+      comanda en papel deja de hacer falta — los recibos si.
+
+      El interruptor YA EXISTIA en Impresoras («Imprimir automaticamente al
+      enviar a cocina») y ya se guardaba en `pos_print_config.auto_print`.
+      Lo que faltaba es que alguien lo obedeciera: se apagaba y la comanda
+      salia igual. Un interruptor que no hace nada es peor que no tener
+      interruptor, porque quien lo apaga cree que ya esta resuelto.
+
+      Se comprueba AQUI y no en el receptor de impresion porque por aqui pasan
+      TODOS los caminos automaticos: el aviso en vivo, el barrido de seguridad
+      cada 45 segundos y los items que se agregan a una mesa. Ponerlo en uno
+      solo dejaria los otros dos imprimiendo.
+
+      ⚠️ Lo que se pide A MANO sale SIEMPRE (`force`): el boton Imprimir y
+      Reimprimir comanda. Apagar el automatico es dejar de imprimir SOLO,
+      no quedarse sin poder imprimir.                                       */
+  async function _autoprintOn() {
+    try {
+      var sb = _sbRef(); if (!sb) return true;
+      var branchId = _branchRef(); if (!branchId) return true;
+      var r = await sb.from('pos_print_config').select('auto_print').eq('branch_id', branchId).maybeSingle();
+      //  Sin dato, ENCENDIDO: es como se comporto siempre, y un restaurante
+      //  sin pantallas en cocina que deje de recibir comandas se queda ciego.
+      if (!r || !r.data || r.data.auto_print == null) return true;
+      return !!r.data.auto_print;
+    } catch (e) { return true; }
+  }
+
   async function _fetchOrder(orderId) {
     try {
       var sb = window._pos && window._pos.sb;
@@ -666,6 +697,11 @@
     if (_printing[orderId]) return;
     _printing[orderId] = true;
     try {
+      //  Lo pedido a mano no pregunta; lo automatico si.
+      if (!force && !(await _autoprintOn())) {
+        _diagToast('Impresión automática apagada', '#64748b');
+        return;
+      }
       _diagToast('🖨 Verificando impresora…', '#1d4ed8');
 
       // 1) Impresora (reintento por lectura transitoria de config en tablet)

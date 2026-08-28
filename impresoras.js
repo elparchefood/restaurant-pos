@@ -627,9 +627,12 @@ function applyConfigToUI() {
   const swAuto = document.getElementById('sw-autoprint');
   swAuto.classList.toggle('on', config.auto_print);
   swAuto.setAttribute('aria-pressed', String(config.auto_print));
+  /*  El texto dice QUE PASA al apagarlo, no solo que esta apagado. Sergio va
+      a apagarlo cuando ponga pantallas en cocina, y lo primero que va a
+      preguntarse es si sigue pudiendo imprimir una comanda suelta. */
   document.getElementById('hint-autoprint').textContent = config.auto_print
     ? 'La comanda sale apenas se confirma el pedido.'
-    : 'El cajero imprime la comanda manualmente.';
+    : 'No sale sola. Se sigue pudiendo imprimir a mano con el botón Imprimir de cada pedido. Los recibos no se ven afectados.';
   // Copias
   document.querySelectorAll('#seg-copies .imp-seg-btn').forEach(b =>
     b.classList.toggle('on', parseInt(b.dataset.copies) === config.copies));
