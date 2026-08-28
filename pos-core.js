@@ -154,10 +154,15 @@ function daysAgoISO(n) {
     try {
       const { data: { session } } = await sb.auth.getSession();
       if (!session) {
-        // Sin sesión → redirigir a login (solo si no estamos ya ahí)
-        if (!window.location.pathname.includes('login')) {
-          window.location.href = 'login.html';
-        }
+        /*  HAY PANTALLAS QUE EXISTEN JUSTAMENTE PARA QUIEN NO TIENE CUENTA.
+            Antes la regla era "si no estas en login, fuera", y con eso
+            `register.html` rebotaba al login: quien iba a registrarse nunca
+            llegaba a ver los planes. Un cliente nuevo no puede tener sesion
+            todavia — esa es la definicion de cliente nuevo. */
+        var PUBLICAS = ['login', 'register'];
+        var ruta = window.location.pathname;
+        var esPublica = PUBLICAS.some(function (p) { return ruta.includes(p); });
+        if (!esPublica) window.location.href = 'login.html';
         return;
       }
       /* La sesión que acabamos de leer YA trae al usuario con sus datos. Antes
