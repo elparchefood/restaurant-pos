@@ -368,3 +368,21 @@ input::placeholder { color: var(--ink-4); }
 
 /* Quien imprime cada cosa: sube arriba del todo, que es donde se busca. */
 .imp-areas-t { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #94A3B8; margin: 0 2px 9px; }
+
+/*  Una fila por área para decidir si esa área imprime sola. Solo se ve con
+    dos áreas o más: con una sola, el interruptor de arriba ya lo dice todo. */
+.imp-auto-areas{
+  margin:2px 0 0 0; padding:10px 12px;
+  background:#F8FAFC; border:1px solid #ECEEF2; border-radius:10px;
+  display:flex; flex-direction:column; gap:2px;
+}
+.imp-areas-tit{
+  font-size:10.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+  color:#94A3B8; margin-bottom:6px;
+}
+.imp-area-row{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:6px 0;
+}
+.imp-area-row + .imp-area-row{border-top:1px solid #ECEEF2;}
+.imp-area-row span{font-size:13px; font-weight:600; color:#0F172A;}

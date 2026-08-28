@@ -113,7 +113,10 @@
             : '<div style="font-size:20px;font-weight:900;text-align:center;margin-bottom:2px;">MESA ' + mesa + '</div>')
       + (!isDomicilio && !isRapido && pax ? '<div style="font-size:13px;font-weight:700;padding-left:55%;">( ' + pax + ' PAX)</div>' : '')
       + '<div style="height:5px;"></div>'
-      + '<div>AREA - COCINA</div>'
+      /*  El area de la hoja. Con un solo sitio de preparacion dice COCINA
+          como siempre; con varios dice cual, que es lo que hace que dos
+          hojas del mismo pedido no se confundan sobre el mesón. */
+      + '<div>AREA - ' + String(order.area || 'COCINA').toUpperCase() + '</div>'
       + '<div>FECHA: ' + dateStr + '</div>'
       + (isRapido && _customerName ? '<div>CLIENTE - ' + _customerName + '</div>' : '')
       + (waiter ? '<div>' + (isDomicilio || isRapido ? 'CAJERO' : 'MESERO') + ' - ' + waiter + '</div>' : '')
@@ -473,7 +476,7 @@
   var _printerCache = null;
   var _printerCacheTs = 0;
 
-  async function _getTargetPrinter(docType) {
+  async function _getTargetPrinter(docType, areaPedida) {
     try {
       var sb = _sbRef();
       var branchId = _branchRef();
@@ -489,7 +492,9 @@
         _printerCacheTs = now;
       }
       if (_printerCache.cfg.same_printer_for_all) return _printerCache.cfg.default_system_printer || '';
-      var area = (docType === 'comanda') ? 'cocina' : 'caja';
+      /*  El area puede venir dicha (una comanda de barra) o deducirse del tipo
+          de documento, como siempre. */
+      var area = areaPedida || ((docType === 'comanda') ? 'cocina' : 'caja');
       var match = _printerCache.printers.find(function(p) { return p.area === area && p.is_default; });
       if (!match) match = _printerCache.printers.find(function(p) { return p.area === area; });
       /*  SI NO HAY UNA PARA ESA AREA, SE USA LA QUE HAYA (28-ago-2026).
@@ -512,10 +517,10 @@
     } catch(e) { return ''; }
   }
 
-  async function _printHtml(html, docType) {
+  async function _printHtml(html, docType, area) {
     if (window.electronPOS && window.electronPOS.printHtmlSilent) {
       try {
-        var printerName = await _getTargetPrinter(docType || 'comanda');
+        var printerName = await _getTargetPrinter(docType || 'comanda', area);
         var result = await window.electronPOS.printHtmlSilent(html, printerName);
         if (result && result.ok) return;
         console.warn('[posprint] silent print falló, fallback web:', result && result.error);
@@ -592,6 +597,51 @@
     } catch(e) { return false; }
   }
 
+  /*  ══ DONDE SE PREPARA CADA COSA ═════════════════════════════
+
+      Sergio, 28-ago-2026, pensando en vender el sistema: «va a haber otro
+      restaurante que tenga areas y tengan varias impresoras por area».
+
+      Las areas YA existian: se configuran en Operacion y la PANTALLA de cocina
+      ya filtra por ellas. Lo que no existia es que el PAPEL las respetara —
+      la comanda entera salia siempre por la impresora de «cocina», aunque las
+      bebidas fueran de barra.
+
+      La regla de a que area va un producto es EXACTAMENTE la de la pantalla
+      de cocina (`areaDeItem` en cocina.js): lo suyo manda sobre lo de su
+      categoria, y si no dice nada, la primera area. Tiene que ser la misma o
+      el papel y la pantalla mandarian el mismo plato a sitios distintos.  */
+  var _areasCache = null, _areasCacheTs = 0;
+  async function _cargarAreas() {
+    var ahora = Date.now();
+    if (_areasCache && ahora - _areasCacheTs < 30000) return _areasCache;
+    var vacio = { areas: [], areaCat: {}, areaProd: {}, catDe: {} };
+    try {
+      var sb = _sbRef(); var branchId = _branchRef();
+      if (!sb || !branchId) return vacio;
+      var b = await sb.from('branches').select('operacion_config').eq('id', branchId).maybeSingle();
+      var op = (b && b.data && b.data.operacion_config) || {};
+      var areas = Array.isArray(op.areas) ? op.areas.filter(function (a) { return a && a.id; }) : [];
+      var out = { areas: areas, areaCat: op.areaCatCfg || {}, areaProd: op.areaProdCfg || {}, catDe: {} };
+      /*  La categoria de cada producto solo hace falta si hay DOS areas o mas.
+          Con una sola, preguntarla seria una consulta para nada. */
+      if (areas.length >= 2) {
+        var pr = await sb.from('pos_products').select('id, category_id').eq('branch_id', branchId);
+        ((pr && pr.data) || []).forEach(function (p) { out.catDe[p.id] = p.category_id; });
+      }
+      _areasCache = out; _areasCacheTs = ahora;
+      return out;
+    } catch (e) { return vacio; }
+  }
+
+  function _areaDeItem(it, mapa) {
+    var pid = it.product_id;
+    if (pid && mapa.areaProd[pid]) return mapa.areaProd[pid];
+    var cid = pid ? mapa.catDe[pid] : null;
+    if (cid && mapa.areaCat[cid]) return mapa.areaCat[cid];
+    return mapa.areas.length ? mapa.areas[0].id : 'cocina';
+  }
+
   /*  ══ ¿SALE LA COMANDA SOLA? ═════════════════════════════════
 
       Sergio, 28-ago-2026: va a poner pantallas en la cocina y entonces la
@@ -611,15 +661,25 @@
       ⚠️ Lo que se pide A MANO sale SIEMPRE (`force`): el boton Imprimir y
       Reimprimir comanda. Apagar el automatico es dejar de imprimir SOLO,
       no quedarse sin poder imprimir.                                       */
-  async function _autoprintOn() {
+  async function _autoprintOn(areaId) {
     try {
       var sb = _sbRef(); if (!sb) return true;
       var branchId = _branchRef(); if (!branchId) return true;
-      var r = await sb.from('pos_print_config').select('auto_print').eq('branch_id', branchId).maybeSingle();
+      var r = await sb.from('pos_print_config').select('auto_print, auto_print_areas').eq('branch_id', branchId).maybeSingle();
+      var d = (r && r.data) || {};
+      /*  El interruptor de CADA AREA manda sobre el general. Un restaurante
+          con pantalla en cocina y sin pantalla en barra apaga cocina y deja
+          barra encendida — que es justo el caso que Sergio va a vender.
+
+          Si un area no dice nada, vale lo general. Asi el interruptor de
+          siempre sigue significando lo mismo para quien tiene una sola area,
+          que son casi todos.                                              */
+      var porArea = d.auto_print_areas || {};
+      if (areaId && Object.prototype.hasOwnProperty.call(porArea, areaId)) return !!porArea[areaId];
       //  Sin dato, ENCENDIDO: es como se comporto siempre, y un restaurante
       //  sin pantallas en cocina que deje de recibir comandas se queda ciego.
-      if (!r || !r.data || r.data.auto_print == null) return true;
-      return !!r.data.auto_print;
+      if (d.auto_print == null) return true;
+      return !!d.auto_print;
     } catch (e) { return true; }
   }
 
@@ -697,11 +757,6 @@
     if (_printing[orderId]) return;
     _printing[orderId] = true;
     try {
-      //  Lo pedido a mano no pregunta; lo automatico si.
-      if (!force && !(await _autoprintOn())) {
-        _diagToast('Impresión automática apagada', '#64748b');
-        return;
-      }
       _diagToast('🖨 Verificando impresora…', '#1d4ed8');
 
       // 1) Impresora (reintento por lectura transitoria de config en tablet)
@@ -758,7 +813,7 @@
             return ((ci.cantidad || 1) > 1 ? ci.cantidad + 'x ' : '') + (ci.nombre || '?');
           }).concat(modsArr);
         }
-        return { id: it.id, name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', notes: it.notes || '', mods: modsArr };
+        return { id: it.id, product_id: it.product_id, name: it.product_name || it.name || 'Item', qty: it.quantity || 1, note: it.note || '', notes: it.notes || '', mods: modsArr };
       });
       _diagToast('✓ Pedido OK — enviando a impresora…', '#15803d');
 
@@ -787,18 +842,74 @@
         }
       }
 
-      // 4) Imprimir (mismo diseño de comanda de siempre), con reintento
+      /*  ══ 4) UNA COMANDA POR AREA ═══════════════════════════
+
+          Con un solo sitio de preparacion —que es casi todo el mundo— esto
+          es exactamente lo de antes: un grupo, una comanda, una impresora.
+
+          Con dos o mas, cada area recibe SOLO lo suyo y por SU impresora: a
+          la barra no le sirve una hoja con seis platos y una gaseosa al
+          final, y a la cocina no le sirve la gaseosa.
+
+          Y cada area decide si sale sola. Un restaurante puede tener pantalla
+          en cocina y seguir imprimiendo en barra — es el caso que Sergio va
+          a vender.                                                        */
+      var mapa = await _cargarAreas();
+      var grupos = [];
+      if (mapa.areas.length >= 2) {
+        var porArea = {};
+        items.forEach(function (it) {
+          var a = _areaDeItem(it, mapa);
+          (porArea[a] = porArea[a] || []).push(it);
+        });
+        mapa.areas.forEach(function (a) {
+          if (porArea[a.id] && porArea[a.id].length) {
+            grupos.push({ area: a.id, nombre: a.nombre || a.id, items: porArea[a.id] });
+          }
+        });
+        //  Un area que ya no existe no deja su comida sin imprimir: cae en la
+        //  primera, que es la cocina de toda la vida.
+        Object.keys(porArea).forEach(function (k) {
+          if (!grupos.some(function (g) { return g.area === k; })) {
+            var pri = grupos[0];
+            if (pri) pri.items = pri.items.concat(porArea[k]);
+            else grupos.push({ area: mapa.areas[0].id, nombre: mapa.areas[0].nombre || '', items: porArea[k] });
+          }
+        });
+      } else {
+        grupos = [{ area: (mapa.areas[0] && mapa.areas[0].id) || 'cocina', nombre: '', items: items }];
+      }
+
       var printed = false;
-      for (var pr = 0; pr < 2 && !printed; pr++) {
-        try {
-          await _printHtml(_buildComanda({ table: _tableDisplay(order), channel: order.channel, total: order.total || 0, paid: order.paid_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '' }, items), 'comanda');
-          printed = true;
-          _diagToast('✓ Comanda impresa OK', '#15803d');
-        } catch(e) {
-          if (pr < 1) { await _sleep(600); }
-          else { _diagToast('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); }
+      var impresos = [];      // los items que de verdad salieron
+      for (var gi = 0; gi < grupos.length; gi++) {
+        var g = grupos[gi];
+        //  Lo pedido a mano sale siempre; lo automatico pregunta, por area.
+        if (!force && !(await _autoprintOn(g.area))) {
+          _diagToast('Automático apagado en ' + (g.nombre || g.area), '#64748b');
+          continue;
+        }
+        var cab = { table: _tableDisplay(order), channel: order.channel, total: order.total || 0,
+          paid: order.paid_amount || 0, guests: order.guests || order.persons || 0,
+          waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '',
+          notes: order.notes || '', customer_name: order.customer_name || '',
+          //  El nombre del area va en la hoja SOLO cuando hay mas de una: con
+          //  una sola, decir «COCINA» en cada comanda es ruido.
+          area: (grupos.length > 1 || mapa.areas.length >= 2) ? (g.nombre || g.area) : '' };
+        var okG = false;
+        for (var pr = 0; pr < 2 && !okG; pr++) {
+          try {
+            await _printHtml(_buildComanda(cab, g.items), 'comanda', g.area);
+            okG = true; printed = true;
+            impresos = impresos.concat(g.items);
+            _diagToast('✓ Comanda impresa' + (g.nombre ? ' · ' + g.nombre : '') + ' OK', '#15803d');
+          } catch (e) {
+            if (pr < 1) { await _sleep(600); }
+            else { _diagToast('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); }
+          }
         }
       }
+      if (!printed && !grupos.length) { _diagToast('Nada que imprimir', '#64748b'); }
 
       if (printed) {
         try {
@@ -808,8 +919,12 @@
             if (!claimed) await sb2.from('pos_orders').update({ printed_at: new Date().toISOString() }).eq('id', orderId);
             // Marcar como "enviados a cocina" los ítems recién impresos, para que
             // el próximo agregado imprima únicamente lo nuevo.
+            /*  Solo los que DE VERDAD salieron. Si la barra tiene el
+                automatico apagado, sus items siguen sin marcar — y asi el
+                dia que se encienda, o si alguien imprime a mano, no se los
+                encuentra ya dados por enviados.                          */
             if (marcar) {
-              var ids = fuente.map(function (it) { return it.id; }).filter(Boolean);
+              var ids = impresos.map(function (it) { return it.id; }).filter(Boolean);
               if (ids.length) await sb2.from('pos_order_items').update({ kitchen_printed_at: new Date().toISOString() }).in('id', ids);
             }
           }

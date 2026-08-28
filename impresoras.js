@@ -18,7 +18,7 @@ let dirty          = false;
    CARGA DE DATOS
 ════════════════════════════════════════ */
 async function loadAndRender() {
-  await Promise.all([loadBranchInfo(), loadUserInfo(), loadPrinters(), loadConfig()]);
+  await Promise.all([loadBranchInfo(), loadUserInfo(), loadPrinters(), loadConfig(), cargarAreasDelNegocio()]);
   renderSidebar();
   renderTopbar();
   renderPrinterList();
@@ -79,9 +79,61 @@ function defaultConfig() {
     paper_width: 80, font_size: 'normal', comanda_model: 'estandar',
     content_orden: true, content_canal: true, content_prep: true,
     content_cliente: true, content_notas: true, content_precio: false,
-    auto_print: true, copies: 1, cut: 'total',
+    auto_print: true, auto_print_areas: {}, copies: 1, cut: 'total',
     same_printer_for_all: false, default_system_printer: ''
   };
+}
+
+/*  ══ CADA AREA DECIDE SI IMPRIME SOLA ═════════════════════════
+
+    Sergio, 28-ago-2026, pensando en vender el sistema: «va a haber otro
+    restaurante que tenga areas y varias impresoras por area». Un sitio puede
+    poner pantalla en la cocina y seguir necesitando el papel en la barra.
+
+    SOLO SE VE CON DOS AREAS O MAS. Con una sola, el interruptor de arriba ya
+    lo dice todo, y repetirlo abajo seria preguntar dos veces lo mismo — que
+    es como se acaban teniendo dos ajustes que se contradicen.
+
+    Un area sin decidir sigue lo general: asi el interruptor de siempre
+    conserva su significado para quien nunca toque esto, que son casi todos. */
+function renderAutoAreas() {
+  var box = document.getElementById('auto-areas');
+  if (!box) return;
+  var areas = (window.__impAreas || []);
+  if (areas.length < 2) { box.hidden = true; box.innerHTML = ''; return; }
+  var lim = function (t) { return String(t == null ? '' : t).replace(/[<>&"]/g, ''); };
+  box.hidden = false;
+  var porArea = config.auto_print_areas || {};
+  box.innerHTML = '<div class="imp-areas-tit">Por área</div>'
+    + areas.map(function (a) {
+        var puesto = Object.prototype.hasOwnProperty.call(porArea, a.id);
+        var on = puesto ? !!porArea[a.id] : !!config.auto_print;
+        return '<div class="imp-area-row"><span>' + lim(a.nombre || a.id) + '</span>'
+          + '<button class="cf-switch' + (on ? ' on' : '') + '" data-auto-area="' + lim(a.id) + '"'
+          + ' aria-pressed="' + on + '"><span class="cf-switch-knob"></span></button></div>';
+      }).join('');
+  box.querySelectorAll('[data-auto-area]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var id = b.dataset.autoArea;
+      if (!config.auto_print_areas) config.auto_print_areas = {};
+      var actual = Object.prototype.hasOwnProperty.call(config.auto_print_areas, id)
+        ? !!config.auto_print_areas[id] : !!config.auto_print;
+      config.auto_print_areas[id] = !actual;
+      renderAutoAreas(); markDirty();
+    });
+  });
+}
+
+/*  Las areas viven en Operacion, no aqui: esta pantalla solo las lee para
+    poder preguntar por cada una. */
+async function cargarAreasDelNegocio() {
+  try {
+    if (!branchId) return;
+    var r = await sb.from('branches').select('operacion_config').eq('id', branchId).maybeSingle();
+    var op = (r && r.data && r.data.operacion_config) || {};
+    window.__impAreas = Array.isArray(op.areas) ? op.areas.filter(function (x) { return x && x.id; }) : [];
+  } catch (e) { window.__impAreas = []; }
+  renderAutoAreas();
 }
 
 async function detectSystemPrinters() {
@@ -633,6 +685,7 @@ function applyConfigToUI() {
   document.getElementById('hint-autoprint').textContent = config.auto_print
     ? 'La comanda sale apenas se confirma el pedido.'
     : 'No sale sola. Se sigue pudiendo imprimir a mano con el botón Imprimir de cada pedido. Los recibos no se ven afectados.';
+  renderAutoAreas();
   // Copias
   document.querySelectorAll('#seg-copies .imp-seg-btn').forEach(b =>
     b.classList.toggle('on', parseInt(b.dataset.copies) === config.copies));
@@ -688,6 +741,7 @@ async function saveAll() {
       content_notas:            config.content_notas,
       content_precio:           config.content_precio,
       auto_print:               config.auto_print,
+      auto_print_areas:         config.auto_print_areas || {},
       copies:                   config.copies,
       cut:                      config.cut,
       same_printer_for_all:     config.same_printer_for_all,
@@ -796,7 +850,8 @@ function bindGlobalEvents() {
     sw.setAttribute('aria-pressed', String(config.auto_print));
     document.getElementById('hint-autoprint').textContent = config.auto_print
       ? 'La comanda sale apenas se confirma el pedido.'
-      : 'El cajero imprime la comanda manualmente.';
+      : 'No sale sola. Se sigue pudiendo imprimir a mano con el botón Imprimir de cada pedido. Los recibos no se ven afectados.';
+    renderAutoAreas();
     updatePreview(); markDirty();
   });
 
