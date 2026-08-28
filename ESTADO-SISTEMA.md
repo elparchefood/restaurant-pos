@@ -14656,3 +14656,89 @@ está: son mensajes que salen a sus clientes y prefirió verlo funcionar antes)
 y si la carta lleva **campo de estación** para separar bebidas en otra
 pantalla — se decide antes de construirlo, porque después obliga a volver a
 tocar la carta entera. Después: la APK.
+
+---
+
+## 186. La tanda, y el mapa como servicio aparte — 27-ago-2026
+
+Commit `565ebba` · `mapa` v31 · `sql/2026-08-27-mapas-addon-y-tope-dia.sql`
+
+### Varios pedidos, un solo recorrido
+
+**La tanda la decide caja, no la app.** Sergio: *«la tanda la decide la
+persona que maneja los pedidos; los que coloque EN CAMINO son los que se
+van»*. Esa frase es la que hace que esto sea sencillo — no hubo que inventar
+una pantalla para armar tandas ni adivinar qué pedidos van juntos por hora o
+por barrio. Ya existe un gesto que significa exactamente «estos salen ahora»
+y se hace todos los días; la app solo lo lee.
+
+Por eso `tanda()` **no es** `activos()`: en activos cabe también el pedido que
+la cocina todavía está haciendo, y meter en la ruta una casa a la que no se
+puede ir todavía es peor que no enrutar nada.
+
+**El orden lo calcula Google** (`optimize:true`), no nosotros. Ordenar por
+distancia en línea recta es lo que hace cruzar un río dos veces: dos casas a
+800 m pueden estar a 6 km por calle.
+
+**El truco del destino.** Google reordena las paradas intermedias pero respeta
+el destino final, así que hay que darle uno: se toma la **más lejana en línea
+recta**. Casi siempre es la última de la mejor ruta; cuando no, el error es de
+una parada, no del recorrido entero. La alternativa —cerrar el círculo
+volviendo al restaurante— obligaría a tener el restaurante en coordenadas, y
+hoy eso es una dirección escrita a mano en un formulario.
+
+**Dónde vive cada cosa**
+- `accRutaTanda` en `supabase/functions/mapa/index.ts` — acción `ruta_tanda`.
+  Máximo 10 paradas. Cobra **una por parada**, no una por tanda: cinco casas
+  le cuestan a Google casi lo mismo que cinco rutas sueltas.
+- `tanda()`, `hayTanda()`, `abrirTanda()`, `armarTanda()`, `dibujarTanda()`,
+  `pintarParadas()`, `ubicarPedido()` en `domiciliario.js`.
+- `limpiarLienzo()` se extrajo de `abrirMapaDe`: ahora hacen falta los dos, y
+  dos copias de una limpieza es como quedan marcas viejas sobre un mapa nuevo.
+
+**La tanda vive en el índice −1 del carrusel** que ya existía, así que se
+vuelve a ella con el mismo gesto de pasar de un pedido a otro. Ningún botón
+nuevo que aprender. Su punto en la fila de puntitos es una **barra**, no un
+círculo — si fuera igual, nadie sabría que ese primero no es un pedido.
+
+**Lo que Google no encuentre no desaparece en silencio**: sale escrito debajo
+del mapa, en ámbar. Una parada que se cae sin avisar es un pedido que nadie
+entrega.
+
+### El mapa se contrata aparte del plan
+
+Sergio hizo cuentas: **el mapa es lo único de Cobra que cuesta dinero cada vez
+que se usa**. Una pantalla o un informe cuestan lo mismo con un restaurante
+que con cincuenta. Meter un costo variable dentro de un precio fijo es apostar
+a que nadie lo use mucho, y esa apuesta se pierde con el primer cliente que
+haga cuarenta domicilios diarios.
+
+`pos_mapas_config.addon` (+ `addon_desde`, `addon_nota`). **Lo enciende Cobra
+por SQL, no el restaurante**: si estuviera en la pantalla de configuración,
+cualquiera se lo activaría solo. `mapa` se quitó de `pos_planes.funciones`.
+
+El candado va en la **puerta** de la Edge Function (el router), no dentro de
+cada acción: así una acción nueva que dibuje algo queda protegida sin que
+nadie se acuerde de ponerle el candado. Al revés es una función regalada que
+nadie nota hasta que llega la factura de Google. `estado`, `guardar` y
+`desconectar` quedan fuera del candado a propósito: son la pantalla de
+configuración, y el dueño tiene que poder ver cómo está su servicio.
+
+Quien no lo tenga usa la app **completa** y al tocar Ruta ve un letrero
+escrito como oferta, no como error: al domiciliario no le sirve un mensaje que
+suene a falla porque él no puede arreglarla, y quien sí puede se entera por él.
+
+### El tope, ahora también diario
+
+Un tope solo mensual se puede gastar entero en dos días y dejar al restaurante
+veintiocho sin mapa. Con tope diario lo peor que pasa es quedarse sin mapa una
+tarde, y al día siguiente vuelve solo. El mensual queda como techo de la
+factura; el diario, como freno de mano.
+
+`pos_mapas_uso_dia` + `fn_mapas_consumir` reescrita. Los dos contadores suben
+**dentro de la misma función**: si subiera el del mes y no el del día, un
+reinicio a media tarde regalaría cupo.
+
+**Valores por defecto: 40 al día / 1.200 al mes.** Son de Sergio en cuanto los
+confirme; el criterio con el que se propusieron está en la memoria
+`cobra_pos_mapas`. Se cambian con un `update pos_mapas_config`.
