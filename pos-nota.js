@@ -27,11 +27,21 @@
   /* En térmica NO hay grises: todo sale negro o no sale. Los adornos van en
      línea gruesa y letra grande; una sombra o un degradado salen como un
      moteado sucio. Por eso aquí no hay un solo color que no sea #000. */
+  /*  ⚠️ 72 mm, NO 80.
+
+      El rollo mide 80 mm pero la cabeza solo imprime unos 72: los ocho que
+      faltan son el margen fisico del papel. Puse 80 y la primera nota salio
+      torcida y con las esquinas derechas comidas — lo que se sale del area
+      imprimible no se recorta limpio, empuja el resto.
+
+      72 mm es el mismo ancho con el que ya salen bien los recibos de esta
+      misma impresora (ver `_buildReceiptDomicilio`). No hay que inventarlo:
+      estaba medido en el archivo de al lado.                              */
   var BASE =
     '*{margin:0;padding:0;box-sizing:border-box}' +
-    'body{font-family:Georgia,"Times New Roman",serif;width:80mm;max-width:80mm;' +
-    'margin:0;padding:7mm 6mm;color:#000;background:#fff}' +
-    '.t{font-size:19px;line-height:1.35;text-align:center;white-space:pre-wrap;' +
+    'body{font-family:Georgia,"Times New Roman",serif;width:72mm;max-width:72mm;' +
+    'margin:0;padding:5mm 4mm;color:#000;background:#fff}' +
+    '.t{font-size:18px;line-height:1.35;text-align:center;white-space:pre-wrap;' +
     'word-wrap:break-word;font-weight:700}' +
     '.f{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;font-weight:700;' +
     'letter-spacing:.18em;text-transform:uppercase;text-align:center;margin-top:5mm}' +
@@ -96,8 +106,11 @@
       pinta: function (t) {
         /* Enmarca sin encerrar, y se estira sola con lo larga que sea la nota:
            de las siete, la que mejor aguanta un texto de diez renglones. */
-        var e = 'position:absolute;width:7mm;height:7mm;display:block';
-        return '<div style="position:relative;padding:7mm 5mm">' +
+        /*  Las escuadras van 1 mm hacia adentro: pegadas al borde son lo
+            primero que se come la impresora si el papel entra un pelo
+            torcido, y una esquina a medias se ve peor que ninguna. */
+        var e = 'position:absolute;width:6mm;height:6mm;display:block';
+        return '<div style="position:relative;padding:6mm 4mm;margin:1mm">' +
           '<span style="' + e + ';top:0;left:0;border-top:2px solid #000;border-left:2px solid #000"></span>' +
           '<span style="' + e + ';top:0;right:0;border-top:2px solid #000;border-right:2px solid #000"></span>' +
           '<span style="' + e + ';bottom:0;left:0;border-bottom:2px solid #000;border-left:2px solid #000"></span>' +
