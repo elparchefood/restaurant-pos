@@ -213,7 +213,7 @@ Deno.serve(async (req: Request) => {
         seria mentir sobre el otro pedido.                                  */
     if (!conv) {
       try {
-        const oc0 = await sbGet(`/pos_orders?id=eq.${order_id}&select=cliente_id`) as Array<Record<string, unknown>> | null;
+        const oc0 = await sbGet(`/pos_orders?id=eq.${order_id}&select=cliente_id,branch_id,tenant_id,customer_name`) as Array<Record<string, unknown>> | null;
         const cid0 = oc0?.[0]?.cliente_id;
         if (cid0) {
           const libres = await sbGet(
@@ -234,6 +234,36 @@ Deno.serve(async (req: Request) => {
               await sbPatch(`/chat_conversations?id=eq.${c0.id}`, { order_id });
               conv = c0;
               console.log(`[estado] ${order_id}: chat del cliente enlazado para poder etiquetarlo`);
+            }
+          } else {
+            /*  QUIEN NUNCA HA ESCRITO TAMBIEN TIENE QUE APARECER EN LA BANDEJA.
+
+                Regla de Sergio: la etiqueta va SIEMPRE. A quien pide por la
+                pagina y nunca escribio por WhatsApp se le manda igual la
+                plantilla de confirmacion — asi que existe como cliente, tiene
+                pedido y tiene avisos, pero no tenia conversacion, y sin
+                conversacion no habia donde poner la etiqueta: desaparecia de
+                la bandeja del restaurante.
+
+                Se le crea la conversacion, vacia, solo para que exista y se
+                pueda etiquetar y seguir. Es el mismo criterio con el que la
+                pantalla de cobro deja copia del mensaje: si el restaurante
+                tiene que ver algo, tiene que existir donde mirarlo.        */
+            const cli0 = await sbGet(
+              `/pos_clientes?id=eq.${cid0}&select=nombre,telefono&limit=1`
+            ) as Array<Record<string, unknown>> | null;
+            const tel0 = String(cli0?.[0]?.telefono || "").replace(/\D/g, "").slice(-10);
+            if (tel0.length === 10) {
+              const creada = await sbPost(`/chat_conversations`, {
+                tenant_id: oc0?.[0]?.tenant_id, branch_id: oc0?.[0]?.branch_id,
+                channel: "whatsapp", contact_handle: "57" + tel0,
+                contact_name: String(cli0?.[0]?.nombre || oc0?.[0]?.customer_name || "Cliente"),
+                status: "open", cliente_id: cid0, order_id,
+              }, true) as Array<Record<string, unknown>> | null;
+              if (creada?.[0]) {
+                conv = creada[0];
+                console.log(`[estado] ${order_id}: chat creado para el cliente, no tenia`);
+              }
             }
           }
         }
