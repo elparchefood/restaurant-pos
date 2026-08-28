@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="domiciliario.css?v=1792660000">
+<link rel="stylesheet" href="domiciliario.css?v=1792875000">
 </head>
 <body>
 <!-- Sin conexion: se muestra solo cuando hace falta. -->
@@ -383,6 +383,13 @@
     </div>
   </div>
 
+  <!-- LAS PARADAS DE LA TANDA, en el orden que calculo Google. El mapa dice
+       por donde; esta lista dice a quien y cuanto falta. Hacen falta las dos:
+       una direccion sobre un mapa no se lee en una moto parada en un semaforo,
+       y un nombre sin mapa no se puede seguir. Se toca una y se abre ese
+       pedido solo. Solo sale cuando hay tanda. -->
+  <div class="mp-paradas" id="mapa-paradas" hidden></div>
+
   <div class="mp-pie">
     <button class="btn-o" id="btn-mapa-yo"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></svg> Dónde estoy</button>
     <!-- ARRANCA LA RUTA DENTRO DE COBRA: el mapa sigue al domiciliario y los
@@ -444,6 +451,6 @@
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <!-- Los tonos, afinados una sola vez para todo Cobra. -->
 <script src="pos-notify.js?v=1792500000"></script>
-<script src="domiciliario.js?v=1792660000"></script>
+<script src="domiciliario.js?v=1792875000"></script>
 </body>
 </html>

@@ -409,3 +409,54 @@ a{color:var(--brand);text-decoration:none}a:hover{color:var(--brand-press)}
 .dm-espera[hidden]{display:none !important}
 .dm-espera svg{flex-shrink:0;margin-top:1px;color:var(--ink-3)}
 .dm-espera b{color:var(--ink)}
+
+
+/*  ══ LA TANDA ══════════════════════════════════════════════════
+    Sergio, 27-ago-2026. Varios pedidos en camino = un solo recorrido.      */
+
+/*  El punto de la tanda dentro de los puntitos de pasar: es una barra, no un
+    circulo. Si fuera igual a los demas no habria forma de saber que ese
+    primero no es un pedido mas.                                            */
+.mp-dots span.ruta{width:16px;border-radius:999px;}
+
+/*  La lista de paradas. Se desliza en horizontal a proposito: en vertical se
+    comeria el mapa, y el mapa es lo que se mira. Asi cabe siempre la que
+    sigue y las demas estan a un dedo.                                      */
+.mp-paradas{
+  display:flex; gap:8px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+  padding:9px 12px; background:#fff; border-top:1px solid #ECEEF2;
+  scrollbar-width:none;
+}
+.mp-paradas::-webkit-scrollbar{display:none;}
+.mp-parada{
+  display:flex; align-items:center; gap:8px; flex:0 0 auto; max-width:74%;
+  padding:8px 12px 8px 8px; border:1px solid #ECEEF2; border-radius:12px;
+  background:#fff; font-family:inherit; text-align:left; cursor:pointer;
+}
+.mp-parada:active{background:#F8FAFC;}
+/*  El numero es el orden de entrega, no un adorno: sin el, cinco chinchetas
+    iguales obligan a adivinar cual primero — que es justo lo que veniamos a
+    resolver. La primera va en verde: es la unica que importa ahora mismo.  */
+.mp-parada i{
+  flex:0 0 auto; width:24px; height:24px; border-radius:999px;
+  background:#5B6BFF; color:#fff; font-style:normal; font-weight:800;
+  font-size:12px; display:flex; align-items:center; justify-content:center;
+}
+.mp-parada i.ya{background:#16A34A;}
+.mp-parada span{display:flex; flex-direction:column; min-width:0;}
+.mp-parada b{
+  font-size:13px; font-weight:700; color:#0F172A;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.mp-parada small{
+  font-size:11px; color:#64748B; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+/*  Y lo que no se pudo ubicar se dice AQUI, no en un aviso que se va solo:
+    es un pedido que hay que entregar igual, llamando al cliente. Callarlo
+    seria perderlo.                                                         */
+.mp-perdidos{
+  flex:0 0 auto; max-width:80%; align-self:center;
+  padding:7px 11px; border-radius:10px; background:#FFFBEB;
+  border:1px solid #FDE68A; color:#92400E; font-size:11.5px; font-weight:600;
+  line-height:1.45;
+}

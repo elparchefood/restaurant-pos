@@ -161,6 +161,35 @@ async function quienLlama(req: Request): Promise<{ tenant: string; sub: string }
    El tope por restaurante corre IGUAL en los dos casos, y es lo que
    protege la tarjeta de Cobra en el primero: por mucho que un solo
    restaurante se dispare, no puede vaciarle el cupo a los demas.       */
+/*  ══ EL MAPA SE CONTRATA APARTE ══════════════════════════════════════
+    Sergio, 27-ago-2026.
+
+    Antes venia dentro del plan Pro. Sergio hizo cuentas y lo saco, con
+    razon: el mapa es LO UNICO de Cobra que le cuesta dinero cada vez que
+    se usa. Una pantalla, un informe o una impresion cuestan lo mismo con
+    un restaurante que con cincuenta; un mapa abierto se le cobra a el.
+    Meter un costo variable dentro de un precio fijo es apostar a que
+    nadie lo use mucho, y esa apuesta se pierde con el primer cliente que
+    hace cuarenta domicilios diarios.
+
+    Quien no lo contrate usa la app del domiciliario COMPLETA —ve sus
+    pedidos, cobra, marca entregado— y al tocar «Ruta» ve un letrero que
+    dice que ese servicio no esta incluido. Es un letrero de venta, no un
+    error: por eso el boton se queda donde esta y no se esconde.
+
+    El interruptor es de COBRA. No sale en la pantalla de configuracion
+    del restaurante, porque si saliera cualquiera se lo activaria solo.  */
+async function contratado(tenant: string): Promise<boolean> {
+  const f = await sbSel(`pos_mapas_config?tenant_id=eq.${tenant}&select=addon`);
+  return !!(f && f.length && f[0].addon);
+}
+
+const SIN_SERVICIO = {
+  ok: false, motivo: "sin_servicio",
+  mensaje: "Este restaurante no tiene el servicio de mapas.",
+  detalle: "El mapa y las rutas se contratan aparte del plan. Comunicate con Cobra para activarlo.",
+};
+
 async function llaveDe(tenant: string): Promise<{ clave: string; propia: boolean } | null> {
   const filas = await sbSel(`pos_mapas_config?tenant_id=eq.${tenant}&select=clave_cifrada,activo`);
   const c = filas[0];
@@ -331,7 +360,7 @@ async function buscarPorNombre(
 const KM_MAXIMO = 50;
 
 /* ── Pedir permiso al contador ────────────────────────────────────────── */
-async function consumir(tenant: string, sku: string, propia: boolean): Promise<{ permitido: boolean; usado: number; tope: number; global?: boolean }> {
+async function consumir(tenant: string, sku: string, propia: boolean, n = 1): Promise<{ permitido: boolean; usado: number; tope: number; global?: boolean }> {
   /*  DOS FRENOS, NO UNO.
 
       El primero es por restaurante: que ninguno se dispare.
@@ -349,7 +378,7 @@ async function consumir(tenant: string, sku: string, propia: boolean): Promise<{
       return { permitido: false, usado: (g && g[0] && g[0].usado) || 0, tope: tg, global: true };
     }
   }
-  const r = await sbRpc("fn_mapas_consumir", { p_tenant: tenant, p_sku: sku, p_n: 1 }) as
+  const r = await sbRpc("fn_mapas_consumir", { p_tenant: tenant, p_sku: sku, p_n: n }) as
     Array<{ permitido: boolean; usado: number; tope: number }> | null;
   if (!r || !r.length) return { permitido: false, usado: 0, tope: 0 };
   return r[0];
@@ -743,14 +772,21 @@ async function accEstado(tenant: string) {
   const e = (r && r[0]) || {};
   const tope = Number(e.tope || 9000);
   const usado = Number(e.geocoding || 0) + Number(e.estatico || 0);
-  //  ¿Hay llave de Cobra para todos? Entonces el mapa YA le funciona
-  //  aunque no haya conectado nada, y la pantalla no puede decirle
-  //  "sin conectar" como si le faltara algo por hacer.
-  const incluido = !!Deno.env.get("MAPAS_CLAVE_COBRA");
+  /*  DOS COSAS DISTINTAS QUE ANTES ERAN UNA.
+
+      `incluido` significaba "Cobra pone la llave, aqui no hay nada que
+      hacer". Desde que el mapa se contrata aparte (27-ago-2026) eso ya no
+      basta: la llave de Cobra puede estar puesta y el restaurante no haber
+      contratado el servicio. Son dos preguntas y hay que contestar las dos,
+      porque la pantalla dice cosas muy distintas segun cual falle.       */
+  const hayLlaveCobra = !!Deno.env.get("MAPAS_CLAVE_COBRA");
+  const activo = await contratado(tenant);
+  const incluido = hayLlaveCobra && activo;
   return ok({
     activo: !!e.activo,
+    contratado: activo,
     incluido,
-    funcionando: !!e.activo || incluido,
+    funcionando: activo && (!!e.activo || hayLlaveCobra),
     pista: e.pista || null,
     tope,
     geocoding: Number(e.geocoding || 0),
@@ -775,7 +811,7 @@ async function accEstado(tenant: string) {
      1. SESION VALIDA. La llave no esta escrita en ningun archivo: se pide
         aqui. Quien baje la APK o abra la pagina sin cuenta no encuentra
         nada. Esta es la barrera grande, y la propuso Sergio.
-     2. PLAN PRO. El mapa se vende en Pro.
+     2. SERVICIO DE MAPAS CONTRATADO. Se vende aparte del plan.
      3. TURNO DE CAJA ABIERTO. Fuera del horario de trabajo no se entrega.
         Tambien idea de Sergio: el domiciliario no sabe que existe un
         turno, asi que no puede "abrirlo" para sacar la llave de noche.
@@ -795,15 +831,8 @@ async function accNavegador(tenant: string) {
   if (!clave) return ok({ ok: false, motivo: "sin_llave",
     mensaje: "El mapa todavia no esta configurado en Cobra." });
 
-  //  2. ¿El plan lo incluye?
-  const t = await sbSel(`tenants?select=plan&id=eq.${tenant}&limit=1`);
-  const plan = (t && t.length && String(t[0].plan || "")) || "";
-  if (!plan) return ok({ ok: false, motivo: "sin_plan",
-    mensaje: "No se pudo comprobar el plan del restaurante." });
-  const pl = await sbSel(`pos_planes?select=funciones&plan=eq.${plan}&limit=1`);
-  const funciones = (pl && pl.length && (pl[0].funciones as string[])) || [];
-  if (!funciones.includes("mapa")) return ok({ ok: false, motivo: "plan",
-    mensaje: "El mapa viene en el plan Pro." });
+  //  2. ¿Contrato el servicio? (ya no se mira el plan: ver `contratado`)
+  if (!await contratado(tenant)) return ok(SIN_SERVICIO);
 
   //  3. ¿Hay turno de caja abierto?
   const ses = await sbSel(
@@ -884,6 +913,126 @@ async function accRuta(tenant: string, body: Record<string, unknown>) {
     metros:   tramo.distance && tramo.distance.value,
     segundos: tramo.duration && tramo.duration.value,
     texto:    (tramo.distance && tramo.distance.text) + " · " + (tramo.duration && tramo.duration.text),
+    usado: permiso.usado, tope: permiso.tope,
+  });
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   LA TANDA: VARIOS PEDIDOS, UNA SOLA RUTA
+   ═════════════════════════════════════════════════════════════════════
+   Sergio, 27-ago-2026: «si la cajera coloca en camino varios pedidos
+   asignados al mismo domiciliario, la aplicacion automaticamente lo enruta».
+
+   LA TANDA NO LA DECIDE ESTA FUNCION NI EL DOMICILIARIO: la decide quien
+   maneja los pedidos, poniendolos EN CAMINO. Eso es lo que hace que esto sea
+   simple: aqui no hay que adivinar que pedidos van juntos ni inventar una
+   pantalla para armar tandas. Ya existe un gesto en caja que significa
+   exactamente «estos se van ahora», y ese gesto ya se hace todos los dias.
+
+   EL ORDEN LO CALCULA GOOGLE, no nosotros. Ordenar paradas por distancia en
+   linea recta es lo que hace que un domiciliario cruce un rio dos veces: dos
+   casas a 800 metros una de otra pueden estar a 6 km por calle. Google lo
+   resuelve con `optimize:true`.
+
+   EL TRUCO DEL DESTINO. Google reordena las paradas intermedias pero respeta
+   el destino final, asi que hay que darle uno. Se toma la MAS LEJANA en linea
+   recta: casi siempre es la ultima de la mejor ruta, y cuando no lo es, el
+   error es de una parada, no del recorrido entero. La alternativa —cerrar el
+   circulo volviendo al restaurante— obligaria a saber donde queda el
+   restaurante en coordenadas, y hoy eso es una direccion escrita a mano en un
+   formulario.                                                              */
+function lejosDe(o: { lat: number; lng: number }, p: { lat: number; lng: number }) {
+  const dx = (p.lng - o.lng) * Math.cos((o.lat * Math.PI) / 180);
+  const dy = p.lat - o.lat;
+  return dx * dx + dy * dy;          // sin raiz: solo se usa para comparar
+}
+
+async function accRutaTanda(tenant: string, body: Record<string, unknown>) {
+  const desde = String(body.desde || "").trim();
+  const crudas = Array.isArray(body.paradas) ? body.paradas : [];
+  const paradas = crudas
+    .map((x) => x as Record<string, unknown>)
+    .filter((x) => isFinite(Number(x.lat)) && isFinite(Number(x.lng)))
+    .map((x) => ({ id: String(x.id || ""), lat: Number(x.lat), lng: Number(x.lng) }))
+    /*  DIEZ PARADAS. No es un limite de Google (admite mas), es de la moto:
+        nadie sale con quince domicilios en una tanda, y si alguien lo
+        intentara, una ruta de quince paradas tarda tanto en calcularse que el
+        domiciliario cree que se colgo. */
+    .slice(0, 10);
+
+  if (!desde || paradas.length < 2) return mal("Faltan el origen o las paradas");
+
+  const cuenta = await llaveDe(tenant);
+  if (!cuenta) return mal("Sin llave de mapas configurada");
+  /*  Se cobra una por parada, no una por tanda: cinco casas le cuestan a
+      Google casi lo mismo que cinco rutas sueltas, y si contara como una
+      sola, el tope dejaria de proteger nada. */
+  const permiso = await consumir(tenant, "ruta", cuenta.propia, paradas.length);
+  if (!permiso.permitido) {
+    return ok({ ok: false, motivo: "tope",
+      mensaje: "Se acabo el cupo de rutas.",
+      usado: permiso.usado, tope: permiso.tope });
+  }
+
+  const origen = (function () {
+    const m = desde.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
+    return m ? { lat: Number(m[1]), lng: Number(m[2]) } : null;
+  })();
+  if (!origen) return mal("El origen no es una coordenada");
+
+  let iFin = 0;
+  paradas.forEach((p, i) => { if (lejosDe(origen, p) > lejosDe(origen, paradas[iFin])) iFin = i; });
+  const fin = paradas[iFin];
+  const medio = paradas.filter((_, i) => i !== iFin);
+
+  const url = "https://maps.googleapis.com/maps/api/directions/json"
+    + "?origin=" + encodeURIComponent(desde)
+    + "&destination=" + encodeURIComponent(fin.lat + "," + fin.lng)
+    + "&waypoints=" + encodeURIComponent("optimize:true|" + medio.map((p) => p.lat + "," + p.lng).join("|"))
+    + "&mode=driving&language=es&region=co"
+    + "&key=" + encodeURIComponent(cuenta.clave);
+
+  const r = await fetchCorto(url, undefined, 12000);
+  if (!r.ok) {
+    console.error("[mapa] tanda", r.status, await r.text());
+    return ok({ ok: false, motivo: "google", mensaje: "Google no contesto la ruta." });
+  }
+  const d = await r.json();
+  if (d.status !== "OK" || !d.routes || !d.routes.length) {
+    console.error("[mapa] tanda", d.status, d.error_message);
+    return ok({ ok: false, motivo: "sin_ruta", mensaje: "No se encontro camino entre esas direcciones." });
+  }
+
+  /*  `waypoint_order` trae los indices de las paradas INTERMEDIAS ya en el
+      orden bueno. El destino no esta ahi —Google no lo movio— asi que se pega
+      al final a mano. Leer esto mal significaria mandar al domiciliario en el
+      orden equivocado con una ruta que en pantalla se ve perfecta.        */
+  const ruta = d.routes[0];
+  const orden: typeof paradas = [];
+  const wo = Array.isArray(ruta.waypoint_order) ? ruta.waypoint_order : medio.map((_, i) => i);
+  wo.forEach((i: number) => { if (medio[i]) orden.push(medio[i]); });
+  orden.push(fin);
+
+  const legs = ruta.legs || [];
+  let metros = 0, segundos = 0;
+  const tramos = orden.map((p, i) => {
+    const l = legs[i] || {};
+    metros += (l.distance && l.distance.value) || 0;
+    segundos += (l.duration && l.duration.value) || 0;
+    return {
+      id: p.id, lat: p.lat, lng: p.lng,
+      metros: (l.distance && l.distance.value) || 0,
+      segundos: (l.duration && l.duration.value) || 0,
+      texto: [(l.distance && l.distance.text), (l.duration && l.duration.text)].filter(Boolean).join(" · "),
+    };
+  });
+
+  return ok({
+    ok: true,
+    linea: ruta.overview_polyline && ruta.overview_polyline.points,
+    orden: orden.map((p) => p.id),
+    tramos, metros, segundos,
+    texto: Math.round(metros / 100) / 10 + " km · " + Math.round(segundos / 60) + " min",
     usado: permiso.usado, tope: permiso.tope,
   });
 }
@@ -1310,7 +1459,10 @@ serve(async (req: Request) => {
     //  y ponerla directo en un <img>.
     if (req.method === "GET") {
       const acc = u.searchParams.get("accion") || "estatico";
-      if (acc === "estatico") return await accEstatico(quien.tenant, u);
+      if (acc === "estatico") {
+        if (!await contratado(quien.tenant)) return ok(SIN_SERVICIO);
+        return await accEstatico(quien.tenant, u);
+      }
       if (acc === "estado")   return await accEstado(quien.tenant);
       return mal("Acción no reconocida");
     }
@@ -1320,7 +1472,24 @@ serve(async (req: Request) => {
 
     if (acc === "estado")        return await accEstado(quien.tenant);
     if (acc === "navegador")     return await accNavegador(quien.tenant);
+
+    /*  TODO LO QUE GASTA MAPA PASA POR AQUI.
+
+        El candado va en la puerta y no dentro de cada funcion a proposito: el
+        dia que se agregue una accion nueva que dibuje algo, queda protegida
+        sin que nadie se acuerde de ponerle el candado. Al reves —una accion
+        nueva que se olvida de comprobarlo— es una funcion regalada que nadie
+        nota hasta que llega la factura de Google.
+
+        `estado`, `guardar` y `desconectar` NO estan: son la pantalla de
+        configuracion. El dueno tiene que poder ver como esta su servicio y
+        conectar su propia llave aunque todavia no lo haya contratado.      */
+    if (acc === "ruta" || acc === "ruta_tanda" || acc === "geocodificar") {
+      if (!await contratado(quien.tenant)) return ok(SIN_SERVICIO);
+    }
+
     if (acc === "ruta")          return await accRuta(quien.tenant, body);
+    if (acc === "ruta_tanda")    return await accRutaTanda(quien.tenant, body);
     if (acc === "geocodificar")  return await accGeocodificar(quien.tenant, body);
     if (acc === "guardar")       return await accGuardar(quien.tenant, String(body.clave || ""));
     if (acc === "desconectar")   return await accDesconectar(quien.tenant);

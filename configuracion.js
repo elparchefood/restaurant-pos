@@ -8619,24 +8619,35 @@ async function mpCargar() {
 
 function mpPintar(e) {
   var sin = $('mp-sin'), con = $('mp-con'), chip = $('mp-estado');
-  var propia = !!(e && e.activo);        // conecto SU cuenta
-  var incluido = !!(e && e.incluido);    // el mapa viene con el plan
+  var propia = !!(e && e.activo);          // conecto SU cuenta de Google
+  var incluido = !!(e && e.incluido);      // Cobra pone la llave y ya le sirve
+  /*  EL MAPA SE CONTRATA APARTE DEL PLAN (Sergio, 27-ago-2026).
+      Antes bastaba con que existiera la llave de Cobra. Ahora hay dos
+      preguntas: si Cobra pone la llave, y si ESTE restaurante contrato el
+      servicio — y la pantalla dice cosas muy distintas segun cual falle. */
+  var contratado = (e && e.contratado !== undefined) ? !!e.contratado : incluido;
+
+  var no = $('mp-noactivo');
+  if (no) no.style.display = contratado ? 'none' : '';
 
   /* SI EL MAPA YA LE FUNCIONA, NO SE LE PIDE NADA.
      Decirle 'sin conectar' a alguien que ya tiene mapas es mandarlo a
      hacer un tramite de 20 minutos que no necesita. Solo el que quiera
-     pasar el gasto a su propia cuenta abre el paso a paso. */
-  if (sin) sin.style.display = (propia || incluido) ? 'none' : '';
-  if (con) con.style.display = propia ? '' : 'none';
+     pasar el gasto a su propia cuenta abre el paso a paso.
+     Y a quien no lo tenga contratado tampoco se le ofrece el tramite: no
+     le serviria de nada conectar una cuenta de Google. */
+  if (sin) sin.style.display = (propia || incluido || !contratado) ? 'none' : '';
+  if (con) con.style.display = (propia && contratado) ? '' : 'none';
 
   var extra = $('mp-incluido');
   if (extra) extra.style.display = (incluido && !propia) ? '' : 'none';
 
   if (chip) {
-    chip.textContent = propia ? 'Tu cuenta' : (incluido ? 'Incluido en tu plan' : 'Sin conectar');
-    chip.className = 'op-state ' + ((propia || incluido) ? 'on' : 'off');
+    chip.textContent = !contratado ? 'No activado'
+      : (propia ? 'Tu cuenta' : 'Servicio activo');
+    chip.className = 'op-state ' + (contratado ? 'on' : 'off');
   }
-  if (!propia) return;
+  if (!propia || !contratado) return;
 
   if ($('mp-pista')) $('mp-pista').textContent = e.pista || '';
   if ($('mp-tope')) $('mp-tope').value = e.tope || 9000;

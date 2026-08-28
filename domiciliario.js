@@ -387,6 +387,25 @@
   function activos() {
     return S.pedidos.filter(function (p) { return p.estado !== 'entregado'; });
   }
+
+  /*  LA TANDA: LO QUE SE VA AHORA.
+
+      Sergio, 27-ago-2026: «la tanda la decide la persona que maneja los
+      pedidos; los que coloque EN CAMINO son los que se van».
+
+      Esa frase es la que hace que esto sea sencillo. No hay que inventar una
+      pantalla para armar tandas, ni adivinar cuales van juntos por hora o por
+      barrio: ya existe un gesto en caja que significa exactamente «estos
+      salen ahora», y se hace todos los dias.
+
+      Por eso NO es lo mismo que `activos()`. Ahi cabe tambien el pedido que
+      la cocina todavia esta haciendo, y meter en la ruta una casa a la que no
+      se puede ir todavia es peor que no enrutar nada: manda al domiciliario a
+      dar una vuelta por un pedido que no lleva encima.                     */
+  function tanda() {
+    return S.pedidos.filter(function (p) { return p.estado === 'camino'; });
+  }
+  function hayTanda() { return tanda().length >= 2; }
   function entregados() {
     return S.pedidos.filter(function (p) { return p.estado === 'entregado'; });
   }
@@ -1091,7 +1110,11 @@
     yo: null, halo: null, siguiendo: false, buscando: null,
     margen: 0, avisoGps: false,
     mapaId: '', rumbo: null, giro: null,
-    previa: null, previaBusca: null };
+    previa: null, previaBusca: null,
+    /*  LA TANDA. `paradas` son las marcas numeradas, `coords` guarda lo que
+        ya se geocodifico para no volver a pagarlo al pasar de una vista a
+        otra, y `esTanda` es lo unico que distingue las dos formas del mapa. */
+    esTanda: false, paradas: [], coords: {}, tramos: null };
 
   /*  EN UN CELULAR NO HAY CONSOLA QUE MIRAR.
 
@@ -1527,38 +1550,58 @@
     } catch (e) {}
   }
 
+  /*  EL MAPA SE ABRE EN LA TANDA, NO EN UN PEDIDO.
+
+      Si van tres pedidos en camino, lo primero que tiene que ver el
+      domiciliario es el recorrido de los tres — eso es lo que le dice por
+      donde arranca. Los pedidos sueltos siguen ahi, a un deslizada.
+
+      La excepcion es abrir el mapa DESDE un pedido: ahi pidio ese, y darle
+      otra cosa seria contestarle a una pregunta que no hizo.               */
   function verRuta() {
     var act = activos();
     if (S.abierto) {
       var iA = act.findIndex(function (x) { return x.id === S.abierto.id; });
       S.mapaIdx = iA < 0 ? 0 : iA;
-    } else {
-      S.mapaIdx = S.heroIdx === null ? 0 : S.heroIdx;
+      abrirMapaDe(act[S.mapaIdx] || S.abierto);
+      return;
     }
+    if (hayTanda()) { S.mapaIdx = -1; abrirTanda(); return; }
+    S.mapaIdx = S.heroIdx === null ? 0 : S.heroIdx;
     if (S.mapaIdx >= act.length) S.mapaIdx = 0;
-    abrirMapaDe(act[S.mapaIdx] || S.abierto);
+    abrirMapaDe(act[S.mapaIdx]);
   }
 
+  /*  El carrusel del mapa tiene una vista mas que pedidos: la tanda vive en
+      el indice -1, antes del primero. Asi el gesto de pasar de un pedido a
+      otro —que ya existia y ya se conoce— sirve tambien para volver al
+      recorrido completo, sin un boton nuevo que aprender. */
   function moverMapa(paso) {
-    var act = activos();
-    if (act.length < 2) return;
+    var act = activos(), min = hayTanda() ? -1 : 0;
+    if (act.length < 2 && min === 0) return;
     var i = S.mapaIdx + paso;
-    if (i < 0) i = act.length - 1;
-    if (i >= act.length) i = 0;
+    if (i < min) i = act.length - 1;
+    if (i >= act.length) i = min;
     S.mapaIdx = i;
     detenerRuta();
-    abrirMapaDe(act[i]);
+    if (i < 0) abrirTanda(); else abrirMapaDe(act[i]);
   }
 
   function pintarMapaPasar() {
     var act = activos(), caja = $('mapa-pasar'), dots = $('mapa-dots');
     if (!caja) return;
-    caja.hidden = act.length < 2;
-    if (dots && act.length > 1) {
-      dots.innerHTML = act.map(function (_, i) {
-        return '<span class="' + (i === S.mapaIdx ? 'on' : '') + '"></span>';
-      }).join('');
-    }
+    var conTanda = hayTanda();
+    caja.hidden = act.length < 2 && !conTanda;
+    if (!dots) return;
+    var html = '';
+    /*  El punto de la tanda es distinto a proposito — mas ancho, en forma de
+        barra. Si fuera un punto igual a los demas, no habria forma de saber
+        que ese primero no es un pedido. */
+    if (conTanda) html += '<span class="ruta ' + (S.mapaIdx < 0 ? 'on' : '') + '"></span>';
+    html += act.map(function (_, i) {
+      return '<span class="' + (i === S.mapaIdx ? 'on' : '') + '"></span>';
+    }).join('');
+    dots.innerHTML = html;
   }
 
   function abrirMapaDe(p) {
@@ -1566,6 +1609,7 @@
     pintarMapaPasar();
     if (!p.direccion && !p.conjunto) { toast('Este pedido no tiene dirección'); return; }
     MAPA.pedido = p;
+    MAPA.esTanda = false;
     if ($('mapa-cliente')) $('mapa-cliente').textContent = aDonde(p);
     /* Arriba va el sitio; aqui lo que falta para llegar a la puerta. El
        conjunto no se repite: ya esta en el titulo. */
@@ -1575,6 +1619,64 @@
     if ($('ov-mapa')) $('ov-mapa').hidden = false;
     if ($('mapa-alerta')) $('mapa-alerta').hidden = true;
     if ($('btn-mapa-iniciar')) $('btn-mapa-iniciar').disabled = false;
+    limpiarLienzo();
+    if ($('mapa-paradas')) $('mapa-paradas').hidden = true;
+    if ($('mapa-iniciar-tx')) $('mapa-iniciar-tx').textContent = 'Iniciar';
+    MAPA.esTanda = false;
+    mapaAviso('Abriendo el mapa…', '', true);
+    revisarPermiso();
+    armarMapa(p);
+  }
+
+  /*  DONDE QUEDA CADA PARADA.
+
+      Se guarda en `MAPA.coords` durante la sesion. No es por velocidad: es
+      porque pasar de la tanda a un pedido y volver son dos gestos que se hacen
+      sin pensar, y cada uno volveria a preguntarle a Google por las mismas
+      cinco casas. El servidor tambien guarda lo suyo, pero eso ahorra el pago
+      a Google, no el viaje — y en una moto con mala senal el viaje es lo que
+      se siente.                                                             */
+  async function ubicarPedido(p) {
+    if (MAPA.coords[p.id]) return MAPA.coords[p.id];
+    if (!p.direccion && !p.conjunto) return null;
+    var g;
+    try {
+      g = await llamarMapa({ accion: 'geocodificar', direccion: p.direccion, barrio: p.barrio || '',
+        ciudad: S.ciudad || '', conjunto: p.conjunto || '', cerca: posConocida() });
+    } catch (e) { return null; }
+    if (!g || g.motivo === 'sin_servicio') { MAPA.ultimoFallo = g; return null; }
+    if (!g.lat || !g.lng) return null;
+    var c = { id: p.id, lat: Number(g.lat), lng: Number(g.lng), aprox: !!g.aproximada };
+    MAPA.coords[p.id] = c;
+    return c;
+  }
+
+  /* ════════════════════════════════════════════════════════
+     LA TANDA EN EL MAPA
+     ════════════════════════════════════════════════════════ */
+  function abrirTanda() {
+    var lista = tanda();
+    if (lista.length < 2) { abrirMapaDe(lista[0] || activos()[0]); return; }
+    MAPA.esTanda = true;
+    MAPA.pedido = null;
+    pintarMapaPasar();
+    if ($('mapa-cliente')) $('mapa-cliente').textContent = 'Tu recorrido';
+    if ($('mapa-dir')) $('mapa-dir').textContent = lista.length + ' pedidos en camino';
+    if ($('mapa-dist')) $('mapa-dist').textContent = '';
+    if ($('ov-mapa')) $('ov-mapa').hidden = false;
+    if ($('mapa-alerta')) $('mapa-alerta').hidden = true;
+    if ($('mapa-paradas')) $('mapa-paradas').hidden = true;
+    if ($('btn-mapa-iniciar')) $('btn-mapa-iniciar').disabled = true;
+    limpiarLienzo();
+    mapaAviso('Armando el recorrido…', '', true);
+    revisarPermiso();
+    armarTanda(lista);
+  }
+
+  /*  Borrar lo del mapa anterior. Estaba escrito dentro de `abrirMapaDe` y
+      ahora hacen falta los dos, asi que se saca: dos copias de una limpieza
+      es como quedan marcas viejas flotando sobre un mapa nuevo. */
+  function limpiarLienzo() {
     MAPA.aprox = false; MAPA.casa = null;
     if (MAPA.buscando) { MAPA.buscando.parar(); MAPA.buscando = null; }
     if (MAPA.previaBusca) { MAPA.previaBusca.parar(); MAPA.previaBusca = null; }
@@ -1582,13 +1684,213 @@
     if (MAPA.marcaYo) { MAPA.marcaYo.setMap(null); MAPA.marcaYo = null; }
     if (MAPA.halo) { MAPA.halo.setMap(null); MAPA.halo = null; }
     if (MAPA.linea) { MAPA.linea.setMap(null); MAPA.linea = null; }
+    if (MAPA.marcaCasa) { MAPA.marcaCasa.setMap(null); MAPA.marcaCasa = null; }
+    (MAPA.paradas || []).forEach(function (m) { if (m && m.setMap) m.setMap(null); });
+    MAPA.paradas = []; MAPA.tramos = null;
     MAPA.yo = null;
     seguir(false);
     if ($('mapa-centrar')) $('mapa-centrar').hidden = true;
     if ($('mapa-precision')) $('mapa-precision').hidden = true;
-    mapaAviso('Abriendo el mapa…', '', true);
-    revisarPermiso();
-    armarMapa(p);
+  }
+
+  async function armarTanda(lista) {
+    var acc = await pedirLlave();
+    if (!acc) return;
+    MAPA.mapaId = acc.mapaId || '';
+
+    //  El GPS arranca ya: el recorrido empieza donde esta el, no donde estuvo.
+    var primera = null;
+    var llegoPrimera = new Promise(function (ok) { primera = ok; });
+    MAPA.previaBusca = ubicarme(function (p) {
+      recordarPos(p); pintarYo(p);
+      if (primera) { primera(); primera = null; }
+    });
+
+    paso(2, 'cargando Google');
+    try { await cargarGoogle(acc.clave); }
+    catch (e) { mapaAviso('El mapa no cargó', 'Revisa la conexión y vuelve a entrar.', false); return; }
+
+    if (!posConocida()) {
+      paso(3, 'buscando dónde estás');
+      await Promise.race([llegoPrimera, new Promise(function (ok) { setTimeout(ok, 5000); })]);
+    }
+
+    /*  Las direcciones se piden TODAS A LA VEZ. En serie, cinco paradas son
+        cinco esperas seguidas y el domiciliario mira una rueda diez segundos;
+        a la vez, tarda lo que tarde la mas lenta.
+
+        Y las que Google no encuentre NO se descartan en silencio: se cuentan
+        y se dicen. Una parada que desaparece del recorrido sin avisar es un
+        pedido que nadie va a entregar.                                     */
+    paso(3, 'buscando las direcciones');
+    var puntos = await Promise.all(lista.map(ubicarPedido));
+    var buenos = [], perdidos = [];
+    lista.forEach(function (p, i) {
+      if (puntos[i] && !puntos[i].aprox) buenos.push({ pedido: p, punto: puntos[i] });
+      else perdidos.push(p);
+    });
+
+    if (buenos.length < 2) {
+      /*  Con una sola direccion buena no hay recorrido que armar: se abre esa
+          sola, que es exactamente lo que el domiciliario necesita. */
+      if (buenos.length === 1) {
+        MAPA.esTanda = false;
+        var i1 = activos().findIndex(function (x) { return x.id === buenos[0].pedido.id; });
+        S.mapaIdx = i1 < 0 ? 0 : i1;
+        abrirMapaDe(buenos[0].pedido);
+        toast('Solo se pudo ubicar un pedido de la tanda');
+        return;
+      }
+      if (MAPA.ultimoFallo && MAPA.ultimoFallo.motivo === 'sin_servicio') { sinServicio(MAPA.ultimoFallo); return; }
+      mapaAviso('No se pudo armar el recorrido',
+        'Google no encontró ninguna de estas direcciones. Llámalos para que te orienten.', false);
+      return;
+    }
+
+    var yo = MAPA.yo || (function () {
+      var v = posConocida();
+      if (!v) return null;
+      var t = v.split(',');
+      return { lat: Number(t[0]), lng: Number(t[1]) };
+    })();
+    if (!yo) {
+      mapaAviso('Falta saber dónde estás',
+        'El recorrido se arma desde tu posición. Activa el GPS y vuelve a entrar.', false);
+      return;
+    }
+
+    paso(4, 'calculando el orden');
+    var r;
+    try {
+      r = await llamarMapa({
+        accion: 'ruta_tanda', desde: yo.lat + ',' + yo.lng,
+        paradas: buenos.map(function (b) { return { id: b.pedido.id, lat: b.punto.lat, lng: b.punto.lng }; })
+      });
+    } catch (e) {
+      mapaAviso('No se pudo calcular el recorrido', (e && e.message) || '', false); return;
+    }
+    if (!r.ok) { sinServicio(r); return; }
+
+    mapaAviso(null);
+    dibujarTanda(r, buenos, yo, perdidos);
+  }
+
+  function dibujarTanda(r, buenos, yo, perdidos) {
+    var porId = {};
+    buenos.forEach(function (b) { porId[b.pedido.id] = b; });
+
+    var opciones = {
+      center: yo, zoom: 14,
+      mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
+      zoomControl: false, clickableIcons: true, gestureHandling: 'greedy'
+    };
+    if (MAPA.mapaId) { opciones.mapId = MAPA.mapaId; opciones.tilt = 0; opciones.heading = 0; }
+    try { MAPA.mapa = new google.maps.Map($('mapa-lienzo'), opciones); }
+    catch (e) {
+      delete opciones.mapId; delete opciones.tilt; delete opciones.heading;
+      MAPA.mapaId = '';
+      MAPA.mapa = new google.maps.Map($('mapa-lienzo'), opciones);
+    }
+    MAPA.mapa.addListener('dragstart', function () { if (MAPA.andando) seguir(false); });
+
+    var caja = new google.maps.LatLngBounds();
+    caja.extend(yo);
+
+    /*  LAS MARCAS VAN NUMERADAS, y ese numero es el orden de entrega que
+        calculo Google. Sin el numero, cinco chinchetas iguales no dicen nada:
+        el domiciliario tendria que adivinar cual primero, que es justo lo que
+        veniamos a resolver. */
+    MAPA.paradas = [];
+    var orden = r.orden || [];
+    orden.forEach(function (id, i) {
+      var b = porId[id];
+      if (!b) return;
+      var pos = { lat: b.punto.lat, lng: b.punto.lng };
+      caja.extend(pos);
+      MAPA.paradas.push(new google.maps.Marker({
+        map: MAPA.mapa, position: pos, zIndex: 50 - i,
+        title: (i + 1) + '. ' + aDonde(b.pedido),
+        label: { text: String(i + 1), color: '#fff', fontSize: '12px', fontWeight: '800' },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE, scale: 12,
+          fillColor: i === 0 ? '#16A34A' : '#5B6BFF', fillOpacity: 1,
+          strokeColor: '#fff', strokeWeight: 2.5
+        }
+      }));
+    });
+
+    if (r.linea) {
+      MAPA.linea = new google.maps.Polyline({
+        map: MAPA.mapa, path: abrirLinea(r.linea),
+        strokeColor: '#5B6BFF', strokeOpacity: .9, strokeWeight: 5
+      });
+    }
+    MAPA.mapa.fitBounds(caja, 70);
+    if ($('mapa-dist')) $('mapa-dist').textContent = r.texto || '';
+
+    MAPA.tramos = r.tramos || [];
+    MAPA.ordenTanda = orden;
+    pintarParadas(orden, porId, r.tramos || [], perdidos);
+
+    //  El punto azul se sigue corrigiendo, pero el recorrido NO se recalcula
+    //  a cada paso: cada calculo es una llamada que se paga.
+    MAPA.buscando = ubicarme(function (p, definitivo) {
+      pintarYo(p);
+      pintarPrecision(p, definitivo);
+      if (definitivo) MAPA.buscando = null;
+    });
+
+    /*  Iniciar, en la tanda, es arrancar hacia la PRIMERA parada. Lo que
+        vuelve util al boton es que esa primera ya no la escoge el
+        domiciliario mirando el mapa: la calculo Google.                    */
+    if ($('btn-mapa-iniciar')) $('btn-mapa-iniciar').disabled = false;
+    if ($('mapa-iniciar-tx')) $('mapa-iniciar-tx').textContent = 'Ir a la 1ª';
+  }
+
+  /*  LA LISTA DE PARADAS, debajo del mapa.
+
+      El mapa dice por donde; la lista dice a quien y cuanto falta. Hacen
+      falta las dos: una direccion sobre un mapa no se puede leer en una moto
+      parada en un semaforo, y un nombre sin mapa no se puede seguir.
+
+      Se toca una parada y se abre ESE pedido solo, con su ruta y su boton de
+      entregar. La tanda queda a una deslizada de vuelta.                   */
+  function pintarParadas(orden, porId, tramos, perdidos) {
+    var caja = $('mapa-paradas');
+    if (!caja) return;
+    var porTramo = {};
+    (tramos || []).forEach(function (t) { porTramo[t.id] = t; });
+    var html = orden.map(function (id, i) {
+      var b = porId[id];
+      if (!b) return '';
+      var t = porTramo[id] || {};
+      return '<button class="mp-parada" data-pedido="' + esc(id) + '">'
+        + '<i class="' + (i === 0 ? 'ya' : '') + '">' + (i + 1) + '</i>'
+        + '<span><b>' + esc(aDonde(b.pedido)) + '</b>'
+        + '<small>' + esc(b.pedido.cliente || '') + (t.texto ? ' · ' + esc(t.texto) : '') + '</small></span>'
+        + '</button>';
+    }).join('');
+    /*  Y lo que NO entro en el recorrido se dice aqui mismo, no en un toast
+        que se va solo: es un pedido que hay que entregar igual, llamando al
+        cliente. Callarlo seria perderlo. */
+    if (perdidos && perdidos.length) {
+      html += '<div class="mp-perdidos">Sin ubicar: '
+        + perdidos.map(function (p) { return esc(aDonde(p)); }).join(' · ')
+        + ' — llámalos para que te orienten.</div>';
+    }
+    caja.innerHTML = html;
+    caja.hidden = false;
+    Array.prototype.forEach.call(caja.querySelectorAll('.mp-parada'), function (b) {
+      b.onclick = function () {
+        var id = b.getAttribute('data-pedido');
+        var act = activos();
+        var i = act.findIndex(function (x) { return x.id === id; });
+        if (i < 0) return;
+        S.mapaIdx = i;
+        detenerRuta();
+        abrirMapaDe(act[i]);
+      };
+    });
   }
 
   function cerrarMapa() {
@@ -1601,22 +1903,54 @@
     if ($('ov-mapa')) $('ov-mapa').hidden = true;
   }
 
-  async function armarMapa(p) {
-    //  1) La llave. Si no la dan, el servidor dice POR QUÉ y eso se muestra
-    //     tal cual: un mapa en blanco sin explicación es una tarde perdida
-    //     buscando un fallo que no existe.
+  /*  LA LLAVE, Y LO QUE SE DICE CUANDO NO LA HAY.
+
+      Estaba dentro de `armarMapa`. Se saca porque la tanda necesita
+      exactamente lo mismo, y un letrero de «no tienes el servicio» escrito
+      dos veces es un letrero que algun dia va a decir dos cosas distintas.
+
+      Devuelve null cuando ya pinto el aviso: quien la llama solo tiene que
+      salirse.                                                              */
+  async function pedirLlave() {
     var acc;
     paso(1, 'pidiendo la llave');
     try { acc = await llamarMapa({ accion: 'navegador' }); }
     catch (e) {
       mapaAviso('No se pudo abrir el mapa', (e && e.message) || 'Vuelve a intentarlo con señal.', false);
+      return null;
+    }
+    if (!acc.ok) { sinServicio(acc); return null; }
+    return acc;
+  }
+
+  /*  EL LETRERO DE «ESTE SERVICIO NO ESTA INCLUIDO».
+
+      Decision de Sergio del 27-ago: el mapa se contrata aparte del plan.
+      Quien no lo tenga usa la app COMPLETA — sus pedidos, cobrar, marcar
+      entregado — y aqui, al tocar Ruta, ve por que no hay mapa.
+
+      Se escribe como una oferta y no como un error, y esa diferencia es
+      deliberada: al domiciliario no le sirve de nada un mensaje que suene a
+      falla, porque el no puede arreglarla; y quien SI puede —su jefe— se
+      entera por el. Un «no se pudo cargar el mapa» habria mandado a alguien
+      a buscar un fallo que no existe.                                      */
+  function sinServicio(acc) {
+    if (acc && acc.motivo === 'sin_servicio') {
+      mapaAviso('El servicio de mapas no está activado',
+        acc.detalle || 'El mapa y las rutas se contratan aparte del plan. Habla con el restaurante para activarlo.',
+        false);
       return;
     }
-    if (!acc.ok) {
-      mapaAviso(acc.mensaje || 'El mapa no está disponible',
-        acc.motivo === 'sin_turno' ? 'Pide que abran la caja del restaurante.' : '', false);
-      return;
-    }
+    mapaAviso((acc && acc.mensaje) || 'El mapa no está disponible',
+      acc && acc.motivo === 'sin_turno' ? 'Pide que abran la caja del restaurante.' : '', false);
+  }
+
+  async function armarMapa(p) {
+    //  1) La llave. Si no la dan, el servidor dice POR QUÉ y eso se muestra
+    //     tal cual: un mapa en blanco sin explicación es una tarde perdida
+    //     buscando un fallo que no existe.
+    var acc = await pedirLlave();
+    if (!acc) return;
 
     MAPA.mapaId = acc.mapaId || '';
     /*  Se arranca el GPS ANTES de preguntar la direccion, no despues. Bajar la
@@ -1674,6 +2008,7 @@
       return;
     }
 
+    if (g.motivo === 'sin_servicio') { sinServicio(g); return; }
     if (g.no_encontrada) { mapaAviso('No se encontró esa dirección', 'Llámala al cliente para que te oriente.', false); return; }
     if (g.tope_alcanzado) { mapaAviso('Se acabó el cupo de mapas del mes', '', false); return; }
     if (g.sin_conectar || !g.lat || !g.lng) { mapaAviso('El mapa no está configurado', '', false); return; }
@@ -1739,6 +2074,10 @@
 
     //  3) Y la línea, si el GPS quiere colaborar. Si no, el mapa igual sirve.
     pintarRuta(casa);
+
+    /*  Viene de darle Iniciar en la tanda: el domiciliario ya dijo que sale,
+        asi que no se le pide que lo diga otra vez. */
+    if (MAPA.arrancarAlCargar) { MAPA.arrancarAlCargar = false; iniciarRuta(); }
   }
 
   /* El punto azul: un círculo, y alrededor la mancha de lo que el GPS no sabe.
@@ -1876,7 +2215,26 @@
        3. La pantalla NO SE APAGA mientras dure. Un domiciliario no puede ir
           desbloqueando el teléfono en cada esquina.                       */
 
+  /*  Iniciar con la tanda abierta = arrancar hacia la parada 1. No se navega
+      «la tanda entera» de una: el mapa que sigue al domiciliario tiene que
+      apuntar a UN sitio, y al entregar el primero vuelve solo al recorrido.  */
+  function iniciarTanda() {
+    var orden = MAPA.ordenTanda || [];
+    var act = activos();
+    for (var k = 0; k < orden.length; k++) {
+      var i = act.findIndex(function (x) { return x.id === orden[k]; });
+      if (i >= 0) {
+        S.mapaIdx = i;
+        abrirMapaDe(act[i]);
+        /* Y arranca sola: el domiciliario ya dijo que sale. */
+        MAPA.arrancarAlCargar = true;
+        return;
+      }
+    }
+  }
+
   function iniciarRuta() {
+    if (MAPA.esTanda) { iniciarTanda(); return; }
     if (MAPA.andando) { detenerRuta(); return; }
     if (!MAPA.mapa || !MAPA.casa) { toast('El mapa aún no está listo'); return; }
     if (MAPA.aprox) { toast('Esta dirección no está confirmada'); return; }

@@ -1521,18 +1521,42 @@
                 <div class="op-card-title">Mapas y seguimiento</div>
                 <div class="op-card-sub">Ver a tus domiciliarios y el punto de cada entrega.</div>
               </div>
-              <div class="op-state on" id="mp-estado">Incluido en tu plan</div>
+              <div class="op-state on" id="mp-estado">Servicio activo</div>
             </div>
 
             <div class="op-card-body">
+
+              <!-- ── NO LO TIENE CONTRATADO ──────────────────────────
+                   El mapa se contrata aparte del plan (Sergio, 27-ago-2026).
+                   Se explica QUE deja de funcionar y que lo demas sigue igual:
+                   un dueno que lee "no disponible" a secas asume que la app de
+                   domiciliarios no le sirve, y esa app le sirve entera. -->
+              <div id="mp-noactivo" style="display:none">
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">El servicio de mapas no est&aacute; activado</div>
+                    <div class="op-hint">Tus domiciliarios pueden usar la aplicaci&oacute;n completa
+                      &mdash; ver sus pedidos, cobrar y marcar entregado &mdash; pero no ver&aacute;n el
+                      mapa ni la ruta. El mapa se contrata aparte porque es lo &uacute;nico que se
+                      paga cada vez que se usa.</div>
+                  </div>
+                </div>
+                <div class="op-row">
+                  <div class="op-row-text">
+                    <div class="op-label">Activarlo</div>
+                    <div class="op-hint">Escr&iacute;benos y lo dejamos andando el mismo d&iacute;a.
+                      No hay que instalar nada ni cambiar de plan.</div>
+                  </div>
+                </div>
+              </div>
 
               <!-- ── YA LE FUNCIONA, SIN HACER NADA ───────────────────── -->
               <div id="mp-incluido" style="display:none">
                 <div class="op-row">
                   <div class="op-row-text">
                     <div class="op-label" style="color:#15803D">Los mapas ya te funcionan</div>
-                    <div class="op-hint">Vienen incluidos en tu plan. No tienes que crear ninguna
-                      cuenta ni poner ninguna tarjeta.</div>
+                    <div class="op-hint">Tienes el servicio de mapas activo. No tienes que crear
+                      ninguna cuenta ni poner ninguna tarjeta.</div>
                   </div>
                   <span style="flex-shrink:0;color:#16A34A"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
                 </div>
@@ -1633,7 +1657,7 @@
                 <div class="op-row">
                   <div class="op-row-text">
                     <div class="op-label">Desconectar mi cuenta</div>
-                    <div class="op-hint">Vuelves a los mapas incluidos en el plan.</div>
+                    <div class="op-hint">Vuelves a los mapas que pone Cobra.</div>
                   </div>
                   <button class="cf-btn-danger" id="mp-desconectar" style="flex-shrink:0">Desconectar</button>
                 </div>
@@ -3318,7 +3342,7 @@
 <script src="pos-notify.js?v=1792390000"></script>
 <script src="pos-vars.js?v=1790460000"></script>
 <script src="pos-vars-ui.js?v=1790530000"></script>
-<script src="configuracion.js?v=1792860000"></script>
+<script src="configuracion.js?v=1792875000"></script>
 </body>
 </html>
 
