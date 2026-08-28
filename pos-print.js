@@ -39,8 +39,20 @@
     var isDomicilio  = channel === 'DOMICILIO';
     var isRapido     = channel === 'RAPIDO';
     var _notes = order.notes || '';
+    /*  EL CONJUNTO MANDA SOBRE EL BARRIO (Sergio, 28-ago-2026).
+
+        Un barrio agrupa cientos de casas; un conjunto es UN sitio con
+        porteria. Cuando el pedido va a uno, el nombre del conjunto dice mucho
+        mas — y en un barrio grande, cuatro comandas seguidas salian todas
+        con el mismo titulo.
+
+        Va igual que en la PANTALLA de cocina, a proposito: el papel y la
+        pantalla tienen que decir lo mismo, o el que mira una y el que mira la
+        otra estan hablando de comandas distintas.                         */
+    var _conjMatch = _notes.match(/\[conjunto:([^\]]+)\]/i);
     var _barrioMatch = _notes.match(/\[barrio:([^\]]+)\]/i);
-    var _barrio = _barrioMatch ? _barrioMatch[1] : '';
+    var _barrio = (_conjMatch && _conjMatch[1].trim())
+      || (_barrioMatch ? _barrioMatch[1] : '');
     // Etiqueta de venta rápida (Espera / Avisar / …) — se guarda en notes
     var _etqMatch = _notes.match(/\[etq:([^\]]+)\]/i);
     var _etq = _etqMatch ? _etqMatch[1] : '';
@@ -153,8 +165,18 @@
     // Datos del cliente desde notes: dirección + [barrio:X] + [tel:Y] (· Ref:… se ignora)
     var notes = String(order.notes || '');
     var mB = notes.match(/\[barrio:([^\]]+)\]/i); var barrio = mB ? mB[1] : '';
+    /*  El conjunto y la casa SON la direccion cuando no hay calle. Antes se
+        quitaban solo `[barrio:]`, `[tel:]` y `[etq:]`, asi que en un pedido a
+        un conjunto la direccion del recibo salia con los corchetes crudos
+        — «[conjunto:Llanos De Calibio][unidad:32]»— o vacia. Ahora se leen y
+        se escriben como lo que son.                                       */
+    var mCj = notes.match(/\[conjunto:([^\]]+)\]/i); var conjunto = mCj ? mCj[1].trim() : '';
+    var mUn = notes.match(/\[unidad:([^\]]+)\]/i);   var unidad   = mUn ? mUn[1].trim() : '';
     var mT = notes.match(/\[tel:([^\]]+)\]/i);    var telCli = mT ? mT[1] : (order.customer_phone || '');
-    var dirCli = notes.replace(/\[barrio:[^\]]+\]/ig,'').replace(/\[tel:[^\]]+\]/ig,'').replace(/\[etq:[^\]]+\]/ig,'').replace(/·\s*Ref:\S+/ig,'').trim();
+    var dirCli = notes.replace(/\[conjunto:[^\]]+\]/ig,'').replace(/\[unidad:[^\]]+\]/ig,'').replace(/\[barrio:[^\]]+\]/ig,'').replace(/\[tel:[^\]]+\]/ig,'').replace(/\[etq:[^\]]+\]/ig,'').replace(/·\s*Ref:\S+/ig,'').trim();
+    //  El conjunto va DELANTE de la calle: es lo que ubica, y la calle (si la
+    //  hay) es la referencia de como llegar.
+    dirCli = [conjunto, unidad, dirCli].filter(Boolean).join(' · ');
     var esLlevar = String(order.channel||'').toLowerCase().indexOf('rapid')>=0 || /para\s+llevar|recog/i.test(dirCli);
     /* OJO con el guion: cuando el pedido no tiene mesa, `_tableDisplay`
        devuelve "-", que NO esta vacio. Con `!!order.table` todos los

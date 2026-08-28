@@ -903,6 +903,20 @@ function tituloDe(o) {
   /* En domicilio va el BARRIO, no el nombre ni la dirección: es una pantalla
      colgada en la pared que ve todo el que pasa. El barrio sí sirve — dice si
      hay que empacar para viaje. */
+  /*  Y SI ES UN CONJUNTO, MANDA EL CONJUNTO (Sergio, 28-ago-2026).
+
+      Un barrio agrupa cientos de casas; un conjunto es UN sitio con portería.
+      Cuando el pedido va a uno, el nombre del conjunto le dice a la cocina
+      mucho más que el barrio — y en un barrio grande como Variante Norte,
+      cuatro comandas seguidas se llamaban todas igual y no había forma de
+      distinguirlas de un vistazo.
+
+      El barrio se queda para las direcciones de calle, que es donde sí es lo
+      único que ubica. No se ponen los dos: el título se lee desde dos metros
+      y lo que no cabe se corta — y lo que se cortaría es el final, justo
+      donde estaría el conjunto. */
+  const mc = /\[conjunto:([^\]]+)\]/i.exec(o.notes || '');
+  if (mc && mc[1].trim()) return mc[1].trim();
   const m = /\[barrio:([^\]]+)\]/i.exec(o.notes || '');
   return m ? m[1].trim() : 'Domicilio';
 }
