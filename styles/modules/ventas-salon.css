@@ -1735,3 +1735,12 @@
   font-family:inherit; font-size:13px; color:#0F172A; outline:none; background:#fff;
 }
 .vs-form-campo input:focus{border-color:#5B6BFF; box-shadow:0 0 0 3px rgba(91,107,255,.12);}
+
+/*  El aviso del formulario: dentro de la ventana, nunca un cuadro del
+    navegador — en medio del servicio, un cuadro del sistema obliga a soltar
+    la pantalla táctil para darle a Aceptar. */
+.vs-form-error{
+  margin:2px 0 0; padding:8px 11px; border-radius:9px;
+  background:#FEF2F2; border:1px solid #FECACA; color:#B91C1C;
+  font-size:12px; font-weight:600; line-height:1.45; text-align:left;
+}

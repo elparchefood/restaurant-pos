@@ -3874,7 +3874,7 @@
 
   /*  Un formulario corto, con el mismo marco. Devuelve un objeto con los
       valores, o null si cancela.                                          */
-  function vsFormulario({ title, msg, campos, okLabel = 'Guardar' }) {
+  function vsFormulario({ title, msg, campos, okLabel = 'Guardar', valida }) {
     return new Promise(resolve => {
       const overlay = document.createElement('div');
       overlay.className = 'vs-confirm-overlay';
@@ -3886,6 +3886,7 @@
             `<label class="vs-form-campo"><span>${c.label}</span>
               <input id="vsf-${c.id}" type="${c.tipo || 'text'}" placeholder="${c.ej || ''}" value="${c.valor || ''}" autocomplete="off"></label>`
           ).join('')}</div>
+          <div class="vs-form-error" hidden></div>
           <div class="vs-confirm-actions">
             <button class="vs-c-cancel">Cancelar</button>
             <button class="vs-c-ok brand">${okLabel}</button>
@@ -3893,6 +3894,13 @@
         </div>`;
       document.body.appendChild(overlay);
       function close(r) { overlay.remove(); resolve(r); }
+      /*  El aviso va DENTRO de la ventana, nunca en un cuadro del navegador:
+          en medio del servicio, un cuadro del sistema obliga a soltar la
+          pantalla tactil para darle a Aceptar. */
+      const _err = overlay.querySelector('.vs-form-error');
+      function fallo(txt) { _err.textContent = txt; _err.hidden = false; }
+      overlay.querySelectorAll('input').forEach(i =>
+        i.addEventListener('input', () => { _err.hidden = true; i.style.borderColor = ''; }));
       overlay.querySelector('.vs-c-ok').addEventListener('click', () => {
         const out = {};
         let falta = null;
@@ -3904,7 +3912,16 @@
         if (falta) {
           const inp = overlay.querySelector('#vsf-' + falta.id);
           inp.style.borderColor = '#DC2626'; inp.focus();
+          fallo('Falta ' + String(falta.label).toLowerCase());
           return;
+        }
+        /*  Una comprobacion que mira TODO el formulario junto, no campo por
+            campo: hay datos que solo son obligatorios segun lo que tenga otro
+            — con conjunto la calle sobra, sin conjunto la calle es lo unico
+            que hay. */
+        if (typeof valida === 'function') {
+          const m = valida(out);
+          if (m) { fallo(m); return; }
         }
         close(out);
       });
@@ -3961,26 +3978,76 @@
       `{dir, barrio}`, mas la principal en `direccion`/`barrio`. Se juntan las
       dos fuentes y se quitan las repetidas: hay fichas viejas donde la
       principal tambien esta en la lista.                                   */
+  function vsDirEtiqueta(d) {
+    return [d.conjunto, d.unidad, d.dir].filter(Boolean).join(' · ') || d.barrio || 'Sin direcci\u00f3n';
+  }
+  function vsDirLlave(d) {
+    return [d.conjunto, d.unidad, d.dir].filter(Boolean).join('|').toLowerCase().replace(/\s+/g, ' ');
+  }
+
   function vsDirsDe(cli) {
     const out = [];
     const vistas = new Set();
-    const meter = (dir, barrio) => {
-      const d = String(dir || '').trim();
+    const meter = (d) => {
       if (!d) return;
-      const llave = d.toLowerCase().replace(/\s+/g, ' ');
+      const limpia = {
+        conjunto: String(d.conjunto || '').trim(),
+        unidad:   String(d.unidad   || '').trim(),
+        barrio:   String(d.barrio   || '').trim(),
+        dir:      String(d.dir || d.direccion || '').trim(),
+      };
+      if (!limpia.conjunto && !limpia.dir) return;
+      const llave = vsDirLlave(limpia);
       if (vistas.has(llave)) return;
       vistas.add(llave);
-      out.push({ dir: d, barrio: String(barrio || '').trim() });
+      out.push(limpia);
     };
     if (cli) {
-      meter(cli.direccion, cli.barrio);
-      (Array.isArray(cli.direcciones) ? cli.direcciones : []).forEach(x => {
-        if (x) meter(x.dir || x.direccion, x.barrio);
-      });
+      meter({ dir: cli.direccion, barrio: cli.barrio });
+      (Array.isArray(cli.direcciones) ? cli.direcciones : []).forEach(meter);
     }
     return out;
   }
 
+  /*  \u2550\u2550 LA DIRECCION DEL PEDIDO, ENTERA \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+
+      Una direccion de Popayan no siempre es una calle. Muy a menudo es un
+      CONJUNTO y un numero de casa \u2014 \u00abLlanos de Calibio, casa 32\u00bb\u2014 y ahi la
+      calle sobra. Por eso las notas guardan `[conjunto:...][unidad:...]`
+      aparte, y por eso un pedido asi tiene la parte de calle VACIA.
+
+      Sergio lo vio en la primera prueba: el modal le pidio la direccion sin
+      el numero de casa, teniendolo guardado. Leer solo el texto de antes del
+      primer corchete es leer media direccion \u2014 y en ese caso, ninguna.     */
+  function vsDirDeNotas(notas) {
+    const t = String(notas || '');
+    if (!t.trim()) return null;
+    const tag = (n) => { const m = t.match(new RegExp('\\[' + n + ':([^\\]]*)\\]', 'i')); return m ? m[1].trim() : ''; };
+    const corte = t.indexOf('[');
+    const calle = (corte >= 0 ? t.slice(0, corte) : t).replace(/[\u2014\-·,\s]+$/, '').trim();
+    const d = { conjunto: tag('conjunto'), unidad: tag('unidad'), barrio: tag('barrio'), dir: calle };
+    return (d.conjunto || d.dir) ? d : null;
+  }
+
+  /*  \u2550\u2550 LA DIRECCION QUE EL CLIENTE YA TIENE \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+
+      Sergio, 28-ago-2026: \u00abseria mucho trabajo que cada vez que vaya a pasar
+      un pedido para domicilio me aparezca como al vacio sabiendo que ese
+      cliente ya tiene una direccion guardada\u00bb. Y: \u00abun cliente puede tener
+      varias direcciones... la otra igual queda guardada\u00bb.
+
+      1. SE OFRECEN LAS QUE YA TIENE. Volver a escribir una direccion que el
+         sistema ya sabe no es solo lento: es la forma mas facil de que quede
+         escrita distinta a la de la vez pasada, y entonces son dos
+         direcciones donde habia una.
+
+      2. AGREGAR UNA NUEVA NO BORRA LA VIEJA. La misma persona pide a la casa
+         y a la oficina. La nueva se AGREGA; la vieja sigue ahi.
+
+      Se juntan la ficha del cliente y lo que el PROPIO PEDIDO trae en sus
+      notas \u2014 un pedido que ya fue domicilio conserva la suya, y puede no
+      estar en la ficha porque se escribio a mano esa vez. Esa va de primera:
+      cuando existe, casi siempre es a donde va otra vez.                   */
   async function vsPedirDireccion(sbM, ord, hayMesa) {
     let cli = null;
     if (ord.cliente_id) {
@@ -3992,62 +4059,62 @@
       } catch (e) { /* sin ficha se pide todo, como antes */ }
     }
     const guardadas = vsDirsDe(cli);
-
-    /*  Y la que el PEDIDO ya trae, si trae alguna. Un pedido que fue domicilio
-        y volvio a mesa conserva su direccion en las notas, y puede no estar en
-        la ficha del cliente — se escribio a mano esa vez. Va de primera:
-        cuando existe, casi siempre es a donde va otra vez.                */
-    (function () {
-      const t = String(ord.notes || '');
-      if (!t.trim()) return;
-      const corte = t.indexOf('[');
-      const dir = (corte >= 0 ? t.slice(0, corte) : t).replace(/[—\-·,\s]+$/, '').trim();
-      if (!dir) return;
-      const mB = t.match(/\[barrio:([^\]]*)\]/i);
-      const llave = dir.toLowerCase().replace(/\s+/g, ' ');
-      const yaEsta = guardadas.some(g => g.dir.toLowerCase().replace(/\s+/g, ' ') === llave);
-      if (!yaEsta) guardadas.unshift({ dir: dir, barrio: mB ? mB[1].trim() : '' });
-    })();
+    const delPedido = vsDirDeNotas(ord.notes);
+    if (delPedido && !guardadas.some(g => vsDirLlave(g) === vsDirLlave(delPedido))) {
+      guardadas.unshift(delPedido);
+    }
 
     let elegida = null;
-
     if (guardadas.length) {
       const pick = await vsElegir({
         title: 'A d\u00f3nde lo llevamos',
-        msg: (cli && cli.nombre ? '<strong>' + _esc(cli.nombre) + '</strong> ya tiene ' : 'Este cliente ya tiene ')
+        msg: (cli && cli.nombre ? '<strong>' + _esc(cli.nombre) + '</strong> ya tiene ' : 'Este pedido ya tiene ')
           + (guardadas.length === 1 ? 'esta direcci\u00f3n' : 'estas direcciones') + ' guardada'
           + (guardadas.length === 1 ? '' : 's') + '.',
         opciones: guardadas.map((d, i) => ({
-          id: String(i), titulo: d.dir, sub: d.barrio || 'sin barrio',
+          id: String(i), titulo: vsDirEtiqueta(d), sub: d.barrio || 'sin barrio',
         })).concat([{ id: 'nueva', titulo: '+ Otra direcci\u00f3n', sub: 'se agrega a las que ya tiene' }]),
       });
       if (pick === null) return null;
       if (pick !== 'nueva') elegida = guardadas[Number(pick)] || null;
     }
 
+    const e = elegida || {};
+    /*  Los cuatro campos SIEMPRE, aunque a veces sobre uno. Esconder el
+        conjunto cuando la direccion es de calle obligaria a adivinar cual de
+        los dos casos es antes de preguntarlo \u2014 y equivocarse ahi es lo que
+        dejo el numero de casa por fuera.                                   */
     const d = await vsFormulario({
       title: elegida ? 'Confirmar el domicilio' : 'Pasar a domicilio',
       msg: 'El pedido se manda a domicilios' + (hayMesa ? ' y la mesa queda libre' : '') + '.',
       okLabel: 'Pasar a domicilio',
       campos: [
-        { id: 'dir', label: 'Direcci\u00f3n', ej: 'Cra 9B #63N-58', obliga: true, valor: elegida ? elegida.dir : '' },
-        { id: 'barrio', label: 'Barrio', ej: 'Bello Horizonte', valor: elegida ? elegida.barrio : '' },
+        { id: 'conjunto', label: 'Conjunto o edificio', ej: 'Ciudadela Llanos de Calib\u00edo', valor: e.conjunto || '' },
+        { id: 'unidad', label: 'Casa o apto', ej: 'Casa 32', valor: e.unidad || '' },
+        { id: 'dir', label: 'Direcci\u00f3n', ej: 'Cra 9B #63N-58', valor: e.dir || '' },
+        { id: 'barrio', label: 'Barrio', ej: 'Variante Norte', valor: e.barrio || '' },
         { id: 'tel', label: 'Tel\u00e9fono', ej: '3001234567', tipo: 'tel', valor: (cli && cli.telefono) || '' },
         { id: 'fee', label: 'Valor del domicilio', ej: '5000', tipo: 'number' },
       ],
+      /*  Con conjunto, la calle sobra; sin conjunto, la calle es lo unico que
+          hay. Se exige UNA de las dos y no una en concreto.                */
+      valida: (v) => (v.conjunto || v.dir) ? null : 'Pon la direcci\u00f3n o el nombre del conjunto',
     });
     if (!d) return null;
 
     /*  Si es una direccion que no tenia, se le guarda a la ficha. Solo si hay
-        ficha: sin cliente identificado no hay a quien guardarsela, y el pedido
-        sale igual — esto es una comodidad, no un requisito.                */
-    const yaEstaba = guardadas.some(g => g.dir.toLowerCase().replace(/\s+/g, ' ') === d.dir.toLowerCase().replace(/\s+/g, ' '));
-    if (cli && cli.id && !yaEstaba) {
+        ficha: sin cliente identificado no hay a quien guardarsela, y el
+        pedido sale igual \u2014 esto es una comodidad, no un requisito.        */
+    const nueva = { conjunto: d.conjunto, unidad: d.unidad, barrio: d.barrio, dir: d.dir };
+    if (cli && cli.id && !guardadas.some(g => vsDirLlave(g) === vsDirLlave(nueva))) {
       try {
         const lista = (Array.isArray(cli.direcciones) ? cli.direcciones.slice() : []);
-        lista.push({ dir: d.dir, barrio: d.barrio || '' });
+        lista.push(Object.assign({
+          id: 'd' + Math.random().toString(36).slice(2, 13),
+          tipo: nueva.conjunto ? 'conjunto' : 'casa',
+        }, nueva));
         await sbM.from('pos_clientes').update({ direcciones: lista }).eq('id', cli.id);
-      } catch (e) { console.warn('[pasar] no se pudo guardar la direccion:', e && e.message); }
+      } catch (err) { console.warn('[pasar] no se pudo guardar la direccion:', err && err.message); }
     }
     return d;
   }
@@ -4124,6 +4191,8 @@
           el que lee la app del domiciliario. Inventar otro aqui dejaria el
           pedido sin direccion en la moto.                                  */
       cambios.notes = ((d.dir ? d.dir + ' ' : '')
+        + (d.conjunto ? '[conjunto:' + d.conjunto + ']' : '')
+        + (d.unidad ? '[unidad:' + d.unidad + ']' : '')
         + (d.barrio ? '[barrio:' + d.barrio.toUpperCase() + ']' : '')
         + (d.tel ? ' [tel:' + d.tel + ']' : '')).trim() || null;
       const fee = parseInt(d.fee, 10) || 0;
