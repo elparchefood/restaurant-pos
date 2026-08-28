@@ -1744,3 +1744,21 @@
   background:#FEF2F2; border:1px solid #FECACA; color:#B91C1C;
   font-size:12px; font-weight:600; line-height:1.45; text-align:left;
 }
+
+/*  El interruptor Casa / Conjunto dentro del formulario. Es el mismo que ya
+    vive en el modal de crear cliente (`d-dir-seg`): preguntar lo mismo de dos
+    formas distintas en dos pantallas del mismo programa es como tener dos
+    programas. */
+.vs-form-seg{
+  display:flex; gap:3px; margin:14px 0 0; padding:3px;
+  background:#F1F5F9; border-radius:9px;
+}
+.vs-form-seg button{
+  flex:1; padding:7px 10px; border:none; border-radius:7px; background:transparent;
+  font-family:inherit; font-size:12px; font-weight:600; color:#64748B; cursor:pointer;
+}
+.vs-form-seg button.on{
+  background:#fff; color:#0F172A; font-weight:700;
+  box-shadow:0 1px 2px rgba(15,23,42,.1);
+}
+.vs-form-campo[hidden]{display:none;}

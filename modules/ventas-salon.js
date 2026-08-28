@@ -3874,7 +3874,16 @@
 
   /*  Un formulario corto, con el mismo marco. Devuelve un objeto con los
       valores, o null si cancela.                                          */
-  function vsFormulario({ title, msg, campos, okLabel = 'Guardar', valida }) {
+  /*  El `segmento` es un interruptor arriba del formulario que decide QUE
+      campos se ven. Nace del modal de crear cliente, que ya tenia
+      «Casa / Conjunto o edificio»: preguntar lo mismo de dos formas distintas
+      en dos pantallas del mismo programa es como tener dos programas.
+
+      Cada campo puede llevar `solo: '<opcion>'` para verse unicamente en esa.
+      Lo que se escribe en un campo escondido NO cuenta al guardar — si
+      contara, un conjunto tecleado y luego escondido haria pasar una
+      direccion de casa como si fuera de conjunto.                          */
+  function vsFormulario({ title, msg, campos, okLabel = 'Guardar', valida, segmento }) {
     return new Promise(resolve => {
       const overlay = document.createElement('div');
       overlay.className = 'vs-confirm-overlay';
@@ -3882,8 +3891,11 @@
         <div class="vs-confirm-card" style="max-width:420px">
           <div class="vs-confirm-title">${title}</div>
           ${msg ? `<div class="vs-confirm-msg">${msg}</div>` : ''}
+          ${segmento ? `<div class="vs-form-seg" role="group">${segmento.opciones.map(o =>
+            `<button type="button" data-seg="${o.id}" class="${o.id === segmento.valor ? 'on' : ''}">${o.label}</button>`
+          ).join('')}</div>` : ''}
           <div class="vs-form">${campos.map(c =>
-            `<label class="vs-form-campo"><span>${c.label}</span>
+            `<label class="vs-form-campo" data-campo="${c.id}"${c.solo ? ` data-solo="${c.solo}"` : ''}><span>${c.label}</span>
               <input id="vsf-${c.id}" type="${c.tipo || 'text'}" placeholder="${c.ej || ''}" value="${c.valor || ''}" autocomplete="off"></label>`
           ).join('')}</div>
           <div class="vs-form-error" hidden></div>
@@ -3899,16 +3911,40 @@
           pantalla tactil para darle a Aceptar. */
       const _err = overlay.querySelector('.vs-form-error');
       function fallo(txt) { _err.textContent = txt; _err.hidden = false; }
+
+      let _seg = segmento ? segmento.valor : null;
+      function pintarSeg() {
+        overlay.querySelectorAll('[data-seg]').forEach(b =>
+          b.classList.toggle('on', b.dataset.seg === _seg));
+        overlay.querySelectorAll('[data-solo]').forEach(l => {
+          l.hidden = l.dataset.solo !== _seg;
+        });
+        /*  El texto del campo cambia con el modo: con conjunto, la calle es
+            opcional; sin conjunto, es lo unico que hay. */
+        const dirL = overlay.querySelector('[data-campo="dir"] span');
+        if (dirL && segmento) dirL.textContent = (_seg === 'conjunto') ? 'Direcci\u00f3n (opcional)' : 'Direcci\u00f3n';
+      }
+      if (segmento) {
+        overlay.querySelectorAll('[data-seg]').forEach(b => b.addEventListener('click', () => {
+          /*  Cambiar de idea NO borra lo que ya se escribio, igual que en el
+              modal de crear cliente: solo se esconde. Si vuelve, ahi sigue. */
+          _seg = b.dataset.seg; _err.hidden = true; pintarSeg();
+        }));
+        pintarSeg();
+      }
       overlay.querySelectorAll('input').forEach(i =>
         i.addEventListener('input', () => { _err.hidden = true; i.style.borderColor = ''; }));
       overlay.querySelector('.vs-c-ok').addEventListener('click', () => {
         const out = {};
         let falta = null;
         campos.forEach(c => {
-          const v = (overlay.querySelector('#vsf-' + c.id).value || '').trim();
+          //  Un campo escondido no cuenta: vale vacio, aunque tenga texto.
+          const oculto = c.solo && segmento && c.solo !== _seg;
+          const v = oculto ? '' : (overlay.querySelector('#vsf-' + c.id).value || '').trim();
           out[c.id] = v;
-          if (c.obliga && !v && !falta) falta = c;
+          if (c.obliga && !oculto && !v && !falta) falta = c;
         });
+        if (segmento) out[segmento.id || 'tipo'] = _seg;
         if (falta) {
           const inp = overlay.querySelector('#vsf-' + falta.id);
           inp.style.borderColor = '#DC2626'; inp.focus();
@@ -3927,7 +3963,15 @@
       });
       overlay.querySelector('.vs-c-cancel').addEventListener('click', () => close(null));
       overlay.addEventListener('click', e => { if (e.target === overlay) close(null); });
-      setTimeout(() => { const p = overlay.querySelector('input'); if (p) p.focus(); }, 30);
+      /*  El cursor va al primer campo QUE SE VE. Con el interruptor en Casa,
+          el primero del HTML es el del conjunto — escondido— y enfocarlo
+          deja el teclado abierto sin que se vea donde escribe. */
+      setTimeout(() => {
+        const vis = Array.prototype.filter.call(overlay.querySelectorAll('.vs-form-campo'),
+          l => !l.hidden)[0];
+        const p = vis && vis.querySelector('input');
+        if (p) p.focus();
+      }, 30);
     });
   }
 
@@ -4080,6 +4124,12 @@
     }
 
     const e = elegida || {};
+    /*  ¿Casa o conjunto? Si se eligio una guardada, la que sea. Si es NUEVA,
+        casa — que es lo normal. Sergio, 28-ago-2026: «da por hecho que es un
+        conjunto, pero puede que esa persona esta vez pida desde una direccion
+        normal». Dar por hecho el caso del cliente anterior es justo lo que
+        hace que alguien teclee una calle en la casilla del conjunto.      */
+    const tipoIni = (e.conjunto ? 'conjunto' : 'casa');
     /*  Los cuatro campos SIEMPRE, aunque a veces sobre uno. Esconder el
         conjunto cuando la direccion es de calle obligaria a adivinar cual de
         los dos casos es antes de preguntarlo \u2014 y equivocarse ahi es lo que
@@ -4088,9 +4138,13 @@
       title: elegida ? 'Confirmar el domicilio' : 'Pasar a domicilio',
       msg: 'El pedido se manda a domicilios' + (hayMesa ? ' y la mesa queda libre' : '') + '.',
       okLabel: 'Pasar a domicilio',
+      segmento: { id: 'tipo', valor: tipoIni, opciones: [
+        { id: 'casa', label: 'Casa' },
+        { id: 'conjunto', label: 'Conjunto o edificio' },
+      ] },
       campos: [
-        { id: 'conjunto', label: 'Conjunto o edificio', ej: 'Ciudadela Llanos de Calib\u00edo', valor: e.conjunto || '' },
-        { id: 'unidad', label: 'Casa o apto', ej: 'Casa 32', valor: e.unidad || '' },
+        { id: 'conjunto', label: 'Conjunto o edificio', ej: 'Ciudadela Llanos de Calib\u00edo', valor: e.conjunto || '', solo: 'conjunto' },
+        { id: 'unidad', label: 'Casa o apto', ej: 'Casa 32', valor: e.unidad || '', solo: 'conjunto' },
         { id: 'dir', label: 'Direcci\u00f3n', ej: 'Cra 9B #63N-58', valor: e.dir || '' },
         { id: 'barrio', label: 'Barrio', ej: 'Variante Norte', valor: e.barrio || '' },
         { id: 'tel', label: 'Tel\u00e9fono', ej: '3001234567', tipo: 'tel', valor: (cli && cli.telefono) || '' },
