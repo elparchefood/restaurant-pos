@@ -215,30 +215,36 @@ function daysAgoISO(n) {
         if (estado !== 'active') cerrarPorCuenta(estado);
       })();
 
-      /*  Y se dice QUÉ pasa y QUÉ hacer. Un "no puedes entrar" a secas deja a
-          un restaurante llamando a ver qué se rompió; esto le dice que hable
-          con Cobra, que es lo único que lo resuelve. Ventana propia, nunca un
-          cuadro del navegador. */
+      /*  LA PANTALLA DE SUSPENSIÓN VIVE APARTE (`pos-suspendida.js`).
+          No es un aviso de dos líneas: lleva el cobro, la cuenta a la que se
+          transfiere, el comprobante y la espera de la aprobación. Eso no cabe
+          aquí, y sobre todo no tiene por qué descargarse en las quince pantallas
+          que abre un restaurante al día que SÍ está al día. Se trae solo cuando
+          hace falta, que es casi nunca.
+
+          Y NO se cierra la sesión — esto cambió el 28-ago. Sergio:
+          *"la cuenta sigue existiendo... incluso puede ingresar, pero le
+          aparece un modal que no lo deja hacer absolutamente nada hasta que no
+          pague"*. Sacarlo al login lo dejaba sin manera de pagar solo.
+
+          Que quede claro qué es esto y qué no: es un COBRO, no una cerradura.
+          Tapa la pantalla, no la base de datos. Quien sepa de navegadores puede
+          quitarse el aviso de encima; lo que no puede es ver ni tocar datos de
+          otro restaurante, porque de eso se encargan los permisos del servidor,
+          que no dependen de esta pantalla. */
       function cerrarPorCuenta(estado) {
-        try { sb.auth.signOut(); } catch (e) {}
-        var cancelada = estado === 'cancelled';
-        var d = document.createElement('div');
-        d.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.55);'
-          + 'display:flex;align-items:center;justify-content:center;padding:24px;'
-          + 'font-family:\'DM Sans\',system-ui,sans-serif';
-        d.innerHTML = '<div style="max-width:420px;background:#fff;border-radius:16px;padding:26px;'
-          + 'box-shadow:0 30px 70px -20px rgba(15,23,42,.4);text-align:center">'
-          + '<div style="font-size:17px;font-weight:800;color:#0F172A;margin-bottom:8px">'
-          + (cancelada ? 'Esta cuenta está cerrada' : 'Esta cuenta está suspendida') + '</div>'
-          + '<div style="font-size:13.5px;color:#475569;line-height:1.6;margin-bottom:18px">'
-          + (cancelada
-              ? 'El servicio de Cobra para este restaurante terminó. Tus datos siguen guardados.'
-              : 'El servicio está pausado. Escríbenos y lo reactivamos el mismo día.')
-          + '<br><br>sergio@cobrapos.app</div>'
-          + '<a href="login.html" style="display:inline-block;padding:10px 18px;border-radius:9px;'
-          + 'background:#5B6BFF;color:#fff;font-size:13px;font-weight:700;text-decoration:none">Entendido</a>'
-          + '</div>';
-        document.body.appendChild(d);
+        if (window.posPantallaSuspendida) return window.posPantallaSuspendida(estado);
+        var sc = document.createElement('script');
+        sc.src = 'pos-suspendida.js';
+        sc.onload = function () {
+          if (window.posPantallaSuspendida) window.posPantallaSuspendida(estado);
+        };
+        /*  Si el archivo no carga (sin internet, caché vieja) el restaurante se
+            queda trabajando. Es lo correcto: entre cobrarle a alguien que ya
+            pagó y dejar operar un día a alguien que no, lo segundo se arregla
+            solo mañana. */
+        sc.onerror = function () { console.warn('[cuenta] no se pudo cargar el aviso de suspensión'); };
+        document.head.appendChild(sc);
       }
 
       /* ══ CONTEXTO: en qué MARCA y SUCURSAL se está trabajando ══

@@ -150,6 +150,94 @@ Deno.serve(async (req) => {
   const user = await uRes.json() as { id: string; email?: string; user_metadata?: Record<string, unknown> };
 
   try {
+    /*  ══ PONERSE AL DIA CUANDO LA CUENTA ESTA SUSPENDIDA ══════════════
+
+        Sergio, 28-ago-2026: *"cuando inicia sesion le aparece un modal que no
+        lo deja hacer absolutamente nada hasta que no pague... el modal lo lleva
+        al pago y el pagar ya vuelve a recuperar todo su acceso. La cuenta no
+        puede dejar de existir ni desaparecer."*
+
+        Dos acciones, y las dos EXIGEN SESION: el restaurante suspendido sigue
+        pudiendo entrar (su cuenta existe), simplemente no puede operar. Que
+        pueda entrar es justo lo que permite cobrarle sin que llame a nadie.
+
+        POR QUE EL MONTO SE CALCULA AQUI Y NO EN LA PANTALLA. Si el navegador
+        mandara cuanto va a pagar, cualquiera se pondria al dia por $1.000 y la
+        fila quedaria diciendo que pago completo. El precio sale del plan que la
+        cuenta TIENE hoy, de cuantas sucursales tiene abiertas y del periodo que
+        elija — las mismas tres cosas que decide la consola.                 */
+    if (action === "cuenta_estado" || action === "renovar") {
+      const tid = String((user.user_metadata || {}).tenant_id || "");
+      if (!tid) return json(400, { error: "esta cuenta todavia no tiene un negocio" });
+
+      const tRes = await sbAdmin("GET", `/rest/v1/tenants?id=eq.${tid}&select=id,name,plan,status&limit=1`);
+      const ten = Array.isArray(tRes.data) ? (tRes.data as Array<Record<string, unknown>>)[0] : null;
+      if (!ten) return json(404, { error: "cuenta no encontrada" });
+
+      const plan = String(ten.plan || "starter");
+      const bRes = await sbAdmin("GET", `/rest/v1/branches?tenant_id=eq.${tid}&select=id`);
+      const sucursales = Math.max(1, Array.isArray(bRes.data) ? (bRes.data as unknown[]).length : 1);
+
+      const pRes = await sbAdmin("GET", `/rest/v1/pos_planes?plan=eq.${plan}&select=plan,nombre,precio&limit=1`);
+      const pl = Array.isArray(pRes.data) ? (pRes.data as Array<Record<string, unknown>>)[0] : null;
+      const base = pl && pl.precio != null ? Number(pl.precio) : null;
+
+      /*  El descuento por volumen PRIMERO y el del periodo sobre ese total ya
+          descontado — en ese orden lo decidio Sergio, y asi esta escrito en los
+          terminos. Invertirlo da el mismo numero solo por casualidad
+          matematica; el dia que un descuento deje de ser porcentual, no. */
+      const tierOff = sucursales >= 8 ? 0.30 : sucursales >= 4 ? 0.20 : sucursales >= 2 ? 0.10 : 0;
+      const PERIODOS: Record<string, { meses: number; off: number }> = {
+        mensual:    { meses: 1,  off: 0    },
+        trimestral: { meses: 3,  off: 0.10 },
+        anual:      { meses: 12, off: 0.20 },
+      };
+      const cobro = (per: string) => {
+        const d = PERIODOS[per];
+        if (!d || base == null) return null;
+        return Math.round(base * (1 - tierOff) * sucursales * d.meses * (1 - d.off));
+      };
+
+      /*  Un pago que ya esta en revision no se vuelve a pedir. Sin esto, alguien
+          que refresca la pantalla manda tres comprobantes del mismo pago y en la
+          consola aparecen tres deudas pagadas. */
+      const yaRes = await sbAdmin("GET",
+        `/rest/v1/pos_pagos_suscripcion?tenant_id=eq.${tid}&status=eq.pending&select=id,monto,periodo,created_at&order=created_at.desc&limit=1`);
+      const pendiente = Array.isArray(yaRes.data) ? (yaRes.data as Array<Record<string, unknown>>)[0] || null : null;
+
+      if (action === "cuenta_estado") {
+        /*  La cuenta de cobro se manda desde aqui y no se lee en la pantalla:
+            `plataforma_cobro` es de la plataforma, no del restaurante, y no
+            tiene por que ser legible para un cliente cualquiera. */
+        const cRes = await sbAdmin("GET", "/rest/v1/plataforma_cobro?id=eq.1&limit=1");
+        const cta = Array.isArray(cRes.data) ? (cRes.data as Array<Record<string, unknown>>)[0] || null : null;
+        return json(200, {
+          ok: true,
+          status: ten.status || "active",
+          negocio: ten.name || "",
+          plan, plan_nombre: (pl && pl.nombre) || plan, sucursales,
+          precios: { mensual: cobro("mensual"), trimestral: cobro("trimestral"), anual: cobro("anual") },
+          pendiente,
+          cuenta: cta ? { banco: cta.banco, tipo: cta.tipo, titular: cta.titular, numero: cta.numero, nota: cta.nota, qr_url: cta.qr_url } : null,
+        });
+      }
+
+      // ── renovar: queda un pago EN REVISION, no se reactiva solo ────────────
+      if (pendiente) return json(409, { error: "Ya tenemos tu comprobante y lo estamos revisando.", pendiente });
+
+      const periodo = String(body.periodo || "mensual");
+      if (!PERIODOS[periodo]) return json(400, { error: "periodo invalido" });
+      const comp = String(body.comprobante_url || "").trim();
+      if (!comp) return json(400, { error: "falta el comprobante" });
+
+      const ins = await sbAdmin("POST", "/rest/v1/pos_pagos_suscripcion", {
+        tenant_id: tid, plan, sucursales, periodo, monto: cobro(periodo),
+        comprobante_url: comp, status: "pending", creado_por: user.id,
+      });
+      if (!ins.ok) return json(500, { error: "no se pudo registrar el pago: " + ins.text });
+      return json(200, { ok: true, monto: cobro(periodo), periodo });
+    }
+
     // ── ONBOARDING: el usuario crea SU propio negocio (una sola vez) ──────────
     if (action === "onboarding") {
       const meta = user.user_metadata || {};

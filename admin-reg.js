@@ -529,7 +529,8 @@ function renderClientes() {
       '<td class="a-num">'+branches+'</td>'+
       '<td class="a-num a-cell-strong">'+total+'<span style="font-weight:500;color:#94A3B8;font-size:11.5px">/mes</span></td>'+
       '<td class="a-cell-muted">'+fechaRaw+'</td>'+
-      '<td>'+statusBadge(r.tenant_status || r.status)+'</td>'+
+      '<td>'+statusBadge(r.tenant_status || r.status)+
+        (r.pago_pend ? '<div style="margin-top:5px">'+badgeHtml('amber','Pago por revisar',true)+'</div>' : '')+'</td>'+
       '<td><div class="a-act-col">'+
         '<button class="a-act a-act--neutral"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg> Detalle</button>'+
         /* Dar acceso a la consola desde AQUI: los dueños de restaurante son
@@ -543,6 +544,14 @@ function renderClientes() {
         (r.user_id
           ? '<button class="a-act a-act--neutral" data-uid="'+r.user_id+'" data-admin="1" title="Podra ver la consola de plataforma">Dar acceso a la consola</button>'
           : '')+
+        /* El pago que espera se revisa desde aqui mismo: ver el comprobante y,
+           si esta bien, aprobarlo. Aprobar el pago reactiva la cuenta en el
+           mismo gesto — en dos botones separados alguien se olvida del segundo
+           y deja al restaurante pagado pero sin poder entrar. */
+        (r.pago_pend
+          ? '<button class="a-act a-act--neutral" data-comp-pago="'+r.pago_pend.id+'">Ver el pago '+cop(r.pago_pend.monto)+'</button>'+
+            '<button class="a-act a-act--approve" data-ok-pago="'+r.pago_pend.id+'" data-ok-reg="'+r.id+'">Aprobar pago y reactivar</button>'
+          : '')+
         (activo
           ? '<button class="a-act a-act--warn" onclick="handleSuspend(\''+r.id+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> Suspender</button>'
           : '<button class="a-act a-act--approve" onclick="handleReactivate(\''+r.id+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg> Reactivar</button>'
@@ -553,6 +562,15 @@ function renderClientes() {
   // Los botones de acceso a la consola se enganchan por evento (ver EQUIPO).
   var cont = document.getElementById('cli-tbody');
   if (cont && typeof engancharBotonesAcceso === 'function') engancharBotonesAcceso(cont);
+  if (cont) cont.querySelectorAll('button[data-comp-pago]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var p = pagoPorId(b.dataset.compPago);
+      if (p) viewComprobante(p.id, 'Pago de renovacion', p.comprobante_url || '');
+    });
+  });
+  if (cont) cont.querySelectorAll('button[data-ok-pago]').forEach(function (b) {
+    b.addEventListener('click', function () { handleAprobarPago(b.dataset.okReg, b.dataset.okPago); });
+  });
   if (cont) cont.querySelectorAll('button[data-plan-tenant]').forEach(function (b) {
     b.addEventListener('click', function () {
       abrirCambioPlan(b.dataset.planReg, b.dataset.planTenant);
@@ -916,6 +934,29 @@ function handleSuspend(id) {
     function () { cambiarEstadoCliente(id, true); });
 }
 
+function pagoPorId(id) {
+  var f = (S.registrations || []).find(function (r) { return r.pago_pend && r.pago_pend.id === id; });
+  return f ? f.pago_pend : null;
+}
+
+/* APROBAR UN PAGO = marcarlo revisado Y reactivar la cuenta. En ese orden: si
+   se reactivara primero y fallara el marcado, el pago quedaria eternamente
+   "pendiente" y volveria a salir por revisar cada vez que se abre la consola. */
+async function handleAprobarPago(regId, pagoId) {
+  showConfirm('Aprobar el pago',
+    'Se marca el pago como revisado y el restaurante vuelve a entrar de inmediato, ' +
+    'con todo como lo dejo. Mira el comprobante antes de confirmar.',
+    async function () {
+      var u = await sb.auth.getUser();
+      var r = await sb.from('pos_pagos_suscripcion').update({
+        status: 'approved', revisado_en: new Date().toISOString(),
+        revisado_por: u && u.data && u.data.user ? u.data.user.id : null
+      }).eq('id', pagoId);
+      if (r.error) { showToast('No se pudo marcar el pago: ' + r.error.message, 'red'); return; }
+      cambiarEstadoCliente(regId, false);
+    });
+}
+
 function handleReactivate(id) {
   showConfirm('Reactivar cliente',
     'El restaurante vuelve a entrar al sistema con todo como lo dejó. ¿Continuar?',
@@ -935,10 +976,21 @@ async function loadRegistrations() {
     var ten = await sb.from('tenants').select('id,status,plan');
     var porId = {};
     (ten.data || []).forEach(function (t) { porId[t.id] = t; });
+    /* Y los pagos de renovacion que esperan revision. Un cliente suspendido
+       que ya mando su comprobante NO es lo mismo que uno que no ha pagado: el
+       primero esta esperando a que alguien mire, y ese alguien esta en esta
+       pantalla. Sin esto el comprobante llega a la base y se queda ahi. */
+    var pg = await sb.from('pos_pagos_suscripcion')
+      .select('id,tenant_id,monto,periodo,comprobante_url,created_at')
+      .eq('status', 'pending').order('created_at', { ascending: false });
+    var pagoDe = {};
+    (pg.data || []).forEach(function (p) { if (!pagoDe[p.tenant_id]) pagoDe[p.tenant_id] = p; });
+
     S.registrations.forEach(function (r) {
       var t = r.tenant_id ? porId[r.tenant_id] : null;
       r.tenant_status = t ? t.status : null;
       r.plan_actual   = t ? t.plan : r.plan;
+      r.pago_pend     = r.tenant_id ? (pagoDe[r.tenant_id] || null) : null;
     });
   } catch(e) {
     console.error('loadRegistrations:', e);
