@@ -113,6 +113,17 @@ async function boot() {
 
     $('branchLabel').textContent = branch.name;
 
+    /*  El chat publica su conexion y su sede donde los modulos compartidos las
+        buscan. Sin esto, imprimir desde aqui decia "sin impresora configurada"
+        con la impresora andando: `pos-print` preguntaba por `window._pos` y en
+        esta pantalla no existe, porque el chat no carga `pos-core`. */
+    window._pos = window._pos || {};
+    window._pos.sb = window._pos.sb || sb;
+    window._pos.state = window._pos.state || {};
+    window._pos.state.tenantId = S.tenantId;
+    window._pos.state.branchId = S.branchId;
+    try { localStorage.setItem('pos.branchId', S.branchId); } catch (e) {}
+
     // Pie del sidebar = la CUENTA que tiene la sesión abierta (auth), no el
     // primer usuario del tenant. Nombre + rol reales, y el avatar queda listo
     // para mostrar la foto del negocio cuando se suba.

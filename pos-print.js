@@ -395,13 +395,35 @@
      se cumplio: el chat y el recibo leen del mismo ayudante. */
   var PUNTOS_POR_MIL = 1000;   // respaldo si pos-core aun no cargo
 
+/*  DE DONDE SALEN LA CONEXION Y LA SEDE.
+
+    Este modulo daba por hecho `window._pos`, que lo crea `pos-core.js`. Pero
+    el Chat NO carga pos-core: tiene su propia conexion. Resultado: al imprimir
+    desde el chat, `window._pos.state` reventaba, el try/catch se lo tragaba y
+    la respuesta era "sin impresora configurada" — con la impresora conectada y
+    andando.
+
+    Un modulo compartido no puede exigir que otro modulo haya cargado antes. Se
+    busca por varios lados y se usa el primero que aparezca.               */
+  function _sbRef() {
+    return (window._pos && window._pos.sb) || window.sb || null;
+  }
+
+  function _branchRef() {
+    try {
+      if (window._pos && window._pos.state && window._pos.state.branchId) return window._pos.state.branchId;
+      if (window.S && window.S.branchId) return window.S.branchId;
+      return localStorage.getItem('pos.branchId') || '';
+    } catch (e) { return ''; }
+  }
+
   var _printerCache = null;
   var _printerCacheTs = 0;
 
   async function _getTargetPrinter(docType) {
     try {
-      var sb = window._pos && window._pos.sb;
-      var branchId = (window._pos.state && window._pos.state.branchId) || localStorage.getItem('pos.branchId');
+      var sb = _sbRef();
+      var branchId = _branchRef();
       if (!sb || !branchId) return '';
       var now = Date.now();
       if (!_printerCache || now - _printerCacheTs > 30000) {
@@ -503,9 +525,9 @@
 
   async function _hasPrinter() {
     try {
-      var sb = window._pos && window._pos.sb;
+      var sb = _sbRef();
       if (!sb) return false;
-      var branchId = (window._pos.state && window._pos.state.branchId) || localStorage.getItem('pos.branchId');
+      var branchId = _branchRef();
       if (!branchId) return false;
       var r = await sb.from('pos_print_config').select('id').eq('branch_id', branchId).maybeSingle();
       return !!(r && r.data && r.data.id);
