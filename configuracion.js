@@ -2348,6 +2348,10 @@ var OP_DEFAULTS = {
       VERDE: es el estado en el que esta casi siempre una comanda, y el naranja
       de antes gritaba como si algo fuera mal (Sergio, 28-ago-2026). */
   cocinaColores: { prep: '#16A34A', pago: '#DC2626', listo: '#7C3AED' },
+  /*  Quien se hace cargo de cada tipo de pedido cuando la cocina lo marca
+      listo. Vacio = a nadie le suena. Se siembra con lo mas comun —la mesa es
+      del mesero y lo demas de la caja— pero cada restaurante lo cambia. */
+  cocinaAvisa: { salon: 'mesero', llevar: 'cajero', domicilio: 'cajero', tono: 'campana', vol: 80 },
   /* El de la app del domiciliario es OTRO a proposito: son dos aparatos
      distintos sonando en dos sitios distintos, y el dueno puede querer
      distinguirlos de oido. */
@@ -2814,6 +2818,7 @@ function opRenderAreas() {
   opRenderAreasCats();
   opRenderCocinaSon();
   opRenderCocinaColores();
+  opRenderCocinaAvisa();
   opRenderDomiSon();
 }
 
@@ -2861,6 +2866,64 @@ var OP_COCINA_ESTADOS = [
   { id: 'listo', nombre: 'Listo',           def: '#7C3AED' },
   { id: 'pago',  nombre: 'Falta pagar',     def: '#DC2626' },
 ];
+
+/*  A quien le suena. Los roles NO se escriben aqui: se leen de los que el
+    restaurante tiene creados, para que el que se invento un rol "Runner"
+    tambien pueda ponerlo. Se lee por su CLAVE, no por el nombre visible, que
+    el dueno puede renombrar cuando quiera. */
+var OP_AVISA_TIPOS = [
+  { id: 'salon',     nombre: 'Pedidos de mesa' },
+  { id: 'llevar',    nombre: 'Para llevar' },
+  { id: 'domicilio', nombre: 'Domicilios' },
+];
+
+function opRenderCocinaAvisa() {
+  var d = _opDraft; if (!d) return;
+  var caja = $('op-cocina-avisa'); if (!caja) return;
+  var av = d.cocinaAvisa || (d.cocinaAvisa = { salon:'mesero', llevar:'cajero', domicilio:'cajero', tono:'campana', vol:80 });
+
+  var roles = (typeof UR !== 'undefined' && UR && Array.isArray(UR.roles) && UR.roles.length)
+    ? UR.roles.map(function (r) { return { id: (r.clave || r.name || '').toLowerCase(), nombre: r.name || r.clave }; })
+    : [{ id:'mesero', nombre:'Mesero' }, { id:'cajero', nombre:'Cajero' },
+        { id:'domiciliario', nombre:'Domiciliario' }, { id:'admin', nombre:'Administrador' }];
+
+  caja.innerHTML = OP_AVISA_TIPOS.map(function (t) {
+    var v = String(av[t.id] || '');
+    return '<label style="display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;color:#475569">'
+      + _empEsc(t.nombre)
+      + '<div class="cc-select" style="min-width:170px"><select data-avisa="' + t.id + '">'
+      +   '<option value=""' + (v ? '' : ' selected') + '>Nadie</option>'
+      +   roles.map(function (r) {
+            return '<option value="' + _empEsc(r.id) + '"' + (v === r.id ? ' selected' : '') + '>'
+                 + _empEsc(r.nombre) + '</option>';
+          }).join('')
+      + '</select></div></label>';
+  }).join('');
+
+  caja.querySelectorAll('[data-avisa]').forEach(function (sl) {
+    sl.addEventListener('change', function () {
+      av[sl.dataset.avisa] = sl.value;
+      opCheckDirty(); opPintarResumenes();
+    });
+  });
+
+  var tn = $('op-avisa-tonos');
+  if (tn) {
+    var lista = (typeof window.posTonosCocina === 'function')
+      ? window.posTonosCocina() : [{ id:'campana', nombre:'Campana' }];
+    tn.innerHTML = lista.map(function (t) {
+      return '<button type="button" class="cf-chip' + (av.tono === t.id ? ' on' : '')
+        + '" data-avisa-tono="' + _empEsc(t.id) + '">' + _empEsc(t.nombre) + '</button>';
+    }).join('');
+    tn.querySelectorAll('[data-avisa-tono]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        av.tono = b.dataset.avisaTono;
+        opRenderCocinaAvisa(); opCheckDirty(); opPintarResumenes();
+        try { window.posTocarTono(av.tono, av.vol); } catch (e) {}
+      });
+    });
+  }
+}
 
 function opRenderCocinaColores() {
   var d = _opDraft; if (!d) return;

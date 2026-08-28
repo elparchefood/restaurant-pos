@@ -1004,12 +1004,43 @@ async function marcarListo(id, btn) {
     if (error) throw error;
     o.estado = 'listo';
     S.listas.set(id, Date.now());
+    await mesaAComiendo(o, true);
     pintar();
   } catch (e) {
     console.error('[cocina] no se pudo marcar listo:', e);
     if (btn) { btn.disabled = false; btn.textContent = 'Listo'; }
     marcarRed(false);
   }
+}
+
+/*  LISTO EN COCINA = COMIENDO EN EL SALON (Sergio, 28-ago-2026).
+
+    Son la misma cosa contada desde dos sitios: cuando la cocina saca el plato,
+    la mesa pasa a estar comiendo. Tenerlos separados obligaba a marcarlo dos
+    veces —una el cocinero y otra el mesero— y bastaba con que a uno se le
+    olvidara para que las dos pantallas dijeran cosas distintas de la misma
+    mesa.
+
+    Solo aplica al salon: un domicilio no tiene mesa que cambiar.
+
+    Y NO se escribe si ya esta en ese estado. Cada pantalla escucha los cambios
+    de la otra; escribir lo mismo otra vez es un ida y vuelta infinito entre
+    las dos esperando a ocurrir.                                            */
+async function mesaAComiendo(o, listo) {
+  try {
+    if (String(o.channel || '').toLowerCase() !== 'salon' || !o.table_id) return;
+    const destino = listo ? 'comiendo' : 'esperando';
+    const ahora = S.mesaEstado.get(String(o.id));
+    if (ahora === destino) return;
+    /*  Al deshacer solo se devuelve si la mesa esta en `comiendo` — que es a
+        donde la puso este mismo boton. Si el mesero ya la movio a otra cosa,
+        mandarla para atras seria pisarle lo suyo. */
+    if (!listo && ahora !== 'comiendo') return;
+    const patch = { status: destino };
+    patch[listo ? 'comiendo_at' : 'esperando_at'] = new Date().toISOString();
+    await sb.from('pos_tables').update(patch).eq('id', o.table_id);
+    S.mesaEstado.set(String(o.id), destino);
+  } catch (e) { console.error('[cocina] la mesa no cambio de estado:', e); }
 }
 
 async function deshacer(id) {
@@ -1019,6 +1050,7 @@ async function deshacer(id) {
     await sb.from('pos_orders').update({ estado:'en_preparacion' }).eq('id', id);
     o.estado = 'en_preparacion';
     S.listas.delete(id);
+    await mesaAComiendo(o, false);
     pintar();
   } catch (e) { console.error('[cocina] no se pudo deshacer:', e); }
 }

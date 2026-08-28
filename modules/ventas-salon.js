@@ -786,6 +786,9 @@
       try { await window.posPermsReady(); } catch (e) {}
     }
     state.canCobrar = true;
+    //  A quien le suena el timbre de cocina. No se espera: si tarda, lo unico
+    //  que pasa es que el primer aviso de la sesion no suene.
+    cargarAvisa();
   }
 
   // ─── Realtime subscription ───────────────────────────
@@ -803,6 +806,7 @@
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_orders', filter: _fb }, (payload) => {
         loadData();
+        timbreSiEsMio(payload);
         if (payload.eventType === 'UPDATE'
             && payload.new && payload.new.status === 'in_progress'
             && payload.new.id
@@ -811,6 +815,72 @@
         }
       })
       .subscribe();
+  }
+
+  /*  ═══ EL TIMBRE DE "PEDIDO LISTO" ═══════════════════════════════════
+
+      Cuando la cocina marca un pedido listo, alguien tiene que ir por el. Ese
+      alguien depende del tipo de pedido y lo decide el restaurante en
+      Configuracion -> Operacion: la mesa suele ser del mesero y el domicilio
+      del cajero, pero no en todos lados.
+
+      Suena en LA PANTALLA de quien tenga ese rol con sesion abierta: la tablet
+      del mesero, el computador de la caja. No hay que instalar nada ni
+      registrar aparatos — quien esta trabajando ya esta conectado.
+
+      Si el restaurante no ha configurado nada, no suena. Un timbre que suena
+      donde nadie lo espera se apaga el primer dia y ya no vuelve a servir. */
+  /*  SE LEE DEL SERVIDOR, NO DE LA COPIA DEL EQUIPO.
+
+      `_getCfg()` lee lo que quedo guardado en ESTE aparato la ultima vez que
+      alguien abrio Configuracion. En la tablet del mesero eso puede no haber
+      pasado nunca: el timbre no sonaria y no habria forma de saber por que.
+
+      Se pide una vez al arrancar y se guarda en memoria. Si falla, no suena —
+      pero no se cae nada: lo que hace el mesero no depende de esto. */
+  var _avisaCfg = null;
+
+  async function cargarAvisa() {
+    try {
+      const sb = window._pos && window._pos.sb;
+      const bid = window._pos && window._pos.state && window._pos.state.branchId;
+      if (!sb || !bid) return;
+      const { data } = await sb.from('branches').select('operacion_config').eq('id', bid).maybeSingle();
+      const op = (data && data.operacion_config) || {};
+      _avisaCfg = op.cocinaAvisa || {};
+    } catch (e) { console.warn('[VS] no se pudo leer a quien avisar:', e && e.message); }
+  }
+
+  function _cfgAvisa() {
+    if (_avisaCfg) return _avisaCfg;
+    //  Mientras llega, sirve la copia del equipo si la hay.
+    const cfg = _getCfg() || {};
+    return cfg.cocinaAvisa || {};
+  }
+
+  function timbreSiEsMio(payload) {
+    try {
+      if (!payload || payload.eventType !== 'UPDATE') return;
+      const n = payload.new, o = payload.old;
+      //  Solo el SALTO a listo. Sin comparar con el estado anterior, cualquier
+      //  otro cambio del pedido —un pago, una nota— volveria a sonar.
+      if (!n || n.estado !== 'listo' || (o && o.estado === 'listo')) return;
+
+      const canal = String(n.channel || '').toLowerCase();
+      const zona = canal === 'salon' ? 'salon'
+                 : (canal === 'domicilio' || canal === 'whatsapp') ? 'domicilio'
+                 : 'llevar';
+      const avisa = _cfgAvisa();
+      const rolQueVa = String(avisa[zona] || '').trim();
+      if (!rolQueVa) return;
+
+      const mio = String(state.userRole || '').toLowerCase();
+      if (mio !== rolQueVa.toLowerCase()) return;
+
+      try { window.posTocarTono(avisa.tono || 'campana', avisa.vol == null ? 80 : avisa.vol); } catch (e) {}
+      const donde = zona === 'salon' ? 'de una mesa' : zona === 'domicilio' ? 'de domicilio' : 'para llevar';
+      if (typeof vsToast === 'function') vsToast('Pedido ' + donde + ' listo en cocina');
+    } catch (e) { console.error('[VS] timbre:', e); }
   }
 
   function unsubscribeRealtime() {
@@ -3556,6 +3626,19 @@
     }
     try { await sb.from('pos_tables').update(patch).eq('id', tableId); }
     catch (e) { console.error('[VS] vsMarcarEstado:', e); }
+
+    /*  COMIENDO AQUI = LISTO EN COCINA (Sergio, 28-ago-2026).
+
+        El otro sentido del mismo vinculo: si el mesero marca que ya estan
+        comiendo, es que el plato salio — y la comanda no tiene por que seguir
+        pidiendo trabajo en la pantalla de la cocina.
+
+        Solo cuando el estado CAMBIA: reescribir lo mismo dispararia el aviso
+        de vuelta y las dos pantallas se estarian escribiendo sin parar. */
+    if (nuevoEstado === 'comiendo' && t && t.status !== 'comiendo' && t.current_order_id) {
+      try { await sb.from('pos_orders').update({ estado: 'listo' }).eq('id', t.current_order_id); }
+      catch (e) { console.error('[VS] la comanda no paso a listo:', e); }
+    }
     try {
       const desde = t ? vsEstadoDesde(t) : null;
       if (t && desde && t.status && t.status !== 'libre' && t.status !== nuevoEstado) {
