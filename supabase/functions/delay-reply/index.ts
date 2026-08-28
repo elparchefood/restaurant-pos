@@ -9716,7 +9716,23 @@ function checkBarrioSinNomenclatura(
 const VIA_TIPOS = "calle|cll|cl|carrera|cra|cr|kra|kr|k|avenida|avda|av|diagonal|diag|dg|transversal|trasversal|trans|tv|tr|circunvalar|circular|autopista|auto|manzana|mz|via";
 // Hasta 3 letras pegadas al número: "9b", "63An" y también "1BIS" — con 2,
 // "calle 1bis" no casaba y la dirección real de un cliente se botaba (15-ago).
-const VIA_RE = new RegExp("\\b(" + VIA_TIPOS + ")\\b\\.?\\s*(\\d+)\\s*([a-z]{0,3})\\b", "i");
+/*  LA LETRA VA PEGADA AL NUMERO, Y DESPUES PUEDE VENIR OTRO NUMERO.
+
+    Caso real del 28-ago: "Calle 67n11-33 segundo piso barrio bello
+    horizonte". El cliente dio la direccion ENTERA y Paco le pregunto cual
+    era la direccion.
+
+    El motivo estaba en un limite de palabra. La regla pedia un limite
+    despues de las letras, y en "67n11" la "n" va pegada al "11": entre
+    letra y numero NO hay limite, asi que la regla fallaba entera y la
+    direccion quedaba como si no tuviera calle. Asi escribe media Popayan y
+    todo Cali: "67N 11-33" es "Calle 67 Norte # 11-33".
+
+    Ahora las letras van PEGADAS al numero —sin el espacio opcional de
+    antes— y lo que las corta es que no venga otra letra. Con eso "67n11"
+    entra, y "calle 5 bello horizonte" se sigue leyendo como calle 5 sin
+    tragarse el "bel" del barrio.                                        */
+const VIA_RE = new RegExp("\\b(" + VIA_TIPOS + ")\\b\\.?\\s*(\\d+)([a-z]{0,3})(?![a-z])", "i");
 
 interface DireccionPartes {
   tieneVia: boolean;    // "carrera 9"

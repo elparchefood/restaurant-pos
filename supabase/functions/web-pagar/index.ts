@@ -109,6 +109,24 @@ async function confirmarPorWhatsApp(orderId: string) {
     const o = oR?.[0];
     if (!o) return;
 
+    /*  SOLO PARA LOS PEDIDOS DE LA PAGINA (28-ago-2026, visto en servicio).
+
+        Este mensaje existe porque quien pide por la pagina no habla con nadie:
+        paga y se queda sin saber si llego. Al que pide por WhatsApp lo esta
+        atendiendo una persona —o Paco— y ya le dijo el total y que va en
+        preparacion. Mandarle ademas la confirmacion de la pagina es hablarle
+        dos veces de lo mismo, y encima con un formato que no es el de su
+        conversacion.
+
+        Le salio a un cliente que estaba escribiendo por WhatsApp: el pedido no
+        tenia `origen` de web y aun asi se le mando. Se comprueba aqui, en el
+        momento de mandarlo, y no en quien llama: si mañana otra pantalla cobra
+        por esta misma via, el mensaje sigue saliendo solo para la pagina.   */
+    if (String(o.origen || "") !== "web") {
+      console.log(`[web-pagar] ${orderId}: no viene de la pagina (origen=${o.origen ?? "null"}) — sin confirmacion`);
+      return;
+    }
+
     const cR = await sbGet(`/pos_clientes?id=eq.${o.cliente_id}&select=nombre,telefono&limit=1`) as Array<Record<string, unknown>> | null;
     const tel10 = String(cR?.[0]?.telefono || "").replace(/\D/g, "").slice(-10);
     if (tel10.length !== 10) return;
