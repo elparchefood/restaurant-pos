@@ -934,14 +934,25 @@ function pintar() {
 
   let sonar = false;
   Object.keys(porZona).forEach(z => {
-    /*  ORDEN: primero lo que falta por hacer, por hora de llegada; lo ya
-        listo se hunde al final. Asi los primeros ocho de la pantalla son
-        siempre trabajo pendiente, y lo terminado queda abajo — a la vista si
-        se baja, sin estorbar si no. */
+    /*  DOS ORDENES DISTINTOS, PORQUE SIRVEN PARA COSAS DISTINTAS.
+
+        Lo que FALTA por hacer va por hora de llegada, del mas viejo al mas
+        nuevo: es una cola, y en una cola atiende primero el que lleva mas
+        esperando.
+
+        Lo que YA SALIO va al reves — el ultimo que salio, de primero. Ahi no
+        hay cola que respetar: cuando alguien pregunta por un pedido, pregunta
+        por el de hace un rato, no por el de hace tres horas. Tenerlo por hora
+        de llegada obligaba a recorrer toda la lista para llegar a lo reciente.
+
+        Y se ordena por la hora de SALIDA, no por la de entrada: un pedido que
+        entro temprano y se demoro sale despues que uno que entro tarde y fue
+        rapido. Es el mismo dato que para el reloj de la tarjeta.          */
     const lista = porZona[z].sort((a,b) => {
       const la = estadoDe(a) === 'listo' ? 1 : 0;
       const lb = estadoDe(b) === 'listo' ? 1 : 0;
       if (la !== lb) return la - lb;
+      if (la === 1) return (paroEn(b) || 0) - (paroEn(a) || 0);
       return new Date(a.created_at) - new Date(b.created_at);
     });
     $('n-' + z).textContent = lista.length;
@@ -1037,20 +1048,51 @@ function tarjeta(o) {
    pueda arreglar moviendo cosas: para que entrara en dos habría que quitar la
    foto o achicar la letra, y las dos están decididas. */
 
-/* Las adiciones vienen dentro de `selections`, que es el mismo formato que
-   arma la pantalla de tomar pedido. */
+/*  LAS ADICIONES ESTAN EN `selections.mods`, Y AHI NO SE MIRABA.
+
+    Esta funcion recorria `selections` entera buscando algo con `opciones`,
+    `options` o `items`. Pero la forma real que guarda la pantalla de tomar
+    pedido es otra:
+
+        { "pres": "Personal",
+          "vars": { "vg_x": { "name": "Mixta" } },     ← la variante
+          "mods": { "op_y": { "name": "Super Queso", "qty": 1 } } }  ← la adicion
+
+    O sea que buscaba en el sitio equivocado y siempre devolvia vacio: al
+    cocinero le llegaba la salchipapa sin el Super Queso que el cliente pago.
+    Un error caro y silencioso — nadie reclama lo que no sabe que pidio.
+
+    `vars` NO se pone aqui: la variante ya viene dentro del nombre del producto
+    ("Personal · Premium · Mixta") y repetirla seria ruido.
+
+    Se deja el recorrido antiguo como respaldo por si algun restaurante tiene
+    pedidos guardados con otra forma, pero `mods` es la buena.            */
 function adiciones(i) {
   try {
     const s = typeof i.selections === 'string' ? JSON.parse(i.selections) : i.selections;
     if (!s) return '';
     const nombres = [];
-    (Array.isArray(s) ? s : Object.values(s)).forEach(g => {
-      const ops = (g && (g.opciones || g.options || g.items)) || (Array.isArray(g) ? g : null);
-      (ops || []).forEach(op => {
-        const n = op && (op.nombre || op.name || op.label);
-        if (n) nombres.push(n);
+
+    const mods = s.mods;
+    if (mods && typeof mods === 'object') {
+      Object.keys(mods).forEach(k => {
+        const m = mods[k];
+        const n = m && (m.name || m.nombre || m.label);
+        if (!n) return;
+        const q = parseInt(m.qty || m.cantidad, 10) || 1;
+        nombres.push(q > 1 ? q + '× ' + n : n);
       });
-    });
+    }
+
+    if (!nombres.length) {
+      (Array.isArray(s) ? s : Object.values(s)).forEach(g => {
+        const ops = (g && (g.opciones || g.options || g.items)) || (Array.isArray(g) ? g : null);
+        (ops || []).forEach(op => {
+          const n = op && (op.nombre || op.name || op.label);
+          if (n) nombres.push(n);
+        });
+      });
+    }
     return nombres.join(', ');
   } catch (_) { return ''; }
 }

@@ -329,8 +329,29 @@ svg{display:block;}
 .it-tx{font-size:calc(var(--u) * 1.55);font-weight:800;line-height:1.05;letter-spacing:-.025em;color:#0F172A;min-width:0;}
 /* Las adiciones en verde y las notas en ámbar, en renglón aparte: una nota
    metida dentro del nombre del plato es un plato devuelto. */
-.it-tx em{display:block;font-style:normal;font-size:calc(var(--u) * 1);font-weight:700;color:#15803D;margin-top:calc(var(--u) * .15);letter-spacing:-.01em;}
-.it-tx i {display:block;font-style:normal;font-size:calc(var(--u) * 1);font-weight:800;color:#B45309;margin-top:calc(var(--u) * .15);letter-spacing:-.01em;}
+/*  LA ADICION Y LA NOTA VAN ENCERRADAS (Sergio, 28-ago-2026).
+
+    Iban como dos renglones de color debajo del producto, y con una comanda de
+    cinco platos se perdian entre los nombres: el ojo del cocinero baja leyendo
+    productos y una linea mas pequena en verde parece parte del producto de
+    arriba.
+
+    Encerradas en su recuadro dejan de ser texto y pasan a ser un objeto. Se ve
+    que hay ALGO ahi antes de leerlo, que es lo unico que importa cuando se
+    lee una pantalla desde dos metros y con las manos ocupadas.
+
+    Dos colores distintos porque son dos cosas distintas: la adicion es algo
+    que SE AGREGA (verde, se suma), la nota es algo que hay que TENER EN CUENTA
+    (ambar, cuidado). Confundirlas cuesta un plato mal hecho.             */
+.it-tx em, .it-tx i{
+  display:inline-block; font-style:normal; letter-spacing:-.01em;
+  margin-top:calc(var(--u) * .28);
+  padding:calc(var(--u) * .12) calc(var(--u) * .48);
+  border-radius:calc(var(--u) * .45);
+  font-size:calc(var(--u) * .98); line-height:1.2;
+}
+.it-tx em{font-weight:800; color:#14532D; background:#BBF7D0; border:1px solid #86EFAC;}
+.it-tx i {font-weight:800; color:#7C2D12; background:#FED7AA; border:1px solid #FDBA74;}
 
 .tk-pie{padding:calc(var(--u) * .2) calc(var(--u) * .7) calc(var(--u) * .4);}
 .tk-btn{
