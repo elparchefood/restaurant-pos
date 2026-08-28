@@ -38,7 +38,7 @@ const META_API_BASE = "https://graph.facebook.com/v22.0";
     ni mas de cuatro espacios seguidos — Meta la rechaza sin explicar cual fue.
     Por eso la lista viaja en UNA linea separada por puntos medios, y los
     saltos de verdad estan en el cuerpo aprobado.                            */
-const PLANTILLA = "insumos_por_comprar";
+const PLANTILLA = "por_comprar_cierre_caja";
 const PLANTILLA_IDIOMA = "es";
 
 /*  Un parametro seguro: sin saltos, sin tabuladores, sin espacios de sobra, y
@@ -180,22 +180,42 @@ Deno.serve(async (req) => {
     // en dos semanas nadie lo lee.
     if (!bajos.length) return json({ ok: true, enviado: false, razon: "nada_bajo" });
 
-    const lineas = bajos.map(i => i.agotado
-      ? `• ${i.nombre} — se acabó`
-      : `• ${i.nombre} — quedan ${i.stock}${i.unidad ? " " + i.unidad : ""}${i.equiv ? " (" + i.equiv + ")" : ""}`);
-    const cuantos = `${bajos.length} insumo${bajos.length === 1 ? "" : "s"}`;
-    const texto = `🛒 *Por comprar* — cierre de caja\n\n${lineas.join("\n")}\n\n${cuantos}.`;
+    /*  ══ COMO SE LEE ESTO (Sergio, 27-ago-2026) ═══════════════════
 
-    /*  La misma lista, en una sola linea, para que quepa en un parametro de
-        plantilla. Si son muchos se corta y se dice cuantos faltan: mejor un
-        aviso con los diez primeros que ningun aviso.                       */
-    const sueltas = bajos.map(i => i.agotado
-      ? `${i.nombre} — se acabó`
-      : `${i.nombre} — quedan ${i.stock}${i.unidad ? " " + i.unidad : ""}`);
-    const MAX = 10;
-    const resumen = sueltas.length > MAX
-      ? sueltas.slice(0, MAX).join(" · ") + ` · y ${sueltas.length - MAX} más`
-      : sueltas.join(" · ");
+        El primer intento era una lista sola donde todo se veia igual:
+        «el texto se ve muy plano y se confunde». Tres cambios, y los tres
+        salen de como se lee un mensaje en la calle, a las once de la noche:
+
+        1. LO AGOTADO VA APARTE DE LO QUE QUEDA POCO. Son dos cosas
+           distintas: una es «compra ya o manana no vendes», la otra es
+           «tenlo en cuenta». Juntas, la urgente se pierde entre las otras.
+
+        2. A LO AGOTADO NO SE LE PONE CANTIDAD. Decia «quedan -0.077
+           paq. x12». Un negativo en decimales de paquete no le dice nada a
+           nadie: se acabo, punto.
+
+        3. A LO QUE QUEDA POCO SE LE PONE EN LA UNIDAD QUE SE CUENTA. No
+           «0.249 galon» sino «21 porciones». Es como uno mira la nevera.
+
+        Y un insumo por renglon, que fue lo que pidio al ver la propuesta.  */
+    const agotados = bajos.filter(i => i.agotado);
+    const pocos = bajos.filter(i => !i.agotado);
+
+    const cuantosAgot = agotados.length + " insumo" + (agotados.length === 1 ? "" : "s");
+    const cuantosPoco = pocos.length + " m\u00e1s";
+
+    const conCantidad = (i: typeof bajos[number]) =>
+      i.equiv || (i.stock + (i.unidad ? " " + i.unidad : ""));
+
+    const bloques: string[] = [];
+    if (agotados.length) {
+      bloques.push("\u274c *SE ACAB\u00d3 (" + agotados.length + ")*\n"
+        + agotados.map(i => "\u2022 " + i.nombre).join("\n"));
+    }
+    if (pocos.length) {
+      bloques.push("\u26a0\ufe0f *QUEDA POCO (" + pocos.length + ")*\n"
+        + pocos.map(i => "\u2022 " + i.nombre + " \u2014 " + conCantidad(i)).join("\n"));
+    }
 
     //  Como se llama el negocio, para que el gerente sepa de cual sede le
     //  hablan: quien maneja dos sedes recibe dos mensajes iguales.
@@ -207,6 +227,10 @@ Deno.serve(async (req) => {
       const mk = b.brands as { name?: string } | Array<{ name?: string }> | null;
       negocio = String((Array.isArray(mk) ? mk[0]?.name : mk?.name) || b.name || negocio);
     } catch { /* sin nombre, el aviso sale igual */ }
+
+    const texto = "\U0001f6d2 *POR COMPRAR*\n" + negocio + " \u00b7 cierre de caja\n\n"
+      + bloques.join("\n\n")
+      + "\n\n\u00c1brelo en Cobra para reponer.";
 
     // ── Con qué número se manda ──────────────────────────────────────
     const canales = await sbGet(
@@ -234,10 +258,20 @@ Deno.serve(async (req) => {
           to: numero, type: "template",
           template: {
             name: PLANTILLA, language: { code: PLANTILLA_IDIOMA },
+            /*  Los tres datos de la plantilla son CORTOS a proposito: el
+                nombre del negocio y dos conteos. La lista completa no cabe
+                aqui — Meta no admite saltos de linea en un parametro, y una
+                lista corrida es justo lo que Sergio no queria.
+
+                Por eso la plantilla lleva el boton «¿Que falta?»: tocarlo
+                cuenta como que el gerente escribio, eso abre la ventana de 24
+                horas, y la respuesta —esa si libre, con un insumo por
+                renglon— la da `gerente-inventario`, que ya contestaba esa
+                misma pregunta desde antes.                                */
             components: [{ type: "body", parameters: [
               { type: "text", text: param(negocio, 60) },
-              { type: "text", text: param(cuantos, 40) },
-              { type: "text", text: param(resumen) },
+              { type: "text", text: param(cuantosAgot, 40) },
+              { type: "text", text: param(cuantosPoco, 40) },
             ] }],
           },
         });

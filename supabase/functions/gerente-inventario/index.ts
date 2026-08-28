@@ -696,11 +696,39 @@ Deno.serve(async (req: Request) => {
         const t = i.sub ? i.stock + i.servicio : i.stock;
         return t > 0 && i.min > 0 && t <= i.min;
       });
-      let reply = "📦 *Inventario*\n";
-      if (agotados.length) reply += `\n⛔ *Agotados:* ${agotados.map((i) => i.nombre).join(", ")}`;
-      if (bajos.length) reply += `\n⚠️ *Por acabarse:* ${bajos.map((i) => `${i.nombre} (${decir(i.sub ? i.stock + i.servicio : i.stock, i)})`).join(", ")}`;
-      if (!agotados.length && !bajos.length) reply += "\nTodo con stock. 👍";
-      reply += `\n\nPregúntame por algo concreto (“¿cuántas Coca Cola 1.5 hay?”) o dime “hay 3 kilos de carne”.`;
+      /*  UN INSUMO POR RENGLON (Sergio, 27-ago-2026).
+
+          Iba todo seguido con comas y, con doce agotados, era una parrafada
+          que habia que leer entera para encontrar uno solo: «el texto se ve
+          muy plano y se confunde».
+
+          Es el mismo formato del aviso de cierre de caja, y no por gusto:
+          esta respuesta es la que llega al tocar el boton «¿Que falta?» de
+          esa plantilla, asi que las dos son la misma conversacion. Si se
+          vieran distintas, pareceria que contestan cosas distintas.       */
+      let reply = "📦 *POR COMPRAR*
+";
+      if (agotados.length) {
+        reply += `
+❌ *SE ACABÓ (${agotados.length})*
+`
+          + agotados.map((i) => `• ${i.nombre}`).join("
+") + "
+";
+      }
+      if (bajos.length) {
+        reply += `
+⚠️ *QUEDA POCO (${bajos.length})*
+`
+          + bajos.map((i) => `• ${i.nombre} — ${decir(i.sub ? i.stock + i.servicio : i.stock, i)}`).join("
+") + "
+";
+      }
+      if (!agotados.length && !bajos.length) reply += "
+Todo con stock. 👍
+";
+      reply += `
+Dime “hay 3 galones de salsa bbq” y lo actualizo.`;
       return json({ reply, consulta: true });
     }
 

@@ -14742,3 +14742,72 @@ reinicio a media tarde regalaría cupo.
 **Valores por defecto: 40 al día / 1.200 al mes.** Son de Sergio en cuanto los
 confirme; el criterio con el que se propusieron está en la memoria
 `cobra_pos_mapas`. Se cambian con un `update pos_mapas_config`.
+
+---
+
+## 187. El aviso de compras al cerrar caja — 27/28-ago-2026
+
+`aviso-insumos` v15 · `gerente-inventario` v40 · plantilla `por_comprar_cierre_caja`
+
+### Por qué llevaba días sin enviar nada
+
+**No era la ventana de 24 horas** (ese fue el primer diagnóstico, razonable y
+equivocado). El 24-ago el stock se mudó de `iv_insumos` a `iv_existencias` y
+esta función se quedó pidiendo `stock` en la tabla vieja: PostgREST responde
+error, el ayudante devuelve `null`, la lista de bajos sale vacía y la función
+retorna `nada_bajo` **con éxito**. Nunca se llegaba a intentar el envío.
+
+Ahora, si la consulta falla, se responde `no_se_pudo_leer_inventario` con 500.
+Reportar un error de lectura como "no había nada bajo" es exactamente lo que
+escondió esto durante días.
+
+**Y lo que está en cero se avisa siempre**, tenga mínimo o no: de los 41
+insumos de El Parche, 23 no tienen mínimo. El mínimo sirve para avisar *antes*
+de que se acabe; que se haya acabado no necesita mínimo.
+
+### La forma del mensaje (decisión de Sergio)
+
+> *«el texto se ve muy plano y se confunde... negrilla a los títulos, aclarar
+> lo que se acabó, armarla de tal manera que al leerla sea muy fácil entender
+> qué está sucediendo»*
+
+Tres reglas, y las tres salen de cómo se lee esto en la calle a las once de la
+noche:
+
+1. **Lo agotado va aparte de lo que queda poco.** Son dos urgencias distintas.
+2. **A lo agotado no se le pone cantidad.** Decía "quedan −0.077 paq. ×12".
+3. **A lo que queda poco se le pone en unidad de uso**: "21 porciones", no
+   "0.249 galón".
+
+Más un insumo por renglón.
+
+### La plantilla, y por qué lleva botón
+
+⚠️ **Meta no admite saltos de línea, tabuladores ni más de 4 espacios seguidos
+dentro de un parámetro.** Comprobado contra la API, no supuesto: error
+`132018 · Param text cannot have new-line/tab characters`. La estructura
+(saltos y negrillas) sí va en el cuerpo aprobado; lo que no puede es la lista,
+que es justo lo variable.
+
+Solución: la plantilla es **corta y fija** —nombre del negocio y dos conteos—
+y lleva un botón de respuesta rápida **«¿Qué falta?»**. Tocarlo cuenta como un
+mensaje del gerente, **eso abre la ventana de 24 horas**, y la respuesta
+—ya libre, con un insumo por renglón— la da `gerente-inventario`, que contesta
+esa misma pregunta desde antes. Cero plumbing nuevo: `meta-webhook` ya convierte
+el `button` de plantilla en texto (línea ~123).
+
+Por eso la respuesta general de `gerente-inventario` se repintó con el MISMO
+formato: son la misma conversación, y verse distintas parecería que contestan
+cosas distintas.
+
+⚠️ **La plantilla vive en la cuenta de WhatsApp de cada restaurante**, no en
+Cobra. Un cliente nuevo tiene que tenerla creada con ese nombre o se queda solo
+con el texto libre (que únicamente sale dentro de las 24 horas). Mismo caso que
+`pedido_confirmado`.
+
+⚠️ **Ninguna plantilla se radica sin que Sergio la vea antes.** Ver la memoria
+`feedback_plantillas_meta_aprobar`.
+
+Nota operativa: un nombre de plantilla borrado no se puede reutilizar de
+inmediato (`error_subcode 2388025`). Por eso el nombre final es
+`por_comprar_cierre_caja` y no `insumos_por_comprar`.
