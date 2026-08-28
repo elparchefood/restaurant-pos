@@ -3870,6 +3870,25 @@ INTENCION, no las palabras exactas.` },
       state.adicion_suelta = null;
     }
 
+    /*  Lo que el reparto de arriba marco como plato aparte, a la cola. Mismo
+        camino que `adicion_suelta`, y con los mismos dos candados: no repetir
+        lo que ya esta en la cola ni lo que ya es un item del pedido. */
+    if (Array.isArray(extracted.adicion_como_producto)) {
+      for (const ap of extracted.adicion_como_producto as Array<{ nombre: string; cat: string }>) {
+        if (!ap || !ap.nombre) continue;
+        const n = normalizarTexto(ap.nombre);
+        const yaEnCola = (state.cola || []).some(c => normalizarTexto(c.nombre || "") === n);
+        const yaEsItem = (state.items || []).some(i => normalizarTexto(i.producto || "") === n);
+        const esElActual = normalizarTexto(state.producto || "") === n;
+        if (yaEnCola || yaEsItem || esElActual) continue;
+        (state.cola = state.cola || []).push({
+          nombre: ap.nombre, cat: ap.cat || "",
+          texto: clienteTexto.slice(0, 300),
+        });
+        console.log('[agua] "' + ap.nombre + '" entra a la cola como plato aparte');
+      }
+    }
+
     if (extracted.telefono && (state.canal === "instagram" || state.canal === "facebook")) {
       try {
         /* `fromPhone` en estos canales ES el id de la persona en la red (asi
@@ -6433,7 +6452,47 @@ function validarLeido(
       const esElPlatoMismo = rn === suyo || suyo.includes(rn);
       return !esElPlatoMismo || vecesQueLoDijo(r) >= 2;
     });
-    if (limpias.length) out.adiciones = limpias.join(", ");
+    /*  ══ UN PLATO QUE CAE EN «ADICIONES» ES OTRO PLATO ═════════════
+
+        EL CASO DEL AGUA (Sergio, 22-ago). El cliente dice «una hawaiana Y UN
+        AGUA». Ese «y» suena a adicion, y el lector —que solo tiene UNA
+        casilla para el producto— mete el agua en las adiciones. De ahi el
+        agua sale cobrada como adicion de la hamburguesa, o se pierde.
+
+        La regla es de las que no se pueden discutir: **si ese nombre no es un
+        modificador en NINGUNA parte del restaurante, no puede ser una adicion
+        de nada.** `DYN_MOD_NAMES` son todas las adiciones de verdad, las que
+        viven en los grupos de modificadores con su precio. Lo que no esta ahi
+        y si esta en la carta es un producto, y punto.
+
+        Por que asi y no mirando las adiciones de ESTE plato: hay nombres que
+        son las dos cosas (en El Parche la Ranchera es un plato Y un
+        modificador de $14.000). Esos siguen tratandose como hasta hoy — esta
+        regla no los toca, y de su caso ya se encarga `adicion_suelta`. Solo
+        se saca lo que no es adicion en ningun sitio: eso no admite duda.
+
+        No se cobra aqui ni se inventa nada: se pasa a la COLA, que es el
+        camino que Paco ya usa para varios platos en un mensaje. Asi hereda el
+        precio, el empaque y —lo importante— las preguntas: si a esa bebida
+        le falta el tamaño, Paco lo pregunta como haria con cualquier plato. */
+    const esModDeVerdad = (n: string) => {
+      const nn = normalizarTexto(n);
+      return (DYN_MOD_NAMES || []).some(m => {
+        const mn = normalizarTexto(m);
+        return mn === nn || mn.includes(nn) || nn.includes(mn);
+      });
+    };
+    const comoProducto: Array<{ nombre: string; cat: string }> = [];
+    const soloAdiciones = limpias.filter(r => {
+      if (esModDeVerdad(r)) return true;
+      const fila = (DYN_PROD_MAP || []).find(e => normalizarTexto(e.name) === normalizarTexto(r));
+      if (!fila) return true;   //  ni adicion ni producto: se deja como estaba
+      comoProducto.push({ nombre: fila.name, cat: fila.cat || "" });
+      console.log('[lector] "' + r + '" no es adicion en ningun sitio: entra como producto aparte');
+      return false;
+    });
+    if (comoProducto.length) out.adicion_como_producto = comoProducto;
+    if (soloAdiciones.length) out.adiciones = soloAdiciones.join(", ");
   }
 
   /* PAGO: tiene que ser un metodo configurado. */
