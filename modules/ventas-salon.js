@@ -2131,7 +2131,7 @@
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
               Ver en el mapa
             </button>
-            <button data-action="pasar-dots" data-orden-id="${d.id}" data-desde="domicilio" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:#475569;border-radius:7px;text-align:left" onmouseover="this.style.background='#F8FAFC'" onmouseout="this.style.background='none'">
+            <button data-domi-action="pasar" data-domi-id="${d.id}" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:#475569;border-radius:7px;text-align:left" onmouseover="this.style.background='#F8FAFC'" onmouseout="this.style.background='none'">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16H3m0 0 3-3m-3 3 3 3"/><path d="M17 8h4m0 0-3-3m3 3-3 3"/></svg>
               Pasar a otro modo
             </button>
@@ -2723,7 +2723,7 @@
         </div>
         <!-- Los mismos tres puntos que en la mesa: un pedido para llevar
              tambien se puede volver de mesa o de domicilio. -->
-        <button class="lm-icon-sm" data-action="pasar-dots" data-orden-id="${o.id}" data-desde="rapido">${SVG_DOTS(14)}</button>
+        <button class="lm-icon-sm" data-action="quick-pasar" data-orden-id="${o.id}">${SVG_DOTS(14)}</button>
       </div>
       <div class="vs-rail-fixed-top">
         <div class="vs-info-row">
@@ -2996,6 +2996,13 @@
   function attachQuickRailEvents() {
     if (!container) return;
     container.querySelectorAll('[data-action^="quick-"]').forEach(btn => {
+      /*  Una sola escucha por boton, igual que en domicilios: esta funcion se
+          llama desde el render completo Y desde el repintado parcial del rail,
+          asi que sin la marca el mismo boton acaba con dos. Con acciones que
+          preguntan algo, eso se ve: la ventana sale dos veces, una encima de
+          la otra. */
+      if (btn.dataset.quickBound === '1') return;
+      btn.dataset.quickBound = '1';
       btn.addEventListener('click', handleAction);
     });
   }
@@ -3022,6 +3029,12 @@
         if (action === 'menu') {
           const drop = document.getElementById('vs-domi-menu-' + id);
           if (drop) drop.hidden = !drop.hidden;
+          return;
+        }
+        if (action === 'pasar') {
+          const dropP = document.getElementById('vs-domi-menu-' + id);
+          if (dropP) dropP.hidden = true;
+          vsPasarPedido(id, 'domicilio', {});
           return;
         }
         if (action === 'vermapa') {
@@ -3286,15 +3299,21 @@
         });
         break;
       }
-      /*  Desde venta rapida y desde domicilios se abre el menu de modos
-          directo, sin paso intermedio: ahi no hay «cambiar de mesa» que
-          separar del resto, y una lista de tres es mas corta que dos
-          preguntas seguidas.                                             */
-      case 'pasar-dots': {
+      /*  ⚠️ EL NOMBRE DEL ATRIBUTO ES LO QUE ENGANCHA EL CLIC.
+
+          Este boton nacio como `data-action="pasar-dots"` y no hacia NADA al
+          tocarlo. No era el codigo: es que cada pestana engancha los suyos con
+          un selector distinto — mesas toma `[data-action]`, venta rapida solo
+          los que EMPIEZAN por `quick-`, y domicilios usa otro atributo
+          (`data-domi-action`). Un boton con el nombre de otra pestana se pinta
+          igual de bien y se queda mudo.
+
+          Por eso este se llama `quick-pasar`: para que el selector de venta
+          rapida lo recoja. El de domicilios va por su propio camino, abajo,
+          con `data-domi-action="pasar"`.                                  */
+      case 'quick-pasar': {
         document.querySelectorAll('.vs-dots-menu').forEach(x => x.remove());
-        const _menuD = document.getElementById('vs-domi-menu-' + el.dataset.ordenId);
-        if (_menuD) _menuD.hidden = true;
-        vsPasarPedido(el.dataset.ordenId, el.dataset.desde || 'rapido', {});
+        vsPasarPedido(el.dataset.ordenId, 'rapido', {});
         break;
       }
       case 'mover-mesa': {
