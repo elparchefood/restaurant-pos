@@ -76,10 +76,12 @@ const S = {
      sobreviva a que la pantalla se redibuje cada segundo. */
   cursor:null, ultimaTk:null,
   orders:new Map(), items:new Map(), mesas:new Map(), fotos:new Map(),
+  /* A que hora paro el reloj de cada comanda terminada. Solo hace falta para
+     las que venian de antes de que se guardara la hora del cambio de estado. */
+  paro:new Map(),
   /* categoria de cada producto: es por donde se resuelve su area */
   catDe:new Map(),
   vistas:new Set(),          // comandas que ya sonaron
-  listas:new Map(),          // id -> hora en que se marcó lista (para el deshacer)
   online:true, arrancando:true,
 };
 
@@ -675,7 +677,7 @@ async function inicioCaja() {
 /* ── Las comandas ───────────────────────────────────────────────────────── */
 async function cargarComandas() {
   try {
-    const CAMPOS = 'id, channel, status, estado, table_id, turno, customer_name, notes, total, total_final, paid_amount, created_at, delivered_at, visible_cocina';
+    const CAMPOS = 'id, channel, status, estado, estado_at, table_id, turno, customer_name, notes, total, total_final, paid_amount, created_at, delivered_at, visible_cocina';
     /* `completed` es un pedido TERMINADO (verificado en la base: los completed
        ya estan cobrados y entregados). `paid` NO se excluye: una venta rapida
        se paga ANTES de cocinarse y tiene que seguir en pantalla. */
@@ -879,7 +881,37 @@ function minutosDe(o) {
     if (!desde || t < desde) desde = t;
   });
   if (!desde) desde = new Date(o.created_at).getTime();
-  return Math.max(0, (Date.now() - desde) / 60000);
+
+  /*  EL RELOJ SE PARA CUANDO LA COMANDA SALE (Sergio, 28-ago-2026).
+
+      Antes seguia corriendo para siempre, y con las terminadas ya a la vista
+      eso llenaba la pantalla de numeros enormes —136 minutos— que no querian
+      decir nada: no es que llevara dos horas de retraso, es que entro hace dos
+      horas y salio hace rato.
+
+      Parado, el numero pasa a decir algo util: CUANTO TARDO en hacerse. Es lo
+      que le sirve a la cocina para mirarse a si misma.
+
+      `hasta` sale del primer dato que exista: cuando se entrego, cuando cambio
+      de estado, o —si es una comanda vieja sin ninguno de los dos— la hora en
+      que esta pantalla la vio terminada por primera vez. Nunca se queda
+      corriendo.                                                           */
+  const hasta = paroEn(o);
+  return Math.max(0, ((hasta || Date.now()) - desde) / 60000);
+}
+
+/*  A que hora dejo de ser trabajo. `S.paro` es la red de seguridad para las
+    comandas que ya estaban terminadas antes de que existiera `estado_at`: se
+    apunta la primera vez que se ven y de ahi no se mueve. */
+function paroEn(o) {
+  if (estadoDe(o) !== 'listo') { S.paro.delete(o.id); return null; }
+  const t = o.delivered_at || o.estado_at;
+  if (t) {
+    const ms = new Date(t).getTime();
+    if (isFinite(ms)) return ms;
+  }
+  if (!S.paro.has(o.id)) S.paro.set(o.id, Date.now());
+  return S.paro.get(o.id);
 }
 
 /* ── Pintar ─────────────────────────────────────────────────────────────── */
@@ -1050,10 +1082,12 @@ async function marcarListo(id, btn) {
   if (!o) return;
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
-    const { error } = await sb.from('pos_orders').update({ estado:'listo' }).eq('id', id);
+    /*  Se guarda TAMBIEN la hora: es lo que para el reloj de la tarjeta y lo
+        que deja saber despues cuanto tardo en hacerse. */
+    const ahoraIso = new Date().toISOString();
+    const { error } = await sb.from('pos_orders').update({ estado:'listo', estado_at: ahoraIso }).eq('id', id);
     if (error) throw error;
-    o.estado = 'listo';
-    S.listas.set(id, Date.now());
+    o.estado = 'listo'; o.estado_at = ahoraIso;
     await mesaAComiendo(o, true);
     pintar();
   } catch (e) {
@@ -1097,9 +1131,9 @@ async function deshacer(id) {
   const o = S.orders.get(id);
   if (!o) return;
   try {
-    await sb.from('pos_orders').update({ estado:'en_preparacion' }).eq('id', id);
-    o.estado = 'en_preparacion';
-    S.listas.delete(id);
+    const iso = new Date().toISOString();
+    await sb.from('pos_orders').update({ estado:'en_preparacion', estado_at: iso }).eq('id', id);
+    o.estado = 'en_preparacion'; o.estado_at = iso;
     await mesaAComiendo(o, false);
     pintar();
   } catch (e) { console.error('[cocina] no se pudo deshacer:', e); }
