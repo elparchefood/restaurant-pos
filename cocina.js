@@ -721,6 +721,23 @@ async function cargarComandas() {
         .in('id', idsMesa)
         .not('status', 'in', FUERA), 15, 'las comandas de las mesas'));
     }
+
+    /*  (C) LAS MESAS QUE YA SE LIBERARON, del turno.
+
+        Faltaba esta y por eso las de mesa seguian desapareciendo despues de
+        arreglar las de domicilio: una comanda de salon NO lleva
+        `visible_cocina`, asi que no entra por la consulta general, y la de
+        arriba solo trae las mesas que el plano tiene ocupadas AHORA. Cuando el
+        mesero libera la mesa, esa comanda deja de existir para esta pantalla —
+        no es que se filtrara despues: es que ni se pedia.
+
+        La cocina la preparo; tiene derecho a verla en su turno.          */
+    consultas.push(conTope(sb.from('pos_orders').select(CAMPOS)
+      .eq('branch_id', S.branchId)
+      .eq('channel', 'salon')
+      .gte('created_at', desde)
+      .not('status', 'in', FUERA)
+      .order('created_at', { ascending: true }), 15, 'las mesas del turno'));
     const partes = await Promise.all(consultas);
     const porId = new Map();
     partes.forEach(r => {
@@ -745,8 +762,10 @@ async function cargarComandas() {
           Se sigue botando la mesa liberada SI todavia estaba pendiente: eso no
           es trabajo hecho sino una comanda que alguien abandono, y dejarla
           arriba pidiendo cocina seria peor.                               */
-      const terminado = ['listo','en_camino','entregado'].indexOf(o.estado) >= 0;
-      if (!terminado && zonaDe(o) === 'salon' && !S.mesaEstado.has(o.id)) return false;
+      /*  Una mesa que ya se libero esta TERMINADA aunque su comanda nunca
+          llegara a marcarse lista: los clientes se fueron, se cobro y la mesa
+          quedo libre. Antes se botaba por "abandonada"; pero de ahi salian las
+          cinco comandas de mesa de hoy que Sergio no veia por ningun lado. */
       /*  UNA COMANDA LISTA YA NO SE VA SOLA (Sergio, 28-ago-2026).
 
           Antes desaparecia a los 30 segundos. El cocinero que se daba la
@@ -810,6 +829,8 @@ function estadoDe(o) {
       —ya salio de sus manos— y tener tres moradas distintas solo obligaria al
       cocinero a aprenderse una diferencia que no le sirve de nada. */
   if (['listo','en_camino','entregado'].indexOf(o.estado) >= 0) return 'listo';
+  /*  Y la de una mesa que el plano ya libero: se fueron, se cobro, se acabo. */
+  if (String(o.channel || '').toLowerCase() === 'salon' && !S.mesaEstado.has(o.id)) return 'listo';
   if (debePagar(o)) return 'pago';
   return 'prep';
 }
@@ -948,8 +969,17 @@ function tarjeta(o) {
     + (ajenos.length ? '<div class="it-otros">' + ajenos.map(i => renglon(i, true)).join('') + '</div>' : ''))
     || '<div class="zona-vacia" style="padding:1cqw 0">Sin productos enviados</div>';
 
+  /*  "Deshacer" solo cuando hay algo que deshacer: cuando fue la cocina la
+      que la marco lista. En una mesa que el plano ya libero no hay vuelta
+      atras —los clientes se fueron y se cobro— y ofrecerla seria devolver la
+      comanda a la cola como si faltara preparar algo.                     */
+  const sePuedeDeshacer = o.estado === 'listo';
   const accion = est === 'listo'
-    ? '<div class="tk-listo"><b>Listo</b><button class="tk-desh" tabindex="-1" data-desh="' + o.id + '">Deshacer</button></div>'
+    ? '<div class="tk-listo"><b>Listo</b>'
+      + (sePuedeDeshacer
+          ? '<button class="tk-desh" tabindex="-1" data-desh="' + o.id + '">Deshacer</button>'
+          : '')
+      + '</div>'
     : '<div class="tk-pie"><button class="tk-btn" tabindex="-1" data-listo="' + o.id + '">Listo</button></div>';
 
   return '<article class="tk ' + est + (tarde ? ' tarde' : '') + (nueva ? ' nueva' : '')
