@@ -124,6 +124,12 @@ Deno.serve(async (req) => {
           plan: String(body.plan || "pro"),
           sucursales: Number(body.sucursales || 1),
           monto_total: Number(body.monto_total || 0),
+          /*  Con que periodo se registro. Sin esto, una solicitud de $2.390.400
+              se ve igual de rara mire quien la mire: nadie sabe si pago un ano
+              o si se equivoco de cifra. */
+          billing: ["mensual", "trimestral", "anual"].includes(String(body.billing || ""))
+                     ? String(body.billing) : "mensual",
+          total_ciclo: Number(body.total_ciclo || 0),
           comprobante_url: String(body.comprobante_url || "") || null,
           status: "pending",
         });

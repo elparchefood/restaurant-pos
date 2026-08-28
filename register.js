@@ -1,157 +1,307 @@
 // register.js — Flujo de registro Cobra POS
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   PASO 1 — ELEGIR EL PLAN
+   ---------------------------------------------------------------------------
+   Diseño entregado por Sergio el 28-ago-2026. Lo que hay que saber de esta
+   parte, que es la que decide cuánto se le cobra a cada restaurante:
+
+   1. LOS PRECIOS SALEN DE LA BASE (`pos_planes`), no del código. Antes estaban
+      escritos aquí, y por eso esta pantalla estuvo mostrando Starter a $99.000
+      cuando vale $149.000: alguien cambió el precio en la consola y aquí nadie
+      se enteró. Ahora se leen al abrir; los números de abajo son sólo el
+      salvavidas por si la consulta falla, y son los de verdad.
+
+   2. LOS DOS DESCUENTOS SE APLICAN EN ORDEN, y el orden lo decidió Sergio:
+      *"primero se calcula el precio con descuento por sucursales, y al total ya
+      descontado se le hace el descuento si paga trimestral o anual"*. Está así
+      en los términos y condiciones, y así se cobra también en la pantalla de
+      cuenta suspendida. Los tres sitios tienen que dar el mismo número.
+
+   3. SE REDONDEA AL PINTAR, NUNCA ANTES. Redondear un paso intermedio hace que
+      el total de la tarjeta y el del pie se diferencien en pesos sueltos, y no
+      hay forma de explicarle eso a un cliente que está a punto de pagar.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 // ── Estado global ──────────────────────────────────────────────────────
 var PLAN     = 'pro';
 var BRANCHES = 1;
+var BILLING  = 'mensual';
 var SELECTED_FILE = null;
 var SUBMITTING    = false;
 
-var PRICES   = { starter: 99000, pro: 249000 };
-var TIERS    = [
+/* Salvavidas: sólo se usan si `pos_planes` no responde. */
+var PRICES = { starter: 149000, pro: 249000 };
+
+var TIERS = [
   {min: 8, off: 0.30},
-  {min: 4,  off: 0.20},
-  {min: 2,  off: 0.10},
-  {min: 1,  off: 0},
+  {min: 4, off: 0.20},
+  {min: 2, off: 0.10},
+  {min: 1, off: 0},
 ];
 
+var PERIODOS = {
+  mensual:    { meses: 1,  off: 0,    ciclo: '/ mes',       largo: 'mensual'    },
+  trimestral: { meses: 3,  off: 0.10, ciclo: '/ trimestre', largo: 'trimestral' },
+  anual:      { meses: 12, off: 0.20, ciclo: '/ año',       largo: 'anual'      },
+};
+
 function tierFor(n) {
-  return TIERS.find(function(t) { return n >= t.min; }) || TIERS[TIERS.length - 1];
+  return TIERS.find(function (t) { return n >= t.min; }) || TIERS[TIERS.length - 1];
 }
 
-function calcTotal(planId, branches) {
-  var base = PRICES[planId];
-  var off  = tierFor(branches).off;
-  return Math.round(base * (1 - off) * branches);
+/* Lo que cuesta UNA sucursal al mes con los dos descuentos ya puestos. Es la
+   cifra grande de la tarjeta: la gente compara planes por sucursal, no por el
+   total de la factura. */
+function unitMensual(planId, branches, billing) {
+  var base = PRICES[planId] || 0;
+  var per  = PERIODOS[billing] || PERIODOS.mensual;
+  return base * (1 - tierFor(branches).off) * (1 - per.off);
 }
 
-function calcUnit(planId, branches) {
-  var base = PRICES[planId];
-  var off  = tierFor(branches).off;
-  return Math.round(base * (1 - off));
+/* Lo que transfiere HOY: el mes, el trimestre o el año completo. */
+function montoAhora(planId, branches, billing) {
+  var per = PERIODOS[billing] || PERIODOS.mensual;
+  return unitMensual(planId, branches, billing) * per.meses * branches;
+}
+
+/* Y lo que le sale el mes, para poder comparar contra el precio mensual. */
+function mensualEfectivo(planId, branches, billing) {
+  return unitMensual(planId, branches, billing) * branches;
 }
 
 function cop(n) {
-  return '$' + Math.round(n).toLocaleString('es-CO');
+  return '$' + Math.round(n || 0).toLocaleString('es-CO');
+}
+
+/* Se mantiene por compatibilidad: los pasos 3 y 4 preguntan por el total. */
+function calcTotal(planId, branches) {
+  return Math.round(montoAhora(planId, branches, BILLING));
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', function() {
-  updatePlanUI();
+document.addEventListener('DOMContentLoaded', function () {
+  engancharPlan();
+  pintarPlan();
+  cargarPrecios();       // y cuando lleguen, se vuelve a pintar
   setupDragDrop();
   cargarCuentaCobro();   // la cuenta sale de la consola, no del codigo
 });
 
+/* Los precios de verdad. Si la consulta falla no se rompe nada: quedan los de
+   arriba, que hoy son los correctos. Lo que NO puede pasar es quedarse con una
+   pantalla en blanco o en $0 mientras carga. */
+async function cargarPrecios() {
+  try {
+    var r = await sb.from('pos_planes').select('plan,precio').eq('a_la_venta', true);
+    if (r.error || !r.data || !r.data.length) return;
+    r.data.forEach(function (p) {
+      if (p.precio != null) PRICES[p.plan] = Number(p.precio);
+    });
+    pintarPlan();
+  } catch (e) {
+    console.warn('[registro] no se pudieron leer los precios:', e && e.message);
+  }
+}
+
 // ── Navegación entre pasos ─────────────────────────────────────────────
 function goStep(n) {
   hideError();
-  document.querySelectorAll('.reg-step').forEach(function(el) { el.classList.remove('active'); });
+
+  /* El paso 1 vive FUERA del modal oscuro: es una pantalla clara completa.
+     Por eso no basta con alternar `.reg-step`, hay que tapar o destapar el
+     modal entero. */
+  var plan  = document.getElementById('plan-root');
+  var scrim = document.querySelector('.reg-scrim');
+  if (plan)  plan.hidden  = (n !== 1);
+  if (scrim) scrim.style.display = (n === 1) ? 'none' : '';
+
+  document.querySelectorAll('.reg-step').forEach(function (el) { el.classList.remove('active'); });
   var step = document.getElementById('step-' + n);
   if (step) step.classList.add('active');
 
   var items = document.querySelectorAll('.step-item');
-  items.forEach(function(el, i) {
+  items.forEach(function (el, i) {
     el.classList.remove('active', 'done');
     var num = i + 1;
     if (num < n) el.classList.add('done');
     if (num === n) el.classList.add('active');
   });
 
-  // Scroll top
   var modal = document.getElementById('reg-modal');
   if (modal) modal.scrollTop = 0;
+  var raiz = document.getElementById('plan-root');
+  if (raiz) raiz.scrollTop = 0;
 }
 
-// ── PASO 1: Plan ──────────────────────────────────────────────────────
-function selectPlan(planId) {
-  PLAN = planId;
-  var cards = ['starter', 'pro'];
-  cards.forEach(function(id) {
-    var card  = document.getElementById('card-' + id);
-    var radio = document.getElementById('radio-' + id);
-    if (!card || !radio) return;
-    if (id === planId) {
-      card.classList.add('on');
-      radio.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-    } else {
-      card.classList.remove('on');
-      radio.innerHTML = '';
-    }
+// ── PASO 1: los controles ─────────────────────────────────────────────
+function engancharPlan() {
+  var raiz = document.getElementById('plan-root');
+  if (!raiz) return;
+
+  raiz.querySelectorAll('[data-branches]').forEach(function (b) {
+    b.addEventListener('click', function () { setBranches(parseInt(b.dataset.branches, 10)); });
   });
-  updatePlanUI();
+  var menos = document.getElementById('branch-minus');
+  var mas   = document.getElementById('branch-plus');
+  if (menos) menos.addEventListener('click', function () { setBranches(BRANCHES - 1); });
+  if (mas)   mas.addEventListener('click',   function () { setBranches(BRANCHES + 1); });
+
+  raiz.querySelectorAll('[data-billing]').forEach(function (b) {
+    b.addEventListener('click', function () { setBilling(b.dataset.billing); });
+  });
+
+  /* La tarjeta entera selecciona, pero el botón de dentro NO puede propagar:
+     si lo hiciera, un clic contaría dos veces y la selección parpadearía. */
+  raiz.querySelectorAll('.p2-card').forEach(function (card) {
+    card.addEventListener('click', function () { selectPlan(card.dataset.plan); });
+    card.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectPlan(card.dataset.plan); }
+    });
+  });
+  ['starter', 'pro'].forEach(function (id) {
+    var b = document.getElementById('choose-' + id);
+    if (b) b.addEventListener('click', function (e) { e.stopPropagation(); selectPlan(id); });
+  });
+
+  var verPro = document.getElementById('ver-pro');
+  if (verPro) verPro.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var pro = document.getElementById('card-pro');
+    if (pro) pro.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    selectPlan('pro');
+  });
+
+  var atras = document.getElementById('btn-back');
+  if (atras) atras.addEventListener('click', function () { window.location.href = 'login.html'; });
+  var seguir = document.getElementById('btn-continue');
+  if (seguir) seguir.addEventListener('click', function () { goStep(2); });
+}
+
+function selectPlan(planId) {
+  if (planId !== 'starter' && planId !== 'pro') return;
+  PLAN = planId;
+  pintarPlan();
 }
 
 function setBranches(n) {
-  BRANCHES = Math.max(1, Math.min(99, n));
-  // Update chips
-  document.querySelectorAll('.pm-chip').forEach(function(btn) {
-    btn.classList.toggle('on', parseInt(btn.getAttribute('data-n')) === BRANCHES);
-  });
-  var countEl = document.getElementById('branch-count');
-  if (countEl) countEl.textContent = BRANCHES;
-  updatePlanUI();
+  BRANCHES = Math.max(1, Math.min(99, parseInt(n, 10) || 1));
+  pintarPlan();
 }
 
-function updatePlanUI() {
-  var tier = tierFor(BRANCHES);
-  var off  = tier.off;
+function setBilling(b) {
+  if (!PERIODOS[b]) return;
+  BILLING = b;
+  pintarPlan();
+}
 
-  // Update both cards
-  ['starter', 'pro'].forEach(function(id) {
-    var base  = PRICES[id];
-    var unit  = calcUnit(id, BRANCHES);
-    var total = calcTotal(id, BRANCHES);
-    var suf   = BRANCHES === 1 ? '1 sucursal' : BRANCHES + ' sucursales';
+/* ── La animación de las cifras ────────────────────────────────────────
+   260 ms contando desde el valor anterior hasta el nuevo. Es lo que hace que
+   se ENTIENDA que el precio bajó al añadir sucursales o al pasar a anual: un
+   número que cambia de golpe se lee como si siempre hubiera dicho eso. */
+var _cifras = {};
+function animarCifra(el, hasta, colaHtml) {
+  if (!el) return;
+  var id = el.id || (el.id = 'c' + Math.random().toString(36).slice(2));
+  var desde = _cifras[id];
+  _cifras[id] = hasta;
+  var pinta = function (v) { el.innerHTML = cop(v) + (colaHtml || ''); };
+  if (desde == null || desde === hasta || !window.requestAnimationFrame ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    pinta(hasta);
+    return;
+  }
+  var t0 = null, DUR = 260;
+  var paso = function (t) {
+    if (t0 === null) t0 = t;
+    var p = Math.min(1, (t - t0) / DUR);
+    var e = 1 - Math.pow(1 - p, 3);          // easeOutCubic
+    pinta(desde + (hasta - desde) * e);
+    if (p < 1) requestAnimationFrame(paso);
+  };
+  requestAnimationFrame(paso);
+}
 
-    var priceEl  = document.getElementById('price-' + id);
-    var strikeEl = document.getElementById('strike-' + id);
-    var totalEl  = document.getElementById('total-' + id);
+function _ver(id, mostrar) {
+  var el = document.getElementById(id);
+  if (el) el.hidden = !mostrar;
+}
+function _txt(id, val) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
 
-    if (priceEl)  priceEl.textContent = cop(unit);
-    if (strikeEl) {
-      if (off > 0) {
-        strikeEl.textContent = cop(base);
-        strikeEl.style.display = '';
-      } else {
-        strikeEl.style.display = 'none';
-      }
-    }
-    if (totalEl) totalEl.innerHTML = suf + ' · <strong>' + cop(total) + '</strong> / mes';
+// ── PASO 1: pintar ────────────────────────────────────────────────────
+function pintarPlan() {
+  if (!document.getElementById('plan-root')) return;
+  var off = tierFor(BRANCHES).off;
+  var per = PERIODOS[BILLING];
+
+  // Sucursales
+  document.querySelectorAll('[data-branches]').forEach(function (b) {
+    b.classList.toggle('on', parseInt(b.dataset.branches, 10) === BRANCHES);
+  });
+  _txt('branch-count', BRANCHES);
+
+  // Período
+  document.querySelectorAll('[data-billing]').forEach(function (b) {
+    b.classList.toggle('on', b.dataset.billing === BILLING);
   });
 
-  // Discount badge
-  var badge = document.getElementById('discount-badge');
-  if (badge) {
-    if (off > 0) {
-      badge.textContent = '−' + (off * 100) + '% aplicado';
-      badge.className = 'pm-discount live';
-    } else {
-      badge.textContent = 'Precio base';
-      badge.className = 'pm-discount flat';
+  // Descuento por volumen
+  _ver('volume-off', off > 0);
+  _txt('volume-off-pct', '−' + Math.round(off * 100) + '%');
+
+  // Las dos tarjetas
+  ['starter', 'pro'].forEach(function (id) {
+    var base = PRICES[id] || 0;
+    var unit = unitMensual(id, BRANCHES, BILLING);
+    var card = document.getElementById('card-' + id);
+    if (card) card.classList.toggle('on', id === PLAN);
+
+    animarCifra(document.getElementById('price-' + id), unit, '<span class="p2-per">/ mes</span>');
+    _txt('perday-' + id, cop(unit / 30));
+
+    var conDescuento = unit < base - 0.5;
+    _ver('strike-' + id, conDescuento);
+    _txt('strike-' + id, cop(base));
+
+    var pct = Math.round((1 - unit / (base || 1)) * 100);
+    _ver('savepill-' + id, pct > 0);
+    _txt('savepill-' + id, 'Ahorra ' + pct + '%');
+
+    /* El botón de la tarjeta elegida dice "Seleccionado" con su check; el de la
+       otra vuelve a invitar. Sin esto las dos tarjetas se ven iguales y no hay
+       manera de saber cuál se está comprando. */
+    var btn = document.getElementById('choose-' + id);
+    if (btn) {
+      btn.innerHTML = (id === PLAN)
+        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Seleccionado'
+        : 'Elegir ' + (id === 'pro' ? 'Pro' : 'Starter');
     }
-  }
+  });
 
-  // Footer
-  var selTotal = calcTotal(PLAN, BRANCHES);
-  var txtEl = document.getElementById('foot-plan');
-  if (txtEl) txtEl.textContent = PLAN === 'pro' ? 'Pro' : 'Starter';
-  var branchTxt = document.getElementById('foot-branches');
-  if (branchTxt) branchTxt.textContent = BRANCHES === 1 ? '1 sucursal' : BRANCHES + ' sucursales';
-  var footOff = document.getElementById('foot-off');
-  var footOffTxt = document.getElementById('foot-off-txt');
-  if (footOff) {
-    footOff.style.display = off > 0 ? 'inline-flex' : 'none';
-    if (footOffTxt) footOffTxt.textContent = '−' + (off * 100) + '%';
-  }
-  var footTotal = document.getElementById('foot-total');
-  if (footTotal) footTotal.textContent = cop(selTotal);
+  // El pie
+  var nombrePlan = PLAN === 'pro' ? 'Pro' : 'Starter';
+  _txt('foot-plan', nombrePlan);
+  _txt('foot-branches', BRANCHES === 1 ? '1 sucursal' : BRANCHES + ' sucursales');
+  _txt('foot-billing', per.largo);
+  _ver('foot-off', off > 0);
+  _txt('foot-off', '−' + Math.round(off * 100) + '%');
+  animarCifra(document.getElementById('foot-amount'), montoAhora(PLAN, BRANCHES, BILLING), '');
+  _txt('foot-cycle', per.ciclo);
+  _ver('foot-eq', BILLING !== 'mensual');
+  _txt('foot-eq', '≈ ' + cop(mensualEfectivo(PLAN, BRANCHES, BILLING)) + '/mes');
+  _txt('btn-continue-label', 'Continuar con ' + nombrePlan);
 
-  // Paso 3 monto
-  var payAmount = document.getElementById('pay-amount');
-  if (payAmount) payAmount.textContent = cop(selTotal);
-  var payPlan = document.getElementById('pay-plan-name');
-  if (payPlan) payPlan.textContent = PLAN === 'pro' ? 'Pro' : 'Starter';
-  var payBranches = document.getElementById('pay-branches-txt');
-  if (payBranches) payBranches.textContent = BRANCHES === 1 ? '1 sucursal' : BRANCHES + ' sucursales';
+  // Y lo que se arrastra a los pasos 3 y 4
+  _txt('pay-amount', cop(montoAhora(PLAN, BRANCHES, BILLING)));
+  _txt('pay-cycle', per.ciclo);
+  _txt('pay-label', BILLING === 'mensual' ? 'Valor a consignar (primer mes)'
+                  : BILLING === 'trimestral' ? 'Valor a consignar (primer trimestre)'
+                  : 'Valor a consignar (primer año)');
+  _txt('pay-plan-name', nombrePlan);
+  _txt('pay-branches-txt', (BRANCHES === 1 ? '1 sucursal' : BRANCHES + ' sucursales') + ' · pago ' + per.largo);
 }
 
 // ── PASO 2: Validar datos ─────────────────────────────────────────────
@@ -334,7 +484,13 @@ async function enviarSolicitud() {
       body: JSON.stringify({
         action: 'registrar', nombre: nombre, negocio: negocio, email: email,
         clave: clave, plan: PLAN, sucursales: BRANCHES,
-        monto_total: total, comprobante_url: compUrl,
+        /*  `monto_total` es lo que transfiere HOY (el mes, el trimestre o el
+            año); `total_ciclo` es a cuánto le sale el mes. Se guardan los dos
+            porque responden preguntas distintas: el primero es contra lo que
+            se compara el comprobante, el segundo es lo que se compara entre
+            clientes. */
+        monto_total: total, total_ciclo: Math.round(mensualEfectivo(PLAN, BRANCHES, BILLING)),
+        billing: BILLING, comprobante_url: compUrl,
       })
     });
     var rd = await reg.json().catch(function () { return {}; });
@@ -358,7 +514,7 @@ function setConfirmData(negocio, email, total) {
   set('conf-negocio',   negocio);
   set('conf-plan',      PLAN === 'pro' ? 'Pro' : 'Starter');
   set('conf-sucursales', BRANCHES === 1 ? '1 sucursal' : BRANCHES + ' sucursales');
-  set('conf-total',     cop(total) + ' / mes');
+  set('conf-total',     cop(total) + ' ' + (PERIODOS[BILLING] || PERIODOS.mensual).ciclo);
   set('conf-email',     email);
 }
 
