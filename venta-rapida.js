@@ -1083,19 +1083,36 @@ async function loadCatalog() {
     if (!sb) return;
     try {
       const cobroAdelantado = localStorage.getItem('pos.config.cobro_adelantado') === 'true';
-      let _oid;
-      if (cobroAdelantado) {
-        // Cobro adelantado: quedar como pendiente_pago y volver al salón
-        // El cajero cobra desde la vista de ventas cuando el pedido esté listo
-        _oid = await upsertOrder(sb, true, 'pendiente_pago');
-      } else {
-        // Cobro al final: enviar a cocina y volver a ventas
-        _oid = await upsertOrder(sb, true);
+      const estado = cobroAdelantado ? 'pendiente_pago' : undefined;
+
+      /*  ══ EL BOTON RESPONDE YA (29-ago-2026, pedido de Sergio) ═══════════
+
+          Antes este boton esperaba dos viajes al servidor (pedido + items) y
+          la impresion antes de soltar al mesero: medio segundo bueno, y con
+          la red mala varios. Ahora el pedido NUEVO se encola en el equipo
+          —milisegundos— y se navega de una: la cola lo sube por detras, y si
+          la subida muere por el cambio de pagina, la pantalla de ventas (que
+          tambien carga pos-sync) la retoma al abrir.
+
+          La impresion no se pierde: el receptor global de impresion
+          (pos-print-listener, activo en ventas) imprime cuando el pedido
+          llega a la base, y su barrido de seguridad lo recoge si el aviso en
+          vivo se perdiera.
+
+          MODIFICAR un pedido existente sigue por el camino de siempre: la
+          cola solo sabe crear, y ese caso ya era mas raro y mas corto.      */
+      if (!S.orderId && window.posSync && posSync.enqueueOrderBatch) {
+        const filaOrden = _armarOrden(estado);
+        if (filaOrden) {
+          const items = _armarItems('__TEMP__');
+          const r = await posSync.enqueueOrderBatch(filaOrden, items, null, null);
+          finalizarVenta();
+          window.location.href = 'ventas.html';
+          return;
+        }
       }
-      // Imprimir la comanda en el acto (Electron). Antes venta rápida no
-      // imprimía: dependía del realtime de la caja, que perdía el evento al
-      // navegar. El candado de posAutoprint evita duplicados si el realtime
-      // también dispara.
+
+      const _oid = await upsertOrder(sb, true, estado);
       if (_oid && typeof window.posAutoprint === 'function' && window.electronPOS) {
         await Promise.race([window.posAutoprint(_oid), new Promise(res => setTimeout(res, 9000))]);
       }
@@ -1125,6 +1142,63 @@ async function loadCatalog() {
     } catch(e) {
       alert('Error: ' + e.message);
     }
+  }
+
+  /*  La fila del pedido, la misma que arma upsertOrder. En el camino
+      instantaneo no se puede esperar el viaje de posSessionId: se usa su
+      cache si esta caliente (30 s) y si no, null — la caja ya tiene el
+      barrido que ata pedidos sueltos a la sesion abierta. */
+  function _armarOrden(orderStatus) {
+    try {
+      const user = window._pos && window._pos.state && window._pos.state.user;
+      if (!S.tenantId || !S.branchId) return null;
+      const _vrBarrio = S.cliente && S.cliente.barrio ? S.cliente.barrio.trim() : '';
+      const _vrQuien = (user && ((user.user_metadata && (user.user_metadata.nombre || user.user_metadata.name || user.user_metadata.full_name))
+                      || (user.email || '').split('@')[0])) || null;
+
+      return {
+        session_id:     (Date.now() - (window.__posSesCacheTs || 0) < 30000) ? (window.__posSesCache || null) : null,
+        tenant_id:      S.tenantId,
+        branch_id:      S.branchId,
+        waiter_id:      user ? user.id : null,
+        waiter_name:    _vrQuien,
+        table_id:       null,
+        channel:        'rapido',
+        status:         orderStatus || 'in_progress',
+        total:          calcTotal(),
+        subtotal:       calcSubtotal(),
+        packaging_fee:  calcEmpaque(),
+        discount:        S.descuento,
+        discount_amount: S.descuento,
+        service_charge: 0,
+        customer_name:  (S.cliente && S.cliente.nombre) || null,
+        cliente_id:     (S.cliente && /^[0-9a-f-]{36}$/i.test(String(S.cliente.id||'')) ? S.cliente.id : null),
+        notes:          [
+                          _vrBarrio ? '[barrio:' + _vrBarrio.toUpperCase() + ']' : '',
+                          S.etiqueta ? '[etq:' + String(S.etiqueta).toUpperCase() + ']' : '',
+                        ].filter(Boolean).join(' ') || null,
+        visible_cocina: true,
+        turno:          S.turno,
+      };
+    } catch (e) { return null; }
+  }
+
+  function _armarItems(orderId) {
+    return S.cart.map(i => (_filaConCombo({
+      order_id:      orderId,
+      product_id:    i.productId || i.id,
+      name:          i.name,
+      product_name:  i.name,
+      product_price: i.price,
+      quantity:      i.qty,
+      unit_price:    i.price,
+      total:         i.price * i.qty,
+      branch_id:     S.branchId,
+      tenant_id:     S.tenantId,
+      notes:         i.note || null,
+      selections:    i.selections || {},
+      status:        'pending',
+    }, i.productId || i.id)));
   }
 
   async function upsertOrder(sb, visible, orderStatus) {

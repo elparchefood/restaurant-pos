@@ -364,6 +364,35 @@
      * @param {object} tableData   — datos para actualizar en pos_tables
      * @returns {Promise<{ok:boolean, offline:boolean, orderId:string}>}
      */
+    /*  ══ EL BOTON INSTANTANEO (29-ago-2026, pedido de Sergio) ═══════════
+
+        `writeOrderBatch` espera al servidor cuando hay internet: eso protege
+        la venta pero deja al mesero mirando el boton medio segundo o mas.
+
+        Esta variante NUNCA espera: guarda el pedido en el equipo (IndexedDB),
+        dispara la subida SIN esperarla y devuelve el id al instante. El id
+        provisional ES el id definitivo (el batch inserta con ese uuid), asi
+        que navegar a otra pantalla no rompe nada: si la subida muere por el
+        cambio de pagina, la cola queda 'pending' y la proxima pantalla con
+        pos-sync la sube al abrir — ventas, pagos y tomar-pedido lo cargan.
+
+        Cuando NO usarla: si el paso siguiente necesita leer el pedido del
+        servidor ya mismo (ir a cobrar). Ahi va la de siempre.               */
+    async enqueueOrderBatch(orderData, itemsData, tableMatch, tableData) {
+      const tempOrderId = this.makeTempId();
+      const entry = {
+        type: 'order_batch',
+        orderData: { ...orderData, _tempId: tempOrderId },
+        itemsData: itemsData.map(it => ({ ...it, order_id: tempOrderId })),
+        tableMatch, tableData,
+        timestamp: Date.now(),
+        status: 'pending'
+      };
+      await _idbPut('queue', entry);          //  esto es local: milisegundos
+      _syncNow().catch(() => {});             //  se sube por detras, sin esperar
+      return { ok: true, offline: !_online, orderId: tempOrderId };
+    },
+
     async writeOrderBatch(orderData, itemsData, tableMatch, tableData) {
       const tempOrderId = this.makeTempId();
 
