@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="assets/brand/favicon-192.png">
   <link rel="apple-touch-icon" href="assets/brand/favicon-192.png">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="login.css?v=1798410000">
+  <link rel="stylesheet" href="login.css?v=1798806000">
 </head>
 <body>
 
@@ -208,19 +208,25 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <span id="pago-error-msg">Error</span>
         </div>
-        <div class="bank-card">
-          <div class="bank-row"><span class="bank-key">Banco</span><span class="bank-val">Bancolombia</span></div>
-          <div class="bank-row">
-            <span class="bank-key">Llave Bre-B</span>
-            <span class="bank-val" style="display:flex;align-items:center;gap:8px">
-              0092571225
-              <button class="bank-copy-btn" onclick="copyText('0092571225')">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                Copiar
-              </button>
-            </span>
+        <!--  ⚠️ AQUI NO VA NINGUN DATO ESCRITO A MANO (29-ago-2026).
+
+              Antes estaban quemados el banco, la llave y el titular — y el
+              titular decía «Restaurant Pos», que no es el nombre de nadie. El
+              día que Sergio cambiara su cuenta en la consola, esta pantalla
+              habría seguido mandando el dinero al sitio viejo.
+
+              Todo sale de `plataforma_cobro`, que es lo que él edita en
+              Consola → Cobro. Se pinta desde `cargarCuentaCobro()`.  -->
+        <div class="bank-card" id="bank-card">
+          <div class="pay-tabs" id="pay-tabs" hidden>
+            <button type="button" class="pay-tab on" data-pay="llave">Número</button>
+            <button type="button" class="pay-tab" data-pay="qr">Código QR</button>
           </div>
-          <div class="bank-row"><span class="bank-key">Titular</span><span class="bank-val">Restaurant Pos</span></div>
+          <div id="pay-datos"></div>
+          <div id="pay-qr" hidden>
+            <img id="pay-qr-img" alt="Código QR para pagar">
+            <div class="pay-qr-pie">Escanea con tu app del banco</div>
+          </div>
           <div class="bank-row">
             <span class="bank-key">Monto a pagar</span>
             <span class="bank-monto" id="pago-monto">—</span>
@@ -245,8 +251,11 @@
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         </div>
         <div class="form-head" style="text-align:center">
-          <h2 class="form-title">¡Solicitud enviada!</h2>
-          <p class="form-sub">Revisaremos tu comprobante en máximo 24 horas hábiles y activaremos tu cuenta.</p>
+          <!--  El texto lo pone `fillConfirm()`: no es lo mismo "ya puedes
+                entrar" que "lo estamos revisando", y enseñar el segundo cuando
+                el pago ya se confirmó hace que la gente escriba a preguntar. -->
+          <h2 class="form-title" id="cf-titulo">¡Solicitud enviada!</h2>
+          <p class="form-sub" id="cf-sub">Estamos verificando tu pago.</p>
         </div>
         <div class="confirm-card">
           <div class="confirm-row"><span class="confirm-key">Plan</span><span class="confirm-val" id="cf-plan">—</span></div>
@@ -256,7 +265,7 @@
           <div class="confirm-row"><span class="confirm-key">Correo de confirmación</span><span class="confirm-val" id="cf-email">—</span></div>
         </div>
         <button class="au-submit" onclick="goStep('login')" style="margin-top:20px;background:#0F172A;box-shadow:none">Ir al inicio de sesión</button>
-        <p class="legal-line">¿Preguntas? Escríbenos a <a class="au-link" href="mailto:soporte@lumenpos.com">soporte@lumenpos.com</a></p>
+        <p class="legal-line">¿Preguntas? Escríbenos a <a class="au-link" href="mailto:soporte@cobrapos.app">soporte@cobrapos.app</a></p>
       </div>
 
     </div><!-- /form-card -->
@@ -445,6 +454,6 @@
 
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <script src="pos-nucleo.js?v=1798798000"></script>
-<script src="login.js?v=1798420000"></script>
+<script src="login.js?v=1798806000"></script>
 </body>
 </html>

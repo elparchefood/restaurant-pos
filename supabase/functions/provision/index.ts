@@ -108,16 +108,49 @@ Deno.serve(async (req) => {
           return json(409, { error: "Ese correo ya tiene una cuenta. Entra con tu contrasena, o usa 'olvide mi contrasena'." });
         }
 
-        const auRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+        /*  ══ SE CREA SIN CONFIRMAR, PARA PODER MANDAR LA VERIFICACION ═════
+
+            Antes se creaba con `email_confirm: true` — ya confirmada — y por
+            eso el correo de verificacion NO EXISTIA: no habia nada que
+            confirmar. Alguien que escribiera mal su correo se quedaba sin
+            bienvenida, sin recuperar contrasena y sin forma de avisarnos.
+
+            `generate_link` hace las dos cosas de una: crea la cuenta y
+            devuelve el enlace de confirmacion. Se usa en vez de
+            `admin/users` porque el alta de administrador **no manda ningun
+            correo**; el enlace lo mandamos nosotros, con nuestro diseno y
+            desde nuestro dominio, que es justo lo que Sergio pidio.
+
+            ⚠️ Y NADIE QUEDA ENCERRADO: al aprobar el pago, si todavia no
+            confirmo, se le confirma la cuenta (ver `approve`). Pagar es mejor
+            prueba de que el correo es suyo que un clic. El enlace sirve para
+            enterarnos ANTES de que el correo estaba mal.                    */
+        const auRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/generate_link`, {
           method: "POST",
           headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            email, password: clave, email_confirm: true,
-            user_metadata: { nombre, negocio, estado: "pendiente" },
+            type: "signup", email, password: clave,
+            data: { nombre, negocio, estado: "pendiente" },
           }),
         });
         const auData = await auRes.json() as Record<string, unknown>;
         if (!auRes.ok) return json(500, { error: "no se pudo crear la cuenta: " + JSON.stringify(auData).slice(0, 200) });
+
+        /*  El correo de verificacion. No se espera y no puede tumbar el
+            registro: la solicitud ya esta guardada y el pago sigue su camino.
+            Si no sale, lo peor que pasa es que no verificamos el correo.   */
+        const enlace = String(
+          (auData.action_link as string) ||
+          ((auData.properties as Record<string, unknown>)?.action_link as string) || "");
+        if (enlace) {
+          try {
+            await fetch(`${SUPABASE_URL}/functions/v1/enviar-correo`, {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ tipo: "verificacion", para: email, nombre, enlace }),
+            });
+          } catch (e) { console.error("[registrar] verificacion no salio:", String(e).slice(0, 160)); }
+        }
 
         const reg = await sbAdmin("POST", "/rest/v1/pos_registrations", {
           nombre, negocio, email,
@@ -142,18 +175,44 @@ Deno.serve(async (req) => {
           return json(500, { error: "no se pudo guardar la solicitud" });
         }
 
-        return json(200, { ok: true });
+        /*  Se devuelve el id de la solicitud: la pantalla lo necesita para
+            pedir enseguida la verificacion del pago. Antes solo se devolvia
+            `ok`, y sin id no habia forma de preguntar "¿ya llego mi plata?"
+            sin volver a buscar por correo, que es una consulta abierta desde
+            un navegador sin sesion.                                        */
+        const filaReg = Array.isArray(reg.data) ? (reg.data as Array<Record<string, unknown>>)[0] : null;
+        return json(200, { ok: true, registration_id: filaReg ? filaReg.id : null });
 
     } catch (e) { return json(500, { error: String(e).slice(0, 200) }); }
   }
 
   // 1. Resolver el usuario que llama a partir de SU token (jamás confiar en el body)
   const authHeader = req.headers.get("Authorization") || "";
-  const uRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-    headers: { "Authorization": authHeader, "apikey": ANON_KEY },
-  });
-  if (!uRes.ok) return json(401, { error: "no autenticado" });
-  const user = await uRes.json() as { id: string; email?: string; user_metadata?: Record<string, unknown> };
+
+  /*  ══ UNA SEGUNDA PUERTA, SOLO PARA APROBAR ═══════════════════════
+
+      Desde el 29-ago la aprobación puede venir de dos sitios: de Sergio, con
+      su sesión, o de `verificar-pago-plataforma`, que acaba de encontrar el
+      dinero en el correo del banco. La segunda no tiene sesión de nadie — es
+      un servidor hablando con otro.
+
+      La puerta es la llave de servicio, que **nunca baja al navegador**: vive
+      solo en los secretos del proyecto. Quien la presenta ya podría escribir
+      en la base directamente, así que esto no abre nada nuevo; solo evita
+      duplicar en otro archivo las 120 líneas que crean un restaurante.
+
+      Y se limita a `approve` a propósito: ninguna otra acción entra por aquí.
+      Cuantas menos puertas, menos que vigilar.                            */
+  const esInterno = action === "approve" && authHeader === `Bearer ${SERVICE_KEY}`;
+
+  let user = { id: "", email: "", user_metadata: {} as Record<string, unknown> };
+  if (!esInterno) {
+    const uRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { "Authorization": authHeader, "apikey": ANON_KEY },
+    });
+    if (!uRes.ok) return json(401, { error: "no autenticado" });
+    user = await uRes.json() as { id: string; email?: string; user_metadata?: Record<string, unknown> };
+  }
 
   try {
     /*  ══ PONERSE AL DIA CUANDO LA CUENTA ESTA SUSPENDIDA ══════════════
@@ -357,9 +416,13 @@ Deno.serve(async (req) => {
          crear cuentas en la plataforma. Se cambia por la unica definicion real
          de administrador de plataforma, la misma que usan la consola y las
          politicas de la base. */
-      const adminChk = await sbAdmin("GET", `/rest/v1/user_profiles?id=eq.${user.id}&select=role&limit=1`);
-      const isAdmin = Array.isArray(adminChk.data) && (adminChk.data as Array<Record<string, unknown>>)[0]?.role === "admin";
-      if (!isAdmin) return json(403, { error: "Solo un administrador de la plataforma puede aprobar solicitudes" });
+      /*  El camino interno ya se identificó con la llave de servicio; pedirle
+          además un perfil de administrador sería pedirle papeles a la casa. */
+      if (!esInterno) {
+        const adminChk = await sbAdmin("GET", `/rest/v1/user_profiles?id=eq.${user.id}&select=role&limit=1`);
+        const isAdmin = Array.isArray(adminChk.data) && (adminChk.data as Array<Record<string, unknown>>)[0]?.role === "admin";
+        if (!isAdmin) return json(403, { error: "Solo un administrador de la plataforma puede aprobar solicitudes" });
+      }
 
       const regId = String(body.registration_id || "");
       if (!regId) return json(400, { error: "falta registration_id" });
@@ -431,6 +494,18 @@ Deno.serve(async (req) => {
       let clave: string | null = null;
       if (yaExiste) {
         userId = String(yaExiste.id);
+        /*  Pago' y no toco el enlace de verificacion. No se le puede dejar la
+            puerta cerrada por eso: haber pagado prueba mejor que un clic que
+            ese correo es suyo. Se le confirma la cuenta y entra.           */
+        if (!yaExiste.email_confirmed_at && !yaExiste.confirmed_at) {
+          try {
+            await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+              method: "PUT",
+              headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ email_confirm: true }),
+            });
+          } catch (e) { console.error("[aprobar] no se pudo confirmar el correo:", String(e).slice(0, 160)); }
+        }
       } else {
         const auRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
           method: "POST",
@@ -479,7 +554,13 @@ Deno.serve(async (req) => {
          no el unico camino. Al reves —aprobar solo si el correo salio— seria
          dejar un restaurante pagado a medio crear por un problema de un
          servicio de terceros. */
-      if (clave) {
+      /*  SIN `if (clave)` (29-ago-2026). Ese guardia hacia que el correo NO
+          saliera nunca por el registro web: ahi la cuenta ya existe con la
+          contrasena que la persona escogio, asi que `clave` es null. El unico
+          correo que confirma el acceso se caia en silencio.
+          Ahora sale siempre; la caja de la clave temporal solo aparece cuando
+          de verdad hay una (alta a mano desde la consola).                  */
+      {
         try {
           const cr = await fetch(`${SUPABASE_URL}/functions/v1/enviar-correo`, {
             method: "POST",
@@ -494,6 +575,63 @@ Deno.serve(async (req) => {
         } catch (e) {
           console.error("[aprobar] el correo no salio:", String(e).slice(0, 200));
         }
+      }
+
+      /*  ══ EL PAGO QUEDA REGISTRADO ═════════════════════════════
+
+          Sergio, 29-ago-2026: *"a mí en consola plataforma me llega la
+          información de la persona que se registró, lo que pagó, a la hora que
+          pagó"*.
+
+          Hasta hoy `pos_pagos_suscripcion` existía y estaba VACÍA: nadie la
+          escribía. La solicitud guardaba cuánto tenía que pagar, que no es lo
+          mismo que cuánto pagó ni cuándo.
+
+          Va aquí, en la aprobación, porque es el momento en que el pago se da
+          por bueno — lo confirme el verificador o lo confirme Sergio a mano.
+
+          Y NO tumba la aprobación si falla: el restaurante ya está creado y su
+          dueño tiene que poder entrar. Un renglón contable que no se escribió
+          se arregla después; una cuenta a medio crear, no.                  */
+      try {
+        const yaHay = await sbAdmin("GET",
+          `/rest/v1/pos_pagos_suscripcion?tenant_id=eq.${tenant.id}&nota=eq.reg:${regId}&limit=1`);
+        const repetido = Array.isArray(yaHay.data) && (yaHay.data as unknown[]).length > 0;
+        if (!repetido) {
+          await sbAdmin("POST", "/rest/v1/pos_pagos_suscripcion", {
+            tenant_id: tenant.id,
+            plan: reg.plan || "starter",
+            sucursales: Number(reg.sucursales) || 1,
+            periodo: reg.billing || "mensual",
+            monto: Number(reg.monto_total) || 0,
+            comprobante_url: reg.comprobante_url || null,
+            status: "aprobado",
+            /*  `reg:<id>` es la marca que evita el renglón repetido si se
+                vuelve a darle a Aprobar. Sin ella, reintentar cobraría dos
+                veces en el informe.  */
+            nota: `reg:${regId}`,
+            revisado_en: new Date().toISOString(),
+            revisado_por: esInterno ? null : user.id,
+          });
+        }
+      } catch (e) {
+        console.error("[aprobar] el pago no quedo registrado:", String(e).slice(0, 200));
+      }
+
+      /*  Y el recibo. También a prueba de fallos: si el correo no sale, el
+          restaurante ya existe y ya recibió el de bienvenida con su acceso. */
+      try {
+        await fetch(`${SUPABASE_URL}/functions/v1/enviar-correo`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tipo: "pago_recibido", para: reg.email, nombre: reg.nombre,
+            negocio: reg.negocio, plan: reg.plan, sucursales: reg.sucursales,
+            periodo: reg.billing, monto: Number(reg.monto_total) || 0,
+          }),
+        });
+      } catch (e) {
+        console.error("[aprobar] el recibo no salio:", String(e).slice(0, 200));
       }
 
       const fin = await sbAdmin("PATCH", `/rest/v1/pos_registrations?id=eq.${regId}`, {

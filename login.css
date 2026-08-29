@@ -338,3 +338,16 @@ button{font-family:inherit}
    otra. Se queda fija y desplaza por dentro, que ya lo permite (overflow:auto). */
 @media (max-width: 980px) { .p2-grid { grid-template-columns: 1fr } }
 @media (max-width: 620px) { .p2-feats { grid-template-columns: 1fr } .p2-cta-row { flex-direction: column; align-items: stretch } }
+
+/*  Elegir cómo pagar: número o QR (29-ago-2026).
+    Las dos pestañas solo aparecen si hay un QR cargado en la consola; con un
+    solo medio, una pestaña sola es un botón que no decide nada.  */
+.pay-tabs{display:flex;gap:4px;background:#EEF1F5;border-radius:10px;padding:3px;margin-bottom:14px}
+.pay-tab{flex:1;padding:7px 10px;border:none;background:transparent;border-radius:8px;
+  font-family:inherit;font-size:12.5px;font-weight:700;color:#64748B;cursor:pointer;
+  transition:background .12s,color .12s}
+.pay-tab.on{background:#fff;color:#0F172A;box-shadow:0 1px 2px rgba(15,23,42,.1)}
+#pay-qr{display:flex;flex-direction:column;align-items:center;gap:8px;padding:6px 0 14px}
+#pay-qr-img{width:200px;max-width:70%;aspect-ratio:1;object-fit:contain;
+  background:#fff;border:1px solid #E2E6EC;border-radius:12px;padding:8px}
+.pay-qr-pie{font-size:11.5px;color:#64748B;font-weight:600}

@@ -433,6 +433,34 @@ async function handlePago() {
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.ok) throw new Error(d.error || 'No se pudo completar el registro.');
 
+    /*  ══ VERIFICAR EL PAGO AQUI MISMO ═══════════════════════════
+
+        Sergio, 29-ago-2026: el sistema de verificacion que ya usamos para los
+        pagos de los clientes se encarga; y si no puede, sale un aviso de que
+        el acceso llega en cuanto se confirme.
+
+        Se espera con un tope: leer el comprobante y buscar en el correo puede
+        tomar unos segundos, pero nadie se queda mirando una rueda sin final.
+        Si tarda, se sigue igual — la verificacion termina de su lado y el
+        correo de bienvenida sale cuando termine.                            */
+    txt.innerHTML = '<span class="au-spin"></span> Verificando tu pago\u2026';
+    REG.verificado = false;
+    try {
+      const vr = await Promise.race([
+        fetch(SUPABASE_URL + '/functions/v1/verificar-pago-plataforma', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+          body: JSON.stringify({ registration_id: d.registration_id }),
+        }).then(function (x) { return x.json(); }),
+        new Promise(function (res) { setTimeout(function () { res({ lento: true }); }, 45000); }),
+      ]);
+      REG.verificado = !!(vr && vr.verificado && vr.creado);
+    } catch (e) {
+      /*  Que la verificacion falle NO puede tumbar el registro: la solicitud ya
+          esta guardada y Sergio la ve en la consola. Se sigue al aviso.     */
+      console.warn('[registro] verificacion:', e && e.message);
+    }
+
     fillConfirm();
     goStep('confirmado');
   } catch(e) {
@@ -443,11 +471,111 @@ async function handlePago() {
 
 function fillConfirm() {
   const per = PERIODOS[REG.billing] || PERIODOS.mensual;
+
+  /*  Dos finales distintos, y la diferencia importa: uno invita a entrar, el
+      otro pide esperar. Ensenar "lo estamos revisando" cuando el pago YA se
+      confirmo hace que la gente escriba a preguntar por algo que ya funciona. */
+  const t = $('cf-titulo'), sub = $('cf-sub');
+  if (REG.verificado) {
+    if (t)   t.textContent = '\u00a1Listo! Tu cuenta ya est\u00e1 activa';
+    if (sub) sub.textContent = 'Confirmamos tu pago y te mandamos un correo con tus datos de entrada. Ya puedes iniciar sesi\u00f3n.';
+  } else {
+    if (t)   t.textContent = 'Recibimos tu comprobante';
+    if (sub) sub.textContent = 'Estamos verificando tu pago. Apenas quede confirmado te damos el acceso y te llega un correo. Si algo no cuadra, te escribimos.';
+  }
   $('cf-plan').textContent     = REG.plan === 'pro' ? 'Pro' : 'Starter';
   $('cf-branches').textContent = REG.branches + ' sucursal' + (REG.branches > 1 ? 'es' : '');
   $('cf-ciclo').textContent    = per.largo.charAt(0).toUpperCase() + per.largo.slice(1);
   $('cf-monto').textContent    = COPF(REG.totalCiclo) + ' ' + per.ciclo;
   $('cf-email').textContent    = REG.email;
+}
+
+
+/* ══ LA CUENTA A LA QUE SE TRANSFIERE ═══════════════════════════
+
+   Sale de `plataforma_cobro`, la tabla que Sergio edita en Consola → Cobro.
+   Antes estaba escrita a mano en el HTML, con un titular que ni siquiera era
+   el suyo: cambiarla en la consola no cambiaba nada aquí.
+
+   Si la consulta falla NO se deja la caja vacía: sin la cuenta a la vista, la
+   persona no tiene a dónde transferir y el registro se muere ahí. Se avisa y
+   se le pide que escriba.                                                   */
+var CUENTA = null;
+
+function _fmtNumeroCuenta(n) {
+  var s = String(n || '').replace(/\D/g, '');
+  return s.replace(/(\d{3})(?=\d)/g, '$1 ').trim() || String(n || '');
+}
+
+function pintarCuenta() {
+  var caja = $('pay-datos');
+  if (!caja) return;
+  if (!CUENTA) {
+    caja.innerHTML = '<div class="bank-row"><span class="bank-key">No pudimos cargar los datos de pago.'
+      + ' Escr\u00edbenos y te los pasamos.</span></div>';
+    return;
+  }
+  var esLlave = /llave/i.test(CUENTA.tipo || '');
+  var num = _fmtNumeroCuenta(CUENTA.numero);
+  var esc = function (t) {
+    return String(t == null ? '' : t)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  };
+  var fila = function (k, v) {
+    return '<div class="bank-row"><span class="bank-key">' + esc(k) + '</span>'
+         + '<span class="bank-val">' + esc(v) + '</span></div>';
+  };
+
+  var h = '';
+  if (CUENTA.banco)  h += fila('Banco', CUENTA.banco);
+  h += '<div class="bank-row"><span class="bank-key">' + esc(esLlave ? 'Llave' : 'Cuenta') + '</span>'
+     + '<span class="bank-val" style="display:flex;align-items:center;gap:8px">' + esc(num)
+     + '<button type="button" class="bank-copy-btn" id="pay-copiar">'
+     + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+     + 'Copiar</button></span></div>';
+  if (CUENTA.titular) h += fila('Titular', CUENTA.titular);
+  if (CUENTA.nota)    h += fila('Nota', CUENTA.nota);
+  caja.innerHTML = h;
+
+  /*  El botón copia el número LIMPIO, sin los espacios que le pusimos para
+      que se lea: pegar «009 257 1225» en la app del banco no sirve.  */
+  var bc = $('pay-copiar');
+  if (bc) bc.addEventListener('click', function () {
+    copyText(String(CUENTA.numero || '').replace(/\s/g, ''));
+  });
+}
+
+function _verPago(cual) {
+  var datos = $('pay-datos'), qr = $('pay-qr');
+  if (datos) datos.hidden = (cual === 'qr');
+  if (qr) qr.hidden = (cual !== 'qr');
+  document.querySelectorAll('.pay-tab').forEach(function (b) {
+    b.classList.toggle('on', b.dataset.pay === cual);
+  });
+}
+
+async function cargarCuentaCobro() {
+  try {
+    var r = await sb.from('plataforma_cobro')
+      .select('banco,tipo,numero,titular,nota,qr_url').eq('id', 1).maybeSingle();
+    if (!r.error && r.data) CUENTA = r.data;
+  } catch (e) { console.warn('[pago] cuenta:', e && e.message); }
+
+  pintarCuenta();
+
+  /*  Las pestañas solo si hay QR. Con un solo medio de pago, una pestaña sola
+      es un botón que no decide nada.  */
+  var hayQr = !!(CUENTA && CUENTA.qr_url);
+  var tabs = $('pay-tabs');
+  if (tabs) tabs.hidden = !hayQr;
+  if (hayQr) {
+    var img = $('pay-qr-img');
+    if (img) img.src = CUENTA.qr_url;
+    tabs.querySelectorAll('.pay-tab').forEach(function (b) {
+      b.addEventListener('click', function () { _verPago(b.dataset.pay); });
+    });
+  }
+  _verPago('llave');
 }
 
 // ── Enter key ────────────────────────────────────────
@@ -459,4 +587,5 @@ document.addEventListener('DOMContentLoaded', () => {
   engancharPlan();
   pintarPlan();
   cargarPrecios();   // y cuando lleguen los de la base, se vuelve a pintar
+  cargarCuentaCobro();  // la cuenta a la que se transfiere, desde la consola
 });
