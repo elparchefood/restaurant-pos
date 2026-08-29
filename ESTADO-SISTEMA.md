@@ -70,8 +70,27 @@ Eso es la máquina: **422 MB en disco de intercambio de una de 426**.
     getSession. Pagos además usa `posSucursal()` — arrancaba con dos viajes
     antes de pintar.
 
-**Pendiente:** pintar desde el aviso (cocina) · el mismo botón instantáneo en
-domicilios y en cobrar · broadcast del chat (aprobado "cuando todo funcione").
+**Tercera tanda (29-ago, diagnóstico pedido por Sergio):**
+
+13. **Preconnect a Supabase** en las 10 pantallas calientes: el saludo TLS se
+    hace mientras bajan los scripts.
+14. **El inicio de caja se guarda en el equipo** (cambia 1–2 veces/día): quita
+    dos viajes EN CADENA que retrasaban la lista de pedidos ~500 ms.
+15. **Chat: fuera los dos `getUser`** (uno tardaba 1.058 ms y bloqueaba todo) y
+    **las 3 lecturas de `ia_config` del arranque son una** (era la misma fila).
+16. **Pagos medido con pedido real: el total visible en ~1 segundo** (en la
+    tarde eran 20). Chat sin getUser: bandeja confirmada a 2,7 s y pintada al
+    instante desde el equipo.
+
+**Hallazgo estructural pendiente (NO hecho):** los ~21 archivos JS de cada
+pantalla tardan ~1,4 s en bajar/ejecutar antes de la primera consulta. En el
+.exe, `main.js` usa 'no-cache' (revalidar): 21 revalidaciones por pantalla.
+Opciones: empaquetar los compartidos en un archivo, o cachear con confianza y
+bustear por `?v=`. **Tocar el .exe = reconstruirlo; va con Sergio.**
+
+**Pendiente:** pintar desde el aviso (cocina) · botón instantáneo en
+domicilios y cobrar · broadcast del chat (aprobado "cuando todo funcione") ·
+el paquete de scripts.
 
 ---
 
