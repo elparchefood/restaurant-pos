@@ -244,9 +244,26 @@ async function updateLabelBadges(){
   }catch(e){}
 }
 
+/*  ══ LOS ULTIMOS 50, Y SOLO LO QUE SE PINTA ═══════════════════════════════
+
+    Antes: `select('*')` de TODOS los mensajes de la conversacion. Una
+    conversacion vieja son cientos de filas, y `*` arrastra ademas columnas que
+    la pantalla no usa (`payload`, que puede traer el mensaje entero de Meta,
+    `agent_id`, `delivery_status`, `reaction`...). Todo eso viajaba por internet
+    para no pintarse.
+
+    Nadie abre un chat para leer el mensaje numero 300 hacia atras: se abre
+    para ver lo ultimo. Se piden los ultimos 50 y se dan vuelta; los anteriores
+    se traen al subir (`cargarMasMensajes`).                                  */
+const MSG_COLS = 'id,conversation_id,direction,body,media_url,media_type,sent_at,origen,external_id,reply_to_external_id,reply_to_body';
+const MSG_PAGINA = 50;
+
 async function loadMessages(convId) {
-  const { data } = await sb.from('chat_messages').select('*')
-    .eq('conversation_id', convId).order('sent_at', { ascending: true });
+  const { data } = await sb.from('chat_messages').select(MSG_COLS)
+    .eq('conversation_id', convId)
+    .order('sent_at', { ascending: false })
+    .limit(MSG_PAGINA);
+  if (data) data.reverse();
   /*  ══ LA RESPUESTA TARDIA NO PISA EL CHAT ABIERTO (28-ago-2026) ══════
 
       Sergio: *"a veces se queda con el chat de otro chat"*. Esto era.
@@ -262,9 +279,48 @@ async function loadMessages(convId) {
       importa a nadie y se tira. */
   if (convId !== S.activeConvId) return;
   S.messages = data || [];
+  S.hayMasViejos = (data || []).length >= MSG_PAGINA;
   renderThread();
   updateWaWindow();
 }
+
+/*  Los mensajes anteriores, cuando el usuario sube del todo. Se piden desde el
+    mas viejo que ya tenemos hacia atras. */
+async function cargarMasMensajes() {
+  if (!S.hayMasViejos || S.cargandoViejos || !S.activeConvId) return;
+  const convId = S.activeConvId;
+  const primero = S.messages[0];
+  if (!primero || !primero.sent_at) return;
+  S.cargandoViejos = true;
+  try {
+    const { data } = await sb.from('chat_messages').select(MSG_COLS)
+      .eq('conversation_id', convId)
+      .lt('sent_at', primero.sent_at)
+      .order('sent_at', { ascending: false })
+      .limit(MSG_PAGINA);
+    if (convId !== S.activeConvId) return;      //  cambiaron de chat mientras cargaba
+    const viejos = (data || []).reverse();
+    S.hayMasViejos = (data || []).length >= MSG_PAGINA;
+    if (viejos.length) {
+      const hilo = document.getElementById('thread');
+      const antes = hilo ? hilo.scrollHeight : 0;
+      S.messages = viejos.concat(S.messages);
+      renderThread();
+      //  Que no salte: se conserva la posicion de lectura.
+      if (hilo) hilo.scrollTop = hilo.scrollHeight - antes;
+    }
+  } catch (e) { console.warn('[chat] mensajes viejos:', e && e.message); }
+  finally { S.cargandoViejos = false; }
+}
+
+/*  Al llegar arriba del todo se piden los anteriores. */
+document.addEventListener('DOMContentLoaded', function () {
+  const hilo = document.getElementById('thread');
+  if (!hilo) return;
+  hilo.addEventListener('scroll', function () {
+    if (hilo.scrollTop < 60) cargarMasMensajes();
+  });
+});
 
 /* ══════════════════════════════════════════════
    REALTIME
