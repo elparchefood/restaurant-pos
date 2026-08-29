@@ -422,6 +422,21 @@
     if (!window.posCache || !state.tables || !state.tables.length) return;
     posCache.guardarPronto('salon', function () {
       return {
+        /*  ⚠️ EL SELLO DE LA CAJA (29-ago-2026, en pleno turno).
+
+            Sergio abrió su turno y le aparecieron OCHO ventas rápidas de
+            turnos anteriores — una de hacía cinco días. En la base no había
+            ninguna: lo que veía era esta copia guardada.
+
+            La culpa es mía y es de ayer: guardé las tres pestañas para que no
+            parpadearan en cero al volver a la pantalla, pero no guardé A QUÉ
+            TURNO pertenecían. Una copia sin fecha de caducidad no es una
+            copia, es un fantasma — y en una pantalla de ventas un fantasma se
+            lee como plata que hay que cobrar.
+
+            Ahora la copia dice de qué caja es. Si al leerla la caja ya no es
+            esa, los pedidos se tiran y se espera a los de verdad.          */
+        caja: _cajaSelloActual(),
         /*  Las otras tres pestanas tambien se guardan (29-ago, Sergio): al
             volver de otra pantalla decian "0 domicilios / 0 rapidas" medio
             segundo, aunque el equipo ya sabia cuantos habia. */
@@ -442,10 +457,32 @@
     }, 300);
   }
 
+  /*  El inicio de la caja SIN esperar a la red: es lo que hay guardado de la
+      última vez que se preguntó. Sirve para sellar y para comparar sellos, que
+      es todo lo que hace falta aquí — si no coincide, se descarta y ya.  */
+  function _cajaSelloActual() {
+    if (_cajaStartCache) return _cajaStartCache;
+    try {
+      var g = JSON.parse(localStorage.getItem(LLAVE_CAJA_INICIO) || 'null');
+      return (g && g.start) || null;
+    } catch (e) { return null; }
+  }
+
   function planoGuardado() {
     var g = window.posCache && posCache.leer('salon');
     var d = g && g.datos;
     if (!d || !d.tables || !d.tables.length) return null;
+
+    /*  ¿Esta copia es de ESTE turno? Si no —o si es de antes de que
+        existiera el sello— los pedidos no se pintan. Las MESAS sí se
+        conservan: su estado sale de `pos_tables`, que es de ahora mismo, y
+        una mesa ocupada de anoche está ocupada de verdad.                */
+    var sello = _cajaSelloActual();
+    var mismaCaja = !!(d.caja && sello && d.caja === sello);
+    if (!mismaCaja) {
+      d = Object.assign({}, d, { deliveries: [], quickOrders: [], quickDeliveredCount: 0 });
+    }
+
     return {
       deliveries: d.deliveries || [],
       quickOrders: d.quickOrders || [],
@@ -998,17 +1035,21 @@
   async function getCajaSessionStart() {
     var now = Date.now();
     if (_cajaStartCache && (now - _cajaStartAt) < 60000) return _cajaStartCache;
-    if (!_cajaStartCache) {
-      try {
-        var g = JSON.parse(localStorage.getItem(LLAVE_CAJA_INICIO) || 'null');
-        //  Vale solo si es de HOY: un inicio de ayer traeria el dia entero.
-        if (g && g.start && (now - g.en) < 20 * 3600 * 1000) {
-          _cajaStartCache = g.start; _cajaStartAt = now - 55000;   //  confirma en ~5 s
-          _leerCajaSessionStart().catch(function () {});           //  por detras
-          return _cajaStartCache;
-        }
-      } catch (e) {}
-    }
+    /*  ⚠️ AQUI NO SE ADIVINA (29-ago-2026, en pleno turno).
+
+        Antes, si no habia nada en memoria, se devolvia el inicio guardado en
+        el equipo —valido hasta 20 horas— y se confirmaba por detras. La idea
+        era ahorrar una consulta al abrir la pantalla.
+
+        El caso que rompe eso es justo el de cada dia: se cierra la caja de
+        anoche y se abre la de hoy. El guardado tiene 19 horas, pasa el filtro,
+        y durante unos segundos la pantalla pide los pedidos DESDE ANOCHE. Lo
+        que se ve en esos segundos es plata de un turno ya cerrado.
+
+        Este numero decide QUE VENTAS SE VEN. No se adivina: se pregunta. Es
+        una consulta chiquita, una sola vez por pantalla —el memo de abajo se
+        encarga— y lo guardado en el equipo se sigue escribiendo, pero solo
+        para sellar la copia del plano, no para filtrar dinero.            */
     if (_cajaStartVuelo) return _cajaStartVuelo;
     _cajaStartVuelo = (async function () {
       try { return await _leerCajaSessionStart(); }
