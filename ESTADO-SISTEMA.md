@@ -88,9 +88,30 @@ pantalla tardan ~1,4 s en bajar/ejecutar antes de la primera consulta. En el
 Opciones: empaquetar los compartidos en un archivo, o cachear con confianza y
 bustear por `?v=`. **Tocar el .exe = reconstruirlo; va con Sergio.**
 
-**Pendiente:** pintar desde el aviso (cocina) · botón instantáneo en
-domicilios y cobrar · broadcast del chat (aprobado "cuando todo funcione") ·
-el paquete de scripts.
+**Cuarta tanda (29-ago madrugada — Sergio: "haz el 1, 2, 3 y 5 ya mismo"):**
+
+17. **`pos-nucleo.js`**: los 18 módulos compartidos en UN archivo (275 KB).
+    Generado por `herramientas/armar-nucleo.py` — **al tocar un módulo del
+    núcleo hay que volver a correrlo y subir pos-nucleo.js**. Medido: la
+    primera consulta salía a los **1.745 ms**, ahora a los **168 ms**.
+    `pos-notify` queda fuera a propósito (suscripción + sonidos). Cocina,
+    mesero-turno, chat-ia y catalogo-productos declaraban su propio cliente
+    y su `$`: ahora usan los del núcleo.
+18. **Domicilios: botón de enviar instantáneo** (pedido + items en un lote
+    encolado; la impresión la recoge el receptor global).
+19. **Cobrar: sólo se espera `pos_payments`** (el dinero); el cierre del
+    pedido y la mesa van por `posSync.enqueueWrite` sin esperar.
+20. **Cocina pinta desde el aviso**: cambio de estado = retocar la tarjeta,
+    **cero consultas** (verificado en vivo). Recarga sólo ante pedido nuevo /
+    items / desconocido, y repaso cada 90 s.
+21. **Chat por broadcast**: `trg_chat_broadcast` → `realtime.send` al canal
+    privado `chat-b:<tenant>`; política en `realtime.messages` (sólo
+    autenticados del mismo tenant). postgres_changes queda de respaldo;
+    anti-duplicado por id. **Verificado en vivo: llega y pinta una sola vez.**
+    El disparador va en EXCEPTION: jamás tumba el mensaje.
+
+**Pendiente:** pintar desde el aviso en ventas/domicilios · broadcast para
+pos-notify · plan de Supabase (decisión de compra de Sergio).
 
 ---
 
