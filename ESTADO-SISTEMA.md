@@ -1,7 +1,63 @@
 # ESTADO DEL SISTEMA — Cobra POS
-> Última actualización: 2026-08-28
+> Última actualización: 2026-08-29
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
+
+## ⚡ La noche de la velocidad — 28/29-ago-2026
+
+Siete cambios, cada uno en su commit, medidos en el Restaurante de Prueba.
+Punto de partida: `feee70c`.
+
+**Lo que se ganó (medido, no estimado):**
+
+| | antes | después |
+|---|---|---|
+| Ventas: viajes al abrir | 37 | **18** |
+| Ventas: hasta ver los datos | 5.456 ms | **1.495 ms** |
+| Comanda de 6 productos | 28 consultas | **8** |
+| Abrir un chat | todos los mensajes | **los últimos 50** |
+
+**Los cambios y por qué:**
+
+1. **`pos-realtime.js` borrado.** Abría 3 canales de tiempo real en ventas e
+   index y emitía `order:updated` / `table:updated`, que **no consume ninguna
+   pantalla**. Comprobado buscando en todo el código.
+2. **`posSucursal()`** en pos-core: la fila de `branches` se leía **diez veces**
+   al abrir ventas, casi siempre la misma, porque cada módulo pedía sus dos o
+   tres columnas. Ahora una vez con todas las columnas, repartida. **Guarda la
+   promesa, no el resultado** — los que preguntan a la vez comparten el viaje.
+   Quien escribe llama a `posSucursal.olvidar()`.
+3. **`posUna(clave, fn)`**, el mismo patrón genérico. Aplicado a `pos_users`
+   (salía 3 veces) y `es_dueno` (2).
+4. **Estampidas cerradas** en `posSessionId` y `getCajaSessionStart`: tenían
+   caché de 30 y 60 s, pero **la caché se guardaba al terminar**, así que tres
+   llamadas simultáneas salían las tres. `pos_sessions` salía 6 veces.
+5. **Freno de 300 ms** en cocina y en el plano del salón. Con tope de 2 s para
+   que una ráfaga continua no impida pintar nunca.
+6. **Chat: últimos 50 mensajes y sólo las columnas que se pintan.** `select('*')`
+   arrastraba `payload` (el mensaje entero de Meta), `agent_id`,
+   `delivery_status`, `reaction`. Paginado hacia atrás al subir.
+7. **Tomar pedido: un `upsert`** en vez de un bucle que esperaba a cada ítem.
+   Comprobado que conserva `kitchen_printed_at` — sin eso la comanda se
+   reimprime entera.
+
+**⚠️ UN ERROR DEL PLAN, CORREGIDO SOBRE LA MARCHA.** El plan decía que pasar
+venta rápida y domicilios a `posSync` haría el botón instantáneo. **Es falso:**
+`writeOrderBatch` con internet **espera igual al servidor**; sólo encola cuando
+estás sin conexión. Sirve para no perder ventas, no para responder rápido. El
+botón instantáneo de verdad exige cambiar la semántica de la cola — y eso toca
+también tomar pedido y pagos. **No se hizo sin supervisión.**
+
+**Lo que NO mejoró:** abrir cocina (11 viajes) y abrir el chat (17) siguen igual
+— el freno actúa sobre las ráfagas, no sobre la apertura. Y **los tiempos
+bailan muchísimo**: la misma pantalla dio 1.495 ms y 6.196 ms sin cambiar nada.
+Eso es la máquina: **422 MB en disco de intercambio de una de 426**.
+
+**Pendiente:** el botón instantáneo de verdad · cocina (caché local y 4
+consultas en 1) · la bandeja del chat desde el equipo · pintar desde el aviso ·
+domicilios (freno y caché).
+
+---
 
 ## 📝 La pantalla de elegir plan — 28-ago-2026
 
