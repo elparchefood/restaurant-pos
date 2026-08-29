@@ -8,17 +8,10 @@
      5. Si no tiene → muestra botón "Iniciar turno"
    ============================================================ */
 
-const SUPABASE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
 
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: {
-    persistSession:     true,
-    autoRefreshToken:   true,
-    detectSessionInUrl: false,
-    storageKey: 'cobra-pos-session'
-  }
-});
+/*  El cliente viene del nucleo (pos-core.js dentro de pos-nucleo.js):
+    mismo storageKey 'cobra-pos-session'. Declararlo aqui otra vez
+    chocaba con el const del nucleo y tumbaba la pantalla entera. */
 window._posSB = sb; // para posSync cuando no hay pos-core.js
 
 // ── Refs DOM ─────────────────────────────────────────────

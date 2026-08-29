@@ -50,15 +50,12 @@
    evento; el aviso rojo es la red por si se cae todo.
    ══════════════════════════════════════════════════════════════════════════ */
 
-const SUPABASE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
 
 /* storageKey obligatorio en TODO createClient: sin él, el ejecutable y el
    navegador no comparten la sesión y la pantalla pide login otra vez. */
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:false,
-          storageKey:'cobra-pos-session' }
-});
+/*  El cliente viene del nucleo (pos-core.js dentro de pos-nucleo.js):
+    mismo storageKey 'cobra-pos-session'. Declararlo aqui otra vez
+    chocaba con el const del nucleo y tumbaba la pantalla entera. */
 
 const TARDE_MIN   = 15;    // minutos para el marco rojo
 const REFRESCO_MS = 20000; // la red por si se cae un evento en vivo
@@ -88,7 +85,7 @@ const S = {
 /* Abierta desde el menu del escritorio (`?volver=1`) o colgada en la pared. */
 const VOLVER = new URLSearchParams(location.search).get('volver') === '1';
 
-const $ = id => document.getElementById(id);
+//  $ viene del nucleo (pos-core): redeclararlo chocaba con su const.
 const esc = t => String(t == null ? '' : t)
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
