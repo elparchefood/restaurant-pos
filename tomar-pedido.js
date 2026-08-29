@@ -1376,14 +1376,31 @@ async function saveOrder() {
       const aBorrar = (dbItems || []).map(r => r.id).filter(id => idsQueQuedan.indexOf(id) < 0);
       if (aBorrar.length) await sb.from('pos_order_items').delete().in('id', aBorrar);
 
-      // Actualizar los existentes (cantidad/nombre/selección) SIN tocar kitchen_printed_at
-      for (const it of existentes) {
-        await sb.from('pos_order_items').update({
+      /*  ══ TODOS EN UN VIAJE, NO UNO POR UNO ════════════════════════════
+
+          Aqui habia un `for` que esperaba a CADA item: ocho productos, ocho
+          viajes al servidor en fila. Medido a 150 ms por viaje, algo mas de un
+          segundo mirando el boton para guardar algo que cabe en una sola
+          llamada.
+
+          Se hace con `upsert`: la lista lleva el `id` de cada fila, asi que la
+          base actualiza las que existen sin tocar el resto. `kitchen_printed_at`
+          no se menciona, y lo que no se menciona no se toca — que es la razon
+          por la que esto tenia que ser un UPDATE y no un borrar-y-crear: si se
+          perdiera esa marca, la comanda se volveria a imprimir entera.        */
+      if (existentes.length) {
+        const filas = existentes.map(it => ({
+          id: it.id,
+          order_id: orderId,
+          tenant_id: S.tenantId, branch_id: S.branchId,
           name: it.name, product_name: it.name,
           unit_price: it.unitPrice, product_price: it.unitPrice,
           quantity: it.qty, total: it.unitPrice * it.qty,
           notes: it.note || null, selections: it.selections || {},
-        }).eq('id', it.id);
+        }));
+        const { error: upErr } = await sb.from('pos_order_items')
+          .upsert(filas, { onConflict: 'id' });
+        if (upErr) throw upErr;
       }
 
       // Insertar los nuevos (kitchen_printed_at queda null → se imprimen como nuevos)
