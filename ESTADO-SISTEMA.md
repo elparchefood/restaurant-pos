@@ -35,6 +35,87 @@ puede trabajar", no lleva tope.
 
 ---
 
+## 🟢 Registro y cobro sin que Sergio esté pendiente — 29-ago-2026 (commit `39a5c7d`)
+
+Sergio: *«que la persona realmente pueda entrar a la página, registrarse, hacer el
+pago, recibir su acceso, su correo de verificación, todo de manera autónoma sin
+necesidad de yo tener que estar pendiente»* — y que a la consola le llegue **quién se
+registró, cuánto pagó y a qué hora**.
+
+**Decisión suya, y es la buena:** nada de pasarela de pago. Se usa el motor de
+verificación de transferencias que ya funciona para los pedidos.
+
+### El camino completo, hoy
+
+1. La persona elige plan y sucursales (precios desde `pos_planes`).
+2. Ve **la cuenta a la que transferir**: número de llave o QR, a su elección.
+3. `provision/registrar` crea la cuenta **sin confirmar** y le manda el correo de
+   verificación, con diseño propio desde `ingreso@cobrapos.app`.
+4. Sube el comprobante → **`verificar-pago-plataforma`** lo lee, lo compara con lo que
+   debía pagar y busca el aviso del banco en el correo de la plataforma.
+5. Si aparece: aprueba sola — negocio, marca, sedes, roles, **confirma el correo** y
+   **registra el pago**. Salen el de bienvenida y el de recibo.
+6. Si no: la pantalla dice *«estamos verificando»* y en la consola queda escrito **por
+   qué**, para que Sergio lo remate con un botón.
+
+### Lo que ya estaba y NO había que rehacer
+
+La pantalla de planes, la creación de cuenta, la consola, el envío por Resend desde el
+dominio, el correo de recuperar contraseña (diseñado desde antes), la separación del
+buzón de plataforma (`plataforma_correo`, `state=plataforma`) y **el formulario de la
+consola para subir QR / llave / titular**, que era justo lo que Sergio pedía de nuevo.
+
+### 🔴→🟢 Cinco fallos reales que aparecieron
+
+| # | Qué pasaba |
+|---|---|
+| 1 | La pantalla de pago tenía el banco, la llave y el **titular** escritos a mano en el HTML — y el titular decía **«Restaurant Pos»**. Cambiarlos en la consola no cambiaba nada. |
+| 2 | **El correo de bienvenida no se mandaba nunca** por el registro web. Al aprobar, la cuenta ya existe con la clave que la persona escogió, así que no hay clave temporal, y un `if (clave)` se lo tragó en silencio. Era el único correo que confirma el acceso. |
+| 3 | El correo de verificación **no existía**: la cuenta se creaba ya confirmada (`email_confirm: true`), y la plantilla seguía siendo la de Supabase en inglés. |
+| 4 | `pos_pagos_suscripcion` existía y estaba **vacía**: nadie la escribía. La solicitud guardaba cuánto **debía** pagar, que no es cuánto pagó ni cuándo. |
+| 5 | `soporte@lumenpos.com` — correo de otra marca — en la pantalla final. |
+
+### Por qué una función de verificación nueva
+
+Las tres que ya existían (`verify-transfer`, `verificar-transferencia`,
+`verificar-pago-manual`) sacan el buzón de `ia_config` **por `branch_id`**: son de un
+restaurante. El pago de una suscripción llega al correo de Cobra, que no tiene sucursal.
+No es plomería: el día que Sergio cambie el correo de su restaurante, el de la
+plataforma no se debe mover.
+
+`verificar-pago-plataforma` la llama una pantalla pública, así que lleva **tope de 3
+intentos** y solo actúa sobre solicitudes `pending` con comprobante. Y no puede regalar
+acceso: solo aprueba si el dinero aparece en el correo del banco.
+
+### La puerta interna de `provision`
+
+`approve` acepta ahora dos identidades: Sergio con su sesión, o la verificación
+presentándose con la **llave de servicio**, que nunca baja al navegador. Solo esa acción
+entra por ahí.
+
+### Nadie queda encerrado por no confirmar
+
+La cuenta nace sin confirmar para que el correo de verificación tenga sentido, **pero al
+aprobar el pago se confirma sola**. Haber pagado prueba mejor que un clic que ese correo
+es suyo; el enlace sirve para enterarnos *antes* de que estaba mal escrito.
+
+### Comprobado contra producción (y los datos de prueba borrados)
+
+Registro → cuenta sin confirmar → la verificación anota el motivo en la consola → la
+aprobación crea negocio, sede, confirma el correo y registra el pago → **tres
+aprobaciones seguidas dejan UN solo cobro** → sin la llave de servicio la puerta interna
+responde «no autenticado».
+
+### ⏳ Lo que falta y depende de Sergio
+
+- **Conectar el correo de verificación de plataforma** en Consola → Cobro. Hoy
+  `plataforma_correo` está vacía, y sin buzón la verificación automática no puede
+  funcionar — todo cae al camino manual.
+- **Subir el QR** en esa misma pantalla (la llave y el titular ya están).
+- **DMARC** en el dominio, para que estos correos no caigan en spam.
+
+---
+
 ## 🔴→🟢 El estado «ocupada» de la mesa NO EXISTE — 29-ago-2026 (commit `5346977`)
 
 Hallado probando las mesas unidas: al intentar poner una mesa en `ocupada`, la base

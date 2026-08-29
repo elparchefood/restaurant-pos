@@ -502,10 +502,20 @@ function fillConfirm() {
    se le pide que escriba.                                                   */
 var CUENTA = null;
 
-function _fmtNumeroCuenta(n) {
+/*  Agrupar de a tres deja un digito solo al final en las llaves de 10
+    ("009 257 122 5"), que se lee como si sobrara un numero. Cuando el ultimo
+    grupo queda de uno, se pega al anterior: "009 257 1225".  */
+function _agrupar(n) {
   var s = String(n || '').replace(/\D/g, '');
-  return s.replace(/(\d{3})(?=\d)/g, '$1 ').trim() || String(n || '');
+  if (!s) return String(n || '');
+  var g = s.replace(/(\d{3})(?=\d)/g, '$1 ').split(' ');
+  if (g.length > 1 && g[g.length - 1].length === 1) {
+    g[g.length - 2] += g.pop();
+  }
+  return g.join(' ');
 }
+
+function _fmtNumeroCuenta(n) { return _agrupar(n); }
 
 function pintarCuenta() {
   var caja = $('pay-datos');

@@ -1139,7 +1139,12 @@ function pintarVistaCobro() {
   var v = document.getElementById('cb-vista');
   if (!v) return;
   var g = function (id) { var e = document.getElementById(id); return (e && e.value.trim()) || ''; };
-  var num = g('cb-numero').replace(/\D/g, '').replace(/(\d{3})(?=\d)/g, '$1 ').trim();
+  /*  El MISMO agrupado que la pantalla de registro: si aqui se ve de una forma
+      y alla de otra, Sergio no puede fiarse de esta vista previa.  */
+  var _n = g('cb-numero').replace(/\D/g, '');
+  var _g = _n.replace(/(\d{3})(?=\d)/g, '$1 ').split(' ');
+  if (_g.length > 1 && _g[_g.length - 1].length === 1) { _g[_g.length - 2] += _g.pop(); }
+  var num = _g.join(' ');
   var esc = function (t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
   var fila = function (k, val) {
     return '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #ECEEF2">'
