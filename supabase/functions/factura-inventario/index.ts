@@ -823,7 +823,14 @@ El inventario quedó como estaba antes de la factura.` });
         });
       }
     }
-    await sbPatch(`/iv_facturas_pendientes?id=eq.${f.id}`, { estado: "aplicada" });
+    /*  Se guardan tambien las LINEAS, no solo el estado (28-ago-2026).
+
+        Cuando el gerente dice "aplica todo menos las salsas", esas lineas se
+        marcan `ok:false` — pero solo en memoria: aqui se guardaba nada mas el
+        estado y el JSON de la factura seguia diciendo que las salsas estaban
+        listas para aplicar. Nadie que mire ese registro despues puede saber
+        que se aplico y que se dejo fuera; hoy tocó deducirlo. */
+    await sbPatch(`/iv_facturas_pendientes?id=eq.${f.id}`, { estado: "aplicada", lineas });
     /* Lo EXCLUIDO no cuenta como "no supe a que insumo va": si se marca ok
        false para no aplicarlo, el cierre decia las dos cosas del mismo
        renglon y se contradecia solo. */
