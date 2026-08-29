@@ -618,7 +618,10 @@ async function cargarCuentaCobro() {
    2. Se apaga tambien si la persona pidio menos movimiento en su sistema.
    3. Si el panel no esta (en el celular se esconde), no arranca nada.        */
 (function () {
-  var VELOCIDAD = 7000;
+  /*  Con siete escenas, 7 s cada una son 49 s de vuelta completa: casi nadie
+      esta tanto rato en la pantalla de entrar. A 6 s se alcanzan a ver mas
+      cosas sin que ninguna se sienta apurada.  */
+  var VELOCIDAD = 6000;
   var esc = document.querySelectorAll('.bp-esc');
   if (esc.length < 2) return;
 
@@ -650,11 +653,27 @@ async function cargarCuentaCobro() {
       A los 1,6 s se comprueba si de verdad se ven. Si no, se le quita la
       animación al elemento y cae a su estilo normal, que es visible.       */
   function rescatarItems(seccion) {
-    var items = seccion.querySelectorAll('.rp-item');
+    /*  `.anima` marca todo lo que entra con una animacion que empieza
+        escondida: los platos de la carta, las comandas de la cocina, la ruta
+        del mapa y la barra de puntos. Si el navegador no las corre, todas
+        esas se quedarian invisibles.  */
+    var items = seccion.querySelectorAll('.rp-item, .anima');
     if (!items.length) return;
     setTimeout(function () {
+      var congelado = false;
       for (var i = 0; i < items.length; i++) {
-        if (getComputedStyle(items[i]).opacity === '0') items[i].style.animation = 'none';
+        if (getComputedStyle(items[i]).opacity === '0') {
+          items[i].style.animation = 'none';
+          congelado = true;
+        }
+      }
+      /*  Si una se quedo pegada, TODAS las de esta escena estan pegadas: es el
+          navegador, no un elemento. Hay que apagar tambien las que se van
+          (`.anima-fuera`) — si no, el sello de «Verificando…» se
+          quedaria encima del de «Confirmado», los dos a la vez.  */
+      if (congelado) {
+        var fuera = seccion.querySelectorAll('.anima-fuera');
+        for (var j = 0; j < fuera.length; j++) fuera[j].style.animation = 'none';
       }
     }, 1600);
   }
@@ -666,9 +685,12 @@ async function cargarCuentaCobro() {
     var cifras = seccion.querySelectorAll('.cifra');
     for (var i = 0; i < cifras.length; i++) (function (el) {
       var hasta = Number(el.dataset.a) || 0, ini = null, DUR = 1100, listo = false;
-      var final = '$' + hasta.toLocaleString('es-CO');
+      /*  El signo se puede quitar: los puntos de un cliente no son pesos. Con
+          `data-pre=""` la cifra sale pelada.  */
+      var pre = (el.dataset.pre !== undefined) ? el.dataset.pre : '$';
+      var final = pre + hasta.toLocaleString('es-CO');
 
-      function poner(v) { el.textContent = '$' + Math.round(v).toLocaleString('es-CO'); }
+      function poner(v) { el.textContent = pre + Math.round(v).toLocaleString('es-CO'); }
 
       function paso(t) {
         if (listo) return;

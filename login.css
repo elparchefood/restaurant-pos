@@ -484,3 +484,98 @@ button{font-family:inherit}
   .bp-esc{transition:none}
   .bp-esc.on .rp-item{animation:none}
 }
+
+/*  ── 5 · la ruta del domiciliario ────────────────────────────  */
+.mapa{position:relative;height:108px;border-radius:10px;overflow:hidden;margin-bottom:11px;
+  background:#151A2B;border:1px solid rgba(255,255,255,.07)}
+.mapa svg{position:absolute;inset:0;width:100%;height:100%}
+.mapa-via{stroke:rgba(255,255,255,.06);stroke-width:7;fill:none}
+.mapa-ruta{stroke:#A3ADFF;stroke-width:2.4;fill:none;stroke-linecap:round;
+  stroke-dasharray:340;stroke-dashoffset:0}
+.bp-esc.on .mapa-ruta{animation:trazar 1.5s ease-out both}
+@keyframes trazar{from{stroke-dashoffset:340}to{stroke-dashoffset:0}}
+.pin{position:absolute;width:15px;height:15px;border-radius:50%;transform:translate(-50%,-50%);
+  display:flex;align-items:center;justify-content:center}
+.pin b{font-size:8.5px;font-weight:800;color:#fff;line-height:1}
+.pin.salida{width:9px;height:9px;background:#22C55E;box-shadow:0 0 0 3px rgba(34,197,94,.22);
+  left:8.5%;top:83%}
+.pin.p1{background:#5B6BFF;left:38.5%;top:52%}
+.pin.p2{background:#5B6BFF;left:70%;top:28%}
+.pin.p3{background:#8B5CF6;left:88.5%;top:17%}
+
+/*  ── 6 · la cocina ───────────────────────────────────  */
+.rp-cocina{display:flex;flex-direction:column;gap:7px}
+.com{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
+  border-left:3px solid #5B6BFF;border-radius:9px;padding:7px 10px}
+.com.lista{border-left-color:#22C55E;opacity:.72}
+.com.tarde{border-left-color:#EF4444}
+.com-t{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:3px}
+.com-t b{font-size:12px;font-weight:700;color:#fff}
+.com-reloj{font-size:11px;color:#7E879B;font-weight:700;font-variant-numeric:tabular-nums}
+.com-reloj.rojo{color:#F87171}
+.com-ok{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#4ADE80}
+.com-ok svg{width:10px;height:10px}
+.com-l{font-size:11px;color:#9AA3B8;line-height:1.45}
+.bp-esc.on .com{animation:rpEntra .45s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--t)}
+
+/*  ── 7 · los puntos ─────────────────────────────────  */
+.pt-cab{display:flex;align-items:center;gap:10px;margin-bottom:13px}
+.pt-ava{width:34px;height:34px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,#5B6BFF,#8B5CF6);display:flex;align-items:center;
+  justify-content:center;font-size:12px;font-weight:800;color:#fff}
+.pt-nom{font-size:13px;font-weight:700;color:#fff}
+.pt-tel{font-size:10.5px;color:#7E879B;margin-top:1px}
+.pt-num{margin-left:auto;text-align:right;line-height:1}
+.pt-num b{display:block;font-size:21px;font-weight:800;color:#A3ADFF;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums}
+.pt-num span{font-size:10px;color:#7E879B;font-weight:600}
+.pt-barra{height:7px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+.pt-barra i{display:block;height:100%;width:82.6%;border-radius:99px;
+  background:linear-gradient(90deg,#5B6BFF,#8B5CF6)}
+.bp-esc.on .pt-barra i{animation:llenar 1.2s cubic-bezier(.2,.8,.2,1) both}
+@keyframes llenar{from{width:0}to{width:82.6%}}
+.pt-pie{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:9px;
+  font-size:11px;color:#9AA3B8}
+.pt-pie b{color:#fff;font-weight:700}
+.pt-gano{background:rgba(34,197,94,.14);color:#4ADE80;font-weight:800;font-size:10px;
+  padding:2px 8px;border-radius:99px}
+
+@media (prefers-reduced-motion: reduce){
+  .bp-esc.on .com,.bp-esc.on .mapa-ruta,.bp-esc.on .pt-barra i{animation:none}
+}
+
+/*  ── 8 · las transferencias confirmandose ───────────────────────  */
+.rp-pagos{display:flex;flex-direction:column;gap:7px}
+.pago{display:flex;align-items:center;gap:10px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
+  border-radius:9px;padding:7px 10px}
+.pago-banco{font-size:9.5px;font-weight:800;letter-spacing:.02em;color:#C7CEDB;
+  background:rgba(255,255,255,.08);border-radius:5px;padding:3px 6px;flex-shrink:0;
+  white-space:nowrap}
+.pago-banco.nequi{background:rgba(219,0,133,.18);color:#F49BD0}
+.pago-detalle{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.pago-detalle b{font-size:12.5px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums}
+.pago-detalle span{font-size:10.5px;color:#7E879B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pago-sello{display:inline-flex;align-items:center;gap:4px;margin-left:auto;flex-shrink:0;
+  background:rgba(34,197,94,.14);color:#4ADE80;font-size:10px;font-weight:800;
+  padding:3px 8px;border-radius:99px;white-space:nowrap}
+.pago-sello svg{width:10px;height:10px}
+
+/*  Los dos sellos ocupan el MISMO sitio: si se turnaran en el flujo, la fila
+    cambiaria de ancho al confirmarse y daria un tiron.  */
+.pago-doble{position:relative;margin-left:auto;flex-shrink:0;
+  display:flex;align-items:center;justify-content:flex-end;min-width:92px;height:19px}
+.pago-espera{position:absolute;right:0;background:rgba(255,255,255,.08);color:#9AA3B8;
+  font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;white-space:nowrap;opacity:0}
+.pago-sello.tarde{position:absolute;right:0;margin-left:0}
+.bp-esc.on .pago-espera{animation:selloFuera .5s ease both;animation-delay:1.5s}
+.bp-esc.on .pago-sello.tarde{animation:selloDentro .45s cubic-bezier(.2,.8,.2,1) both;animation-delay:1.9s}
+@keyframes selloFuera{from{opacity:1}to{opacity:0}}
+@keyframes selloDentro{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:none}}
+
+.bp-esc.on .pago{animation:rpEntra .45s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--t)}
+
+@media (prefers-reduced-motion: reduce){
+  .bp-esc.on .pago,.bp-esc.on .pago-espera,.bp-esc.on .pago-sello.tarde{animation:none}
+  .pago-espera{opacity:0}
+}
