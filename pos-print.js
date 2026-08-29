@@ -240,7 +240,8 @@
     if (esMesa) {
       // En mesa lo primero es DONDE, que es lo que busca el mesero al repartir
       // las cuentas. El cliente va despues y solo si lo seleccionaron.
-      h += '<div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase">Mesa</div>';
+      h += '<div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase">'
+         + ((Number(order.table_n) || 1) > 1 ? 'Mesas' : 'Mesa') + '</div>';
       h += '<div style="font-size:13px;font-weight:700">'+(mesaTxt||'—')+'</div>';
       var linea2 = [];
       if (order.sala)   linea2.push(order.sala);
@@ -697,17 +698,39 @@
       var order = r.data;
       // Obtener nombre de mesa por separado (sin FK no se puede hacer join inline)
       if (order.table_id) {
-        var rt = await sb.from('pos_tables').select('name, number').eq('id', order.table_id).maybeSingle();
+        var rt = await sb.from('pos_tables').select('name, number, grupo_id, id').eq('id', order.table_id).maybeSingle();
         order.pos_tables = (rt && rt.data) ? rt.data : null;
+        /*  MESAS UNIDAS (29-ago-2026). Si esta cuenta ocupa varias mesas, el
+            recibo tiene que decirlas todas: es lo que el mesero mira para
+            saber a dónde lleva la cuenta. Una consulta más, y solo cuando de
+            verdad hay grupo — el 99% de los recibos no paga nada por esto.  */
+        if (order.pos_tables && order.pos_tables.grupo_id) {
+          var rg = await sb.from('pos_tables')
+            .select('id, name, number, grupo_id')
+            .eq('grupo_id', order.pos_tables.grupo_id);
+          order.pos_tables_grupo = (rg && rg.data && rg.data.length) ? rg.data : null;
+        }
       }
       return order;
     } catch(e) { _diagToast('❌ fetchOrder excepción: ' + (e && e.message || e), '#7c2d12'); return null; }
   }
 
   function _tableDisplay(order) {
+    //  Unidas: «5 y 6». El rótulo de arriba lo pone en plural quien imprime.
+    var g = order.pos_tables_grupo;
+    if (g && g.length > 1 && window.posMesas) {
+      var et = posMesas.etiqueta(g, order.table_id);          //  «Mesas 5 y 6»
+      return et.replace(/^Mesas?\s+/, '');                    //  → «5 y 6»
+    }
     var t = order.pos_tables;
     if (t) return t.name || String(t.number || '') || order.table_id || '-';
     return order.table_name || order.table_id || '-';
+  }
+
+  //  Cuántas mesas ocupa: solo para decir «Mesa» o «Mesas» en el recibo.
+  function _tableCount(order) {
+    var g = order.pos_tables_grupo;
+    return (g && g.length) ? g.length : 1;
   }
 
   function _diagToast(msg, color) {
@@ -889,7 +912,7 @@
           _diagToast('Automático apagado en ' + (g.nombre || g.area), '#64748b');
           continue;
         }
-        var cab = { table: _tableDisplay(order), channel: order.channel, total: order.total || 0,
+        var cab = { table: _tableDisplay(order), table_n: _tableCount(order), channel: order.channel, total: order.total || 0,
           paid: order.paid_amount || 0, guests: order.guests || order.persons || 0,
           waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '',
           notes: order.notes || '', customer_name: order.customer_name || '',
@@ -999,7 +1022,7 @@
       // nota llegaba siempre vacia y no se imprimia nunca.
       return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, notes: it.notes || '', mods: modsArr, total: (it.unit_price || 0) * (it.quantity || 1) };
     });
-    var orderData = { table: _tableDisplay(order), channel: order.channel, id: order.id, total: order.total || 0, tax_total: order.tax_total || 0, tax_base: order.tax_base || 0, tax_detail: order.tax_detail || null, paid: order.paid_amount || 0, subtotal: order.subtotal || order.total || 0, packaging_fee: order.packaging_fee || 0, delivery_fee: order.delivery_fee || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '', payment_method: order.payment_method || '' };
+    var orderData = { table: _tableDisplay(order), table_n: _tableCount(order), channel: order.channel, id: order.id, total: order.total || 0, tax_total: order.tax_total || 0, tax_base: order.tax_base || 0, tax_detail: order.tax_detail || null, paid: order.paid_amount || 0, subtotal: order.subtotal || order.total || 0, packaging_fee: order.packaging_fee || 0, delivery_fee: order.delivery_fee || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '', payment_method: order.payment_method || '' };
     var html;
     if (type === 'comanda') html = _buildComanda(orderData, items);
     else if (type === 'recibo') {

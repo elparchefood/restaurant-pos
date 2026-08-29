@@ -1040,12 +1040,32 @@ async function cobrarDespues() {
     }
 
     // 3. Actualizar mesa según modo de cobro (solo si hay mesa) — por la cola
+    /*  ⚠️ MESAS UNIDAS (29-ago-2026). Si esta cuenta ocupaba varias mesas hay
+        que soltarlas TODAS. Liberar solo la principal dejaría a las
+        acompañantes ocupadas para siempre, apuntando a un pedido ya cobrado, y
+        habría que liberarlas a mano una por una — en pleno turno, con gente
+        esperando mesa.
+
+        Se lee el grupo aquí, en el momento de cobrar, y no se confia en lo que
+        esta pantalla cargo al abrirse: entre que se abre el cobro y se pulsa
+        Finalizar, el mesero pudo unir o separar mesas desde la tablet.
+
+        Si la lectura falla, se libera al menos la mesa de este pedido: es
+        preferible una mesa acompañante colgada a una cuenta cobrada que deja
+        la mesa principal ocupada.                                          */
     if (SP.tableId) {
-      if (!SP.adelantado) {
-        await _writeYa('pos_tables', 'update', { status: 'libre' }, { id: SP.tableId });
-      } else {
-        await _writeYa('pos_tables', 'update', { status: 'esperando' }, { id: SP.tableId });
+      const _campos = SP.adelantado
+        ? { status: 'esperando' }
+        : { status: 'libre', grupo_id: null };
+      let _donde = { id: SP.tableId };
+      try {
+        const { data: _fila } = await sb.from('pos_tables')
+          .select('grupo_id').eq('id', SP.tableId).maybeSingle();
+        if (_fila && _fila.grupo_id) _donde = { grupo_id: _fila.grupo_id };
+      } catch (e) {
+        console.warn('[pago] no se pudo leer el grupo de la mesa:', e && e.message);
       }
+      await _writeYa('pos_tables', 'update', _campos, _donde);
     }
 
     // 4. Mostrar overlay con mensaje según canal

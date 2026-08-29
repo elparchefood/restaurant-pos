@@ -8,6 +8,7 @@
 const S = {
   userId: null, tenantId: null, branchId: null,
   waiterName: '—', userRole: '—', tableId: null, table: null,
+  tables: [],   // todas las de la sede: hacen falta para cambiar y unir mesas
   // La propina/servicio la decide el CAJERO al cobrar (pagos.html tiene su propio
   // control). En la tablet ya no hay interruptor, así que el mesero ve el total limpio.
   serviceEnabled: false,
@@ -132,6 +133,11 @@ function capitalizeRole(r){ if(!r)return'Mesero'; return r.charAt(0).toUpperCase
 
 // ── Carga de mesa ────────────────────────────────────────────
 async function loadTable() {
+  /*  Sin esperar: el encabezado se pinta con la mesa sola y se corrige solo en
+      cuanto llegan las demás. Bloquear la apertura de la mesa por saber si
+      está unida sería cambiar una espera por otra.                          */
+  tpCargarMesas().then(() => { if (S.table) paintTableInfo(S.table); })
+                 .catch(() => {});
   try {
     const { data } = await sb.from('pos_tables').select('*').eq('id', S.tableId).maybeSingle();
     if (data) {
@@ -158,22 +164,268 @@ async function loadTable() {
 
 function paintTableInfo(t) {
   if (!t) return;
-  const name = t.name || 'Mesa';
+
+  /*  Con mesas unidas el cuadro no puede decir solo «5»: el mesero tiene que
+      ver de un golpe que esa cuenta ocupa dos sitios. En el cuadro cabe poco,
+      así que va «5+6»; el nombre entero («Mesas 5 y 6») va en la ruta de
+      arriba y en el título del lado, que sí tienen espacio.                */
+  const _grupo = (window.posMesas && S.tables && S.tables.length)
+    ? posMesas.grupoDe(S.tables, t.id) : [];
+  const _unida = _grupo.length > 1;
+
+  const name = _unida
+    ? _grupo.map(m => posMesas.nombreCorto(m)).join('+')
+    : (t.name || 'Mesa');
   $('tp-mesa-title').textContent   = name;
   // El numero va dentro del cuadro: si el nombre es largo ("Terraza 3"), bajar
   // el tamano para que no se desborde.
   const _mn = $('tp-mesa-title');
   if (_mn) _mn.style.fontSize = name.length <= 3 ? '19px' : name.length <= 5 ? '14px' : '11px';
-  $('tp-crumb-mesa').textContent   = name;
+  $('tp-crumb-mesa').textContent   = _unida
+    ? posMesas.etiqueta(S.tables, t.id)
+    : name;
   /* La zona del salon va en el titulo de la seccion, no en el bloque de marca:
      ese renglon es del nombre del restaurante. Antes decia "—" casi siempre. */
   var _z = t.zone || t.zoneId || '';
   var _sec = document.querySelector('.tp-side-section');
-  if (_sec) _sec.textContent = _z ? 'Mesa · ' + _z : 'Mesa';
+  if (_sec) _sec.textContent = _unida
+    ? posMesas.etiqueta(S.tables, t.id)
+    : (_z ? 'Mesa · ' + _z : 'Mesa');
+
+  //  Y el botón cambia de nombre: no se «unen» mesas que ya están unidas.
+  var _bm = document.querySelector('[data-action="merge"] .tp-nav-l span:last-child');
+  if (_bm) _bm.textContent = _unida ? 'Mesas unidas' : 'Unir mesas';
   // hora apertura: usar la del pedido activo; por ahora marcar now como fallback
   if (!S.openAt) {
     S.openAt = new Date().toISOString();
     $('tp-hora-apertura').textContent = fmtTime(S.openAt);
+  }
+}
+
+// ── Editar mesa y unir mesas ──────────────────────────
+/*  Sergio, 29-ago-2026. Los dos botones del lado llevaban ahí desde el
+    principio SIN HACER NADA: caían en el `default` del switch de acciones.
+
+    «Editar mesa» — «yo abrí la mesa pero el cliente se cambió; entonces, para
+    no salirme y volverme a entrar a la otra, desde ahí puedo editar la mesa».
+
+    «Unir mesas» — «hay personas que unen las mesas para comer todos juntos».
+    Las dos quedan con el mismo estado y los mismos productos: son una sola.
+    Ver pos-mesas.js, que es donde vive la regla.                            */
+
+/*  Todas las mesas de la sede. Hacen falta para ofrecer las libres y para
+    saber con quién está unida esta. Se guardan en el equipo: el salón no
+    cambia durante el turno, y esperar una consulta para abrir una lista de
+    mesas es justo la espera que no debería existir.                        */
+async function tpCargarMesas(refrescar) {
+  const LL = 'mesas.salon';
+  if (!refrescar && S.tables && S.tables.length) return S.tables;
+  if (!refrescar && window.posCache) {
+    const c = posCache.leer(LL);
+    if (c && c.datos && c.datos.length) S.tables = c.datos;
+  }
+  try {
+    let q = sb.from('pos_tables').select('*');
+    if (S.branchId) q = q.eq('branch_id', S.branchId);
+    const { data, error } = await q;
+    if (!error && data) {
+      S.tables = data;
+      if (window.posCache) posCache.guardarPronto(LL, data);
+    }
+  } catch (e) { console.warn('[mesa] cargar mesas:', e && e.message); }
+  return S.tables || [];
+}
+
+/*  El MISMO marco del resto del programa, con una lista dentro. Nunca un
+    cuadro del navegador: esa es la cara de Chrome, no la de Cobra.         */
+function tpElegir(cfg) {
+  const opciones = cfg.opciones || [];
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'vs-confirm-overlay';
+    const ops = opciones.map(o =>
+      '<button class="vs-elegir-op" data-op="' + escHtml(String(o.id)) + '">' +
+      '<b>' + escHtml(o.titulo) + '</b>' +
+      (o.sub ? '<small>' + escHtml(o.sub) + '</small>' : '') + '</button>').join('');
+    ov.innerHTML =
+      '<div class="vs-confirm-card" style="max-width:420px">' +
+        '<div class="vs-confirm-title">' + escHtml(cfg.title) + '</div>' +
+        (cfg.msg ? '<div class="vs-confirm-msg">' + escHtml(cfg.msg) + '</div>' : '') +
+        '<div class="vs-elegir">' + ops + '</div>' +
+        '<div class="vs-confirm-actions"><button class="vs-c-cancel">' +
+          escHtml(cfg.cancelLabel || 'Cancelar') + '</button></div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    const close = r => { ov.remove(); resolve(r); };
+    ov.querySelectorAll('.vs-elegir-op').forEach(b =>
+      b.addEventListener('click', () => close(b.dataset.op)));
+    ov.querySelector('.vs-c-cancel').addEventListener('click', () => close(null));
+    ov.addEventListener('click', e => { if (e.target === ov) close(null); });
+  });
+}
+
+function tpMesasLibres() {
+  return (S.tables || []).filter(t =>
+    t.status === 'libre' && String(t.id) !== String(S.tableId));
+}
+function tpOpcionMesa(t) {
+  return {
+    id: t.id,
+    titulo: 'Mesa ' + (t.name || t.number || ''),
+    sub: (t.zone_name ? t.zone_name + ' · ' : '') +
+         (t.capacity ? t.capacity + ' puestos' : 'libre'),
+  };
+}
+function tpMesaYo() {
+  return (S.tables || []).find(t => String(t.id) === String(S.tableId)) || S.table;
+}
+
+/*  CAMBIAR DE MESA. El cliente se movió de sitio: el pedido se va entero, con
+    su estado y su reloj. Los tiempos NO se reinician — una mesa de 40 minutos
+    aparecería recién sentada y las alertas de cocina empezarían de cero.   */
+async function tpCambiarMesa() {
+  await tpCargarMesas(true);
+  const yo = tpMesaYo();
+
+  if (yo && window.posMesas && posMesas.unida(yo)) {
+    toast('Esta mesa está unida a otra. Sepáralas primero.', 'warn');
+    return;
+  }
+  const libres = tpMesasLibres();
+  if (!libres.length) { toast('No hay ninguna mesa libre ahora mismo', 'warn'); return; }
+
+  const elegida = await tpElegir({
+    title: 'Cambiar de mesa',
+    msg: 'El pedido se pasa completo, con su estado y su tiempo. Esta mesa queda libre.',
+    opciones: libres.map(tpOpcionMesa),
+  });
+  if (!elegida) return;
+  const destino = (S.tables || []).find(t => String(t.id) === String(elegida));
+  if (!destino) return;
+
+  try {
+    /*  Si el pedido YA existe en la base hay que moverlo de verdad. Si aún es
+        una comanda en pantalla no hay nada que mover: basta cambiar de mesa
+        aquí y el pedido nacerá en la nueva.                                */
+    if (S.order && S.order.id && !S.order._offline) {
+      const r1 = await sb.from('pos_orders').update({ table_id: destino.id }).eq('id', S.order.id);
+      if (r1.error) throw r1.error;
+
+      const espejo = window.posMesas ? posMesas.camposEspejo(yo || {}) : { status: 'ocupada' };
+      espejo.current_order_id = S.order.id;
+      espejo.id        = destino.id;
+      espejo.name      = destino.name || String(destino.number || '');
+      espejo.number    = destino.number || parseInt(destino.name, 10) || 0;
+      espejo.branch_id = S.branchId;
+      espejo.tenant_id = S.tenantId;
+      espejo.grupo_id  = null;
+      if (!espejo.status || espejo.status === 'libre') espejo.status = 'ocupada';
+      if (!espejo.sesion_at) espejo.sesion_at = new Date().toISOString();
+      const r2 = await sb.from('pos_tables').upsert(espejo, { onConflict: 'id' });
+      if (r2.error) throw r2.error;
+
+      const libre = window.posMesas ? posMesas.camposLibre() : { status: 'libre', current_order_id: null };
+      const r3 = await sb.from('pos_tables').update(libre).eq('id', S.tableId);
+      if (r3.error) throw r3.error;
+    }
+
+    /*  Y esta pantalla pasa a ser la de la mesa nueva SIN recargar: la comanda
+        que el mesero tiene a medio armar no se puede perder por un salto.   */
+    const viejo = (yo && (yo.name || yo.number)) || S.tableId;
+    S.tableId = destino.id;
+    S.table   = destino;
+    await tpCargarMesas(true);
+    paintTableInfo(tpMesaYo());
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set('table', destino.id);
+      history.replaceState(null, '', u.toString());
+    } catch (_) {}
+    toast('Pedido movido de la Mesa ' + viejo + ' a la Mesa ' + (destino.name || destino.number), 'ok');
+  } catch (e) {
+    console.error('[mesa] cambiar:', e);
+    toast('No se pudo cambiar de mesa: ' + (e.message || e), 'err');
+  }
+}
+
+/*  UNIR MESAS. Solo se ofrecen las LIBRES: unir una ocupada sería tragarse el
+    otro pedido sin avisar.                                                  */
+async function tpUnirMesas() {
+  await tpCargarMesas(true);
+  const yo = tpMesaYo();
+  const yaUnida = yo && window.posMesas && posMesas.unida(yo);
+
+  if (yaUnida) {
+    const del  = posMesas.grupoDe(S.tables, S.tableId);
+    const jefe = posMesas.nombreCorto(del[0]);
+    const otras = del.slice(1).map(m => posMesas.nombreCorto(m)).join(', ');
+    const que = await tpElegir({
+      title: posMesas.etiqueta(S.tables, S.tableId),
+      msg: 'Esta cuenta ocupa ' + del.length + ' mesas.',
+      opciones: [
+        { id: '__mas', titulo: 'Unir otra mesa más', sub: 'se suma al mismo pedido' },
+        { id: '__sep', titulo: 'Separar las mesas',
+          sub: 'la cuenta se queda en la Mesa ' + jefe +
+               (del.length > 2 ? ' y las demás quedan libres' : ' y la ' + otras + ' queda libre') },
+      ],
+      cancelLabel: 'Cerrar',
+    });
+    if (que === '__sep') return tpSepararMesas();
+    if (que !== '__mas') return;
+  }
+
+  const libres = tpMesasLibres();
+  if (!libres.length) { toast('No hay ninguna mesa libre para unir', 'warn'); return; }
+
+  const elegida = await tpElegir({
+    title: 'Unir mesas',
+    msg: 'Quedan como una sola: mismo pedido, mismo estado y mismo tiempo. En la comanda salen juntas.',
+    opciones: libres.map(tpOpcionMesa),
+  });
+  if (!elegida) return;
+  const otra = (S.tables || []).find(t => String(t.id) === String(elegida));
+  if (!otra) return;
+
+  try {
+    /*  La principal tiene que EXISTIR como fila antes de unir. Si la mesa se
+        abrió y todavía no se guardó el pedido, `pos_tables` puede no tenerla
+        — y entonces la acompañante se uniría a nadie.                      */
+    let principal = yo;
+    if (!principal) {
+      principal = {
+        id: S.tableId,
+        name:   (S.table && S.table.name) || String(S.tableId),
+        number: (S.table && S.table.number) || parseInt((S.table && S.table.name) || '', 10) || 0,
+        status: (S.order && S.order.id) ? 'ocupada' : 'libre',
+        current_order_id: (S.order && S.order.id) || null,
+        sesion_at: S.openAt || new Date().toISOString(),
+      };
+      const r0 = await sb.from('pos_tables').upsert(
+        Object.assign({}, principal, { branch_id: S.branchId, tenant_id: S.tenantId }),
+        { onConflict: 'id' });
+      if (r0.error) throw r0.error;
+    }
+
+    await posMesas.unir(principal, otra);
+    await tpCargarMesas(true);
+    paintTableInfo(tpMesaYo());
+    toast(posMesas.etiqueta(S.tables, S.tableId) + ': ahora son una sola cuenta', 'ok');
+  } catch (e) {
+    console.error('[mesa] unir:', e);
+    toast('No se pudieron unir: ' + (e.message || e), 'err');
+  }
+}
+
+async function tpSepararMesas() {
+  try {
+    const n = await posMesas.separar(S.tables, S.tableId);
+    if (!n) { toast('Esta mesa no está unida a ninguna', 'warn'); return; }
+    await tpCargarMesas(true);
+    paintTableInfo(tpMesaYo());
+    toast(n === 1 ? 'Mesas separadas' : 'Mesas separadas (' + n + ' quedaron libres)', 'ok');
+  } catch (e) {
+    console.error('[mesa] separar:', e);
+    toast('No se pudieron separar: ' + (e.message || e), 'err');
   }
 }
 
@@ -1657,6 +1909,10 @@ function bindEvents() {
         // botón dentro de la mesa era un atajo duplicado.
         case 'vaciar':       clearCart(); break;
         case 'traspaso':     tpAbrirTraspaso(); break;
+        //  Los dos de la barra de la mesa. Ver el bloque «Editar mesa y unir
+        //  mesas» más arriba: hasta el 29-ago-2026 no hacían nada.
+        case 'edit':         tpCambiarMesa(); break;
+        case 'merge':        tpUnirMesas(); break;
         default: break;
       }
     });

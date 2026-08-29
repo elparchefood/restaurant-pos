@@ -367,6 +367,10 @@
   function SVG_GRIP() {
     return `<svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"><circle cx="2.5" cy="3" r="1.4"/><circle cx="7.5" cy="3" r="1.4"/><circle cx="2.5" cy="8" r="1.4"/><circle cx="7.5" cy="8" r="1.4"/><circle cx="2.5" cy="13" r="1.4"/><circle cx="7.5" cy="13" r="1.4"/></svg>`;
   }
+  //  Dos mesas pegadas: la senal de que esa cuenta ocupa mas de un sitio.
+  function SVG_UNION(size) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="2" y="7" width="8" height="10" rx="2"/><rect x="14" y="7" width="8" height="10" rx="2"/><path d="M10 12h4"/></svg>`;
+  }
   function SVG_PAX(size) {
     return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
   }
@@ -504,7 +508,7 @@
         if (sbFallback && branchFallback) {
           var fbResult = await sbFallback
             .from('pos_tables')
-            .select('id, name, status, current_order_id, zone_id, zone_name, sort_order, capacity, pendiente_pago_at, esperando_at, comiendo_at, sesion_at')
+            .select('id, name, status, current_order_id, zone_id, zone_name, sort_order, capacity, pendiente_pago_at, esperando_at, comiendo_at, sesion_at, grupo_id')
             .eq('branch_id', branchFallback)
             .order('sort_order', { ascending: true });
           var fbRows = fbResult.data || [];
@@ -544,7 +548,7 @@
       if (sb && branchId) {
         const { data: sbRows } = await sb
           .from('pos_tables')
-          .select('id, name, status, current_order_id, zone_id, zone_name, sort_order, capacity, pendiente_pago_at, esperando_at, comiendo_at, sesion_at')
+          .select('id, name, status, current_order_id, zone_id, zone_name, sort_order, capacity, pendiente_pago_at, esperando_at, comiendo_at, sesion_at, grupo_id')
           .eq('branch_id', branchId)
           .order('sort_order', { ascending: true });
         const sbMap = {};
@@ -595,6 +599,8 @@
             status:     r.status || 'libre',
             current_order_id: r.current_order_id || null,
             sesion_at:  r.sesion_at || null,
+            //  Mesas unidas: sin esto el plano no sabria que dos mesas son una.
+            grupo_id:   r.grupo_id || null,
             total: 0, items_count: 0, minutes: 0, mesero_initials: '', persons: 0, openedAt: null
           };
         });
@@ -1844,6 +1850,13 @@
       ? `<div class="vs-mesa-pax">${SVG_PAX(11)} ${t.persons || 0}</div>`
       : '';
 
+    /*  Unida: hay que verlo desde el plano, sin tocar nada. Sin esta señal,
+        dos mesas con el mismo total se leen como dos cuentas iguales — y
+        alguien cobra dos veces lo mismo.                                    */
+    const _unionHtml = (window.posMesas && posMesas.unida(t))
+      ? `<div class="vs-mesa-union">${SVG_UNION(10)} ${posMesas.etiqueta(state.tables, t.id)}</div>`
+      : '';
+
     return `
       <button class="lm-mesa" data-table-id="${t.id}" style="${selectedStyle};height:160px;max-height:160px;min-height:0;overflow:hidden">
         <div class="vs-mesa-header">
@@ -1857,6 +1870,7 @@
           <div class="vs-mesa-num ${isLibre ? 'vs-mesa-num--libre' : 'vs-mesa-num--active'}">${numStr}</div>
           ${paxHtml}
         </div>
+        ${_unionHtml}
         <div class="vs-mesa-footer">${footerHtml}</div>
       </button>
     `;
@@ -3411,7 +3425,14 @@
             todos los dias: los botones grandes de la tarjeta son los de cada
             servicio (imprimir, dividir, cobrar) y meter ahi algo que se usa
             una vez al dia les quita sitio a los que se usan cien.        */
-        menu.innerHTML =
+        /*  Unir / separar. Va aquí, con «Cambiar de mesa», porque es de la
+            misma familia: cosas que se le hacen a la MESA, no al pedido.   */
+        const _mUnir = state.tables.find(x => x.id === tableId);
+        const _yaUnida = !!(window.posMesas && _mUnir && posMesas.unida(_mUnir));
+        const _itemUnion = _yaUnida
+          ? `<button class="vs-dots-menu-item" data-action="separar-mesas" data-table-id="${tableId}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v6M15 3v6M9 15v6M15 15v6"/><path d="M3 12h18"/></svg>Separar las mesas</button>`
+          : `<button class="vs-dots-menu-item" data-action="unir-mesas" data-table-id="${tableId}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="8" height="10" rx="2"/><rect x="14" y="7" width="8" height="10" rx="2"/><path d="M10 12h4"/></svg>Unir con otra mesa</button>`;
+        menu.innerHTML = _itemUnion +
           `<button class="vs-dots-menu-item" data-action="mover-mesa" data-table-id="${tableId}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16H3m0 0 3-3m-3 3 3 3"/><path d="M17 8h4m0 0-3-3m3 3-3 3"/></svg>Cambiar de mesa</button>` +
           `<button class="vs-dots-menu-item" data-action="mover-modo" data-modo="rapido" data-table-id="${tableId}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>Pasar a Para llevar</button>` +
           `<button class="vs-dots-menu-item" data-action="mover-modo" data-modo="domicilio" data-table-id="${tableId}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 17.5h-6l-2-9h-3"/><path d="M9 8.5h7l2 9"/></svg>Pasar a Domicilio</button>` +
@@ -3477,6 +3498,8 @@
         vsPasarPedido(el.dataset.ordenId, 'rapido', {});
         break;
       }
+      case 'unir-mesas':    vsUnirMesas(el.dataset.tableId); break;
+      case 'separar-mesas': vsSepararMesas(el.dataset.tableId); break;
       case 'mover-mesa': {
         document.querySelectorAll('.vs-dots-menu').forEach(el => el.remove());
         vsMoverDeMesa(tableId);
@@ -3850,7 +3873,18 @@
     if (nuevoEstado === 'libre') {
       patch.pendiente_pago_at = null; patch.esperando_at = null; patch.comiendo_at = null;
     }
-    try { await sb.from('pos_tables').update(patch).eq('id', tableId); }
+    /*  MESAS UNIDAS (29-ago-2026): el estado va a TODO el grupo. Si solo
+        cambiara la principal, en el plano se verían dos mesas unidas con dos
+        colores distintos y dos relojes — y el mesero no sabría a cuál creerle.  */
+    try {
+      const _g = (t && t.grupo_id) ? t.grupo_id : null;
+      if (_g) {
+        await sb.from('pos_tables').update(patch).eq('grupo_id', _g);
+        state.tables.forEach(x => { if (x.grupo_id === _g) Object.assign(x, patch); });
+      } else {
+        await sb.from('pos_tables').update(patch).eq('id', tableId);
+      }
+    }
     catch (e) { console.error('[VS] vsMarcarEstado:', e); }
 
     /*  COMIENDO AQUI = LISTO EN COCINA (Sergio, 28-ago-2026).
@@ -4550,6 +4584,65 @@
     }
   }
 
+  /*  ══ UNIR Y SEPARAR MESAS ═════════════════════════════════
+      Sergio, 29-ago-2026: «hay personas que unen las mesas para comer todos
+      juntos». Al unirlas quedan con el mismo estado y los mismos productos:
+      son una sola cuenta. La regla vive en pos-mesas.js — aquí solo está la
+      pantalla, para que el salón y la mesa hagan exactamente lo mismo.    */
+  async function vsUnirMesas(tableId) {
+    if (!window.posMesas) { vsToast('Esta versi\u00f3n no sabe unir mesas'); return; }
+    const yo = state.tables.find(t => t.id === tableId);
+    if (!yo) return;
+
+    const libres = state.tables.filter(t => t.status === 'libre' && t.id !== tableId);
+    if (!libres.length) { vsToast('No hay ninguna mesa libre para unir'); return; }
+
+    const elegida = await vsElegir({
+      title: 'Unir con otra mesa',
+      msg: 'Quedan como una sola: mismo pedido, mismo estado y mismo tiempo. En la comanda salen juntas.',
+      opciones: libres.map(t => ({
+        id: t.id,
+        titulo: 'Mesa ' + (t.name || t.number || ''),
+        sub: (t.zone_name ? t.zone_name + ' · ' : '') + (t.capacity ? t.capacity + ' puestos' : 'libre'),
+      })),
+    });
+    if (!elegida) return;
+    const otra = state.tables.find(t => t.id === elegida);
+    if (!otra) return;
+
+    try {
+      await posMesas.unir(yo, otra);
+      render();
+      vsToast(posMesas.etiqueta(state.tables, tableId) + ': ahora son una sola cuenta');
+    } catch (e) {
+      console.error('[VS] unir mesas:', e);
+      vsToast('No se pudieron unir: ' + (e.message || e));
+    }
+  }
+
+  async function vsSepararMesas(tableId) {
+    if (!window.posMesas) return;
+    const del = posMesas.grupoDe(state.tables, tableId);
+    if (del.length < 2) { vsToast('Esta mesa no est\u00e1 unida a ninguna'); return; }
+    const jefe = posMesas.nombreCorto(del[0]);
+    const ok = await vsConfirm({
+      title: 'Separar las mesas',
+      msg: 'La cuenta se queda completa en la <strong>Mesa ' + jefe + '</strong> y '
+         + (del.length > 2 ? 'las dem\u00e1s quedan libres' : 'la otra queda libre')
+         + '. Los productos no se reparten: no hay forma de saber qui\u00e9n pidi\u00f3 qu\u00e9.',
+      okLabel: 'Separar',
+    });
+    if (!ok) return;
+    try {
+      const n = await posMesas.separar(state.tables, tableId);
+      render();
+      vsToast(n === 1 ? 'Mesas separadas' : 'Mesas separadas (' + n + ' quedaron libres)');
+    } catch (e) {
+      console.error('[VS] separar mesas:', e);
+      vsToast('No se pudieron separar: ' + (e.message || e));
+    }
+  }
+
   //  Las tres puertas de entrada. Cada pantalla llama a la suya.
   function vsMoverDeMesa(tableId) {
     const mesa = state.tables.find(t => t.id === tableId);
@@ -4632,13 +4725,19 @@
     try {
       const sbRef = window._pos && window._pos.sb;
       if (!sbRef) return;
-      const { error } = await sbRef.from('pos_tables').update({
-        status:           'libre',
-        current_order_id: null,
-      }).eq('id', tableId);
+      /*  Si la cuenta ocupaba varias mesas se sueltan todas: dejar a las
+          acompañantes ocupadas apuntando a un pedido cerrado obliga a
+          liberarlas a mano, una por una, en pleno servicio.                */
+      const _yo = state.tables.find(x => x.id === tableId);
+      const _grupo = (_yo && _yo.grupo_id) ? _yo.grupo_id : null;
+      const _libre = { status: 'libre', current_order_id: null, grupo_id: null };
+      let _q = sbRef.from('pos_tables').update(_libre);
+      _q = _grupo ? _q.eq('grupo_id', _grupo) : _q.eq('id', tableId);
+      const { error } = await _q;
       if (error) throw error;
-      const t = state.tables.find(x => x.id === tableId);
-      if (t) { t.status = 'libre'; t.current_order_id = null; }
+      state.tables.forEach(x => {
+        if (x.id === tableId || (_grupo && x.grupo_id === _grupo)) Object.assign(x, _libre);
+      });
       state.selectedTableId = null;
       render();
     } catch(e) { console.error('[VS] liberarMesa:', e); }

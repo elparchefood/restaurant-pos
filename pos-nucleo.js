@@ -3773,7 +3773,8 @@ console.log('[POS Events] Sistema de eventos listo');
     if (esMesa) {
       // En mesa lo primero es DONDE, que es lo que busca el mesero al repartir
       // las cuentas. El cliente va despues y solo si lo seleccionaron.
-      h += '<div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase">Mesa</div>';
+      h += '<div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase">'
+         + ((Number(order.table_n) || 1) > 1 ? 'Mesas' : 'Mesa') + '</div>';
       h += '<div style="font-size:13px;font-weight:700">'+(mesaTxt||'—')+'</div>';
       var linea2 = [];
       if (order.sala)   linea2.push(order.sala);
@@ -4230,17 +4231,39 @@ console.log('[POS Events] Sistema de eventos listo');
       var order = r.data;
       // Obtener nombre de mesa por separado (sin FK no se puede hacer join inline)
       if (order.table_id) {
-        var rt = await sb.from('pos_tables').select('name, number').eq('id', order.table_id).maybeSingle();
+        var rt = await sb.from('pos_tables').select('name, number, grupo_id, id').eq('id', order.table_id).maybeSingle();
         order.pos_tables = (rt && rt.data) ? rt.data : null;
+        /*  MESAS UNIDAS (29-ago-2026). Si esta cuenta ocupa varias mesas, el
+            recibo tiene que decirlas todas: es lo que el mesero mira para
+            saber a dónde lleva la cuenta. Una consulta más, y solo cuando de
+            verdad hay grupo — el 99% de los recibos no paga nada por esto.  */
+        if (order.pos_tables && order.pos_tables.grupo_id) {
+          var rg = await sb.from('pos_tables')
+            .select('id, name, number, grupo_id')
+            .eq('grupo_id', order.pos_tables.grupo_id);
+          order.pos_tables_grupo = (rg && rg.data && rg.data.length) ? rg.data : null;
+        }
       }
       return order;
     } catch(e) { _diagToast('❌ fetchOrder excepción: ' + (e && e.message || e), '#7c2d12'); return null; }
   }
 
   function _tableDisplay(order) {
+    //  Unidas: «5 y 6». El rótulo de arriba lo pone en plural quien imprime.
+    var g = order.pos_tables_grupo;
+    if (g && g.length > 1 && window.posMesas) {
+      var et = posMesas.etiqueta(g, order.table_id);          //  «Mesas 5 y 6»
+      return et.replace(/^Mesas?\s+/, '');                    //  → «5 y 6»
+    }
     var t = order.pos_tables;
     if (t) return t.name || String(t.number || '') || order.table_id || '-';
     return order.table_name || order.table_id || '-';
+  }
+
+  //  Cuántas mesas ocupa: solo para decir «Mesa» o «Mesas» en el recibo.
+  function _tableCount(order) {
+    var g = order.pos_tables_grupo;
+    return (g && g.length) ? g.length : 1;
   }
 
   function _diagToast(msg, color) {
@@ -4422,7 +4445,7 @@ console.log('[POS Events] Sistema de eventos listo');
           _diagToast('Automático apagado en ' + (g.nombre || g.area), '#64748b');
           continue;
         }
-        var cab = { table: _tableDisplay(order), channel: order.channel, total: order.total || 0,
+        var cab = { table: _tableDisplay(order), table_n: _tableCount(order), channel: order.channel, total: order.total || 0,
           paid: order.paid_amount || 0, guests: order.guests || order.persons || 0,
           waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '',
           notes: order.notes || '', customer_name: order.customer_name || '',
@@ -4532,7 +4555,7 @@ console.log('[POS Events] Sistema de eventos listo');
       // nota llegaba siempre vacia y no se imprimia nunca.
       return { name: it.product_name || it.name || 'Item', qty: it.quantity || 1, notes: it.notes || '', mods: modsArr, total: (it.unit_price || 0) * (it.quantity || 1) };
     });
-    var orderData = { table: _tableDisplay(order), channel: order.channel, id: order.id, total: order.total || 0, tax_total: order.tax_total || 0, tax_base: order.tax_base || 0, tax_detail: order.tax_detail || null, paid: order.paid_amount || 0, subtotal: order.subtotal || order.total || 0, packaging_fee: order.packaging_fee || 0, delivery_fee: order.delivery_fee || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '', payment_method: order.payment_method || '' };
+    var orderData = { table: _tableDisplay(order), table_n: _tableCount(order), channel: order.channel, id: order.id, total: order.total || 0, tax_total: order.tax_total || 0, tax_base: order.tax_base || 0, tax_detail: order.tax_detail || null, paid: order.paid_amount || 0, subtotal: order.subtotal || order.total || 0, packaging_fee: order.packaging_fee || 0, delivery_fee: order.delivery_fee || 0, discount: order.discount_amount || 0, tip: order.tip_amount || 0, guests: order.guests || order.persons || 0, waiter: order.waiter_name || '', sala: order.floor_name || order.zone_name || '', notes: order.notes || '', customer_name: order.customer_name || '', payment_method: order.payment_method || '' };
     var html;
     if (type === 'comanda') html = _buildComanda(orderData, items);
     else if (type === 'recibo') {
@@ -5742,6 +5765,212 @@ console.log('[POS Events] Sistema de eventos listo');
   }
 
   w.posTraspaso = { abrir: abrir, cerrar: cerrar, recoger: recoger, hay: hay, limpiar: limpiar, guardar: guardar };
+})(window);
+
+;
+/* ═══════ pos-mesas.js ═══════ */
+;/* pos-mesas.js — Mesas unidas. UN solo sitio donde se decide qué es un grupo.
+ *
+ * Sergio, 29-ago-2026: «hay personas que unen las mesas para comer todos
+ * juntos. Al unirse las dos mesas quedan con el mismo estado y los mismos
+ * productos, es decir las mesas serían parte de una sola. Y en la comanda
+ * saldrían las mesas juntas, por ejemplo mesas 5 y 6».
+ *
+ * ── CÓMO ESTÁ REPRESENTADO ────────────────────────────────────────────────
+ * El pedido NO se parte. Sigue teniendo UNA mesa (`pos_orders.table_id`): la
+ * principal, la que se tocó primero. Las acompañantes se marcan con el mismo
+ * `pos_tables.grupo_id` y se les copia el estado, el pedido y los relojes.
+ *
+ * Se eligió así, y no "un pedido por mesa que se suman al cobrar", porque esa
+ * otra forma obliga a tocar TODO lo que hoy cuenta dinero — el cobro, la caja,
+ * los informes, los puntos, la cocina — para un caso que es de sala, no de
+ * contabilidad. Aquí, para el dinero, un grupo de mesas es exactamente lo que
+ * siempre fue: un pedido en una mesa. Lo único que cambia es cómo se ve.
+ *
+ * El `grupo_id` lleva dentro cuál es la principal (`g:<idDeLaPrincipal>`), así
+ * no hace falta otra columna ni una segunda consulta para saberlo.
+ *
+ * ⚠️ Este módulo va dentro de pos-nucleo.js. Si lo tocas, corre
+ *    `python herramientas/armar-nucleo.py` y sube el bundle.
+ */
+(function (w) {
+  'use strict';
+
+  var PRE = 'g:';
+
+  function idGrupo(principalId) { return PRE + String(principalId); }
+
+  /*  Quién manda en el grupo. Va dentro del propio `grupo_id` a propósito: una
+      pantalla que solo tiene la fila de UNA mesa puede saber si ella es la
+      principal sin pedir nada más a la base.  */
+  function principalDe(grupoId) {
+    var g = String(grupoId || '');
+    return g.indexOf(PRE) === 0 ? g.slice(PRE.length) : null;
+  }
+
+  function unida(mesa) { return !!(mesa && mesa.grupo_id); }
+
+  function esPrincipal(mesa) {
+    if (!unida(mesa)) return true;          //  una mesa suelta manda en sí misma
+    return principalDe(mesa.grupo_id) === String(mesa.id);
+  }
+
+  /*  Todas las mesas del grupo, la principal primero y el resto por número.
+      Si la mesa está suelta devuelve solo a ella: quien llame no tiene que
+      preguntarse si hay grupo o no.  */
+  function grupoDe(mesas, tableId) {
+    var lista = mesas || [];
+    var yo = null, i;
+    for (i = 0; i < lista.length; i++) {
+      if (String(lista[i].id) === String(tableId)) { yo = lista[i]; break; }
+    }
+    if (!yo) return [];
+    if (!unida(yo)) return [yo];
+    var g = String(yo.grupo_id), pid = principalDe(g), del = [];
+    for (i = 0; i < lista.length; i++) {
+      if (String(lista[i].grupo_id || '') === g) del.push(lista[i]);
+    }
+    del.sort(function (a, b) {
+      if (String(a.id) === pid) return -1;
+      if (String(b.id) === pid) return 1;
+      return (Number(a.number) || 0) - (Number(b.number) || 0);
+    });
+    return del;
+  }
+
+  function nombreCorto(mesa) {
+    if (!mesa) return '';
+    var n = mesa.name != null && mesa.name !== '' ? String(mesa.name) : String(mesa.number || '');
+    return n;
+  }
+
+  /*  «Mesa 5» · «Mesas 5 y 6» · «Mesas 5, 6 y 7».
+      Con "y" antes del último, como se dice en voz alta — es lo que el mesero
+      va a leer en la comanda y lo que va a cantar en la cocina.  */
+  function etiqueta(mesas, tableId) {
+    var del = grupoDe(mesas, tableId);
+    if (!del.length) return 'Mesa';
+    var nombres = del.map(nombreCorto).filter(function (x) { return x !== ''; });
+    if (nombres.length <= 1) return 'Mesa ' + (nombres[0] || '');
+    var ult = nombres.pop();
+    return 'Mesas ' + nombres.join(', ') + ' y ' + ult;
+  }
+
+  /*  Los campos que dejan una mesa libre del todo. Existe aquí para que las
+      cinco pantallas borren lo MISMO: media limpieza deja una mesa que se ve
+      libre pero sigue apuntando a un pedido cerrado.  */
+  function camposLibre() {
+    return {
+      status: 'libre', current_order_id: null, grupo_id: null,
+      sesion_at: null, esperando_at: null, comiendo_at: null,
+      pendiente_pago_at: null, comiendo_method: null,
+    };
+  }
+
+  //  Lo que una acompañante copia de la principal: es lo que las hace "una".
+  function camposEspejo(principal) {
+    return {
+      status:            principal.status || 'ocupada',
+      current_order_id:  principal.current_order_id || null,
+      sesion_at:         principal.sesion_at || null,
+      esperando_at:      principal.esperando_at || null,
+      comiendo_at:       principal.comiendo_at || null,
+      pendiente_pago_at: principal.pendiente_pago_at || null,
+      comiendo_method:   principal.comiendo_method || null,
+    };
+  }
+
+  function sb() { return w._pos && w._pos.sb; }
+
+  /*  UNIR. `principal` es la mesa donde ya está el pedido; `otra` tiene que
+      estar libre (quien llama ya lo comprobó, pero se vuelve a mirar aquí:
+      unir una mesa ocupada perdería el otro pedido).  */
+  async function unir(principal, otra) {
+    var s = sb();
+    if (!s) throw new Error('sin conexión');
+    if (!principal || !otra) throw new Error('faltan mesas');
+    if (String(principal.id) === String(otra.id)) throw new Error('es la misma mesa');
+    if (otra.status && otra.status !== 'libre') throw new Error('esa mesa está ocupada');
+
+    var g = idGrupo(principal.grupo_id ? principalDe(principal.grupo_id) : principal.id);
+
+    //  Primero la acompañante. Si algo falla, la principal queda intacta y el
+    //  pedido no se mueve de sitio: el peor caso es que no se unió.
+    var espejo = camposEspejo(principal);
+    espejo.grupo_id = g;
+    var r1 = await s.from('pos_tables').update(espejo).eq('id', otra.id);
+    if (r1.error) throw r1.error;
+
+    if (!principal.grupo_id) {
+      var r2 = await s.from('pos_tables').update({ grupo_id: g }).eq('id', principal.id);
+      if (r2.error) throw r2.error;
+    }
+
+    Object.assign(otra, espejo);
+    principal.grupo_id = g;
+    return g;
+  }
+
+  /*  SEPARAR. La principal se queda con el pedido; las demás quedan libres.
+      No se pregunta "¿de quién era cada plato?" — no hay forma de saberlo y
+      partir la cuenta a ojo es peor que no separarlas.  */
+  async function separar(mesas, tableId) {
+    var s = sb();
+    if (!s) throw new Error('sin conexión');
+    var del = grupoDe(mesas, tableId);
+    if (del.length < 2) return 0;
+    var principal = del[0], sueltas = del.slice(1);
+
+    var libre = camposLibre();
+    var r1 = await s.from('pos_tables').update(libre)
+      .in('id', sueltas.map(function (m) { return m.id; }));
+    if (r1.error) throw r1.error;
+
+    var r2 = await s.from('pos_tables').update({ grupo_id: null }).eq('id', principal.id);
+    if (r2.error) throw r2.error;
+
+    sueltas.forEach(function (m) { Object.assign(m, libre); });
+    principal.grupo_id = null;
+    return sueltas.length;
+  }
+
+  /*  LIBERAR TODO EL GRUPO — al cobrar. Si solo se liberara la principal, las
+      acompañantes se quedarían ocupadas para siempre apuntando a un pedido ya
+      cobrado, y habría que liberarlas a mano una por una.  */
+  async function liberarGrupo(mesas, tableId) {
+    var s = sb();
+    if (!s) throw new Error('sin conexión');
+    var del = grupoDe(mesas, tableId);
+    var ids = del.length ? del.map(function (m) { return m.id; }) : [tableId];
+    var libre = camposLibre();
+    var r = await s.from('pos_tables').update(libre).in('id', ids);
+    if (r.error) throw r.error;
+    del.forEach(function (m) { Object.assign(m, libre); });
+    return ids;
+  }
+
+  /*  Poner un estado nuevo (esperando / comiendo / pendiente_pago) a TODAS las
+      del grupo: si solo cambiara la principal, en el salón se verían dos mesas
+      unidas con dos colores distintos.  */
+  async function estadoGrupo(mesas, tableId, campos) {
+    var s = sb();
+    if (!s) throw new Error('sin conexión');
+    var del = grupoDe(mesas, tableId);
+    var ids = del.length ? del.map(function (m) { return m.id; }) : [tableId];
+    var r = await s.from('pos_tables').update(campos).in('id', ids);
+    if (r.error) throw r.error;
+    del.forEach(function (m) { Object.assign(m, campos); });
+    return ids;
+  }
+
+  w.posMesas = {
+    idGrupo: idGrupo, principalDe: principalDe,
+    unida: unida, esPrincipal: esPrincipal,
+    grupoDe: grupoDe, etiqueta: etiqueta, nombreCorto: nombreCorto,
+    camposLibre: camposLibre, camposEspejo: camposEspejo,
+    unir: unir, separar: separar,
+    liberarGrupo: liberarGrupo, estadoGrupo: estadoGrupo,
+  };
 })(window);
 
 ;

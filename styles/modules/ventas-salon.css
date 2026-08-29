@@ -1254,49 +1254,20 @@
 .tp-toast-btn-close   { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #ECEEF2; background: transparent; color: #94A3B8; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .tp-toast-btn-close:hover { color: #475569; }
 
-/* ── Modal de confirmación personalizado ── */
-.vs-confirm-overlay {
-  position: fixed; inset: 0; z-index: 9999;
-  background: rgba(15,23,42,.45);
-  display: flex; align-items: center; justify-content: center;
-  animation: vsOverlayIn .15s ease;
+/*  El marco de confirmar vive ahora en styles/pos-dialogo.css — lo comparten
+    ventas.html y tomar-pedido.html.  */
+
+/*  Mesas unidas — el aviso dentro de la tarjeta del plano.
+    Sin el, dos mesas unidas se ven como dos cuentas distintas con el mismo
+    total, y alguien cobra dos veces lo mismo.  */
+.vs-mesa-union{
+  display:flex; align-items:center; gap:5px;
+  margin:4px 0 0; padding:2px 7px; align-self:flex-start;
+  border-radius:20px; background:#EEF2FF; color:#5B6BFF;
+  font-size:10px; font-weight:700; line-height:1.5;
+  max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
 }
-@keyframes vsOverlayIn { from { opacity:0 } to { opacity:1 } }
-.vs-confirm-card {
-  background: #fff; border-radius: 16px; width: 100%; max-width: 360px;
-  box-shadow: 0 20px 60px -10px rgba(15,23,42,.25);
-  padding: 24px; position: relative;
-  animation: vsCardIn .18s cubic-bezier(.34,1.56,.64,1);
-}
-@keyframes vsCardIn { from { opacity:0; transform:scale(.93) } to { opacity:1; transform:scale(1) } }
-.vs-confirm-icon {
-  width: 44px; height: 44px; border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-  margin-bottom: 14px;
-}
-.vs-confirm-icon.green  { background: #ECFDF5; color: #10B981; }
-.vs-confirm-icon.danger { background: #FEF2F2; color: #DC2626; }
-.vs-confirm-icon.brand  { background: #EEF2FF; color: #5B6BFF; }
-.vs-confirm-title { font-size: 15px; font-weight: 800; color: #0F172A; letter-spacing: -0.01em; }
-.vs-confirm-msg   { font-size: 13px; color: #64748B; margin-top: 6px; line-height: 1.5; }
-.vs-confirm-actions { display: flex; gap: 8px; margin-top: 20px; }
-.vs-confirm-actions .vs-c-cancel {
-  flex: 1; padding: 10px; border-radius: 9px; border: 1px solid #ECEEF2;
-  background: #F8FAFC; color: #475569; font-family: inherit;
-  font-size: 13px; font-weight: 600; cursor: pointer;
-}
-.vs-confirm-actions .vs-c-cancel:hover { background: #F1F5F9; }
-.vs-confirm-actions .vs-c-ok {
-  flex: 1.4; padding: 10px; border-radius: 9px; border: none;
-  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
-  box-shadow: 0 2px 8px -2px rgba(0,0,0,.18);
-}
-.vs-confirm-actions .vs-c-ok.green  { background: #10B981; color: #fff; }
-.vs-confirm-actions .vs-c-ok.danger { background: #DC2626; color: #fff; }
-.vs-confirm-actions .vs-c-ok.brand  { background: #5B6BFF; color: #fff; }
-.vs-confirm-actions .vs-c-ok.green:hover  { background: #059669; }
-.vs-confirm-actions .vs-c-ok.danger:hover { background: #B91C1C; }
-.vs-confirm-actions .vs-c-ok.brand:hover  { background: #4F5BE3; }
+.vs-mesa-union svg{flex-shrink:0}
 
 /* Rail locked indicator (pendiente_pago) */
 .vs-rail-locked {
@@ -1708,24 +1679,7 @@
   border:1px solid #BBF7D0; padding:2px 7px; border-radius:20px; margin-right:8px; flex-shrink:0; }
 .vs-total-mesa{ color:#94A3B8; font-size:12px; }
 
-/*  ══ ELEGIR Y RELLENAR ═══════════════════════════════════════════════════
-    Para "Cambiar de mesa" (elegir entre las libres) y "Pasar a domicilio"
-    (pedir la dirección). Van dentro del mismo marco de `vs-confirm` a
-    propósito: en medio del servicio, una ventana con otro aire se lee como
-    otra parte del programa.                                                */
-.vs-elegir{
-  display:flex; flex-direction:column; gap:8px;
-  margin:14px 0 4px; max-height:46vh; overflow-y:auto;
-}
-.vs-elegir-op{
-  display:flex; flex-direction:column; gap:2px; width:100%;
-  padding:11px 13px; border:1px solid #ECEEF2; border-radius:10px;
-  background:#fff; font-family:inherit; text-align:left; cursor:pointer;
-  transition:background .12s, border-color .12s;
-}
-.vs-elegir-op:hover{background:#F8FAFC; border-color:#5B6BFF;}
-.vs-elegir-op b{font-size:13.5px; font-weight:700; color:#0F172A;}
-.vs-elegir-op small{font-size:11.5px; color:#64748B;}
+/*  Elegir entre opciones vive ahora en styles/pos-dialogo.css.  */
 
 .vs-form{display:flex; flex-direction:column; gap:11px; margin:14px 0 4px; text-align:left;}
 .vs-form-campo{display:flex; flex-direction:column; gap:5px;}

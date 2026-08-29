@@ -73,6 +73,9 @@ const S = {
      sobreviva a que la pantalla se redibuje cada segundo. */
   cursor:null, ultimaTk:null,
   orders:new Map(), items:new Map(), mesas:new Map(), fotos:new Map(),
+  /* Las filas enteras de las mesas. `mesas` (id -> nombre) no basta desde que
+     hay mesas unidas: para decir «Mesas 5 y 6» hay que ver el `grupo_id`. */
+  mesasFilas:[],
   /* A que hora paro el reloj de cada comanda terminada. Solo hace falta para
      las que venian de antes de que se guardara la hora del cambio de estado. */
   paro:new Map(),
@@ -480,6 +483,8 @@ async function cargarBase() {
   /* La leyenda del pago se esconde si en esta sucursal no puede ocurrir:
      sin cobro adelantado solo la venta rápida puede quedar sin pagar. */
   (mesas.data || []).forEach(m => S.mesas.set(m.id, m.name));
+  //  Y las filas enteras, que es lo único que sabe quién está unida con quién.
+  S.mesasFilas = (mesas.data || []).slice();
   (prods.data || []).forEach(p => {
     if (p.photo_url) S.fotos.set(p.id, p.photo_url);
     if (p.category_id) S.catDe.set(p.id, p.category_id);
@@ -742,6 +747,7 @@ async function cargarComandas() {
       .not('current_order_id', 'is', null), 12, 'las mesas ocupadas');
     S.mesaEstado = new Map();
     const idsMesa = [];
+    S.mesasFilas = (mesas || []).slice();
     (mesas || []).forEach(m => {
       S.mesas.set(m.id, m.name);
       S.mesaEstado.set(String(m.current_order_id), m.status);
@@ -927,7 +933,20 @@ function zonaDe(o) {
 
 function tituloDe(o) {
   const z = zonaDe(o);
-  if (z === 'salon')  return S.mesas.get(o.table_id) || 'Mesa';
+  /*  MESAS UNIDAS (Sergio, 29-ago-2026): «en la comanda saldrían las mesas
+      juntas, por ejemplo mesas 5 y 6». Desde la cocina eso no es un adorno:
+      es lo que el mesero va a gritar para saber a dónde lleva los platos.
+
+      Se pide la etiqueta al mismo sitio que la pinta en las demás pantallas,
+      para que digan todas lo mismo. Si por lo que sea no hay filas cargadas,
+      se cae al nombre de siempre — una comanda sin título sería peor.      */
+  if (z === 'salon') {
+    if (window.posMesas && S.mesasFilas && S.mesasFilas.length) {
+      const et = posMesas.etiqueta(S.mesasFilas, o.table_id);
+      if (et && et !== 'Mesa') return et;
+    }
+    return S.mesas.get(o.table_id) || 'Mesa';
+  }
   /*  EL NOMBRE MANDA SOBRE EL TURNO (Sergio, 28-ago-2026).
 
       Un pedido que llega del salon trae el nombre del cliente — «Juan

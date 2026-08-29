@@ -19,7 +19,7 @@ ORDEN = [
     'pos-solo-app.js', 'pos-carta.js', 'pos-plan.js', 'pos-perms.js',
     'pos-brand.js', 'pos-events.js', 'pos-impuestos.js', 'pos-print.js',
     'pos-print-listener.js', 'pos-caja-guard.js', 'pos-metodos.js',
-    'pos-saldo.js', 'pos-mapa.js', 'pos-traspaso.js',
+    'pos-saldo.js', 'pos-mapa.js', 'pos-traspaso.js', 'pos-mesas.js',
 ]
 
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
