@@ -131,7 +131,9 @@
       s.from('pos_products').select('id', { count: 'exact', head: true }).eq('tenant_id', t),
       s.from('pos_tables').select('id', { count: 'exact', head: true }).eq('branch_id', b),
       s.from('ia_config').select('pagos,horarios,domicilios').eq('branch_id', b).maybeSingle(),
-      s.from('branches').select('address,phone,operacion_config').eq('id', b).maybeSingle(),
+      //  La sucursal ya viene de pos-core; aqui no se vuelve a pedir.
+      (window.posSucursal ? window.posSucursal(b).then(function (d) { return { data: d }; })
+                          : s.from('branches').select('address,phone,operacion_config').eq('id', b).maybeSingle()),
       s.from('pos_users').select('id,is_authorized_admin').eq('tenant_id', t),
       s.rpc('fn_pin_existe'),
       s.from('pos_products').select('id', { count: 'exact', head: true }).eq('tenant_id', t).not('photo_url', 'is', null),
@@ -220,11 +222,13 @@
     var s = sb(), b = st().branchId;
     if (!s || !b) return false;
     try {
-      var r = await s.from('branches').select('operacion_config').eq('id', b).maybeSingle();
-      var opc = (r.data && r.data.operacion_config) || {};
+      var d = window.posSucursal ? await window.posSucursal(b)
+            : (await s.from('branches').select('operacion_config').eq('id', b).maybeSingle()).data;
+      var opc = (d && d.operacion_config) || {};
       opc.sin_salon = true;
       var u = await s.from('branches').update({ operacion_config: opc }).eq('id', b);
       if (u.error) return false;
+      if (window.posSucursal) window.posSucursal.olvidar();   //  se acaba de escribir
       await revisar(true);
       return true;
     } catch (e) { return false; }

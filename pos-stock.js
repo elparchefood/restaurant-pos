@@ -150,8 +150,10 @@
         var brandId = null, modo = 'global', yaSeLaMarca = false;
         async function averiguarMarca() {
           try {
-            var br = await sb.from('branches').select('brand_id').eq('id', branchId).maybeSingle();
-            brandId = (br.data && br.data.brand_id) || null;
+            //  La sucursal ya la trajo pos-core; aqui solo se le pide el dato.
+            var br = window.posSucursal ? await window.posSucursal(branchId)
+                   : ((await sb.from('branches').select('brand_id').eq('id', branchId).maybeSingle()).data);
+            brandId = (br && br.brand_id) || null;
             if (brandId) {
               var ma = await sb.from('brands').select('inventario_modo').eq('id', brandId).maybeSingle();
               modo = (ma.data && ma.data.inventario_modo) || 'global';

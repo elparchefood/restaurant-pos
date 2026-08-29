@@ -149,6 +149,49 @@ function daysAgoISO(n) {
     } catch (e) { return 0; }
   };
 
+    /*  ══ LA SUCURSAL SE LEE UNA SOLA VEZ ══════════════════════════════
+
+        Medido el 28-ago en la pantalla de ventas: **la tabla `branches` se
+        consultaba diez veces** al abrir, casi siempre la MISMA fila, sólo
+        que cada módulo pedía sus dos o tres columnas por su cuenta —
+        `pos-brand` el logo, `pos-stock` la marca, `pos-arranque` la
+        dirección, el salón el cobro adelantado, y así. Siete de esos viajes
+        se podían ver uno detrás de otro en el cronómetro, unos 2 segundos
+        en total, para traer campos de un único registro de 1 kB.
+
+        Cada módulo pedía poco y creía estar siendo prudente. Sumados, eran
+        lo más caro de la pantalla.
+
+        Ahora se pide UNA vez, con todas las columnas que alguien usa, y se
+        reparte. Quien necesite algo de la sucursal llama a `posSucursal()`.
+
+        ── DOS DETALLES QUE IMPORTAN ──
+        · Se guarda la PROMESA, no el resultado: si tres módulos preguntan a
+          la vez —que es exactamente lo que pasa al arrancar— los tres se
+          cuelgan del mismo viaje en vez de salir cada uno con el suyo.
+        · Quien ESCRIBA en la sucursal tiene que llamar a
+          `posSucursal.olvidar()`. Si no, seguiría repartiendo lo viejo. */
+    var _suc = null, _sucId = null;
+    window.posSucursal = function (branchId) {
+      var bId = branchId || (window._pos && window._pos.state.branchId);
+      if (!bId) return Promise.resolve(null);
+      if (_suc && _sucId === bId) return _suc;
+      _sucId = bId;
+      _suc = sb.from('branches')
+        .select('id,name,address,phone,brand_id,tenant_id,cobro_adelantado,acepta_reservas,operacion_config,brands(name,logo_url)')
+        .eq('id', bId).maybeSingle()
+        .then(function (r) { return (r && r.data) || null; })
+        .catch(function (e) {
+          /*  Si falla, se olvida: que el siguiente lo vuelva a intentar en
+              vez de repartir un error para toda la sesión. */
+          _suc = null; _sucId = null;
+          console.warn('[pos-core] sucursal:', e && e.message);
+          return null;
+        });
+      return _suc;
+    };
+    window.posSucursal.olvidar = function () { _suc = null; _sucId = null; };
+
   // Inicializar: leer sesión, poblar state, emitir core:ready
   async function boot() {
     try {
@@ -412,8 +455,8 @@ function daysAgoISO(n) {
         var OPK = 'pos.config.operacion.v1';
         var bId = window._pos.state.branchId;
         if (bId) {
-          var rOp = await sb.from('branches').select('operacion_config').eq('id', bId).maybeSingle();
-          var dbCfg = rOp && rOp.data && rOp.data.operacion_config;
+          var rOp = await window.posSucursal(bId);
+          var dbCfg = rOp && rOp.operacion_config;
           var localOp = null;
           try { localOp = JSON.parse(localStorage.getItem(OPK) || 'null'); } catch (e2) {}
           var dbTs    = (dbCfg && dbCfg._ts) || 0;
@@ -425,6 +468,7 @@ function daysAgoISO(n) {
             localStorage.setItem(OPK, JSON.stringify(dbCfg));
           } else if (localOp && typeof localOp === 'object' && Object.keys(localOp).length) {
             await sb.from('branches').update({ operacion_config: localOp }).eq('id', bId);
+            window.posSucursal.olvidar();
           }
         }
       } catch (e) { console.warn('[pos-core] sync operacion_config:', e); }

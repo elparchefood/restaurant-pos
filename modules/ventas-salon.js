@@ -845,7 +845,8 @@
       const sb = window._pos && window._pos.sb;
       const bid = window._pos && window._pos.state && window._pos.state.branchId;
       if (!sb || !bid) return;
-      const { data } = await sb.from('branches').select('operacion_config').eq('id', bid).maybeSingle();
+      const data = window.posSucursal ? await window.posSucursal(bid)
+                 : (await sb.from('branches').select('operacion_config').eq('id', bid).maybeSingle()).data;
       const op = (data && data.operacion_config) || {};
       _avisaCfg = op.cocinaAvisa || {};
     } catch (e) { console.warn('[VS] no se pudo leer a quien avisar:', e && e.message); }
@@ -3547,7 +3548,8 @@
       const sb = window._pos && window._pos.sb;
       const branchId = window._pos && window._pos.state && window._pos.state.branchId;
       if (sb && branchId) {
-        const { data } = await sb.from('branches').select('cobro_adelantado').eq('id', branchId).maybeSingle();
+        const data = window.posSucursal ? await window.posSucursal(branchId)
+                   : (await sb.from('branches').select('cobro_adelantado').eq('id', branchId).maybeSingle()).data;
         if (data) {
           state.cobroAdelantado = !!data.cobro_adelantado;
           localStorage.setItem(COBRO_KEY, String(state.cobroAdelantado));
@@ -3583,6 +3585,8 @@
       const branchId = window._pos && window._pos.state && window._pos.state.branchId;
       if (sb && branchId) {
         await sb.from('branches').update({ cobro_adelantado: nuevoValor }).eq('id', branchId);
+        //  Se acaba de escribir: la copia compartida ya no vale.
+        if (window.posSucursal) window.posSucursal.olvidar();
       }
     } catch(e) { /* queda en localStorage; se re-sincroniza al volver al foco */ }
     pintarToggleCobro();

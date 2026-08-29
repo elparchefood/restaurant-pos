@@ -47,10 +47,16 @@
     var sb = cliente();
     if (!sb) return '';
     try {
-      var r = await sb.from('branches')
-        .select('name, brands(name)')
-        .eq('is_active', true).limit(1).maybeSingle();
-      if (r && r.data) return (r.data.brands && r.data.brands.name) || r.data.name || '';
+      /*  Antes pedia "la primera sucursal activa" con su propio viaje. Ahora
+          sale de la sucursal que pos-core ya trajo, que ademas es LA del
+          usuario y no la primera que aparezca. */
+      var d = window.posSucursal ? await window.posSucursal() : null;
+      if (!d) {
+        var r = await sb.from('branches').select('name, brands(name)')
+          .eq('is_active', true).limit(1).maybeSingle();
+        d = r && r.data;
+      }
+      if (d) return (d.brands && d.brands.name) || d.name || '';
     } catch (e) { /* sin conexión: se queda con el cache */ }
     try {
       /* De la sesión guardada en el equipo. Ojo con la forma: getSession
