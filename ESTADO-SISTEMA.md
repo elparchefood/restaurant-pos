@@ -3,6 +3,65 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 El tope de 15 s dejó sin login — 29-ago-2026 (commit `7908259`)
+
+**Error mío, del mismo día.** Para que el dashboard no se quedara colgado un minuto
+esperando una consulta muerta, le puse a **toda** petición un tope de 15 segundos
+(`pos-core.js`, opción `global.fetch`). Pasadas unas horas no se podía entrar:
+
+```
+{"ms":15399,"error":"signal is aborted without reason","user":false}
+```
+
+**Por qué pasó.** Midiendo el servidor directo con `curl`, el login tardaba
+**90,8 s y 35,9 s**, devolviendo 200 — lento, no roto. Comprobar una contraseña es
+a propósito de lo más pesado que hace el servidor (para que no se pueda adivinar a
+fuerza bruta), y en esta máquina —426 MB con memoria tirando de disco— en un pico se
+arrastra. Mi tope lo cortaba a los 15.
+
+**La distinción que faltaba.** En una CONSULTA, cortar es barato: se reintenta y la
+copia del equipo tapa el hueco mientras tanto. En el LOGIN no hay nada que tape el
+hueco — cortarlo no es "ir más lento", es **no poder trabajar**. Ahora `/auth/v1/`
+va sin tope; el resto conserva los 15 s.
+
+**Comprobado después del arreglo:** login 465 ms desde el navegador, 0,34 s desde
+`curl`. El pico ya había pasado, lo que confirma que era capacidad del servidor y no
+un fallo permanente — y confirma también que sin este arreglo, **el próximo pico deja
+al restaurante en la calle**.
+
+**Regla:** ningún tope de tiempo se aplica en bloque a "todas las peticiones". Hay que
+preguntarse, para cada camino, qué pasa cuando se corta. Si la respuesta es "no se
+puede trabajar", no lleva tope.
+
+---
+
+## 🟢 El precio va en la presentación, no en el producto — 29-ago-2026 (commit `8f5fcf8`)
+
+Sergio: *"cuando haya un producto que tenga presentaciones no puede ir el precio ahí
+porque realmente no es el precio, el precio va en la presentación"*.
+
+**Lo que se veía.** En la carta, un plato con varios tamaños mostraba **una sola
+cifra**, y esa cifra era la de la presentación **más barata**. RANCHERA decía
+`$27.000` cuando la grande vale `$55.000`.
+
+**Arreglo.** Nueva `posCarta.precioEtiqueta(prod, fmt)` (en `pos-carta.js`, va dentro
+de `pos-nucleo.js`), usada por `tomar-pedido.js`, `venta-rapida.js`, `domicilios.js` e
+`inventario.js`. Reglas:
+
+| Caso | Qué muestra |
+|---|---|
+| 2+ presentaciones con precios distintos | rango: `$27.000 - $55.000` |
+| 2+ presentaciones al mismo precio | una cifra: `$26.000` |
+| una sola presentación | esa cifra |
+| sin presentaciones (hamburguesas) | el precio del producto, como siempre |
+| sin precio en ningún lado | `null` — no se pinta etiqueta |
+
+**Comprobado en producción** (los 6 casos ejecutados contra el
+`pos-nucleo.js` ya publicado) y contra los datos reales: 40 productos con más de una
+presentación, todos pasan de mostrar el precio del más pequeño a mostrar el rango.
+
+---
+
 ## ⚡ La noche de la velocidad — 28/29-ago-2026
 
 Siete cambios, cada uno en su commit, medidos en el Restaurante de Prueba.
