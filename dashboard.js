@@ -131,8 +131,9 @@ async function loadUser(branchId) {
 
   // Debe mostrarse QUIEN está usando el sistema, no el primer usuario
   // de la sucursal: se resuelve desde la sesión autenticada.
-  const authUserR = await sb.auth.getUser();
-  const authUser  = authUserR.data && authUserR.data.user;
+  //  Del estado que pos-core ya lleno — getUser salia a internet por lo mismo.
+  let authUser = (window._pos && window._pos.state && window._pos.state.user) || null;
+  if (!authUser) { try { authUser = (await sb.auth.getSession()).data.session.user; } catch (e) {} }
   let data = null;
 
   if (authUser) {
@@ -259,6 +260,12 @@ async function loadTodayOrders(branchId) {
   renderTopProducts(S.todayOrders);
   renderGoal(S.todayOrders, branchId);
   renderAllExtra(S.todayOrders, branchId);
+  /*  Se guarda lo que se acaba de pintar. Al VOLVER al escritorio (cambiar de
+      pantalla y regresar es lo mas normal del mundo), las ventas de hoy se
+      pintan de aqui al instante y la red solo confirma. */
+  try { if (window.posCache) posCache.guardarPronto('dash.hoy', function () {
+    return { orders: S.todayOrders, pagos: S.pagosHoy || [], branchId: branchId || null };
+  }); } catch (e) {}
 }
 
 // ── Metrics ───────────────────────────────────────────
@@ -1349,13 +1356,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   // depende de si hay caja abierta: si NO hay, va a Caja (para aperturarla);
   // si SÍ hay, va a Ventas (a trabajar). Así el dueño decide qué roles ven el
   // dashboard, y el resto entra directo a lo que corresponde.
+  /*  La estructura se pinta ANTES de preguntar permisos: el guard necesita
+      red, y con la red enredada eso era un minuto de pantalla "Cargando" sin
+      nada que mirar. Quien no tenga permiso igual sale en cuanto la red
+      conteste — solo que ahora espera viendo algo en vez de un esqueleto. */
+  renderAllExtra([], null);
+  renderDate();
+  /*  LO DE LA ULTIMA VEZ, YA. Las ventas de hoy guardadas al salir se pintan
+      antes de preguntar nada a la red; loadTodayOrders confirma por detras y
+      repinta si algo cambio. Un dato de hace un minuto en pantalla gana por
+      goleada a un esqueleto gris durante segundos. Solo se usa si es de HOY:
+      las ventas de ayer pintadas hoy serian mentira. */
+  try {
+    const g = window.posCache && posCache.leer('dash.hoy');
+    const d = g && g.datos;
+    if (d && Array.isArray(d.orders) && d.orders.length) {
+      const _hoy = new Date(); _hoy.setHours(0, 0, 0, 0);
+      const _primera = new Date(d.orders[0].created_at || 0);
+      if (_primera >= _hoy) {
+        S.todayOrders = d.orders; S.pagosHoy = d.pagos || [];
+        renderMetrics(d.orders); renderTopProducts(d.orders);
+        renderGoal(d.orders, d.branchId); renderAllExtra(d.orders, d.branchId);
+      }
+    }
+  } catch (e) { console.warn('[dash] cache hoy:', e && e.message); }
   if (typeof window.posHasPerm === 'function') {
     if (window.posPermsReady) { try { await window.posPermsReady(); } catch (e) {} }
     if (!window.posHasPerm('dashboard.ver')) {
       let haySesionAbierta = false;
       try {
-        const ur = await sb.auth.getUser();
-        const bId = ur?.data?.user?.user_metadata?.branch_id;
+        const _u = (window._pos && window._pos.state && window._pos.state.user)
+                 || (await sb.auth.getSession()).data.session.user;
+        const bId = _u?.user_metadata?.branch_id;
         let q = sb.from('pos_sessions').select('id').eq('status', 'open').order('created_at', { ascending: false }).limit(1);
         if (bId) q = q.eq('branch_id', bId);
         const { data } = await q.maybeSingle();
@@ -1365,9 +1397,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
   }
-
-  renderAllExtra([], null); // render empty structure immediately
-  renderDate();
 
   /* La sucursal casi nunca cambia, pero había que esperar a que llegara del
      servidor ANTES de poder empezar las otras nueve preguntas: una fila india

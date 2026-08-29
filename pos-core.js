@@ -3,12 +3,37 @@
 
 const SUPABASE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
+/*  ══ TOPE DE 15 SEGUNDOS PARA TODA CONSULTA (29-ago-2026) ═══════════════
+
+    Sergio abrio Cobra en la manana y el escritorio se quedo "Cargando" MAS DE
+    UN MINUTO — y el servidor estaba tranquilo. La causa: al prender el equipo,
+    la primera consulta puede irse por una conexion vieja que quedo muerta de
+    la noche (el keep-alive vencido), y sin tope de tiempo el navegador espera
+    el timeout del sistema operativo: 60 a 100 segundos. Como ahora los
+    modulos COMPARTEN el viaje (posSucursal, posUna), esa unica consulta
+    colgada congelaba todas las pantallas a la vez.
+
+    El tope va AQUI, en el fetch del cliente, porque asi cubre cada consulta
+    de cada pantalla sin tocar ninguna: a los 15 s la peticion se corta con un
+    error normal, los reintentos y las caches existentes hacen el resto, y la
+    conexion muerta se descarta — el reintento abre una nueva.
+
+    15 s y no menos: una consulta legitima con el servidor ahogado puede tomar
+    4-7 s (medido), y cortarla seria convertir lentitud en error. */
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     persistSession:    true,
     autoRefreshToken:  true,
     detectSessionInUrl: false,
     storageKey: 'cobra-pos-session'
+  },
+  global: {
+    fetch: function (url, opts) {
+      const ctl = new AbortController();
+      const t = setTimeout(function () { ctl.abort(); }, 15000);
+      const o = Object.assign({}, opts, { signal: ctl.signal });
+      return fetch(url, o).finally(function () { clearTimeout(t); });
+    }
   }
 });
 
@@ -177,10 +202,21 @@ function daysAgoISO(n) {
       if (!bId) return Promise.resolve(null);
       if (_suc && _sucId === bId) return _suc;
       _sucId = bId;
-      _suc = sb.from('branches')
-        .select('id,name,address,phone,brand_id,tenant_id,cobro_adelantado,acepta_reservas,operacion_config,brands(name,logo_url)')
-        .eq('id', bId).maybeSingle()
-        .then(function (r) { return (r && r.data) || null; })
+      var pedir = function () {
+        return sb.from('branches')
+          .select('id,name,address,phone,brand_id,tenant_id,cobro_adelantado,acepta_reservas,operacion_config,brands(name,logo_url)')
+          .eq('id', bId).maybeSingle();
+      };
+      /*  UN reintento antes de rendirse: el fallo tipico es la conexion vieja
+          muerta de la manana, y el segundo intento abre una nueva. Como todos
+          los modulos cuelgan de ESTA promesa, rendirse al primer golpe dejaba
+          a toda la pantalla sin sucursal. */
+      _suc = pedir()
+        .then(function (r) {
+          if (r && r.error) throw r.error;
+          return (r && r.data) || null;
+        })
+        .catch(function () { return pedir().then(function (r) { return (r && r.data) || null; }); })
         .catch(function (e) {
           /*  Si falla, se olvida: que el siguiente lo vuelva a intentar en
               vez de repartir un error para toda la sesión. */
