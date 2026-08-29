@@ -8,7 +8,9 @@
 
   core:ready          → Core listo, rol detectado           { role }
   order:new           → Pedido nuevo creado                 { order }
-  order:updated       → Pedido actualizado                  { order }
+  order:updated       → (retirado 28-ago-2026: lo emitia pos-realtime.js, que
+                        abria 3 canales de tiempo real para avisos que NINGUNA
+                        pantalla escuchaba. Cada pantalla se suscribe a lo suyo.)
   order:ready         → Cocina marcó pedido como listo      { orderId }
   order:paid          → Pedido cobrado y cerrado            { orderId }
   table:updated       → Estado de una mesa cambió           { table }
