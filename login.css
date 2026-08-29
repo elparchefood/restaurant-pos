@@ -355,3 +355,34 @@ button{font-family:inherit}
 #pay-qr-img{width:200px;max-width:70%;aspect-ratio:1;object-fit:contain;
   background:#fff;border:1px solid #E2E6EC;border-radius:12px;padding:8px}
 .pay-qr-pie{font-size:11.5px;color:#64748B;font-weight:600}
+
+/*  Nombre y apellido en una sola fila: partir el campo no puede costar dos
+    renglones más. En pantalla angosta se apilan solos.  */
+.field-fila{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:420px){ .field-fila{grid-template-columns:1fr} }
+
+/*  ══ QUE EL QR NO OBLIGUE A BAJAR LA PANTALLA ═════════════════════
+
+    Sergio, 29-ago-2026: al elegir QR *"la página se alarga mucho y se ocultan
+    algunas cosas, haciendo obligatorio hacer scroll"*. Y tiene razón: lo que
+    se ocultaba era el botón de enviar el comprobante — el paso siguiente.
+
+    El QR se mide contra el ALTO de la ventana (`vh`), no en píxeles fijos: en
+    un portátil bajito se encoge solo. Se le pone tope por arriba (240 px) para
+    que en una pantalla grande no quede gigante, y por abajo (150 px) para que
+    siga siendo escaneable — un QR demasiado pequeño no lo lee ningún teléfono.
+
+    Y mientras se ve el QR, la caja aprieta sus propios márgenes: son los que
+    sobran cuando el contenido crece.  */
+#pay-qr{padding:4px 0 8px;gap:6px}
+#pay-qr-img{
+  width:min(200px, 26vh);
+  max-width:70%;
+  padding:6px;
+}
+.bank-card:has(#pay-qr:not([hidden])){padding:14px}
+.bank-card:has(#pay-qr:not([hidden])) .pay-tabs{margin-bottom:10px}
+
+/*  Respaldo para navegadores sin `:has()`: la clase la pone el JS.  */
+.bank-card.con-qr{padding:14px}
+.bank-card.con-qr .pay-tabs{margin-bottom:10px}

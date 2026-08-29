@@ -92,14 +92,21 @@ async function handleForgot() {
 
 // ── DATOS (paso 1) ───────────────────────────────────
 function handleDatos() {
-  const nombre  = $('reg-nombre').value.trim();
+  /*  Dos campos, un solo dato hacia adentro. La base guarda `nombre` completo
+      y así no hay que tocar el registro, los correos ni la consola: lo que
+      cambia es lo que se le PIDE a la persona, no lo que se guarda.        */
+  const pila    = $('reg-nombre').value.trim();
+  const apellido = ($('reg-apellido') ? $('reg-apellido').value : '').trim();
+  const nombre  = (pila + ' ' + apellido).trim();
   const negocio = $('reg-negocio').value.trim();
   const email   = $('reg-email').value.trim();
   const pass    = $('reg-pass').value;
   const ref     = $('reg-ref').value.trim();
   const terms   = $('chk-terms').classList.contains('on');
 
-  if (!nombre || !negocio || !email || !pass)
+  if (!pila || !apellido)
+    return showError('datos-error','datos-error-msg','Escribe tu nombre y tu apellido');
+  if (!negocio || !email || !pass)
     return showError('datos-error','datos-error-msg','Completa todos los campos obligatorios');
   if (pass.length < 8)
     return showError('datos-error','datos-error-msg','La contraseña debe tener al menos 8 caracteres');
@@ -559,6 +566,10 @@ function _verPago(cual) {
   var datos = $('pay-datos'), qr = $('pay-qr');
   if (datos) datos.hidden = (cual === 'qr');
   if (qr) qr.hidden = (cual !== 'qr');
+  /*  Para los navegadores que todavía no entienden `:has()`. El CSS hace lo
+      mismo por su cuenta donde sí lo entiende.  */
+  var caja = $('bank-card');
+  if (caja) caja.classList.toggle('con-qr', cual === 'qr');
   document.querySelectorAll('.pay-tab').forEach(function (b) {
     b.classList.toggle('on', b.dataset.pay === cual);
   });

@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="assets/brand/favicon-192.png">
   <link rel="apple-touch-icon" href="assets/brand/favicon-192.png">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="login.css?v=1798810000">
+  <link rel="stylesheet" href="login.css?v=1798812000">
 </head>
 <body>
 
@@ -140,11 +140,25 @@
           <span id="datos-error-msg">Error</span>
         </div>
         <div class="field-group">
-          <div>
-            <label class="field-label" for="reg-nombre">Nombre completo</label>
-            <div class="au-field">
-              <span class="au-field-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
-              <input type="text" id="reg-nombre" placeholder="Juan García">
+          <!--  Nombre y apellido APARTE (Sergio, 29-ago-2026): *"el cliente solo
+                colocará su nombre"*. Con un campo solo, la mitad de la gente
+                escribe «Sandra» y el apellido no aparece en ningún lado — ni en
+                la factura, ni cuando hay que buscarlo.
+                Van en una fila de dos: partir un campo no puede costar dos
+                renglones más de pantalla.  -->
+          <div class="field-fila">
+            <div>
+              <label class="field-label" for="reg-nombre">Nombre</label>
+              <div class="au-field">
+                <span class="au-field-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                <input type="text" id="reg-nombre" placeholder="Sandra" autocomplete="given-name">
+              </div>
+            </div>
+            <div>
+              <label class="field-label" for="reg-apellido">Apellido</label>
+              <div class="au-field">
+                <input type="text" id="reg-apellido" placeholder="Villarreal" autocomplete="family-name" style="padding-left:13px">
+              </div>
             </div>
           </div>
           <div>
@@ -175,7 +189,7 @@
             <label class="field-label" for="reg-ref">Código de referido <span style="font-weight:400;color:#94A3B8">(opcional)</span></label>
             <div class="au-field">
               <span class="au-field-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span>
-              <input type="text" id="reg-ref" placeholder="AMIGO2025">
+              <input type="text" id="reg-ref" placeholder="AMIGO2026">
             </div>
           </div>
           <label class="check-row">
@@ -454,6 +468,6 @@
 
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <script src="pos-nucleo.js?v=1798798000"></script>
-<script src="login.js?v=1798810000"></script>
+<script src="login.js?v=1798812000"></script>
 </body>
 </html>
