@@ -35,30 +35,46 @@ puede trabajar", no lleva tope.
 
 ---
 
-## 🟢 El precio va en la presentación, no en el producto — 29-ago-2026 (commit `8f5fcf8`)
+## 🟢 Si hay que escoger, en la reja NO va precio — 29-ago-2026 (commits `8f5fcf8` → `cdab20e`)
 
-Sergio: *"cuando haya un producto que tenga presentaciones no puede ir el precio ahí
-porque realmente no es el precio, el precio va en la presentación"*.
+Sergio, y tuvo que decírmelo **dos veces**:
 
-**Lo que se veía.** En la carta, un plato con varios tamaños mostraba **una sola
-cifra**, y esa cifra era la de la presentación **más barata**. RANCHERA decía
-`$27.000` cuando la grande vale `$55.000`.
+> *"No debe verse precios cuando un producto tiene presentación o variable. No debe
+> haber rango, no debe haber nada ahí, solo el nombre del producto y la imagen."*
 
-**Arreglo.** Nueva `posCarta.precioEtiqueta(prod, fmt)` (en `pos-carta.js`, va dentro
-de `pos-nucleo.js`), usada por `tomar-pedido.js`, `venta-rapida.js`, `domicilios.js` e
-`inventario.js`. Reglas:
+**Lo que se veía.** Un plato con varios tamaños mostraba **una sola cifra**, la de la
+presentación más barata, como si fuera el precio del plato.
 
-| Caso | Qué muestra |
+**Mi primer intento (`8f5fcf8`) seguía mal.** Puse un rango — `$27.000 - $55.000`.
+Un rango tampoco es el precio, y con **Premium** se ve por qué cualquier cifra ahí es
+falsa: sus dos presentaciones valen **0**, el precio sale del cruce tamaño × tipo
+(`price_mode: matrix`, Pollo/Carne/Mixta) y va de $28.000 a $69.000. El "$28.000" que
+se veía era el más barato de una matriz.
+
+**La regla buena (`cdab20e`), en `posCarta.precioEtiqueta`:**
+
+| Producto | Reja de productos |
 |---|---|
-| 2+ presentaciones con precios distintos | rango: `$27.000 - $55.000` |
-| 2+ presentaciones al mismo precio | una cifra: `$26.000` |
-| una sola presentación | esa cifra |
-| sin presentaciones (hamburguesas) | el precio del producto, como siempre |
-| sin precio en ningún lado | `null` — no se pinta etiqueta |
+| 2 o más presentaciones | **nada** |
+| cualquier variante (`variables`) | **nada** |
+| una sola presentación | su precio — no hay nada que escoger |
+| ni presentaciones ni variantes (hamburguesa, perro, sándwich) | su precio |
+| sin precio en ningún lado | nada |
 
-**Comprobado en producción** (los 6 casos ejecutados contra el
-`pos-nucleo.js` ya publicado) y contra los datos reales: 40 productos con más de una
-presentación, todos pasan de mostrar el precio del más pequeño a mostrar el rango.
+"Nada" es **nada**: se quitó también el guión `—` de relleno que pintaban
+`tomar-pedido.js`, `venta-rapida.js` y `domicilios.js`. El precio aparece al abrir el
+producto, en la presentación o la variante que se elija, que es donde vive.
+
+**Alcance:** solo la reja del mesero. `inventario.js` tiene su propia `precioEtiqueta`
+y **sigue mostrando el rango a propósito** — ahí el dueño está editando la carta y el
+rango sí le informa.
+
+**Comprobado** contra los **116 productos reales** (48 sin precio, 68 con precio) y
+ejecutando la función extraída del `pos-nucleo.js` **ya publicado**, no de mi copia.
+
+**Regla de fondo:** cuando algo se ve mal, la pregunta es *"¿qué es lo correcto que se
+vea aquí?"*, no *"¿cómo muestro este dato de forma menos incorrecta?"*. El rango fue
+la segunda pregunta.
 
 ---
 
