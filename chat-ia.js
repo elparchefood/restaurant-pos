@@ -79,8 +79,10 @@ async function boot() {
     let tenantId = (window._pos && window._pos.state && window._pos.state.tenantId) || null;
     if (!tenantId) {
       try {
-        const u = await sb.auth.getUser();
-        tenantId = (u.data && u.data.user && u.data.user.user_metadata && u.data.user.user_metadata.tenant_id) || null;
+//  getSession lee del equipo; getUser salia a internet por el mismo dato.
+        let _su = (window._pos && window._pos.state && window._pos.state.user) || null;
+        if (!_su) { try { _su = (await sb.auth.getSession()).data.session.user; } catch (e) {} }
+        tenantId = (_su && _su.user_metadata && _su.user_metadata.tenant_id) || null;
       } catch (e) {}
     }
     /* Si la sesion no dice de que restaurante es, NO se adivina. Antes se cogia
@@ -210,6 +212,17 @@ function pintarBandejaGuardada() {
     renderBadges();
     return true;
   } catch (e) { return false; }
+}
+
+/*  Las tres cargas del arranque (modo del asistente, respuestas rapidas,
+    etiquetas) leian la MISMA fila de ia_config con tres viajes. Uno solo. */
+function _iaConfigFila() {
+  var pedir = function () {
+    return sb.from('ia_config')
+      .select('modo_asistente,activo,respuestas_rapidas,etiquetas')
+      .eq('branch_id', S.branchId).maybeSingle();
+  };
+  return window.posUna ? window.posUna('ia_config_boot', pedir) : pedir();
 }
 
 async function loadConversations() {
@@ -2776,7 +2789,7 @@ function qrEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</
 
 async function loadQuickReplies() {
   try {
-    const { data } = await sb.from('ia_config').select('respuestas_rapidas').eq('branch_id', S.branchId).maybeSingle();
+    const { data } = await _iaConfigFila();
     let list = (data && Array.isArray(data.respuestas_rapidas)) ? data.respuestas_rapidas : [];
     if (!list.length) { list = DEFAULT_QUICK_REPLIES.slice(); await saveQuickReplies(list); }
     /* Las guardadas de antes traen dyn:'total' y un texto con $0 escrito a
@@ -2798,8 +2811,10 @@ async function loadQuickReplies() {
 }
 async function saveQuickReplies(list) {
   const arr = list || S.quickReplies || [];
-  try { await sb.from('ia_config').update({ respuestas_rapidas: arr }).eq('branch_id', S.branchId); }
-  catch (e) { console.error('saveQuickReplies:', e); }
+  try {
+    await sb.from('ia_config').update({ respuestas_rapidas: arr }).eq('branch_id', S.branchId);
+    if (window.posUna) posUna.olvidar('ia_config_boot');   //  se acaba de escribir
+  } catch (e) { console.error('saveQuickReplies:', e); }
 }
 
 // Filtro: primero las que EMPIEZAN por la palabra, luego las que la CONTIENEN
@@ -3722,12 +3737,17 @@ S.etiquetas = S.etiquetas || [];
 S.etqColor = ETQ_COLORS[0];
 
 async function loadEtiquetas(){
-  try{ const { data } = await sb.from('ia_config').select('etiquetas').eq('branch_id', S.branchId).maybeSingle();
+  try{ const { data } = await _iaConfigFila();
     S.etiquetas = (data && Array.isArray(data.etiquetas)) ? data.etiquetas : []; }
   catch(e){ S.etiquetas=[]; }
   renderSidebarLabels();
 }
-async function saveEtiquetasDB(){ try{ await sb.from('ia_config').update({ etiquetas: S.etiquetas }).eq('branch_id', S.branchId); }catch(e){ console.error('saveEtiquetas:', e); } }
+async function saveEtiquetasDB(){
+  try {
+    await sb.from('ia_config').update({ etiquetas: S.etiquetas }).eq('branch_id', S.branchId);
+    if (window.posUna) posUna.olvidar('ia_config_boot');   //  se acaba de escribir
+  } catch(e){ console.error('saveEtiquetas:', e); }
+}
 function renderSidebarLabels(){
   const cont=document.getElementById('navLabels'), cap=document.getElementById('labelsCap');
   if(!cont) return;
@@ -4236,7 +4256,7 @@ const IA_MODOS = {
 async function loadIaMaster() {
   if (!S.branchId) return;
   try {
-    const { data } = await sb.from('ia_config').select('modo_asistente, activo').eq('branch_id', S.branchId).maybeSingle();
+    const { data } = await _iaConfigFila();
     const modo = data ? (data.modo_asistente || (data.activo ? 'on' : 'off')) : 'off';
     renderIaMaster(modo);
   } catch (e) { console.warn('loadIaMaster:', e); }
@@ -4988,8 +5008,9 @@ function prettyPreview(s) {
 async function pintarUsuarioActual() {
   let nombre = '', rol = '', avatarUrl = '';
   try {
-    const { data: au } = await sb.auth.getUser();
-    const u = au && au.user;
+//  getSession lee del equipo; getUser salia a internet por el mismo dato.
+    let u = (window._pos && window._pos.state && window._pos.state.user) || null;
+    if (!u) { try { u = (await sb.auth.getSession()).data.session.user; } catch (e) {} }
     const meta = (u && u.user_metadata) || {};
     nombre    = meta.full_name || meta.name || meta.nombre || meta.restaurant_name || (u && u.email) || '';
     rol       = meta.role || meta.rol || '';
