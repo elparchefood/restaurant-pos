@@ -579,3 +579,20 @@ button{font-family:inherit}
   .bp-esc.on .pago,.bp-esc.on .pago-espera,.bp-esc.on .pago-sello.tarde{animation:none}
   .pago-espera{opacity:0}
 }
+
+/*  ══ EL INTERRUPTOR GENERAL DE ANIMACIONES ══════════════════════
+
+    Lo pone `login.js` cuando comprueba que el navegador NO está dibujando
+    cuadros (pestaña de fondo, vista incrustada, el .exe en cierto estado).
+
+    Por qué hacía falta uno general: la primera red miraba la OPACIDAD, y así
+    cazaba los platos y las comandas — pero no la ruta del mapa, que se anima
+    con el trazo, ni la barra de puntos, que se anima con el ancho. La ruta se
+    quedaba dibujada a medias, que parece un error de la página.
+
+    Con las animaciones apagadas, cada pieza cae a su estilo normal, y todos
+    los estilos normales están escritos en su estado FINAL: la ruta completa,
+    la barra llena, el sello en «Confirmado». Se pierde el movimiento, nunca
+    lo que se veía.                                                          */
+.sin-animacion .bp-esc,
+.sin-animacion .bp-esc *{animation:none !important}

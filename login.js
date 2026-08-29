@@ -626,6 +626,28 @@ async function cargarCuentaCobro() {
   if (esc.length < 2) return;
 
   var quieto = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /*  ¿Este navegador esta dibujando cuadros?
+
+      `requestAnimationFrame` no corre en todas partes. Si no corre, las
+      animaciones se congelan a MEDIAS: la ruta del domiciliario queda
+      dibujada hasta la mitad, la barra de puntos a medio llenar. Eso no se lee
+      como «sin animacion», se lee como «pagina rota».
+
+      Se comprueba una sola vez, al arrancar, con un margen generoso: si en
+      400 ms no hubo dos cuadros, aqui no se anima nada. Es preferible una
+      portada quieta y correcta a una a medio dibujar.                       */
+  (function () {
+    var cuadros = 0;
+    function tic() { cuadros++; if (cuadros < 2) requestAnimationFrame(tic); }
+    requestAnimationFrame(tic);
+    setTimeout(function () {
+      if (cuadros < 2) {
+        var panel = document.querySelector('.brand-panel');
+        if (panel) panel.classList.add('sin-animacion');
+      }
+    }, 400);
+  })();
   var puntos = document.querySelectorAll('.bp-punto');
   var actual = 0, reloj = null;
 
