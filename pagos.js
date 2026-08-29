@@ -1446,8 +1446,21 @@ async function loadOrder() {
     SP.convId = (rc2.data && rc2.data.id) || null;
   } catch (e) { /* sin chat, simplemente no hay botón */ }
 
+  /*  MESAS UNIDAS: el cajero tiene que ver que esta cuenta ocupa dos mesas.
+      Si aqui dijera solo «05», al liberarse las dos parecería un error del
+      programa — y con la mesa 06 llena de gente, peor aún. Una consulta, y
+      solo cuando la mesa de verdad está unida.  */
+  let mesaGrupo = null;
+  if (SP.table && SP.table.grupo_id && window.posMesas) {
+    try {
+      const rg = await sb.from('pos_tables').select('id, name, number, grupo_id')
+        .eq('grupo_id', SP.table.grupo_id);
+      if (rg.data && rg.data.length > 1) mesaGrupo = posMesas.etiqueta(rg.data, SP.tableId);
+    } catch (e) { /* sin el nombre del grupo se ve la mesa sola, que es lo de antes */ }
+  }
+
   // Topbar + meta
-  const mesaName = SP.table?.name || (SP.channel === 'rapido' ? 'Venta Rápida' : SP.channel === 'domicilio' ? 'Domicilio' : 'Mesa');
+  const mesaName = mesaGrupo || SP.table?.name || (SP.channel === 'rapido' ? 'Venta Rápida' : SP.channel === 'domicilio' ? 'Domicilio' : 'Mesa');
   document.getElementById('mesa-title').textContent  = mesaName;
   document.getElementById('crumb-mesa').textContent  = mesaName;
   document.getElementById('sb-section').textContent  = mesaName + ' · Opciones de pago';
