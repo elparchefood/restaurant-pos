@@ -247,6 +247,20 @@ async function updateLabelBadges(){
 async function loadMessages(convId) {
   const { data } = await sb.from('chat_messages').select('*')
     .eq('conversation_id', convId).order('sent_at', { ascending: true });
+  /*  ══ LA RESPUESTA TARDIA NO PISA EL CHAT ABIERTO (28-ago-2026) ══════
+
+      Sergio: *"a veces se queda con el chat de otro chat"*. Esto era.
+
+      Abres a Ana, tarda. Te cansas y abres a Luis, que carga rapido. Y
+      entonces llega la respuesta de Ana —la que salio primero— y se escribe
+      encima: los mensajes de Ana dentro de la ventana de Luis, con el nombre
+      de Luis arriba. Con la red rapida casi nunca pasa; con la red lenta pasa
+      todo el rato.
+
+      No hay que adivinar cual llego primero: basta preguntar si el chat que
+      pedimos SIGUE siendo el que esta abierto. Si no, esta respuesta ya no le
+      importa a nadie y se tira. */
+  if (convId !== S.activeConvId) return;
   S.messages = data || [];
   renderThread();
   updateWaWindow();
@@ -1879,9 +1893,21 @@ async function openConversation(id) {
   S.activeConvId = id;
   const conv = S.conversations.find(c => c.id === id);
   if (!conv) return;
+
+  /*  Se vacia la ventana ANTES de pedir nada. Mientras cargaban los mensajes
+      nuevos seguian en pantalla los del chat anterior — medio segundo leyendo
+      la conversacion equivocada, que es peor que medio segundo en blanco. */
+  S.messages = [];
+  try { renderThread(); } catch (e) {}
+
   if (conv.unread_count > 0) {
     conv.unread_count = 0;
-    await sb.from('chat_conversations').update({ unread_count: 0 }).eq('id', id);
+    /*  Marcar como leido NO puede hacer esperar a nadie: es un apunte nuestro,
+        no algo que el usuario este esperando ver. Antes se aguardaba su viaje
+        al servidor —150 a 400 ms— ANTES de empezar siquiera a pedir los
+        mensajes. Ahora sale solo, por detras. */
+    sb.from('chat_conversations').update({ unread_count: 0 }).eq('id', id)
+      .then(null, function (e) { console.warn('[chat] no leido:', e && e.message); });
   }
   renderConvList(); renderBadges();
   $('chatEmpty').style.display  = 'none';
