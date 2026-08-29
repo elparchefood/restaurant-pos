@@ -455,7 +455,7 @@ async function handlePago() {
         tomar unos segundos, pero nadie se queda mirando una rueda sin final.
         Si tarda, se sigue igual — la verificacion termina de su lado y el
         correo de bienvenida sale cuando termine.                            */
-    txt.innerHTML = '<span class="au-spin"></span> Verificando tu pago\u2026';
+    txt.innerHTML = '<span class="au-spin"></span> Verificando tu pago…';
     REG.verificado = false;
     try {
       const vr = await Promise.race([
@@ -489,8 +489,8 @@ function fillConfirm() {
       confirmo hace que la gente escriba a preguntar por algo que ya funciona. */
   const t = $('cf-titulo'), sub = $('cf-sub');
   if (REG.verificado) {
-    if (t)   t.textContent = '\u00a1Listo! Tu cuenta ya est\u00e1 activa';
-    if (sub) sub.textContent = 'Confirmamos tu pago y te mandamos un correo con tus datos de entrada. Ya puedes iniciar sesi\u00f3n.';
+    if (t)   t.textContent = '¡Listo! Tu cuenta ya está activa';
+    if (sub) sub.textContent = 'Confirmamos tu pago y te mandamos un correo con tus datos de entrada. Ya puedes iniciar sesión.';
   } else {
     if (t)   t.textContent = 'Recibimos tu comprobante';
     if (sub) sub.textContent = 'Estamos verificando tu pago. Apenas quede confirmado te damos el acceso y te llega un correo. Si algo no cuadra, te escribimos.';
@@ -534,7 +534,7 @@ function pintarCuenta() {
   if (!caja) return;
   if (!CUENTA) {
     caja.innerHTML = '<div class="bank-row"><span class="bank-key">No pudimos cargar los datos de pago.'
-      + ' Escr\u00edbenos y te los pasamos.</span></div>';
+      + ' Escríbenos y te los pasamos.</span></div>';
     return;
   }
   var esLlave = /llave/i.test(CUENTA.tipo || '');
@@ -603,6 +603,81 @@ async function cargarCuentaCobro() {
   }
   _verPago('llave');
 }
+
+
+/* ══ LA PORTADA QUE ROTA ═════════════════════════════════
+
+   Cuatro escenas cada 7 segundos: Paco contestando, tomar el pedido, el
+   cierre de caja y la carta armandose sola.
+
+   Tres cuidados, y los tres son por la misma razon —esta pantalla la abre un
+   cliente cada manana y no puede pesar:
+
+   1. Se APAGA cuando la pestana no se ve. Un temporizador corriendo en una
+      pestana de fondo gasta bateria por nada.
+   2. Se apaga tambien si la persona pidio menos movimiento en su sistema.
+   3. Si el panel no esta (en el celular se esconde), no arranca nada.        */
+(function () {
+  var VELOCIDAD = 7000;
+  var esc = document.querySelectorAll('.bp-esc');
+  if (esc.length < 2) return;
+
+  var quieto = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var puntos = document.querySelectorAll('.bp-punto');
+  var actual = 0, reloj = null;
+
+  function pintar(n) {
+    if (n === actual) return;
+    var antes = esc[actual];
+    antes.classList.add('saliendo');
+    antes.classList.remove('on');
+    setTimeout(function () { antes.classList.remove('saliendo'); }, 520);
+    actual = n;
+    esc[actual].classList.add('on');
+    for (var i = 0; i < puntos.length; i++) puntos[i].classList.toggle('on', i === actual);
+    contar(esc[actual]);
+  }
+
+  /*  Las cifras del cierre de caja SUMANDO, que es lo que pidio Sergio: el
+      numero sube hasta el total en vez de aparecer puesto. Se anima cada vez
+      que la escena vuelve, no una sola vez.                                */
+  function contar(seccion) {
+    var cifras = seccion.querySelectorAll('.cifra');
+    for (var i = 0; i < cifras.length; i++) (function (el) {
+      var hasta = Number(el.dataset.a) || 0, ini = null, DUR = 1100;
+      function paso(t) {
+        if (ini === null) ini = t;
+        var k = Math.min(1, (t - ini) / DUR);
+        /*  Frena al final en vez de ir a ritmo parejo: un numero que se
+            detiene de golpe se ve como un error de dibujo.  */
+        var suave = 1 - Math.pow(1 - k, 3);
+        el.textContent = '$' + Math.round(hasta * suave).toLocaleString('es-CO');
+        if (k < 1) requestAnimationFrame(paso);
+      }
+      el.textContent = '$0';
+      requestAnimationFrame(paso);
+    })(cifras[i]);
+  }
+
+  function arrancar() {
+    if (reloj || quieto) return;
+    reloj = setInterval(function () { pintar((actual + 1) % esc.length); }, VELOCIDAD);
+  }
+  function parar() { if (reloj) { clearInterval(reloj); reloj = null; } }
+
+  for (var i = 0; i < puntos.length; i++) (function (b) {
+    b.addEventListener('click', function () {
+      parar(); pintar(Number(b.dataset.ir) || 0); arrancar();
+    });
+  })(puntos[i]);
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) parar(); else arrancar();
+  });
+
+  contar(esc[0]);
+  arrancar();
+})();
 
 // ── Enter key ────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {

@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="assets/brand/favicon-192.png">
   <link rel="apple-touch-icon" href="assets/brand/favicon-192.png">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="login.css?v=1798814000">
+  <link rel="stylesheet" href="login.css?v=1798816000">
 </head>
 <body>
 
@@ -26,41 +26,96 @@
       <div class="bp-logo-box"><img src="assets/brand/cobra-logo.png?v=2" alt="Cobra POS"></div>
       <div>
         <div class="bp-logo-name">Cobra POS</div>
-        <div class="bp-logo-sub">Plataforma de gestión</div>
+        <div class="bp-logo-sub">El POS que contesta por ti</div>
       </div>
     </div>
     <div class="bp-mid">
-      <div class="bp-eyebrow">Para restaurantes modernos</div>
-      <h1 class="bp-headline">Gestiona tu negocio sin límites</h1>
-      <p class="bp-sub">Control total de pedidos, cocina, pagos e informes — desde una sola pantalla.</p>
-      <div class="bp-feats">
-        <div class="bp-feat-row">
-          <div class="bp-feat-ic">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 12l2 2 4-4"/></svg>
+      <!--  ══ CUATRO ESCENAS QUE ROTAN ═════════════════════════════
+
+            Sergio, 29-ago-2026: *"no quiero que sea algo fijo... a los segundos
+            que cambie por una réplica de otra parte de la plataforma"*.
+
+            Todo está dibujado con divs: ni una imagen. Esta es la primera
+            pantalla que ve alguien al entrar a trabajar, y no puede costar una
+            sola descarga más. El movimiento lo lleva `login.js`, que se apaga
+            solo cuando la pestaña no se ve.                                -->
+      <div class="bp-escenario" id="bp-escenario">
+
+        <!-- 1 · Paco contestando el WhatsApp -->
+        <section class="bp-esc on" data-esc="0">
+          <h1 class="bp-headline">Mientras cierras,<br><em>sigues vendiendo</em></h1>
+          <p class="bp-sub">Paco atiende el WhatsApp del restaurante: toma el pedido, cobra y lo manda a la cocina. Tú lo ves hecho.</p>
+          <div class="rp rp-chat">
+            <div class="rp-cab"><span class="rp-punto"></span> WhatsApp del restaurante · 11:47 p. m.</div>
+            <div class="burb ellos">Buenas, ¿todavía hay salchipapa ranchera?</div>
+            <div class="burb paco">¡Claro! Personal $27.000 o familiar $55.000. ¿Cuál te mando?</div>
+            <div class="burb ellos">La familiar, para el conjunto Los Álamos</div>
+            <div class="burb paco">Listo 🙌 Pedido #418 a cocina. Llega en 35 min.</div>
           </div>
-          <div>
-            <div class="bp-feat-title">POS para mesero y cajera</div>
-            <div class="bp-feat-sub">Toma de pedidos y cierre de caja en tiempo real</div>
+        </section>
+
+        <!-- 2 · Tomando el pedido en la mesa -->
+        <section class="bp-esc" data-esc="1">
+          <h1 class="bp-headline">Un toque y el pedido<br><em>ya está en cocina</em></h1>
+          <p class="bp-sub">El mesero marca, la cocina lo ve al instante. Sin papel, sin gritos y sin que se pierda una adición.</p>
+          <div class="rp rp-pedido">
+            <div class="rp-cab"><span class="rp-chip">Mesa 05</span> 2 personas · abierta 12 min</div>
+            <div class="rp-grid">
+              <div class="rp-prod"><div class="rp-foto"></div><span>Ranchera</span></div>
+              <div class="rp-prod on"><div class="rp-foto"></div><span>Mexicana</span></div>
+              <div class="rp-prod"><div class="rp-foto"></div><span>Maicitos</span></div>
+              <div class="rp-prod"><div class="rp-foto"></div><span>Premium</span></div>
+            </div>
+            <div class="rp-linea"><span>1 × Mexicana familiar</span><b>$48.000</b></div>
+            <div class="rp-linea"><span>2 × Gaseosa personal</span><b>$10.000</b></div>
+            <div class="rp-total"><span>Total</span><b>$58.000</b></div>
           </div>
-        </div>
-        <div class="bp-feat-row">
-          <div class="bp-feat-ic">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        </section>
+
+        <!-- 3 · El cierre de caja -->
+        <section class="bp-esc" data-esc="2">
+          <h1 class="bp-headline">Al cerrar,<br><em>la caja ya cuadró</em></h1>
+          <p class="bp-sub">Efectivo, transferencias y domicilios, cada uno en su sitio. Sin calculadora y sin cuadrar a mano.</p>
+          <div class="rp rp-caja">
+            <div class="rp-cab">Cierre del turno · hoy</div>
+            <div class="rp-fila"><span>Efectivo</span><b class="cifra" data-a="1284000">$0</b></div>
+            <div class="rp-fila"><span>Transferencias</span><b class="cifra" data-a="963500">$0</b></div>
+            <div class="rp-fila"><span>Domicilios cobrados</span><b class="cifra" data-a="184000">$0</b></div>
+            <div class="rp-suma">
+              <span>Vendido hoy</span>
+              <b class="cifra rp-grande" data-a="2247500">$0</b>
+            </div>
+            <div class="rp-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Cuadra con lo contado</div>
           </div>
-          <div>
-            <div class="bp-feat-title">Pantalla de cocina</div>
-            <div class="bp-feat-sub">Comandas digitales sin papel ni errores</div>
+        </section>
+
+        <!-- 4 · La carta que se arma sola -->
+        <section class="bp-esc" data-esc="3">
+          <h1 class="bp-headline">Mándale la foto<br><em>y arma tu carta</em></h1>
+          <p class="bp-sub">Le pasas la foto de tu menú y él saca los platos, los precios y las presentaciones. Tú solo revisas.</p>
+          <div class="rp rp-carta">
+            <div class="rp-archivo">
+              <div class="rp-hoja"><span>carta.jpg</span></div>
+              <div class="rp-flecha">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              </div>
+              <div class="rp-leyendo">Leyendo tu carta…</div>
+            </div>
+            <div class="rp-salida">
+              <div class="rp-item" style="--t:.15s"><span>Salchipapa Ranchera</span><b>$27.000 · $55.000</b></div>
+              <div class="rp-item" style="--t:.5s"><span>Salchipapa Mexicana</span><b>$24.000 · $48.000</b></div>
+              <div class="rp-item" style="--t:.85s"><span>Maicitos Especial</span><b>3 variantes</b></div>
+            </div>
           </div>
-        </div>
-        <div class="bp-feat-row">
-          <div class="bp-feat-ic">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
-          </div>
-          <div>
-            <div class="bp-feat-title">Informes en tiempo real</div>
-            <div class="bp-feat-sub">Ventas, mesas y rendimiento al instante</div>
-          </div>
-        </div>
+        </section>
+
+      </div>
+
+      <div class="bp-puntos" id="bp-puntos" role="tablist" aria-label="Qué hace Cobra">
+        <button class="bp-punto on" data-ir="0" aria-label="Paco contesta el WhatsApp"></button>
+        <button class="bp-punto" data-ir="1" aria-label="Toma de pedidos"></button>
+        <button class="bp-punto" data-ir="2" aria-label="Cierre de caja"></button>
+        <button class="bp-punto" data-ir="3" aria-label="La carta con IA"></button>
       </div>
     </div>
     <div class="bp-foot">
@@ -484,6 +539,6 @@
 
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <script src="pos-nucleo.js?v=1798798000"></script>
-<script src="login.js?v=1798814000"></script>
+<script src="login.js?v=1798816000"></script>
 </body>
 </html>
