@@ -414,6 +414,9 @@ addEventListener('unhandledrejection', e => morir('La pantalla no pudo abrir.', 
   paso('Trayendo las comandas…');
   pintarDesdeElEquipo();      //  se ve YA; el servidor confirma abajo
   await cargarComandas();
+  //  Red de seguridad del pintado-desde-el-aviso: si un aviso se pierde, el
+  //  repaso lo cuadra. 90 s: mas seguido seria volver al problema original.
+  setInterval(function () { cargarComandas().catch(function () {}); }, 90000);
 
   S.arrancando = false;      // a partir de aquí, lo nuevo suena
   pintar();
@@ -1314,9 +1317,51 @@ function suscribir() {
     }, 300);
   }
 
+  /*  ══ PINTAR DESDE EL AVISO, SIN VOLVER A PREGUNTAR (29-ago-2026) ══════
+
+      El aviso de tiempo real YA TRAE la fila que cambio. Para lo que la
+      cocina hace minuto a minuto —un pedido que pasa a listo, a en camino, o
+      se cancela— no hay que consultar nada: se retoca la tarjeta que ya esta
+      en pantalla y el cambio es INSTANTANEO, aunque la red este mala.
+
+      Solo se recarga (con el freno) cuando el aviso no alcanza:
+      · un pedido NUEVO (hay que traer sus productos),
+      · un cambio en los items (la regla de kitchen_printed_at necesita la
+        lista cruda),
+      · un pedido que no esta en pantalla.
+
+      Y la red de seguridad: un repaso completo cada 90 s, por si un aviso se
+      pierde con el socket caido. */
+  function alCambiarPedido(payload) {
+    try {
+      const n = payload && payload.new;
+      const viejo = payload && payload.old;
+      if (payload.eventType === 'DELETE') {
+        const id = (viejo && viejo.id) || null;
+        if (id && S.orders.has(id)) { S.orders.delete(id); S.items.delete(id); pintar(); guardarEnElEquipo(); }
+        return;
+      }
+      if (!n || !n.id) { cargarComandasFrenado(); return; }
+      const conocido = S.orders.get(n.id);
+      if (!conocido) {
+        //  Nuevo o recien visible: sus productos no estan aqui. Recarga.
+        cargarComandasFrenado();
+        return;
+      }
+      if (n.status === 'cancelled' || n.status === 'abandoned') {
+        S.orders.delete(n.id); S.items.delete(n.id);
+        pintar(); guardarEnElEquipo();
+        return;
+      }
+      //  El caso caliente: cambio de estado o de datos. Cero consultas.
+      S.orders.set(n.id, Object.assign({}, conocido, n));
+      pintar(); guardarEnElEquipo();
+    } catch (e) { console.warn('[cocina] aviso:', e && e.message); cargarComandasFrenado(); }
+  }
+
   sb.channel('cocina')
     .on('postgres_changes', { event:'*', schema:'public', table:'pos_orders',
-        filter:`branch_id=eq.${S.branchId}` }, cargarComandasFrenado)
+        filter:`branch_id=eq.${S.branchId}` }, alCambiarPedido)
     .on('postgres_changes', { event:'*', schema:'public', table:'pos_order_items',
         filter:`branch_id=eq.${S.branchId}` }, cargarComandasFrenado)
     .subscribe(estado => {
