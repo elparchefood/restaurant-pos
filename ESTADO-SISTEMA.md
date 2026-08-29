@@ -110,8 +110,18 @@ bustear por `?v=`. **Tocar el .exe = reconstruirlo; va con Sergio.**
     anti-duplicado por id. **Verificado en vivo: llega y pinta una sola vez.**
     El disparador va en EXCEPTION: jamás tumba el mensaje.
 
-**Pendiente:** pintar desde el aviso en ventas/domicilios · broadcast para
-pos-notify · plan de Supabase (decisión de compra de Sergio).
+**Quinta tanda (29-ago, mientras Sergio dormia):**
+
+22. **Ventas pinta la mesa desde el aviso** (verificado en vivo: la tarjeta
+    cambio a "comiendo" sin recargar). La recarga frenada cuadra totales.
+23. **Domicilios mueve el tablero desde el aviso** cuando otro aparato cambia
+    el estado. Ojo: los campos son los de la tarjeta (estado/paidAmount/
+    payStatus/domiciliarioId), no los de la base.
+24. **pos-notify escucha el broadcast** del mismo canal chat-b:<tenant>, con
+    postgres_changes de respaldo y dedupe por id (60 s).
+
+**Pendiente:** tablas de resumen para informes · plan de Supabase (compra,
+decision de Sergio) · Nivel 2 (aplazado a proposito).
 
 ---
 
