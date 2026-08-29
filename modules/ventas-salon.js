@@ -408,16 +408,22 @@
      guardó en ESTE computador. En el equipo de Sergio no estaba, y por eso al
      entrar seguía diciendo "Cargando mesas…". Ahora, la primera vez que las
      mesas llegan del servidor —vengan de donde vengan— se guarda su plano
-     (cuáles son, cómo se llaman, en qué zona), y a partir de ahí el salón se
-     dibuja al instante. El ESTADO de cada mesa nunca se guarda: eso cambia a
-     cada rato y siempre viene fresco. */
+     Y su estado. El estado antes no se guardaba a propósito ("cambia a cada
+     rato"), y eso dejaba el lapso que Sergio describió con la Mesa 1: al
+     volver a la pantalla, todas salían 'libres' un segundo hasta que llegaba
+     la red. Regla nueva (29-ago, idea de Sergio): lo del equipo se pinta TAL
+     CUAL y solo cambia cuando llega una actualización — el aviso en vivo y la
+     recarga corrigen en segundos si algo cambió mientras no mirábamos. */
   function guardarPlanoSalon() {
     if (!window.posCache || !state.tables || !state.tables.length) return;
     posCache.guardarPronto('salon', function () {
       return {
         zones: state.zones || [],
         tables: state.tables.map(function (t) {
-          return { id: t.id, name: t.name, number: t.number, seats: t.seats, zone_id: t.zone_id };
+          return { id: t.id, name: t.name, number: t.number, seats: t.seats, zone_id: t.zone_id,
+                   status: t.status, total: t.total, items_count: t.items_count,
+                   minutes: t.minutes, mesero_initials: t.mesero_initials, persons: t.persons,
+                   current_order_id: t.current_order_id };
         })
       };
     }, 300);
@@ -432,7 +438,12 @@
       tables: d.tables.map(function (t) {
         return {
           id: t.id, name: t.name, number: t.number, seats: t.seats, zone_id: t.zone_id,
-          status: 'libre', total: 0, items_count: 0, minutes: 0, mesero_initials: '', persons: 0
+          //  El estado guardado se pinta tal cual: es el de hace un momento, y
+          //  si cambió, el aviso o la recarga lo corrigen enseguida. Antes se
+          //  forzaba 'libre' y una mesa esperando parpadeaba a libre al volver.
+          status: t.status || 'libre', total: t.total || 0, items_count: t.items_count || 0,
+          minutes: t.minutes || 0, mesero_initials: t.mesero_initials || '', persons: t.persons || 0,
+          current_order_id: t.current_order_id || null
         };
       })
     };
@@ -838,6 +849,7 @@
               t.comiendo_at = n.comiendo_at;
               t.sesion_at = n.sesion_at;
               render();
+              guardarPlanoSalon();   //  la copia del equipo sigue al dato
             }
           }
         } catch (e) { console.warn('[VS] aviso mesa:', e && e.message); }

@@ -269,6 +269,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!cajaOpen) return;
     }
 
+    /*  Regla del 29-ago (idea de Sergio): lo de tiempo real se guarda en el
+        equipo la primera vez y se pinta de ahi AL INSTANTE; solo cambia
+        cuando llega una actualizacion. El tablero sale ya con lo de hace un
+        momento y la red confirma. */
+    try {
+      var _g = window.posCache && posCache.leer('domi.tablero');
+      if (_g && Array.isArray(_g.datos) && _g.datos.length) {
+        S.deliveries = _g.datos;
+        renderMonitor(); updateMonitorBadge();
+      }
+    } catch (e) { /* sin copia, se espera la red como siempre */ }
     try { await loadData(); } catch(e) { console.error('loadData:', e); }
     try { await loadActiveOrders(); } catch(e) { console.error('loadActiveOrders:', e); }
     try { subscribeNewOrders(); } catch(e) { console.error('subscribeNewOrders:', e); }
@@ -2110,6 +2121,9 @@ function volverAVentas() {
 
 // ── Monitor kanban ─────────────────────────────────────────────────────
 function renderMonitor() {
+  /*  La copia del equipo sigue al dato: cada repintado la actualiza. Asi el
+      proximo arranque muestra EXACTAMENTE lo ultimo que se vio. */
+  try { if (window.posCache) posCache.guardarPronto('domi.tablero', function () { return S.deliveries; }); } catch (e) {}
   let activos = 0, enCamino = 0, porPagar = 0;
 
   ESTADOS.forEach(e => {
