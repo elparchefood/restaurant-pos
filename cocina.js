@@ -1243,11 +1243,42 @@ async function deshacer(id) {
 
 /* ── En vivo ────────────────────────────────────────────────────────────── */
 function suscribir() {
+  /*  ══ UN FRENO DE 300 ms ANTES DE REDIBUJAR ═════════════════════════════
+
+      Cada aviso de tiempo real llamaba a `cargarComandas`, y `cargarComandas`
+      son CUATRO consultas. Una comanda de 6 productos escribe 1 fila de pedido
+      y 6 de items: **siete avisos seguidos, veinticuatro consultas**, todas
+      para pintar el mismo resultado. Medido: unos 3,6 segundos por comanda.
+
+      El freno no retrasa nada que se note —300 ms— y convierte la rafaga en
+      una sola recarga. Si los avisos siguen llegando, el reloj se reinicia:
+      mientras el mesero sigue mandando, la pantalla espera a que termine.
+
+      El `_frenoUltimo` es el candado del caso raro: si entran avisos sin parar
+      durante mucho rato, se redibuja igual cada 2 segundos en vez de no
+      redibujar nunca.                                                        */
+  var _frenoT = null, _frenoDesde = 0;
+  function cargarComandasFrenado() {
+    var ahora = Date.now();
+    if (!_frenoDesde) _frenoDesde = ahora;
+    if (ahora - _frenoDesde > 2000) {          // lleva 2 s esperando: se pinta ya
+      if (_frenoT) { clearTimeout(_frenoT); _frenoT = null; }
+      _frenoDesde = 0;
+      cargarComandas();
+      return;
+    }
+    if (_frenoT) clearTimeout(_frenoT);
+    _frenoT = setTimeout(function () {
+      _frenoT = null; _frenoDesde = 0;
+      cargarComandas();
+    }, 300);
+  }
+
   sb.channel('cocina')
     .on('postgres_changes', { event:'*', schema:'public', table:'pos_orders',
-        filter:`branch_id=eq.${S.branchId}` }, cargarComandas)
+        filter:`branch_id=eq.${S.branchId}` }, cargarComandasFrenado)
     .on('postgres_changes', { event:'*', schema:'public', table:'pos_order_items',
-        filter:`branch_id=eq.${S.branchId}` }, cargarComandas)
+        filter:`branch_id=eq.${S.branchId}` }, cargarComandasFrenado)
     .subscribe(estado => {
       /* SUBSCRIBED es lo único que confirma que los cambios están llegando.
          CHANNEL_ERROR y TIMED_OUT son caída aunque el wifi diga que hay. */

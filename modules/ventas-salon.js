@@ -792,6 +792,22 @@
   }
 
   // ─── Realtime subscription ───────────────────────────
+  /*  ══ FRENO DE 300 ms ═════════════════════════════════════════════════
+      Cada aviso recargaba el plano entero. Una comanda de 6 productos son
+      siete avisos seguidos: siete recargas para pintar lo mismo. El freno los
+      junta en una. Si siguen llegando sin parar, se pinta igual cada 2 s.   */
+  var _ldT = null, _ldDesde = 0;
+  function loadDataFrenado() {
+    var ahora = Date.now();
+    if (!_ldDesde) _ldDesde = ahora;
+    if (ahora - _ldDesde > 2000) {
+      if (_ldT) { clearTimeout(_ldT); _ldT = null; }
+      _ldDesde = 0; loadData(); return;
+    }
+    if (_ldT) clearTimeout(_ldT);
+    _ldT = setTimeout(function () { _ldT = null; _ldDesde = 0; loadData(); }, 300);
+  }
+
   function subscribeRealtime() {
     const sb = window._pos && window._pos.sb;
     if (!sb) return;
@@ -802,10 +818,10 @@
     realtimeSub = sb
       .channel('ventas-salon-tables')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_tables', filter: _fb }, () => {
-        loadData();
+        loadDataFrenado();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_orders', filter: _fb }, (payload) => {
-        loadData();
+        loadDataFrenado();
         timbreSiEsMio(payload);
         if (payload.eventType === 'UPDATE'
             && payload.new && payload.new.status === 'in_progress'
