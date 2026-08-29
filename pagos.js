@@ -452,9 +452,10 @@ function renderTotals() {
   footVuelto.textContent = fmt(vuelto);
   footVuelto.className = 'pg-foot-value ' + (vuelto > 0 ? 'is-vuelto' : 'is-muted');
 
-  // Botón finalizar
+  // Botón finalizar — cubierto Y confirmado por la red (nunca con la copia
+  // del equipo: un total viejo cobrado es plata mal contada).
   const btnFinish = document.getElementById('btn-finish');
-  btnFinish.disabled = !cubierto;
+  btnFinish.disabled = !cubierto || SP.confirmadoPorRed === false;
 
   // Botón guardar abono: activo solo si hay pagos NUEVOS sin guardar y aún falta
   const btnAbono = document.getElementById('btn-abono');
@@ -1298,6 +1299,11 @@ async function loadOrder() {
     return;
   }
   SP.order = order;
+  SP.confirmadoPorRed = true;   //  a partir de aqui, cobrar es seguro
+  /*  Se guarda TAL CUAL para la proxima apertura de ESTE pedido: salir de la
+      pantalla y volver a entrar es lo mas normal del mundo (revisar la mesa,
+      volver a cobrar), y no tiene por que costar otro viaje. */
+  try { if (window.posCache) posCache.guardar('pago.' + SP.orderId, { order: order }); } catch (e) {}
 
   // ── ABONOS: cargar pagos ya registrados de esta orden (parciales guardados,
   // transferencias verificadas por el bot, etc.). Aparecen como pagos aplicados
@@ -1565,7 +1571,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (_g && Array.isArray(_g.datos) && _g.datos.length) _mpAplicarLista(_g.datos);
   } catch (e) { /* sin cache no pasa nada: se espera la red como siempre */ }
 
-  // 5b. Cargar datos
+  /*  ══ EL PEDIDO PINTA AL INSTANTE SI YA SE CONOCE (29-ago-2026) ══════════
+
+      Sergio: *"los datos deberian estar listos en el equipo para que al tocar
+      la mesa la pantalla de pago abra de inmediato"*. Exacto. Dos fuentes,
+      en orden:
+      1. La PRECARGA que dejo la pantalla de ventas al tocar la mesa.
+      2. Lo guardado la ULTIMA vez que se abrio este mismo pedido.
+
+      Con cualquiera de las dos se pintan los productos y el total AL TIRO y
+      se quita el velo. La red corre igual (loadOrder) y repinta si algo
+      cambio. Y el candado del dinero: `SP.confirmadoPorRed` solo lo pone la
+      red — el boton Finalizar no se habilita con datos del equipo, porque
+      cobrar con un total viejo es peor que esperar un segundo. */
+  SP.confirmadoPorRed = false;
+  try {
+    const _snap = window.posCache && posCache.leer('pago.' + SP.orderId);
+    const _ord = _snap && _snap.datos && _snap.datos.order;
+    if (_ord && _ord.id === SP.orderId) {
+      SP.order = _ord;
+      renderItems(); renderAll();
+      pgQuitarVelo();
+    }
+  } catch (e) { /* sin copia: se espera la red como siempre */ }
+
+  // 5b. Cargar datos (la red manda: confirma o corrige lo pintado)
   await loadOrder();
   // 5b. Cargar métodos de pago configurados (fuente: Métodos de pago)
   await loadPaymentMethods();

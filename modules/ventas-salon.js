@@ -1145,6 +1145,32 @@
     state.quickDeliveredCount = _ok(3, state.quickDeliveredCount);
 
     state.loading = false;
+    /*  ══ PRECARGA DE COBRO (29-ago-2026) ══════════════════════════════════
+        Sergio: los datos de pago *"deberian estar listos en el equipo para
+        que al tocar Cobrar la pantalla abra de inmediato"*. Eso: para cada
+        mesa con pedido, se baja su cuenta EN SEGUNDO PLANO y se deja en el
+        equipo con la misma llave que lee la pantalla de pagos ('pago.<id>').
+        Cuando alguien toca Cobrar, ya esta.
+
+        No estorba: corre despues de pintar, sin await, una mesa a la vez, y
+        solo si no se trajo en el ultimo minuto. En El Parche son 2-4 mesas
+        ocupadas — dos consultas chiquitas por recarga del plano. */
+    setTimeout(async function precargarCobros() {
+      try {
+        if (!window.posCache) return;
+        const ids = (state.tables || [])
+          .filter(function (t) { return t.current_order_id && t.status !== 'libre'; })
+          .map(function (t) { return t.current_order_id; })
+          .slice(0, 8);
+        for (const oid of ids) {
+          const ya = posCache.leer('pago.' + oid);
+          if (ya && ya.edadSeg < 60) continue;
+          const r = await sb.from('pos_orders').select('*, pos_order_items(*)')
+            .eq('id', oid).maybeSingle();
+          if (r && r.data) posCache.guardar('pago.' + oid, { order: r.data });
+        }
+      } catch (e) { /* la precarga jamas estorba */ }
+    }, 800);
     /* RASTRO: el salon volvio a mostrar todas las mesas libres teniendo los
        datos buenos, y sin ningun error. Se anota que trajo la carga y que quedo
        en pantalla, para verlo escrito la proxima vez en vez de deducirlo. */
