@@ -446,7 +446,7 @@ async function cargarBase() {
      no. Y cada una con su tope: una que no conteste no puede colgar el resto. */
   const [suc, mesas, prods] = await Promise.allSettled([
     conTope(sb.from('branches').select('name, cobro_adelantado, operacion_config, brands(name, logo_url)').eq('id', S.branchId).maybeSingle(), 12, 'la sucursal'),
-    conTope(sb.from('pos_tables').select('id, name').eq('branch_id', S.branchId), 12, 'las mesas'),
+    conTope(sb.from('pos_tables').select('id, name, grupo_id').eq('branch_id', S.branchId), 12, 'las mesas'),
     conTope(sb.from('pos_products').select('id, photo_url, category_id').eq('branch_id', S.branchId), 15, 'la carta'),
   ]).then(rs => rs.map(r => {
     if (r.status === 'rejected') { console.error('[cocina]', r.reason); return { data:null }; }
@@ -741,7 +741,9 @@ async function cargarComandas() {
        esta aqui. Cuando el mesero libera la mesa, desaparece sola de las dos
        pantallas — por eso no hace falta ningun tope de horas. */
     const { data:mesas } = await conTope(sb.from('pos_tables')
-      .select('id, name, status, current_order_id')
+      //  `grupo_id` para poder titular «Mesas 05 y 06» cuando la cuenta ocupa
+      //  varias. Sin el, la etiqueta se cae al nombre de una sola mesa.
+      .select('id, name, status, current_order_id, grupo_id')
       .eq('branch_id', S.branchId)
       .neq('status', 'libre')
       .not('current_order_id', 'is', null), 12, 'las mesas ocupadas');

@@ -35,6 +35,34 @@ puede trabajar", no lleva tope.
 
 ---
 
+## 🔴→🟢 El estado «ocupada» de la mesa NO EXISTE — 29-ago-2026 (commit `5346977`)
+
+Hallado probando las mesas unidas: al intentar poner una mesa en `ocupada`, la base
+contestó
+
+```
+new row for relation "pos_tables" violates check constraint "pos_tables_status_check"
+```
+
+`pos_tables_status_check` admite **solo** `libre`, `esperando`, `comiendo`,
+`pendiente_pago` y `reservada`. **`ocupada` no está en la lista** — y se escribía en
+cinco sitios.
+
+| Dónde | Qué pasaba |
+|---|---|
+| `ventas-salon.js`, `vsPasarPedido` | Ahí **sí** se miraba el error, así que pasar un domicilio o un para-llevar a una mesa libre reventaba con «No se pudo pasar». Roto de cara al usuario. |
+| `tomar-pedido.js`, camino de respaldo (sin cola de sincronización) | Nadie miraba el error: fallaba **en silencio** y la mesa se quedaba **libre con un pedido vivo encima**. |
+| tres sitios de las mesas unidas | Recién escritos ese mismo día. |
+
+Todos pasan a **`esperando`**, que es lo que de verdad está una mesa recién abierta:
+esperando su comida. Y el del camino de respaldo ahora sí mira el error.
+
+**Lección:** un `await sb.from(...).update(...)` sin mirar `error` no es una escritura,
+es un deseo. Los estados válidos están en la base, no en la memoria de quien escribe
+el código.
+
+---
+
 ## 🟢 Editar mesa y Unir mesas — 29-ago-2026 (commit `97695ae`)
 
 Los dos botones de la barra de la mesa llevaban ahí **desde el principio sin hacer
