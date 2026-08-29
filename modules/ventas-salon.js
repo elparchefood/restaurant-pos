@@ -418,6 +418,12 @@
     if (!window.posCache || !state.tables || !state.tables.length) return;
     posCache.guardarPronto('salon', function () {
       return {
+        /*  Las otras tres pestanas tambien se guardan (29-ago, Sergio): al
+            volver de otra pantalla decian "0 domicilios / 0 rapidas" medio
+            segundo, aunque el equipo ya sabia cuantos habia. */
+        deliveries: state.deliveries || [],
+        quickOrders: state.quickOrders || [],
+        quickDeliveredCount: state.quickDeliveredCount || 0,
         zones: state.zones || [],
         tables: state.tables.map(function (t) {
           return { id: t.id, name: t.name, number: t.number, seats: t.seats, zone_id: t.zone_id,
@@ -434,6 +440,9 @@
     var d = g && g.datos;
     if (!d || !d.tables || !d.tables.length) return null;
     return {
+      deliveries: d.deliveries || [],
+      quickOrders: d.quickOrders || [],
+      quickDeliveredCount: d.quickDeliveredCount || 0,
       zones: d.zones || [],
       tables: d.tables.map(function (t) {
         return {
@@ -4967,13 +4976,21 @@
         state.zones = _plano.zones;
         if (!state.floor) state.floor = state.zones[0].id;
       }
+      /*  Y las otras tres pestanas, con lo ultimo que se vio. Antes se dejaba
+          `loading` encendido a proposito porque estas dependian del servidor;
+          ahora tambien vienen del equipo, asi que la pantalla entera puede
+          salir completa de una. `loadData` confirma y corrige en segundos. */
+      state.deliveries = _plano.deliveries;
+      state.quickOrders = _plano.quickOrders;
+      state.quickDeliveredCount = _plano.quickDeliveredCount;
+      state.loading = false;
     } else {
       var _mesas = mesasBase();
       if (_mesas.length) state.tables = _mesas;
     }
-    /* Ojo: NO se apaga state.loading. Si se apagara, los pedidos rápidos y los
-       domicilios —que sí dependen del servidor— dirían "no hay ninguno" antes
-       de saberlo, y eso es mentirle a un mesero. Solo el salón se adelanta. */
+    /* `state.loading` solo sigue encendido si NO habia nada guardado: ahi si
+       decir "no hay ninguno" seria mentirle a un mesero. Con copia en el
+       equipo se apaga arriba y la pantalla sale completa. */
 
     // Initial render (loading state)
     render();
