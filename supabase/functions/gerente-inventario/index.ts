@@ -144,24 +144,56 @@ function fmtExistencia(ins: Insumo): string {
 // operaciones: al modelo se le acababa el cupo de respuesta a la mitad, el
 // JSON quedaba partido y el bot contestaba "No te entendi" sin haber hecho
 // nada. Ahora cada pedazo se interpreta por separado y se suman los cambios.
+/*  Deja el texto en palabras comparables. Dos detalles que importan:
+
+    · "1.5" se vuelve "15" y NO se parte en dos. Antes el punto se convertia en
+      espacio y "Coca Cola 1.5 Litros" quedaba con las piezas "1" y "5", cada
+      una de una sola letra — y todo lo de menos de tres letras se tiraba. O sea
+      que **lo unico que distingue a la de litro y medio de la personal
+      desaparecia** antes de comparar nada.
+    · Los numeros cuentan como palabra. "15" distingue tanto como "personal". */
+function limpiar(t: string): string {
+  return t.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/(\d)[.,](\d)/g, "$1$2")          //  1.5 → 15, antes de tocar los signos
+    .replace(/[^a-z0-9 ]+/g, " ").replace(/ +/g, " ").trim();
+}
+/*  Palabra que sirve para identificar: de tres letras para arriba, o con algun
+    numero (que suele ser justo lo que diferencia dos presentaciones). */
+function significativas(t: string): string[] {
+  return limpiar(t).split(" ").filter((w) => w.length >= 3 || /[0-9]/.test(w));
+}
+
 function trocear(mensaje: string): string[] {
   const lineas = mensaje.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
-  if (lineas.length <= 3) return [mensaje];
-  // UNA linea por pedazo. Con varias lineas juntas el modelo mezclaba los
-  // numeros entre productos de nombre parecido ("Hit Litro Naranja Pina ...
-  // 4 en servicio" quedo en 5, que era el numero del "Hit Litro Lulo" de la
-  // linea siguiente). Separadas no hay con que confundirse.
-  return lineas;
+  /*  UNA LINEA POR PEDAZO, SIEMPRE (28-ago-2026).
+
+      Aqui decia `if (lineas.length <= 3) return [mensaje]`: los mensajes de
+      hasta tres lineas se mandaban enteros. Parecia un ahorro sensato y costo
+      un inventario mal sumado.
+
+      Sergio escribio:
+          Suma 1 paquete coca cola 1.5
+          1 paquete coca cola personal
+      Dos lineas → un solo pedazo → la comprobacion de nombre de mas abajo miro
+      el mensaje COMPLETO, vio que "coca cola personal" estaba nombrado entero
+      ahi dentro, y **le cambio el insumo a las dos operaciones**. Resultado: la
+      personal sumo dos paquetes y la de litro y medio no sumo ninguno.
+
+      El ahorro no vale eso. Cada linea es una instruccion: se parte y cada una
+      se lee con lo suyo delante y nada mas.                                  */
+  return lineas.length > 1 ? lineas : [mensaje];
 }
 
 // Los insumos que se parecen a lo que dice esta linea. Mandarle al modelo
 // el inventario entero en cada linea reventaba el cupo por minuto de OpenAI
 // y las llamadas rebotaban sin que nadie se enterara.
 function candidatos(linea: string, insumos: Insumo[]): Insumo[] {
-  const limpio = (s: string) => s.toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9 ]+/g, " ").replace(/ +/g, " ").trim();
-  const palabras = limpio(linea).split(" ").filter((w) => w.length >= 3 && !/^[0-9]+$/.test(w));
+  const limpio = limpiar;
+  /*  Los numeros ya NO se descartan: "coca cola 15" tiene que puntuar mas alto
+      en "Coca Cola 1.5 Litros" que en "Coca Cola Personal". Antes las dos
+      empataban y el orden lo decidia el azar del inventario. */
+  const palabras = significativas(linea);
   if (!palabras.length) return insumos;
   const puntuado = insumos.map((i) => {
     const nom = limpio(i.nombre);
@@ -204,33 +236,104 @@ function candidatos(linea: string, insumos: Insumo[]): Insumo[] {
 
    El modelo entiende la intencion; el codigo comprueba que el nombre cuadre. */
 function corregirInsumoPorNombre(linea: string, ops: Op[], insumos: Insumo[]): void {
-  const limpio = (s: string) => s.toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9 ]+/g, " ").replace(/ +/g, " ").trim();
-  const dichas = new Set(limpio(linea).split(" ").filter(Boolean));
+  /*  UNA LINEA, O NADA (28-ago-2026).
+
+      Esta comprobacion atribuye un nombre a TODAS las operaciones que le
+      lleguen. Con una sola instruccion delante eso es correcto; con dos, es un
+      desastre — le pone a la segunda el insumo de la primera. Es exactamente lo
+      que paso con las dos Coca Colas. `trocear` ya parte por lineas, pero el
+      candado se pone aqui tambien: el dia que alguien vuelva a juntar lineas,
+      que falle en no hacer nada, no en cambiar el insumo equivocado.          */
+  if (linea.split("\n").filter((l) => l.trim().length > 0).length > 1) return;
+
+  const dichas = new Set(significativas(linea));
   if (!dichas.size) return;
+  const palabrasDe = (i: Insumo): string[][] =>
+    [i.nombre, ...(i.alias || [])].map((n) => significativas(n)).filter((ws) => ws.length > 0);
 
-  /* Nombrado COMPLETO = todas las palabras de su nombre (de 3 letras o mas)
-     estan en la linea. Los alias cuentan igual: es como lo llama el gerente. */
-  const nombradoCompleto = (i: Insumo): boolean => {
-    const juegos = [i.nombre, ...(i.alias || [])];
-    return juegos.some((n) => {
-      const ws = limpio(n).split(" ").filter((w) => w.length >= 3);
-      return ws.length > 0 && ws.every((w) => dichas.has(w));
-    });
-  };
+  /* Nombrado COMPLETO = todas las palabras de su nombre estan en la linea.
+     Los alias cuentan igual: es como lo llama el gerente. */
+  const nombradoCompleto = (i: Insumo): boolean =>
+    palabrasDe(i).some((ws) => ws.every((w) => dichas.has(w)));
+
   const completos = insumos.filter(nombradoCompleto);
-  if (completos.length !== 1) return;   // ninguno o varios: no se toca
+  if (completos.length === 1) {
+    const bueno = completos[0];
+    for (const op of ops) {
+      if (!op.insumo_id || op.insumo_id === bueno.id) continue;
+      const eligio = insumos.find((i) => i.id === op.insumo_id);
+      if (eligio && nombradoCompleto(eligio)) continue;
+      console.log(`[gerente] "${linea.trim()}" nombra entero a ${bueno.nombre} — se corrige ${eligio ? eligio.nombre : op.insumo_id}`);
+      op.insumo_id = bueno.id;
+    }
+    return;
+  }
+  if (completos.length > 1) return;   //  varios: no se adivina
 
-  const bueno = completos[0];
+  /*  ══ LA REGLA DE LA VARIANTE ═══════════════════════════════════════════
+
+      Ningun nombre esta completo, y aun asi puede estar clarisimo cual es. El
+      gerente escribe "coca cola 1.5", no "coca cola 1.5 litros"; escribe "hit
+      personal frutos tropicales" y el nombre completo lleva las mismas cuatro
+      palabras pero el modelo eligio "Hit Litro Frutos Naranja Piña".
+
+      Los tres errores de este tipo que han pasado son el mismo: DOS
+      PRESENTACIONES DE LA MISMA COSA. Comparten media familia y se diferencian
+      en una palabra. Asi que:
+
+        · Se mira solo dentro de la FAMILIA del que eligio el modelo: insumos
+          que comparten dos palabras o mas con el. "Queso" no tiene familia, asi
+          que un "suma 20 paquetes de queso" no puede terminar en otro insumo
+          por accidente.
+        · Se corrige si la linea dice algo que SOLO tiene el otro ("15", que la
+          personal no lleva) y NO dice nada de lo que solo tiene el elegido
+          (no dice "personal").
+        · Si dos hermanos cumplen, no se toca ninguno: eso ya es una duda de
+          verdad y la duda no se resuelve adivinando.
+
+      ── EL NUMERO QUE ES CANTIDAD NO CUENTA ──
+      "Suma 1.5 paquetes de coca cola personal" tambien lleva un "15", pero ahi
+      es cuanto, no cual. Por eso se descarta el numero que coincide con la
+      cantidad de la propia operacion. Sin esto, la regla se dispararia justo al
+      reves.                                                                  */
   for (const op of ops) {
-    if (!op.insumo_id || op.insumo_id === bueno.id) continue;
+    if (!op.insumo_id) continue;
     const eligio = insumos.find((i) => i.id === op.insumo_id);
-    /* Si lo que eligio TAMBIEN esta nombrado completo, no hay nada que
-       corregir (no deberia pasar: completos.length seria 2). */
-    if (eligio && nombradoCompleto(eligio)) continue;
-    console.log(`[gerente] la linea dice "${linea.trim()}" — se corrige ${eligio ? eligio.nombre : op.insumo_id} -> ${bueno.nombre}`);
-    op.insumo_id = bueno.id;
+    if (!eligio) continue;
+
+    const cant = new Set<string>();
+    for (const n of [op.cantidad_buy_unit, op.cantidad_dicha]) {
+      if (n === null || n === undefined) continue;
+      cant.add(limpiar(String(n)));
+    }
+    const dice = new Set([...dichas].filter((w) => !cant.has(w)));
+
+    const suyas = new Set(palabrasDe(eligio).flat());
+    const hermanos = insumos.filter((i) => {
+      if (i.id === eligio.id) return false;
+      const otras = new Set(palabrasDe(i).flat());
+      let comunes = 0;
+      for (const w of otras) if (suyas.has(w)) comunes++;
+      return comunes >= 2;
+    });
+
+    const soloDelOtro = (otro: Insumo) => {
+      const otras = new Set(palabrasDe(otro).flat());
+      return [...otras].filter((w) => !suyas.has(w));
+    };
+    const soloDelMio = (otro: Insumo) => {
+      const otras = new Set(palabrasDe(otro).flat());
+      return [...suyas].filter((w) => !otras.has(w));
+    };
+
+    const encajan = hermanos.filter((h) =>
+      soloDelOtro(h).some((w) => dice.has(w)) &&
+      !soloDelMio(h).some((w) => dice.has(w))
+    );
+    if (encajan.length !== 1) continue;
+
+    console.log(`[gerente] "${linea.trim()}" describe a ${encajan[0].nombre} y no a ${eligio.nombre} — se corrige`);
+    op.insumo_id = encajan[0].id;
   }
 }
 
@@ -253,7 +356,12 @@ async function parseConGPT(mensaje: string, insumos: Insumo[]): Promise<Parseo> 
   const POR_TANDA = 8;
   for (let i = 0; i < trozos.length; i += POR_TANDA) {
     const tanda = await Promise.all(trozos.slice(i, i + POR_TANDA).map(async (t) => {
-      const pr = await parseUnTrozo(t, candidatos(t, insumos), 0, "gpt-4o-mini");
+      /*  Mensajes cortos siguen con gpt-4o. El motivo de bajar a mini era el
+          cupo por minuto de OpenAI con quince lineas seguidas; con dos o tres
+          ese cupo no se toca, y no hay razon para leer peor un mensaje corto
+          solo porque ahora se parte por lineas. */
+      const pr = await parseUnTrozo(t, candidatos(t, insumos), 0,
+                                    trozos.length <= 4 ? "gpt-4o" : "gpt-4o-mini");
       /* Se revisa contra la carta ENTERA, no solo contra los candidatos: el
          bueno podria haber quedado fuera de los quince. */
       corregirInsumoPorNombre(t, pr.ops, insumos);
