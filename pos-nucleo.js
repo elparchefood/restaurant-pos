@@ -2061,7 +2061,38 @@ window.posLlaveSalon = function () {
              pres: a.pres ? JSON.parse(JSON.stringify(a.pres)) : {} };
   }
 
+  /*  ══ EL PRECIO QUE SE MUESTRA EN LA TARJETA (29-ago-2026) ═══════════════
+
+      Sergio: *"cuando un producto tiene presentaciones no puede ir el precio
+      ahi, porque realmente no es el precio; el precio va en la presentacion"*.
+      Y es exacto: una salchipapa que sale a $13.000 en personal y $24.000 en
+      familiar no "cuesta $13.000". Mostrar el menor es decirle al mesero un
+      precio que no existe, y con un cliente al frente eso se convierte en una
+      cuenta mal cantada.
+
+      Con presentaciones se muestra el RANGO ("$13.000 - $24.000"): dice la
+      verdad y ademas avisa de un vistazo que ese producto va a preguntar cual.
+      Si todas valen igual, se muestra ese unico precio (no hay rango que
+      mostrar). Sin presentaciones, el precio de siempre.
+
+      Devuelve el texto ya formateado porque cada pantalla formatea distinto
+      (COPF, fmt); se le pasa la funcion que use.                             */
+  function precioEtiqueta(prod, fmt) {
+    var f = fmt || function (n) { return String(n); };
+    var pres = (prod && prod.presentations) || [];
+    var vals = pres.map(function (x) { return Number(x && x.price) || 0; })
+                   .filter(function (n) { return n > 0; });
+    if (pres.length > 1 && vals.length) {
+      var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+      return min === max ? f(min) : (f(min) + ' - ' + f(max));
+    }
+    var base = Number(prod && prod.price) || 0;
+    if (base > 0) return f(base);
+    return vals.length ? f(vals[0]) : null;   //  null = no hay precio que decir
+  }
+
   window.posCarta = {
+    precioEtiqueta: precioEtiqueta,
     cargar: cargar, aplicar: aplicar,
     precio: precio, precioPres: precioPres,
     activo: activo, ajustado: ajustado, ajustesDe: ajustesDe, precioBase: precioBaseDe,

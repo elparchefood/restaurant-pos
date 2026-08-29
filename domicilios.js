@@ -788,7 +788,7 @@ function domProdCard(p) {
       </div>
       <div class="d-prod-foot">
         <div class="d-prod-name">${p.name}</div>
-        <div class="d-prod-row"><span class="d-prod-price">${fmt(p.price)}</span><span class="d-add">${svgInline('plus', 14, 2.5)}</span></div>
+        <div class="d-prod-row"><span class="d-prod-price">${(window.posCarta && posCarta.precioEtiqueta ? posCarta.precioEtiqueta(p, fmt) : fmt(p.price)) || '—'}</span><span class="d-add">${svgInline('plus', 14, 2.5)}</span></div>
       </div></button>`;
   }
 
