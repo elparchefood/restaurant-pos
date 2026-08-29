@@ -61,8 +61,10 @@
       if (g && g.datos && g.datos.sucs) _sucs = g.datos.sucs;
     } catch (e) {}
     try {
-      var u = await sb.auth.getUser();
-      var md = (u && u.data && u.data.user && u.data.user.user_metadata) || {};
+//  getSession lee del equipo; getUser salia a internet por el mismo dato.
+      var _su = (window._pos && window._pos.state && window._pos.state.user) || null;
+      if (!_su) { try { _su = (await sb.auth.getSession()).data.session.user; } catch (e) {} }
+      var md = (_su && _su.user_metadata) || {};
       _propia = md.branch_id || null;
     } catch (e) {}
     try {

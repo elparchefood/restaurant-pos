@@ -230,7 +230,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const { data: { session } } = await sb.auth.getSession();
       if (!session) { window.location.href = 'login.html'; return; }
-      const { data: { user } } = await sb.auth.getUser();
+//  getSession lee del equipo; getUser salia a internet por el mismo dato.
+      const user = session.user;
       if (!user)    { window.location.href = 'login.html'; return; }
       S.tenantId = (user.user_metadata && user.user_metadata.tenant_id) || user.id;
       S.branchId    = (user.user_metadata && user.user_metadata.branch_id) || null;

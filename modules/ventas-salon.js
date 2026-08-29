@@ -167,9 +167,11 @@
     if (!sbRef) return;
     var nombre = '', rol = '';
     try {
-      var u = await sbRef.auth.getUser();
-      var meta = (u && u.data && u.data.user && u.data.user.user_metadata) || {};
-      nombre = meta.nombre || meta.full_name || meta.name || (u.data.user && u.data.user.email) || '';
+//  getSession lee del equipo; getUser salia a internet por el mismo dato.
+      var _su = (window._pos && window._pos.state && window._pos.state.user) || null;
+      if (!_su) { try { _su = (await sbRef.auth.getSession()).data.session.user; } catch (e) {} }
+      var meta = (_su && _su.user_metadata) || {};
+      nombre = meta.nombre || meta.full_name || meta.name || (_su && _su.email) || '';
       rol    = meta.role || meta.rol || '';
     } catch (e) {}
 

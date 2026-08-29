@@ -455,7 +455,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   /* Auth + branch */
   try {
-    const { data: { user } } = await sb.auth.getUser();
+//  getSession lee del equipo; getUser salia a internet por el mismo dato.
+    let user = (window._pos && window._pos.state && window._pos.state.user) || null;
+    if (!user) { try { user = (await sb.auth.getSession()).data.session.user; } catch (e) {} }
     if (!user) { location.href = 'index.html'; return; }
 
     const meta = user.user_metadata || {};

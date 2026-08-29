@@ -127,8 +127,10 @@
         S.allow = !!cfg.ventaSinInventario;
       } catch (e) { S.allow = false; }
       try {
-        var u = await sb.auth.getUser();
-        var meta = (u && u.data && u.data.user && u.data.user.user_metadata) || {};
+//  getSession lee del equipo; getUser salia a internet por el mismo dato.
+        var _su = (window._pos && window._pos.state && window._pos.state.user) || null;
+        if (!_su) { try { _su = (await sb.auth.getSession()).data.session.user; } catch (e) {} }
+        var meta = (_su && _su.user_metadata) || {};
         var tenantId = meta.tenant_id;
 
         /* LA SEDE EN LA QUE SE ESTA VENDIENDO, no la del login. Este modulo

@@ -1480,7 +1480,13 @@ window.addEventListener('unhandledrejection', pgQuitarVelo);
 
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Auth
-  const { data: { user } } = await sb.auth.getUser();
+  /*  El usuario sale del estado que pos-core ya lleno (cero viajes). Antes
+      era auth.getUser(): un viaje completo a internet ANTES de pintar nada,
+      en la pantalla donde el cliente esta parado esperando pagar. */
+  let user = (window._pos && window._pos.state && window._pos.state.user) || null;
+  if (!user) {
+    try { const { data } = await sb.auth.getSession(); user = data && data.session && data.session.user; } catch (e) {}
+  }
   if (!user) { window.location.href = 'login.html'; return; }
   SP.userId = user.id;
 
@@ -1501,7 +1507,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 3. Branch nombre
   if (SP.branchId) {
-    const { data: branch } = await sb.from('branches').select('name, cobro_adelantado, operacion_config').eq('id', SP.branchId).maybeSingle();
+    const branch = window.posSucursal ? await window.posSucursal(SP.branchId)
+                 : (await sb.from('branches').select('name, cobro_adelantado, operacion_config').eq('id', SP.branchId).maybeSingle()).data;
     // Impuestos: si el restaurante no los cobra (lo normal en uno pequeño),
     // todo lo de abajo queda en cero y el cobro se comporta como siempre.
     if (window.posImpuestos) {
