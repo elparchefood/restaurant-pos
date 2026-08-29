@@ -415,6 +415,7 @@ addEventListener('unhandledrejection', e => morir('La pantalla no pudo abrir.', 
   paso('Cargando la carta y las mesas…');
   await cargarBase();
   paso('Trayendo las comandas…');
+  pintarDesdeElEquipo();      //  se ve YA; el servidor confirma abajo
   await cargarComandas();
 
   S.arrancando = false;      // a partir de aquí, lo nuevo suena
@@ -681,6 +682,47 @@ async function inicioCaja() {
 }
 
 /* ── Las comandas ───────────────────────────────────────────────────────── */
+/*  ══ COCINA ABRE CON LAS COMANDAS PUESTAS ═══════════════════════════════
+
+    Hasta hoy esta pantalla abria EN BLANCO y esperaba a que volvieran cuatro
+    consultas. Medido: dos segundos y pico mirando una pantalla vacia, cada vez
+    que alguien la abre o la recarga. En medio de un servicio eso es una
+    eternidad, y encima da la impresion de que no hay nada que cocinar.
+
+    Ahora se pinta con lo que quedo guardado en ESTE equipo la ultima vez —que
+    en cocina son segundos antes, porque la pantalla vive abierta— y el
+    servidor confirma por detras. Si algo cambio, se repinta y ya.
+
+    Lo guardado NO se muestra si es viejo: mas de 10 minutos y se prefiere la
+    pantalla vacia a una comanda que ya no existe. En cocina un dato viejo no
+    es un detalle: es alguien preparando un plato que ya salio.              */
+var CACHE_COMANDAS = 'cocina.comandas';
+
+function guardarEnElEquipo() {
+  try {
+    if (!window.posCache) return;
+    posCache.guardar(CACHE_COMANDAS, {
+      orders: Array.from(S.orders.entries()),
+      items:  Array.from(S.items.entries()),
+    });
+  } catch (e) {}
+}
+
+function pintarDesdeElEquipo() {
+  try {
+    if (!window.posCache) return false;
+    var g = posCache.leer(CACHE_COMANDAS, 600);        // 10 minutos
+    if (!g || !g.datos || g.viejo) return false;
+    var o = g.datos.orders || [], i = g.datos.items || [];
+    if (!o.length) return false;
+    S.orders = new Map(o);
+    S.items  = new Map(i);
+    pintar();
+    console.log('[cocina] pintada desde el equipo (' + o.length + ' comandas, ' + Math.round(g.edadSeg) + 's)');
+    return true;
+  } catch (e) { return false; }
+}
+
 async function cargarComandas() {
   try {
     const CAMPOS = 'id, channel, status, estado, estado_at, table_id, turno, customer_name, notes, total, total_final, paid_amount, created_at, delivered_at, closed_at, visible_cocina';
@@ -825,6 +867,7 @@ async function cargarComandas() {
     }
     marcarRed(true);
     pintar();
+    guardarEnElEquipo();
   } catch (e) {
     console.error('[cocina] no se pudieron traer las comandas:', e);
     marcarRed(false);
