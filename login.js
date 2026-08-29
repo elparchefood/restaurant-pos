@@ -644,18 +644,34 @@ async function cargarCuentaCobro() {
   function contar(seccion) {
     var cifras = seccion.querySelectorAll('.cifra');
     for (var i = 0; i < cifras.length; i++) (function (el) {
-      var hasta = Number(el.dataset.a) || 0, ini = null, DUR = 1100;
+      var hasta = Number(el.dataset.a) || 0, ini = null, DUR = 1100, listo = false;
+      var final = '$' + hasta.toLocaleString('es-CO');
+
+      function poner(v) { el.textContent = '$' + Math.round(v).toLocaleString('es-CO'); }
+
       function paso(t) {
+        if (listo) return;
         if (ini === null) ini = t;
         var k = Math.min(1, (t - ini) / DUR);
         /*  Frena al final en vez de ir a ritmo parejo: un numero que se
             detiene de golpe se ve como un error de dibujo.  */
-        var suave = 1 - Math.pow(1 - k, 3);
-        el.textContent = '$' + Math.round(hasta * suave).toLocaleString('es-CO');
-        if (k < 1) requestAnimationFrame(paso);
+        poner(hasta * (1 - Math.pow(1 - k, 3)));
+        if (k < 1) requestAnimationFrame(paso); else listo = true;
       }
-      el.textContent = '$0';
+
+      /*  ⚠️ RED DE SEGURIDAD (comprobado el 29-ago-2026).
+
+          `requestAnimationFrame` NO corre en todas partes: una pestana de
+          fondo, una vista incrustada o el .exe en cierto estado lo frenan. Sin
+          esta red, la cifra se quedaba en el $0 con el que arranca la cuenta
+          — y una pantalla de ventas que dice CERO no se lee como
+          "todavia no cargo", se lee como "no vendiste nada".
+
+          Asi que a los 1,6 s, si la cuenta no termino, se pone el numero de
+          verdad. Se pierde la animacion, nunca el dato.                     */
+      poner(0);
       requestAnimationFrame(paso);
+      setTimeout(function () { if (!listo) { listo = true; el.textContent = final; } }, 1600);
     })(cifras[i]);
   }
 
