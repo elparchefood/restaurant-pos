@@ -271,6 +271,19 @@ document.addEventListener('DOMContentLoaded', () => {
     try { await loadData(); } catch(e) { console.error('loadData:', e); }
     try { await loadActiveOrders(); } catch(e) { console.error('loadActiveOrders:', e); }
     try { subscribeNewOrders(); } catch(e) { console.error('subscribeNewOrders:', e); }
+    /*  RED DE SEGURIDAD (28-ago-2026).
+
+        El tablero se enteraba de un domicilio nuevo SOLO por el aviso en vivo.
+        Si ese aviso se pierde —el socket se cae dos segundos, el pedido nace
+        con otro estado— el domicilio no aparece nunca y la pantalla se queda
+        diciendo que no hay ninguno. Eso es peor que ir lento: es ir mal.
+
+        Una consulta por minuto lo vuelve a cuadrar. Cuesta nada (es UNA
+        consulta) y convierte "me perdi un aviso" en "me entero un minuto
+        despues". */
+    setInterval(function () {
+      loadActiveOrders().catch(function (e) { console.warn('[domicilios] repaso:', e && e.message); });
+    }, 60000);
 
     try { renderCatGrid();       } catch(e) { console.error('renderCatGrid:', e); }
     try { renderFavPane();       } catch(e) { console.error('renderFavPane:', e); }
@@ -301,11 +314,22 @@ async function loadActiveOrders() {
       .select('id, customer_name, channel, notes, payment_method, total, paid_amount, opened_at, delivery_status, delivery_fee, delivered_at,domi_courier,domi_pago,domi_movil,domiciliario,domiciliario_id,domi_empresa_id')
       .eq('branch_id', S.branchId)
       .in('channel', ['domicilio', 'whatsapp'])
-      .eq('status', 'open')
+      /*  COBRADO NO ES ENTREGADO (28-ago-2026, en pleno turno).
+
+          Aqui decia `.eq('status','open')`. Con el cobro adelantado encendido
+          —que es como trabaja El Parche— el domicilio se paga apenas entra, o
+          sea que nace 'paid' y **nunca aparecia en el tablero**. Sergio vio
+          "Sin domicilios activos" teniendo cuatro en la cocina.
+
+          Lo que decide si un domicilio sigue vivo es su ESTADO (en preparacion,
+          listo, en camino), no si ya pago. */
+      .in('status', ['open', 'paid'])
       .order('opened_at', { ascending: false });
     if (error || !orders || !orders.length) return;
     for (const o of orders) {
       if (S.deliveries.find(d => d.supabaseId === o.id)) continue;
+      //  Los entregados no llenan el tablero: viven en su propia pantalla.
+      if (o.delivery_status === 'entregado') continue;
       S.deliveries.push(_orderRowToDelivery(o));
     }
     S.deliveries.sort((a, b) => b.createdAt - a.createdAt);
@@ -328,7 +352,8 @@ function subscribeNewOrders() {
       const o = payload.new;
       if (!o || o.branch_id !== S.branchId) return;
       if (!['domicilio', 'whatsapp'].includes(o.channel)) return;
-      if (o.status !== 'open') return;
+      if (o.status !== 'open' && o.status !== 'paid') return;
+      if (o.delivery_status === 'entregado') return;
       if (S.deliveries.find(d => d.supabaseId === o.id)) return;
       S.deliveries.unshift(_orderRowToDelivery(o));
       renderMonitor();
