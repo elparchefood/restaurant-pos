@@ -433,6 +433,9 @@
           return { id: t.id, name: t.name, number: t.number, seats: t.seats, zone_id: t.zone_id,
                    status: t.status, total: t.total, items_count: t.items_count,
                    minutes: t.minutes, mesero_initials: t.mesero_initials, persons: t.persons,
+                   //  Mesas unidas: si no se guarda, al volver al plano las dos
+                   //  mesas pierden el aviso de que son una sola cuenta.
+                   grupo_id: t.grupo_id || null,
                    current_order_id: t.current_order_id };
         })
       };
@@ -456,6 +459,7 @@
           //  forzaba 'libre' y una mesa esperando parpadeaba a libre al volver.
           status: t.status || 'libre', total: t.total || 0, items_count: t.items_count || 0,
           minutes: t.minutes || 0, mesero_initials: t.mesero_initials || '', persons: t.persons || 0,
+          grupo_id: t.grupo_id || null,
           current_order_id: t.current_order_id || null
         };
       })

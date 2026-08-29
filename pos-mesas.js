@@ -164,34 +164,14 @@
     return sueltas.length;
   }
 
-  /*  LIBERAR TODO EL GRUPO — al cobrar. Si solo se liberara la principal, las
-      acompañantes se quedarían ocupadas para siempre apuntando a un pedido ya
-      cobrado, y habría que liberarlas a mano una por una.  */
-  async function liberarGrupo(mesas, tableId) {
-    var s = sb();
-    if (!s) throw new Error('sin conexión');
-    var del = grupoDe(mesas, tableId);
-    var ids = del.length ? del.map(function (m) { return m.id; }) : [tableId];
-    var libre = camposLibre();
-    var r = await s.from('pos_tables').update(libre).in('id', ids);
-    if (r.error) throw r.error;
-    del.forEach(function (m) { Object.assign(m, libre); });
-    return ids;
-  }
+  /*  Aqui vivian `liberarGrupo` y `estadoGrupo`. Se quitaron el mismo dia que
+      nacieron: NADIE las llamaba. Pagos libera el grupo con un `update` por
+      `grupo_id` (no tiene cargadas las mesas, solo el id de la suya) y el
+      salon hace lo mismo dentro de `liberarMesa` y `vsMarcarEstado`, donde
+      ya estaba el codigo que habia que tocar.
 
-  /*  Poner un estado nuevo (esperando / comiendo / pendiente_pago) a TODAS las
-      del grupo: si solo cambiara la principal, en el salón se verían dos mesas
-      unidas con dos colores distintos.  */
-  async function estadoGrupo(mesas, tableId, campos) {
-    var s = sb();
-    if (!s) throw new Error('sin conexión');
-    var del = grupoDe(mesas, tableId);
-    var ids = del.length ? del.map(function (m) { return m.id; }) : [tableId];
-    var r = await s.from('pos_tables').update(campos).in('id', ids);
-    if (r.error) throw r.error;
-    del.forEach(function (m) { Object.assign(m, campos); });
-    return ids;
-  }
+      Codigo compartido que nadie usa no es codigo compartido: es codigo sin
+      probar con aspecto de estarlo.  */
 
   w.posMesas = {
     idGrupo: idGrupo, principalDe: principalDe,
@@ -199,6 +179,5 @@
     grupoDe: grupoDe, etiqueta: etiqueta, nombreCorto: nombreCorto,
     camposLibre: camposLibre, camposEspejo: camposEspejo,
     unir: unir, separar: separar,
-    liberarGrupo: liberarGrupo, estadoGrupo: estadoGrupo,
   };
 })(window);
