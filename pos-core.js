@@ -436,6 +436,19 @@ function daysAgoISO(n) {
         try {
           var now = Date.now();
           if (window.__posSesCache && now - window.__posSesCacheTs < 30000) return window.__posSesCache;
+          /*  Y si ya hay una pregunta en el aire, se espera ESA. La cache se
+              guarda al terminar, asi que sin esto tres llamadas a la vez
+              —lo normal al arrancar— salen las tres a internet. */
+          if (window.__posSesVuelo) return window.__posSesVuelo;
+          window.__posSesVuelo = (async function () {
+            try { return await _leerSesion(now); }
+            finally { window.__posSesVuelo = null; }
+          })();
+          return window.__posSesVuelo;
+        } catch (e) { return null; }
+      };
+      async function _leerSesion(now) {
+        try {
           var bId = window._pos.state.branchId;
           if (!bId) return null;
           var r = await sb.from('pos_sessions').select('id')

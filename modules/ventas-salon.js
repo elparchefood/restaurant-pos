@@ -897,10 +897,34 @@
   // tableros (domicilios, etc.) muestren SOLO el turno vigente y se reinicien al
   // cerrar y volver a abrir la caja. Cachea 60 s. Si no hay caja abierta, cae a
   // "hoy" para no mostrar todo el histórico.
-  var _cajaStartCache = null, _cajaStartAt = 0;
+  var _cajaStartCache = null, _cajaStartAt = 0, _cajaStartVuelo = null;
+  /*  ══ SE GUARDA LA PROMESA, NO SOLO EL RESULTADO (28-ago-2026) ══════════
+
+      Esta funcion ya tenia cache de 60 segundos, y aun asi el cronometro
+      mostraba **seis viajes** a `pos_sessions` al abrir ventas: tres pidiendo
+      la apertura y tres el cierre anterior.
+
+      El motivo: la cache se guardaba AL TERMINAR. Si tres partes de la
+      pantalla la llaman en el mismo instante —que es lo que pasa al
+      arrancar—, las tres encuentran la cache vacia y las tres salen a
+      internet. Cuando la primera vuelve y guarda, las otras dos ya iban de
+      camino. Una cache que solo guarda resultados no evita nada durante el
+      arranque, que es justo cuando mas se llama.
+
+      Guardando la promesa, el segundo y el tercero se cuelgan del viaje que
+      ya salio. Seis viajes pasan a dos.                                     */
   async function getCajaSessionStart() {
     var now = Date.now();
     if (_cajaStartCache && (now - _cajaStartAt) < 60000) return _cajaStartCache;
+    if (_cajaStartVuelo) return _cajaStartVuelo;
+    _cajaStartVuelo = (async function () {
+      try { return await _leerCajaSessionStart(); }
+      finally { _cajaStartVuelo = null; }
+    })();
+    return _cajaStartVuelo;
+  }
+  async function _leerCajaSessionStart() {
+    var now = Date.now();
     var sb = window._pos && window._pos.sb;
     var branchId = window._pos && window._pos.state && window._pos.state.branchId;
     var start = null;
