@@ -265,6 +265,8 @@
       var _u = u && u.data && u.data.session && u.data.session.user;
       var tid = _u && _u.user_metadata && _u.user_metadata.tenant_id;
       if (!tid) return '';
+      var _d = window.posSucursal ? await window.posSucursal() : null;
+      if (_d && _d.brands && _d.brands.logo_url) return _d.brands.logo_url;
       var r = await s.from('brands').select('logo_url').eq('tenant_id', tid)
         .order('created_at').limit(1).maybeSingle();
       return (r && r.data && r.data.logo_url) || '';

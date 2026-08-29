@@ -192,6 +192,29 @@ function daysAgoISO(n) {
     };
     window.posSucursal.olvidar = function () { _suc = null; _sucId = null; };
 
+    /*  ══ LO MISMO, PERO PARA CUALQUIER COSA ═══════════════════════════════
+
+        `posSucursal` resolvio el caso mas caro, pero el patron se repite: dos
+        o tres modulos preguntan lo mismo al arrancar y cada uno paga su viaje.
+        En el cronometro se veian `pos_users` tres veces y `es_dueno` dos.
+
+        `posUna(clave, fn)` guarda la PROMESA de la primera llamada y se la da
+        a todos los que pregunten despues. Es para datos que no cambian
+        mientras la pantalla esta abierta: quien eres, si eres el dueno, como
+        se llama el equipo. Para lo que cambia estan las consultas normales.  */
+    var _unas = {};
+    window.posUna = function (clave, fn) {
+      if (_unas[clave]) return _unas[clave];
+      _unas[clave] = Promise.resolve().then(fn).catch(function (e) {
+        delete _unas[clave];     //  que el siguiente lo reintente
+        throw e;
+      });
+      return _unas[clave];
+    };
+    window.posUna.olvidar = function (clave) {
+      if (clave) delete _unas[clave]; else _unas = {};
+    };
+
   // Inicializar: leer sesión, poblar state, emitir core:ready
   async function boot() {
     try {
@@ -343,10 +366,12 @@ function daysAgoISO(n) {
         async function resolver(porRed) {
           if (!porRed && _aplicarGuardado()) { resolver(true); return; }   // confirma por detrás
           try {
-            var pu = await sb.from('pos_users')
-              .select('branch_id,sucursales,tenant_id')
-              .or('auth_user_id.eq.' + user.id + ',id.eq.' + user.id)
-              .limit(1).maybeSingle();
+            var pu = await window.posUna('pos_users_ctx', function () {
+              return sb.from('pos_users')
+                .select('branch_id,sucursales,tenant_id')
+                .or('auth_user_id.eq.' + user.id + ',id.eq.' + user.id)
+                .limit(1).maybeSingle();
+            });
             var fila = pu.data;
             if (!fila) return;                    // sin ficha: se queda la del login
 
@@ -360,7 +385,7 @@ function daysAgoISO(n) {
               if (s && permitidas.indexOf(s) < 0) permitidas.push(s);
             });
             try {
-              var d = await sb.rpc('es_dueno');
+              var d = await window.posUna('es_dueno', function () { return sb.rpc('es_dueno'); });
               if (!d.error && d.data === true) permitidas = null;   // null = todas
             } catch (e) {}
 

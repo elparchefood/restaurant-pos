@@ -119,7 +119,9 @@
         return;
       }
       try {
-        var _rd = await sb.rpc('es_dueno');
+        //  La misma pregunta que hace pos-core: se comparte el viaje.
+        var _rd = window.posUna ? await window.posUna('es_dueno', function () { return sb.rpc('es_dueno'); })
+                                : await sb.rpc('es_dueno');
         if (!_rd.error && _rd.data === true) {
           _perms = '*'; _fresco = true;
           try { if (window.posCache) posCache.guardar('dueno', { dueno: true }); } catch (e) {}

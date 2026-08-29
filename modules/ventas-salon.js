@@ -2241,7 +2241,9 @@
     const sb = window._pos && window._pos.sb;
     if (!sb) return {};
     try {
-      const r = await sb.from('pos_users').select('auth_user_id, name');
+      const r = window.posUna
+        ? await window.posUna('pos_users_nombres', function () { return sb.from('pos_users').select('auth_user_id, name'); })
+        : await sb.from('pos_users').select('auth_user_id, name');
       const m = {};
       (r.data || []).forEach(function (u) { if (u.auth_user_id && u.name) m[u.auth_user_id] = u.name; });
       _vsUsuariosCache = m;

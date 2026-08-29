@@ -134,7 +134,9 @@
       //  La sucursal ya viene de pos-core; aqui no se vuelve a pedir.
       (window.posSucursal ? window.posSucursal(b).then(function (d) { return { data: d }; })
                           : s.from('branches').select('address,phone,operacion_config').eq('id', b).maybeSingle()),
-      s.from('pos_users').select('id,is_authorized_admin').eq('tenant_id', t),
+      (window.posUna ? window.posUna('pos_users_admin_' + t, function () {
+          return s.from('pos_users').select('id,is_authorized_admin').eq('tenant_id', t); })
+        : s.from('pos_users').select('id,is_authorized_admin').eq('tenant_id', t)),
       s.rpc('fn_pin_existe'),
       s.from('pos_products').select('id', { count: 'exact', head: true }).eq('tenant_id', t).not('photo_url', 'is', null),
       s.from('pos_modifier_groups').select('id', { count: 'exact', head: true }).eq('tenant_id', t),
