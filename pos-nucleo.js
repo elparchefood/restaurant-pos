@@ -113,7 +113,32 @@
     document.body.appendChild(pill);
   }
 
+  /*  ══ EN UNA PANTALLA PÚBLICA NO SE AVISA NADA ═══════════════════════════
+
+      Sergio, 29-ago-2026: se le fue el internet y en la pantalla de entrar
+      apareció «Sin conexión — los pedidos se guardan localmente». Ahí no hay
+      pedidos ni hay nadie: la mayoría de quien abre esa página **todavía no se
+      ha registrado**. Hablarle de pedidos guardados a alguien que viene a
+      comprar es hablarle de un problema que no tiene.
+
+      El aviso es de la cola de escritura, y la cola solo existe cuando alguien
+      está trabajando. Estas pantallas no escriben nada, así que no tienen nada
+      que avisar.
+
+      `pos-sync.js` va dentro de pos-nucleo.js y lo carga TODA la plataforma,
+      login incluido. Por eso el filtro va aquí y no en cada pantalla: una
+      lista de excepciones repartida por veinte archivos se rompe con la
+      pantalla veintiuno.                                                     */
+  var PUBLICAS = ['login', 'terms', 'privacy', 'data-deletion'];
+  function _esPublica() {
+    try {
+      var ruta = String(window.location.pathname || '').toLowerCase();
+      return PUBLICAS.some(function (p) { return ruta.indexOf(p) >= 0; });
+    } catch (e) { return false; }
+  }
+
   function _ui(mode, count) {
+    if (_esPublica()) return;
     if (!document.body) { document.addEventListener('DOMContentLoaded', () => _ui(mode, count)); return; }
     _ensureUI();
     const bar  = document.getElementById('pos-sync-bar');
