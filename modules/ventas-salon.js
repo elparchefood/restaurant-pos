@@ -4560,7 +4560,10 @@
               esperando_at: vieja.esperando_at || null, comiendo_at: vieja.comiendo_at || null,
               pendiente_pago_at: vieja.pendiente_pago_at || null,
               comiendo_method: vieja.comiendo_method || null }
-          : { status: 'ocupada', current_order_id: ordId, sesion_at: new Date().toISOString() };
+          /*  'esperando', no 'ocupada': ese estado no existe y la base lo
+              rechaza, así que pasar un domicilio o un para-llevar a una mesa
+              libre reventaba con «No se pudo pasar». Hallado el 29-ago-2026. */
+          : { status: 'esperando', current_order_id: ordId, sesion_at: new Date().toISOString() };
         const { error: e3 } = await sbM.from('pos_tables').update(campos).eq('id', mesaDestino.id);
         if (e3) throw e3;
         Object.assign(mesaDestino, campos);

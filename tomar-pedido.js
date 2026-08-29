@@ -311,7 +311,7 @@ async function tpCambiarMesa() {
       const r1 = await sb.from('pos_orders').update({ table_id: destino.id }).eq('id', S.order.id);
       if (r1.error) throw r1.error;
 
-      const espejo = window.posMesas ? posMesas.camposEspejo(yo || {}) : { status: 'ocupada' };
+      const espejo = window.posMesas ? posMesas.camposEspejo(yo || {}) : { status: 'esperando' };
       espejo.current_order_id = S.order.id;
       espejo.id        = destino.id;
       espejo.name      = destino.name || String(destino.number || '');
@@ -319,7 +319,7 @@ async function tpCambiarMesa() {
       espejo.branch_id = S.branchId;
       espejo.tenant_id = S.tenantId;
       espejo.grupo_id  = null;
-      if (!espejo.status || espejo.status === 'libre') espejo.status = 'ocupada';
+      if (!espejo.status || espejo.status === 'libre') espejo.status = 'esperando';
       if (!espejo.sesion_at) espejo.sesion_at = new Date().toISOString();
       const r2 = await sb.from('pos_tables').upsert(espejo, { onConflict: 'id' });
       if (r2.error) throw r2.error;
@@ -396,7 +396,7 @@ async function tpUnirMesas() {
         id: S.tableId,
         name:   (S.table && S.table.name) || String(S.tableId),
         number: (S.table && S.table.number) || parseInt((S.table && S.table.name) || '', 10) || 0,
-        status: (S.order && S.order.id) ? 'ocupada' : 'libre',
+        status: (S.order && S.order.id) ? 'esperando' : 'libre',
         current_order_id: (S.order && S.order.id) || null,
         sesion_at: S.openAt || new Date().toISOString(),
       };
@@ -1655,7 +1655,13 @@ async function saveOrder() {
             const { data, error } = await sb.from('pos_orders').insert(orderData).select().single();
             if (error) throw error;
             const oid = data.id;
-            await sb.from('pos_tables').update({ status: 'ocupada' }).eq('id', S.tableId);
+            /*  ⚠️ Decía 'ocupada' y la base lo RECHAZA (`pos_tables_status_check`:
+                solo libre/esperando/comiendo/pendiente_pago/reservada). Como aquí
+                nadie miraba el error, fallaba en silencio: por este camino —el de
+                respaldo, cuando no hay cola de sincronización— la mesa se quedaba
+                LIBRE con un pedido vivo encima. Hallado el 29-ago-2026.  */
+            const _rMesa = await sb.from('pos_tables').update({ status: 'esperando' }).eq('id', S.tableId);
+            if (_rMesa.error) console.error('[mesa] no se pudo marcar la mesa:', _rMesa.error.message);
             // Marca de la VISITA. Solo si no habia: si esta mesa ya estaba
             // ocupada y esto es un pedido mas (una segunda ronda), la visita
             // sigue siendo la misma y no se reinicia.

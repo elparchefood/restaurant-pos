@@ -99,7 +99,8 @@
   //  Lo que una acompañante copia de la principal: es lo que las hace "una".
   function camposEspejo(principal) {
     return {
-      status:            principal.status || 'ocupada',
+      //  'esperando', no 'ocupada': ese estado no existe, la base lo rechaza.
+      status:            principal.status || 'esperando',
       current_order_id:  principal.current_order_id || null,
       sesion_at:         principal.sesion_at || null,
       esperando_at:      principal.esperando_at || null,
