@@ -512,12 +512,20 @@ async function auditar(
   branch_id: string, telefono: string, mensaje: string,
   ins: { id: string; nombre: string; buy_unit: string },
   accion: string, cantidad: number | null, antes: number, despues: number,
+  lote?: string | null, precioAntes?: number | null, precioDespues?: number | null,
 ) {
   try {
     await sbPost(`/pos_gerente_ops`, {
       branch_id, telefono, mensaje,
       insumo_id: ins.id, insumo: ins.nombre, accion,
       cantidad, stock_antes: antes, stock_despues: despues, unidad: ins.buy_unit,
+      /*  EL LOTE es lo que hace posible el boton de Deshacer: marca que estos
+          cambios entraron JUNTOS, en el mismo mensaje. Sin el, deshacer
+          tendria que adivinar donde empieza y donde termina lo que se aplico.
+          Ya existia para las facturas por foto; faltaba para el texto. */
+      lote: lote || null,
+      precio_antes: precioAntes === undefined ? null : precioAntes,
+      precio_despues: precioDespues === undefined ? null : precioDespues,
     });
   } catch (_e) { /* el registro nunca bloquea */ }
 }
@@ -680,6 +688,62 @@ Deno.serve(async (req: Request) => {
         exactamente que se quiere. Preguntarle a la IA que significa «Se
         acabo» cuando el boton se llama `inv_cero_<id>` seria pagar por
         adivinar algo que ya sabemos.                                       */
+    /*  DESHACER TODO LO DEL ULTIMO MENSAJE. Se devuelve cada insumo del
+        lote a su `stock_antes` (y a su `precio_antes` si se toco), en orden
+        inverso por si el mismo insumo salio dos veces. Se marca
+        `deshecho_at` para que un segundo toque no vuelva a restar. */
+    if (accion.startsWith("inv_desh_")) {
+      const lote = accion.slice("inv_desh_".length);
+      const r = await sbGet(
+        `/pos_gerente_ops?lote=eq.${lote}&deshecho_at=is.null&select=id,insumo_id,insumo,stock_antes,precio_antes,unidad&order=created_at.desc`);
+      //  sbGet devuelve el arreglo directo, no {data}.
+      const filas = (Array.isArray(r) ? r : []) as Array<Record<string, unknown>>;
+      if (!filas.length) {
+        return json({ reply: "Eso ya lo habia deshecho \u2014 el inventario esta como antes de ese mensaje." });
+      }
+      const sedeD = await sedeDeExistencia(branch_id);
+      const vueltos: string[] = [];
+      for (const f of filas) {
+        const iid = String(f.insumo_id || "");
+        if (!iid) continue;
+        await fijarExistencia(iid, sedeD, { stock: num(f.stock_antes) });
+        if (f.precio_antes !== null && f.precio_antes !== undefined) {
+          await sbPatch(`/iv_insumos?id=eq.${iid}`, { precio: num(f.precio_antes), updated_at: new Date().toISOString() });
+        }
+        vueltos.push(`\u2022 *${String(f.insumo)}* \u2192 ${fmtNum(num(f.stock_antes))} ${String(f.unidad || "")}`);
+        await sbPatch(`/pos_gerente_ops?id=eq.${String(f.id)}`, { deshecho_at: new Date().toISOString() });
+      }
+      return json({ reply: `\u21a9\ufe0f *Deshecho.* Todo volvio a como estaba:\n${vueltos.join("\n")}` });
+    }
+
+    /*  CORREGIR UNO. Se muestran los insumos de ese mensaje como lista
+        tocable; al tocar uno se entra al flujo de `inv_ins_`, que ya ofrece
+        "Se acabo" y "Poner cantidad". No se reinventa nada. */
+    if (accion.startsWith("inv_corr_")) {
+      const lote = accion.slice("inv_corr_".length);
+      const r = await sbGet(
+        `/pos_gerente_ops?lote=eq.${lote}&deshecho_at=is.null&select=insumo_id,insumo,stock_despues,unidad&order=created_at.asc`);
+      const filas = (Array.isArray(r) ? r : []) as Array<Record<string, unknown>>;
+      const vistos: Record<string, boolean> = {};
+      const ops2: Array<Record<string, string>> = [];
+      for (const f of filas) {
+        const iid = String(f.insumo_id || "");
+        if (!iid || vistos[iid]) continue;
+        vistos[iid] = true;
+        if (ops2.length >= 10) break;      //  WhatsApp: 10 filas por lista
+        ops2.push({
+          id: `inv_ins_${iid}`,
+          titulo: String(f.insumo).slice(0, 24),
+          desc: `${fmtNum(num(f.stock_despues))} ${String(f.unidad || "")}`.slice(0, 72),
+        });
+      }
+      if (!ops2.length) return json({ reply: "No tengo esos cambios a la mano. Escribeme el valor correcto y lo dejo bien." });
+      return json({
+        reply: "\u00bfCual quieres corregir?",
+        botones: { tipo: "lista", texto_boton: "Ver", titulo_seccion: "Lo que acabas de cambiar", opciones: ops2 },
+      });
+    }
+
     if (accion.startsWith("inv_")) {
       const sede = await sedeDeExistencia(branch_id);
       const insId = accion.replace(/^inv_(ins|cero|cant)_/, "");
@@ -1049,6 +1113,10 @@ Deno.serve(async (req: Request) => {
       return json({ simulacion: true, ops, reply: prev.join(String.fromCharCode(10)) || "(no entendi ninguna operacion)" });
     }
 
+    //  Un identificador para TODO lo que entra en este mensaje: es lo que
+    //  permite deshacerlo despues de un solo toque.
+    const lote = crypto.randomUUID();
+
     for (const op of ops) {
       const ins = byId[op.insumo_id];
       if (!ins) continue;
@@ -1111,7 +1179,7 @@ Deno.serve(async (req: Request) => {
         const antesP = ins.precio;
         await sbPatch(`/iv_insumos?id=eq.${ins.id}`, { precio: precioFinal, updated_at: new Date().toISOString() });
         ins.precio = precioFinal;
-        await auditar(branch_id, telGerente, mensaje, ins, "precio", precioFinal, antesP, precioFinal);
+        await auditar(branch_id, telGerente, mensaje, ins, "precio", precioFinal, antesP, precioFinal, lote, antesP, precioFinal);
         hechos.push(`• *${ins.nombre}* — 💲 PRECIO
    de ${fmtNum(antesP)} a *${fmtNum(precioFinal)}* por ${ins.buy_unit}${nota}
    (no toque la cantidad: sigue en ${decir(ins.stock, ins)})`);
@@ -1131,7 +1199,7 @@ Deno.serve(async (req: Request) => {
         await fijarExistencia(ins.id, sedeExist, { agotado });
         hechos.push(agotado ? `• ⛔ *${ins.nombre}* marcado como AGOTADO` : `• ✅ *${ins.nombre}* habilitado (disponible)`);
         compacto.push({ n: ins.nombre, t: agotado ? "⛔ agotado" : "✅ disponible" });
-        await auditar(branch_id, telGerente, mensaje, ins, op.accion, null, ins.stock, ins.stock);
+        await auditar(branch_id, telGerente, mensaje, ins, op.accion, null, ins.stock, ins.stock, lote);
         continue;
       }
 
@@ -1175,7 +1243,7 @@ Deno.serve(async (req: Request) => {
    tenías ${dicho(antes)} → lo dejé en *${dicho(nuevo)}*${precioTxt}${otroNivel}`);
       }
       compacto.push({ n: ins.nombre, t: `${ins.sub ? (aServicio ? "🧊 servicio" : "📦 bodega") + ": " : ""}${dicho(nuevo)}` });
-      await auditar(branch_id, telGerente, mensaje, ins, op.accion, cant, antes, nuevo);
+      await auditar(branch_id, telGerente, mensaje, ins, op.accion, cant, antes, nuevo, lote);
     }
 
     if (!hechos.length) return json({ reply: "No pude emparejar los insumos 🤔. Dime el nombre tal como está en el inventario." });
@@ -1202,7 +1270,29 @@ Deno.serve(async (req: Request) => {
     }
     // WhatsApp corta en 4096 caracteres: mejor avisar que perder el mensaje.
     if (reply.length > 3900) reply = reply.slice(0, 3800) + "\n\n... (y mas). Revisa el inventario en Cobra para verlo completo.";
-    return json({ reply, aplicado: hechos.length });
+    /*  ══ LOS DOS BOTONES DE DESPUES (29-ago-2026) ═══════════════════
+
+        Sergio: *"los botones de corregir algo o descartar, todo lo que
+        habiamos dicho para que cargar cosas al inventario fuera muchisimo mas
+        facil"*.
+
+        Estaban construidos SOLO para la factura por foto. Al ESCRIBIR "suma 3
+        galones de salsa" la respuesta era texto plano: *"si algo quedo mal,
+        escribeme de nuevo con el valor correcto"* — o sea, volver a teclearlo
+        de memoria. Faltaba justo lo que hace facil corregir.
+
+        · Deshacer devuelve TODO lo de este mensaje a como estaba: un toque en
+          vez de recordar cada numero anterior.
+        · Corregir uno muestra lo que acaba de cambiar como lista tocable, y al
+          tocar cae en el flujo que YA existe (Se acabo / Poner cantidad).    */
+    reply += "\n\nO usa los botones de aqui abajo.";
+    return json({
+      reply, aplicado: hechos.length,
+      botones: { tipo: "botones", opciones: [
+        { id: `inv_desh_${lote}`, titulo: "Deshacer" },
+        { id: `inv_corr_${lote}`, titulo: "Corregir uno" },
+      ] },
+    });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }
