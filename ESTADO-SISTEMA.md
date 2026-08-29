@@ -53,9 +53,25 @@ también tomar pedido y pagos. **No se hizo sin supervisión.**
 bailan muchísimo**: la misma pantalla dio 1.495 ms y 6.196 ms sin cambiar nada.
 Eso es la máquina: **422 MB en disco de intercambio de una de 426**.
 
-**Pendiente:** el botón instantáneo de verdad · cocina (caché local y 4
-consultas en 1) · la bandeja del chat desde el equipo · pintar desde el aviso ·
-domicilios (freno y caché).
+**Segunda tanda (29-ago, madrugada — Sergio pidió "cada botón instantáneo"):**
+
+8. **Cocina abre con las comandas puestas** (`pos-cache`, tope 10 min: un dato
+   viejo en cocina es un plato que ya salió).
+9. **`posSync.enqueueOrderBatch`**: encola en IndexedDB y NO espera la subida.
+   El id provisional ES el definitivo, así que navegar no rompe nada; la
+   siguiente pantalla con pos-sync retoma la cola. **Medido: 1,5 ms**, y el
+   pedido llegó completo a la base por detrás.
+10. **Venta rápida lo usa al enviar a cocina** (solo pedidos NUEVOS; modificar
+    sigue por el camino de siempre). La impresión la hace el receptor global.
+    ⚠️ venta-rapida.html ahora carga pos-sync.js.
+11. **La bandeja del chat abre desde el equipo** (tope 5 min, solo vista 'all').
+12. **Fuera los `auth.getUser()` calientes** (pagos, tomar-pedido, salón,
+    stock, historial, domicilios, catalogo-sede): el estado de pos-core o
+    getSession. Pagos además usa `posSucursal()` — arrancaba con dos viajes
+    antes de pintar.
+
+**Pendiente:** pintar desde el aviso (cocina) · el mismo botón instantáneo en
+domicilios y en cobrar · broadcast del chat (aprobado "cuando todo funcione").
 
 ---
 
