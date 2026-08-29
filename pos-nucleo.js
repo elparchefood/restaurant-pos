@@ -934,6 +934,23 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   },
   global: {
     fetch: function (url, opts) {
+      /*  ⚠️ EL LOGIN NO LLEVA TOPE (29-ago-2026, medido).
+
+          El tope de arriba es para CONSULTAS: si una se cuelga, se corta, se
+          reintenta y la copia del equipo tapa el hueco. Con el login no hay
+          nada que tape el hueco: cortarlo no es "mas lento", es NO PODER
+          ENTRAR.
+
+          Y hace falta decirlo porque no es teorico: midiendo hoy, el servidor
+          tardo **36 y hasta 90 segundos** en validar una contrasena. Comprobar
+          una clave es de lo mas pesado que hace el servidor a proposito (para
+          que no se puedan adivinar), y en esta maquina —426 MB, con memoria en
+          disco— se arrastra. Con el tope puesto, ese login habria fallado.
+
+          Asi que auth entra sin tope: mas vale esperar a no poder trabajar. */
+      const esAuth = String(url).indexOf('/auth/v1/') >= 0;
+      if (esAuth) return fetch(url, opts);
+
       const ctl = new AbortController();
       const t = setTimeout(function () { ctl.abort(); }, 15000);
       const o = Object.assign({}, opts, { signal: ctl.signal });
