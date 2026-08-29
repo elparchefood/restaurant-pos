@@ -2053,6 +2053,8 @@ async function handleOpenSession(openingCash, shiftType, detalle) {
     if (S.branchId) payload.branch_id = S.branchId;
     if (S.tenantId) payload.tenant_id = S.tenantId;
     const { error } = await sb.from('pos_sessions').insert(payload);
+    //  Abrir o cerrar caja cambia lo que el guardian tiene guardado.
+    try { localStorage.removeItem('pos.caja.abierta.v1'); } catch (e) {}
     if (error) { showToast('Error: ' + error.message); return false; }
     showToast('Caja abierta correctamente');
     await refreshAll();
@@ -2097,6 +2099,8 @@ async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoCon
     if (arqueoDiff !== null && arqueoDiff !== undefined) upd.arqueo_diff = arqueoDiff;
     if (arqueoContado !== null && arqueoContado !== undefined) upd.arqueo_contado = arqueoContado;
     const { error } = await sb.from('pos_sessions').update(upd).eq('id', S.session.id);
+    //  Abrir o cerrar caja cambia lo que el guardian tiene guardado.
+    try { localStorage.removeItem('pos.caja.abierta.v1'); } catch (e) {}
     if (error) { showToast('Error: ' + error.message); return; }
 
     // Cerrar tambien cualquier otra sesion abierta del mismo branch (sesiones huerfanas)

@@ -519,12 +519,18 @@ async function loadCatalog() {
         S.modGroups = _cd.modGroups || [];
         /* La copia local trae los precios de la MARCA; el ajuste de este local
            se aplica encima al leerla. */
-        try { if (window.posCarta) { await posCarta.cargar(); posCarta.aplicar(S.products); } }
-        catch (e) { console.warn('[domicilios] carta por sucursal:', e && e.message); }
-        // Pintar inmediatamente desde caché, refrescar en segundo plano
-        setTimeout(function() { _catalogFetch(_ck, true); }, 0);
-        await _sumarCombos();
+          /*  Se pinta YA con lo guardado (29-ago, Sergio): los precios de
+              la sucursal y los combos se aplican encima al llegar. Antes
+              esos dos viajes retrasaban la carta que ya teniamos. */
         renderCatGrid();  renderFavPane();
+        // Refrescar en segundo plano
+        setTimeout(function() { _catalogFetch(_ck, true); }, 0);
+        (async function () {
+          try { if (window.posCarta) { await posCarta.cargar(); posCarta.aplicar(S.products); } }
+          catch (e) { console.warn('[domicilios] carta por sucursal:', e && e.message); }
+          try { await _sumarCombos(); } catch (e) {}
+          renderCatGrid();  renderFavPane();
+        })();
         return;
       }
     }

@@ -35,6 +35,36 @@
       return _cache;
     }
 
+    /*  ══ ABRIR MESA NO ESPERA AL SERVIDOR (29-ago-2026) ═══════════════════
+
+        Sergio: *"al tocar Abrir mesa debe abrir de inmediato"*. Lo que lo
+        frenaba era este guardian: comprueba que la caja este abierta y tenia
+        cache SOLO en memoria, que se borra en cada cambio de pantalla. Al
+        recargar ventas volvia a preguntarle a la base ANTES de dejar pasar.
+
+        La caja se abre UNA vez al dia y se cierra UNA vez. Guardar esa
+        respuesta en el equipo por 10 minutos deja pasar al instante, y la
+        comprobacion fresca corre por detras: si la caja se hubiera cerrado
+        —cosa que hace la misma persona, en el mismo equipo— el aviso sale un
+        momento despues y el guardian vuelve a su sitio. */
+    var LL = 'pos.caja.abierta.v1';
+    try {
+      var g = JSON.parse(localStorage.getItem(LL) || 'null');
+      if (g && g.branch === branchId && (now - g.en) < 600000) {
+        _cache = !!g.abierta; _cacheAt = now;
+        if (!g.abierta) _showModal();
+        //  Se confirma por detras sin hacer esperar a nadie.
+        setTimeout(function () { _preguntar(branchId, true); }, 0);
+        return _cache;
+      }
+    } catch (e) {}
+
+    return _preguntar(branchId, false);
+  };
+
+  async function _preguntar(branchId, porDetras) {
+    var now = Date.now();
+    var LL = 'pos.caja.abierta.v1';
     var sb = window._pos && window._pos.sb;
     if (!sb || !branchId) return true;
 
@@ -47,13 +77,15 @@
       var open = !result.error && result.data && result.data.length > 0;
       _cache = open;
       _cacheAt = now;
+      try { localStorage.setItem(LL, JSON.stringify({ branch: branchId, abierta: open, en: now })); } catch (e) {}
+      //  Si venia de la copia y resulta que la caja se cerro, se avisa ahora.
       if (!open) _showModal();
       return open;
     } catch(e) {
       console.warn('[cajaGuard] error:', e);
       return true;
     }
-  };
+  }
 
   document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'visible') _cache = null;

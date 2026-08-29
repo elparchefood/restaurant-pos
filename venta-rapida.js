@@ -842,10 +842,16 @@ async function loadCatalog() {
           /* La copia local guarda los precios de la MARCA; la herencia del
              local se aplica al leerla. Si se guardara ya ajustada, cambiar de
              sucursal cobraría los precios de la anterior. */
-          try { if (window.posCarta) { await posCarta.cargar(); posCarta.aplicar(S.products); } }
-          catch (e) { console.warn('[venta-rapida] carta por sucursal:', e && e.message); }
+          /*  Se pinta YA con lo guardado (29-ago, Sergio): los precios de
+              la sucursal y los combos se aplican encima al llegar. Antes
+              esos dos viajes retrasaban la carta que ya teniamos. */
           renderCatGrid(); renderFavs(); refreshBadges();
           setTimeout(function() { _catalogFetch(sb, _ck, true); }, 0);
+          (async function () {
+            try { if (window.posCarta) { await posCarta.cargar(); posCarta.aplicar(S.products); } }
+            catch (e) { console.warn('[venta-rapida] carta por sucursal:', e && e.message); }
+            renderCatGrid(); renderFavs(); refreshBadges();
+          })();
           return;
         }
       }

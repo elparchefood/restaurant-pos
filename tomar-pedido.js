@@ -234,15 +234,28 @@ async function loadCatalog() {
         S.cats      = _cd.cats;
         S.products  = _cd.products;
         S.modGroups = _cd.modGroups || [];
-        /* La copia local guarda los precios de la MARCA; la herencia del local
-           se aplica al leerla. Si se guardara ya ajustada, cambiar de sucursal
-           cobraría los precios de la anterior. */
-        try { if (window.posCarta) { await posCarta.cargar(); posCarta.aplicar(S.products); } }
-        catch (e) { console.warn('[tomar-pedido] carta por sucursal:', e && e.message); }
+        /*  ══ LA CARTA SE PINTA YA (29-ago-2026) ══════════════════════════
+
+            Sergio: *"las categorias ya estan en el computador, no deberia
+            aparecer 'Cargando' en ningun momento"*. Tenia razon y el detalle
+            estaba escondido: la carta SI salia del equipo, pero antes de
+            pintarla se esperaban DOS viajes — los precios de la sucursal
+            (posCarta) y los combos. Por eso el cartel.
+
+            Ahora se pinta de una con lo guardado, y esos dos se aplican
+            encima cuando lleguen (repintando). Los precios propios de una
+            sede y los combos son la excepcion, no la regla: mientras llegan,
+            ver la carta con los precios de la marca es infinitamente mejor
+            que no ver carta. */
+        renderCatGrid();
         // Actualizar en segundo plano sin bloquear el arranque
         setTimeout(function() { _catalogFetch(_ck, true); }, 0);
-        await _sumarCombos();
-        renderCatGrid(); 
+        (async function () {
+          try { if (window.posCarta) { await posCarta.cargar(); posCarta.aplicar(S.products); } }
+          catch (e) { console.warn('[tomar-pedido] carta por sucursal:', e && e.message); }
+          try { await _sumarCombos(); } catch (e) {}
+          renderCatGrid();
+        })();
         return;
       }
     }
