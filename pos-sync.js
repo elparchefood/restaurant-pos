@@ -339,6 +339,17 @@
      * @param {string} [onConflict] — para upsert
      * @returns {Promise<{ok:boolean, data:any, offline:boolean}>}
      */
+    /*  Como write(), pero SIN esperar al servidor nunca: encola y dispara la
+        subida por detras. Para escrituras que el usuario no tiene por que
+        mirar (cerrar el pedido, liberar la mesa). El registro del dinero
+        (pos_payments) NO va por aqui: ese se espera. */
+    async enqueueWrite(table, op, data, match, onConflict) {
+      const entry = { type: 'single', table, op, data, match, onConflict, timestamp: Date.now(), status: 'pending' };
+      const qid = await _idbPut('queue', entry);
+      _syncNow().catch(() => {});
+      return { ok: true, offline: !_online, qid };
+    },
+
     async write(table, op, data, match, onConflict) {
       if (_online) {
         try {

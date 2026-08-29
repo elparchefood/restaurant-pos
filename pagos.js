@@ -991,8 +991,17 @@ async function cobrarDespues() {
       }
     }
 
+    /*  ══ COBRAR RESPONDE YA (29-ago-2026) ═══════════════════════════════
+        El REGISTRO DEL DINERO (pos_payments) se espera: es lo unico que no
+        puede quedar en duda. El cierre del pedido y la mesa van por la cola
+        sin esperar — son consecuencias del pago, no el pago. Antes eran tres
+        viajes en fila mirando el boton "Finalizar". */
+    const _writeYa = (window.posSync && posSync.enqueueWrite)
+      ? (t, op, d, m) => posSync.enqueueWrite(t, op, d, m)
+      : _write;
+
     // 1. Marcar pedido como pagado con todos los datos financieros
-    await _write('pos_orders', 'update', {
+    await _writeYa('pos_orders', 'update', {
       status:          'paid',
       payment_method:  payMethod,
       closed_at:       now,
@@ -1029,12 +1038,12 @@ async function cobrarDespues() {
       await _write('pos_payments', 'insert', payRows);
     }
 
-    // 3. Actualizar mesa según modo de cobro (solo si hay mesa)
+    // 3. Actualizar mesa según modo de cobro (solo si hay mesa) — por la cola
     if (SP.tableId) {
       if (!SP.adelantado) {
-        await _write('pos_tables', 'update', { status: 'libre' }, { id: SP.tableId });
+        await _writeYa('pos_tables', 'update', { status: 'libre' }, { id: SP.tableId });
       } else {
-        await _write('pos_tables', 'update', { status: 'esperando' }, { id: SP.tableId });
+        await _writeYa('pos_tables', 'update', { status: 'esperando' }, { id: SP.tableId });
       }
     }
 
