@@ -191,8 +191,32 @@ async function loadChannels() {
   renderFilters();
 }
 
+/*  ══ LA BANDEJA ABRE CON LO DE HACE UN MOMENTO ═══════════════════════════
+
+    La bandeja principal se pinta primero con la copia guardada en el equipo
+    —milisegundos— y la consulta de verdad la confirma por detras. El tope es
+    de 5 minutos: una bandeja mas vieja engañaria con "no leidos" que ya se
+    atendieron. Solo aplica a la vista 'all': las demas son filtros que
+    cambian seguido y no vale la pena guardarlas. */
+var CACHE_BANDEJA = 'chat.bandeja';
+
+function pintarBandejaGuardada() {
+  try {
+    if (S.activeView !== 'all' || !window.posCache) return false;
+    var g = posCache.leer(CACHE_BANDEJA, 300);
+    if (!g || !g.datos || g.viejo || !g.datos.length) return false;
+    S.conversations = g.datos;
+    renderConvList();
+    renderBadges();
+    return true;
+  } catch (e) { return false; }
+}
+
 async function loadConversations() {
-  $('convList').innerHTML = `<div class="ci-loading"><div class="ci-spinner"></div>Cargando…</div>`;
+  //  Si hay copia local se pinta YA y el "Cargando..." ni aparece.
+  if (!pintarBandejaGuardada()) {
+    $('convList').innerHTML = `<div class="ci-loading"><div class="ci-spinner"></div>Cargando…</div>`;
+  }
   /* 'preview' es la conversación de práctica del simulador de Paco: nunca es
      un chat de cliente. Se excluye AQUÍ, para todas las vistas — antes la
      vista por etiqueta no filtraba estado y se habría colado. */
@@ -228,6 +252,12 @@ async function loadConversations() {
   renderConvList();
   renderBadges();
   updateLabelBadges();
+  //  La copia para la proxima apertura. Solo la bandeja principal.
+  try {
+    if (S.activeView === 'all' && window.posCache && S.conversations.length) {
+      posCache.guardar(CACHE_BANDEJA, S.conversations);
+    }
+  } catch (e) {}
 }
 
 // Badge de "mensajes nuevos" por etiqueta (consulta aparte de la vista actual)
