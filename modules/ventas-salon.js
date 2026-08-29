@@ -931,9 +931,27 @@
 
       Guardando la promesa, el segundo y el tercero se cuelgan del viaje que
       ya salio. Seis viajes pasan a dos.                                     */
+  /*  El inicio de caja cambia una o dos veces AL DIA (al abrir y cerrar la
+      caja). Guardarlo en el equipo quita DOS viajes en cadena del arranque:
+      sin esto, los pedidos del dia no se podian pedir hasta que volvieran
+      la apertura y el cierre anterior (~500 ms en fila). Se usa el guardado
+      al instante y la consulta confirma por detras; si cambio, el proximo
+      redibujo ya usa el bueno. */
+  var LLAVE_CAJA_INICIO = 'pos.caja.inicio.v1';
   async function getCajaSessionStart() {
     var now = Date.now();
     if (_cajaStartCache && (now - _cajaStartAt) < 60000) return _cajaStartCache;
+    if (!_cajaStartCache) {
+      try {
+        var g = JSON.parse(localStorage.getItem(LLAVE_CAJA_INICIO) || 'null');
+        //  Vale solo si es de HOY: un inicio de ayer traeria el dia entero.
+        if (g && g.start && (now - g.en) < 20 * 3600 * 1000) {
+          _cajaStartCache = g.start; _cajaStartAt = now - 55000;   //  confirma en ~5 s
+          _leerCajaSessionStart().catch(function () {});           //  por detras
+          return _cajaStartCache;
+        }
+      } catch (e) {}
+    }
     if (_cajaStartVuelo) return _cajaStartVuelo;
     _cajaStartVuelo = (async function () {
       try { return await _leerCajaSessionStart(); }
@@ -984,6 +1002,7 @@
     } catch (e) { /* fallback abajo */ }
     if (!start) { var t = new Date(); t.setHours(0, 0, 0, 0); start = t.toISOString(); }
     _cajaStartCache = start; _cajaStartAt = now;
+    try { localStorage.setItem(LLAVE_CAJA_INICIO, JSON.stringify({ start: start, en: now })); } catch (e) {}
     return start;
   }
 
