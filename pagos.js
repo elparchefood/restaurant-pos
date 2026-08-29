@@ -1520,6 +1520,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('user-name').textContent   = SP.waiterName;
   document.getElementById('user-role').textContent   = SP.userRole;
 
+  /*  ══ NADA DE ESTO BLOQUEA LA CUENTA (29-ago-2026) ══════════════════════
+      Sergio: *"al abrir pagos se demora medio segundo; deberia ser
+      instantaneo, el dato ya esta en el equipo"*. Lo estaba — pero antes de
+      pintarlo se esperaba la sucursal, las tarifas de impuesto y los metodos
+      de pago. Tres viajes ANTES de mostrar unos productos que ya teniamos.
+
+      Ahora la cuenta se pinta primero (mas abajo) y esto corre en paralelo:
+      el nombre de la sucursal y los metodos aparecen cuando lleguen, sin
+      hacer esperar a nadie. El cobro adelantado y los impuestos llegan mucho
+      antes de que alguien termine de teclear un pago. */
+  const _ctxSucursal = (async function () {
   // 3. Branch nombre
   if (SP.branchId) {
     const branch = window.posSucursal ? await window.posSucursal(SP.branchId)
@@ -1544,6 +1555,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (branch.cobro_adelantado !== undefined) SP.adelantado = !!branch.cobro_adelantado;
     }
   }
+  })().catch(function (e) { console.warn('[pagos] contexto:', e && e.message); });
 
   // 4. Params de URL (SP.adelantado ya fue sobrescrito por branch query en paso 3)
   const params = new URLSearchParams(window.location.search);
@@ -1597,12 +1609,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 5b. Cargar datos (la red manda: confirma o corrige lo pintado)
   await loadOrder();
-  // 5b. Cargar métodos de pago configurados (fuente: Métodos de pago)
-  await loadPaymentMethods();
 
-  // 6. Render inicial
+  // 6. Render inicial — YA, sin esperar metodos ni contexto
   renderItems();
   renderAll();
+  pgQuitarVelo();
+
+  /*  Lo que no es la cuenta llega detras y repinta solo. Los metodos ya se
+      pintaron desde el equipo en el paso 5. */
+  loadPaymentMethods().then(function () { renderAll(); })
+    .catch(function (e) { console.warn('[pagos] metodos:', e && e.message); });
+  _ctxSucursal.then(function () { renderAll(); });
 
   /* AQUI, y no antes: la cuenta ya esta cargada y pintada con sus datos. Se
      quita despues de `renderAll` para que lo primero que se vea sea lo

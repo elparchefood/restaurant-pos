@@ -1224,7 +1224,29 @@
     state.selectedTableId = tableId;
     state.openPax = 2; // reiniciar el selector de personas al elegir otra mesa
     updateMesaHighlight(tableId);
-    showSheetLoading(); // muestra "Cargando…" en tablet; no-op en desktop
+
+    /*  ══ LA COMANDA SALE AL TOQUE (29-ago-2026) ══════════════════════════
+        Sergio: *"no deberia demorarse ni siquiera medio segundo"*. Y tiene
+        razon: la precarga que corre al pintar el salon ya dejo la cuenta de
+        cada mesa ocupada en el equipo (llave 'pago.<orderId>'). Aqui se usa
+        ESO para pintar de una, y la consulta de abajo confirma y repinta.
+        Antes se mostraba "Cargando..." aunque el dato estuviera al lado. */
+    var _pintadoYa = false;
+    try {
+      var _t = state.tables.find(function (x) { return x.id === tableId; });
+      var _oid = _t && _t.current_order_id;
+      var _g = _oid && window.posCache && posCache.leer('pago.' + _oid);
+      var _o = _g && _g.datos && _g.datos.order;
+      if (_o && _o.id === _oid) {
+        state.currentOrder = _o;
+        state.orderItems = (_o.pos_order_items || []).slice();
+        state.sessionOrders = [_o];
+        renderRail(); updateSheetContent();
+        _pintadoYa = true;
+      }
+    } catch (e) { /* sin copia: el "Cargando" de siempre */ }
+
+    if (!_pintadoYa) showSheetLoading(); // "Cargando…" en tablet; no-op en desktop
     const { order, items, sessionOrders } = await fetchOrderData(tableId);
     // Guardia: si el usuario cambió de mesa o cerró el sheet durante el fetch, descartar
     if (state.selectedTableId !== tableId) return;
@@ -1233,6 +1255,13 @@
     state.sessionOrders = sessionOrders || [];
     renderRail();          // actualiza el rail de desktop
     updateSheetContent();  // actualiza el sheet de tablet
+    //  La copia sigue al dato: lo recien traido queda listo para la proxima.
+    try {
+      if (order && window.posCache) {
+        posCache.guardar('pago.' + order.id,
+          { order: Object.assign({}, order, { pos_order_items: items || [] }) });
+      }
+    } catch (e) {}
   }
 
   // ─── Bottom sheet helpers ─────────────────────────────
