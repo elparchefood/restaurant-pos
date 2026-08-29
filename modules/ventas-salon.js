@@ -819,7 +819,28 @@
 
     realtimeSub = sb
       .channel('ventas-salon-tables')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_tables', filter: _fb }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_tables', filter: _fb }, (payload) => {
+        /*  ══ LA MESA CAMBIA DE COLOR AL INSTANTE (29-ago-2026) ═══════════
+            El aviso ya trae la fila de la mesa: su estado, su pedido y sus
+            horas. Se retoca la que esta en pantalla y se repinta YA — cero
+            consultas, cero espera. La recarga frenada de abajo sigue saliendo
+            por detras para cuadrar lo que la mesa no trae (los totales del
+            pedido, que viven en pos_orders). */
+        try {
+          const n = payload && payload.new;
+          if (n && n.id && Array.isArray(state.tables)) {
+            const t = state.tables.find(x => x.id === n.id);
+            if (t) {
+              t.status = n.status;
+              t.current_order_id = n.current_order_id;
+              t.pendiente_pago_at = n.pendiente_pago_at;
+              t.esperando_at = n.esperando_at;
+              t.comiendo_at = n.comiendo_at;
+              t.sesion_at = n.sesion_at;
+              render();
+            }
+          }
+        } catch (e) { console.warn('[VS] aviso mesa:', e && e.message); }
         loadDataFrenado();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_orders', filter: _fb }, (payload) => {

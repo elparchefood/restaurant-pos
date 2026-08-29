@@ -363,6 +363,34 @@ function subscribeNewOrders() {
       const cliente = o.customer_name || 'Cliente';
       toast('🍟 Nuevo pedido WhatsApp — ' + cliente);
     })
+    /*  ══ EL TABLERO SE MUEVE DESDE EL AVISO (29-ago-2026) ════════════════
+        Cuando el estado de un domicilio cambia en OTRO aparato —la cajera lo
+        pone en camino, el domiciliario lo entrega desde su app— el aviso ya
+        trae la fila. Se retoca la tarjeta del tablero al instante, cero
+        consultas. El repaso de cada minuto sigue de red de seguridad. */
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'pos_orders',
+      filter: `branch_id=eq.${S.branchId}`,
+    }, payload => {
+      try {
+        const o = payload.new;
+        if (!o || !o.id) return;
+        const d = S.deliveries.find(x => x.supabaseId === o.id);
+        if (!d) return;
+        if (o.status === 'cancelled' || o.status === 'abandoned') {
+          S.deliveries = S.deliveries.filter(x => x.supabaseId !== o.id);
+        } else {
+          //  Los nombres son los de la tarjeta (_orderRowToDelivery), no los
+          //  de la base: estado / paidAmount / payStatus / domiciliarioId.
+          if (o.delivery_status) d.estado = o.delivery_status;
+          if (o.domiciliario_id !== undefined) d.domiciliarioId = o.domiciliario_id;
+          if (o.paid_amount !== undefined) d.paidAmount = Number(o.paid_amount) || 0;
+          if (o.status === 'paid' || o.status === 'completed') d.payStatus = 'pagado';
+        }
+        renderMonitor();
+        updateMonitorBadge();
+      } catch (e) { console.warn('[domicilios] aviso:', e && e.message); }
+    })
     .subscribe();
 }
 

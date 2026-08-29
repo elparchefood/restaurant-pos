@@ -108,16 +108,47 @@
        que es casi toda la mejora. RLS sigue siendo quien aísla. */
     var _tn = window._pos && window._pos.state && window._pos.state.tenantId;
     var _ft = _tn ? 'tenant_id=eq.' + _tn : undefined;
+    /*  ══ EL TIMBRE POR BROADCAST (29-ago-2026) ═══════════════════════════
+        El mismo cambio que el chat: el disparador de la base manda cada
+        mensaje por el canal privado del restaurante y el timbre lo escucha
+        por ahi — llega antes y no obliga al servidor a comprobar permisos
+        fila por fila POR CADA PANTALLA ABIERTA, que con este modulo cargado
+        en once pantallas era la suscripcion mas repetida del sistema.
+
+        El postgres_changes se queda de RESPALDO. Como los dos caminos traen
+        el mismo mensaje, se recuerda el ultimo id sonado: el segundo aviso
+        del mismo mensaje no suena. */
+    var yaSono = {};
+    function alLlegar(m) {
+      if (!m || m.direction !== 'in') return;
+      /* El simulador de Paco escribe mensajes de verdad para probar el motor,
+         pero NO es un cliente: ni suena ni avisa. */
+      if (m.origen === 'preview') return;
+      if (m.id && yaSono[m.id]) return;              // ya llego por el otro camino
+      if (m.id) {
+        yaSono[m.id] = true;
+        setTimeout(function () { delete yaSono[m.id]; }, 60000);
+      }
+      var now = Date.now(); if (now - lastTs < 400) { lastTs = now; return; } lastTs = now;   // anti-ráfaga
+      notif(m);
+    }
+
     SB.channel('pos-notify-msgs')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: _ft }, function (payload) {
-        var m = payload && payload.new; if (!m || m.direction !== 'in') return;
-        /* El simulador de Paco escribe mensajes de verdad para probar el motor,
-           pero NO es un cliente: ni suena ni avisa. */
-        if (m.origen === 'preview') return;
-        var now = Date.now(); if (now - lastTs < 400) { lastTs = now; return; } lastTs = now;   // anti-ráfaga
-        notif(m);
+        alLlegar(payload && payload.new);
       })
       .subscribe();
+
+    if (_tn) {
+      try {
+        SB.channel('chat-b:' + _tn, { config: { private: true } })
+          .on('broadcast', { event: 'msg' }, function (b) {
+            var m = b && (b.payload && b.payload.payload ? b.payload.payload : b.payload);
+            alLlegar(m);
+          })
+          .subscribe();
+      } catch (e) { console.warn('[notify] broadcast:', e && e.message); }
+    }
   }
 
   /* Los cuatro tonos. Se eligen en Configuración → Operación → Notificaciones.
