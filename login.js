@@ -607,8 +607,14 @@ async function cargarCuentaCobro() {
 
 /* ══ LA PORTADA QUE ROTA ═════════════════════════════════
 
-   Cuatro escenas cada 7 segundos: Paco contestando, tomar el pedido, el
-   cierre de caja y la carta armandose sola.
+   Ocho escenas: el asistente contestando el WhatsApp, tomar el pedido, el
+   cierre de caja, la carta armandose sola, la ruta del domiciliario, la
+   cocina en vivo, los puntos y las transferencias confirmandose.
+
+   ⚠️ Ojo con los ejemplos: los platos y las direcciones son INVENTADOS a
+   proposito. Aqui no va la carta de El Parche — esta portada la ve un
+   heladero o una cafeteria. Y el asistente no se llama Paco: Paco es el
+   nombre que Sergio le puso al SUYO, cada restaurante le pone el que quiera.
 
    Tres cuidados, y los tres son por la misma razon —esta pantalla la abre un
    cliente cada manana y no puede pesar:

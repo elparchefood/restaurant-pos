@@ -426,7 +426,10 @@ button{font-family:inherit}
 .rp-chat{display:flex;flex-direction:column;gap:8px}
 .burb{max-width:82%;padding:8px 11px;border-radius:12px;font-size:12.5px;line-height:1.45}
 .burb.ellos{background:rgba(255,255,255,.09);border-bottom-left-radius:3px;align-self:flex-start;color:#E4E8F0}
-.burb.paco{background:#5B6BFF;border-bottom-right-radius:3px;align-self:flex-end;color:#fff}
+/*  `asis` = el asistente del restaurante. NO se llama Paco: Paco es el
+    nombre que Sergio le puso al suyo, y cada restaurante le pone el que
+    quiera. Un nombre de clase tambien ensena.  */
+.burb.asis{background:#5B6BFF;border-bottom-right-radius:3px;align-self:flex-end;color:#fff}
 
 /*  2 · tomar el pedido  */
 .rp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:13px}
