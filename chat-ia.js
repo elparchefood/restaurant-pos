@@ -370,37 +370,7 @@ function subscribeRealtime() {
   if (S.realtimeSub) sb.removeChannel(S.realtimeSub);
   S.realtimeSub = sb.channel('chat-ia-' + S.branchId)
     .on('postgres_changes', { event:'*', schema:'public', table:'chat_conversations', filter:`branch_id=eq.${S.branchId}` }, handleConvChange)
-    .on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages', filter:S.tenantId?`tenant_id=eq.${S.tenantId}`:undefined }, payload => {
-      const msg = payload.new;
-      const esActivo = msg.conversation_id === S.activeConvId;   // ¿estás viendo este chat ahora mismo?
-      if (msg.direction === 'in') { chatBeep(); setTimeout(updateLabelBadges, 400); }   // sonido + refrescar badge de etiquetas
-      // Anti-duplicado: no re-agregar si ya está por id, NI si es un mensaje SALIENTE que
-      // aún tiene su copia optimista temporal (tmp_) en pantalla (carrera del realtime vs
-      // el envío) — el propio envío reemplazará el temporal por el real. Evita QR/carta doble.
-      const yaOptimista = msg.direction === 'out' && S.messages.some(m => String(m.id).indexOf('tmp_') === 0 && (m.media_url||'') === (msg.media_url||'') && (m.body||'') === (msg.body||''));
-      if (esActivo && !S.messages.find(m => m.id === msg.id) && !yaOptimista) { S.messages.push(msg); renderThread(); updateWaWindow(); }
-      const idx = S.conversations.findIndex(c => c.id === msg.conversation_id);
-      /* Si la conversación no está en la lista (p. ej. la de práctica del
-         simulador), este evento no le incumbe a la bandeja. */
-      if (idx !== -1) {
-        S.conversations[idx].last_message    = msg.body || '[Imagen]';
-        S.conversations[idx].last_message_at = msg.sent_at;
-        S.conversations[idx].last_sender     = msg.direction === 'in' ? 'contact' : 'agent';
-        // "Sin leer" SOLO sube con mensajes ENTRANTES de un chat que NO estás viendo.
-        // Si el chat está abierto (o el mensaje es tuyo), no genera notificación.
-        if (msg.direction === 'in' && !esActivo) {
-          S.conversations[idx].unread_count = (Number(S.conversations[idx].unread_count) || 0) + 1;
-        } else if (esActivo && (Number(S.conversations[idx].unread_count) || 0) > 0) {
-          S.conversations[idx].unread_count = 0;                                                    // lo estás viendo → leído
-          sb.from('chat_conversations').update({ unread_count: 0 }).eq('id', msg.conversation_id);  // y también en la BD
-        }
-        S.conversations.sort((a,b) => new Date(b.last_message_at) - new Date(a.last_message_at));
-        // Si el cliente quedó "Entregado" y vuelve a escribir, es un pedido NUEVO:
-        // se le quitan las etiquetas de estado para que vuelva limpio a la bandeja.
-        if (msg.direction === 'in') limpiarEstadoSiVuelveAEscribir(S.conversations[idx]);
-        renderConvList(); renderBadges();
-      }
-    })
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages', filter:S.tenantId?`tenant_id=eq.${S.tenantId}`:undefined }, payload => _alLlegarMensaje(payload.new))
     .on('postgres_changes', { event:'UPDATE', schema:'public', table:'chat_messages', filter:S.tenantId?`tenant_id=eq.${S.tenantId}`:undefined }, payload => {
       // Las REACCIONES llegan como UPDATE del mensaje al que reaccionaron (no
       // como mensaje nuevo): se repinta la burbuja para que aparezca el emoji
@@ -433,6 +403,57 @@ function subscribeRealtime() {
       }
     })
     .subscribe();
+
+  /*  ══ EL CAMINO RAPIDO: BROADCAST (29-ago-2026) ══════════════════════════
+      Un disparador en la base (trg_chat_broadcast) manda cada mensaje nuevo
+      por un canal PRIVADO del restaurante ('chat-b:<tenant>'), sin pasar por
+      la maquinaria de permisos fila-por-fila de postgres_changes: llega antes
+      y le cuesta menos al servidor. El postgres_changes de arriba SE QUEDA
+      como respaldo — el anti-duplicado por id hace que el segundo aviso del
+      mismo mensaje no pinte nada. La politica que decide quien puede
+      escucharlo vive en sql/2026-08-29-chat-broadcast.sql. */
+  try {
+    if (S.realtimeB) sb.removeChannel(S.realtimeB);
+    S.realtimeB = sb.channel('chat-b:' + S.tenantId, { config: { private: true } })
+      .on('broadcast', { event: 'msg' }, function (b) {
+        var m = b && (b.payload && b.payload.payload ? b.payload.payload : b.payload);
+        if (m && m.id) _alLlegarMensaje(m);
+      })
+      .subscribe();
+  } catch (e) { console.warn('[chat] broadcast:', e && e.message); }
+
+  function _alLlegarMensaje(msg) {
+    if (!msg) return;
+      const esActivo = msg.conversation_id === S.activeConvId;   // ¿estás viendo este chat ahora mismo?
+      if (msg.direction === 'in') { chatBeep(); setTimeout(updateLabelBadges, 400); }   // sonido + refrescar badge de etiquetas
+      // Anti-duplicado: no re-agregar si ya está por id, NI si es un mensaje SALIENTE que
+      // aún tiene su copia optimista temporal (tmp_) en pantalla (carrera del realtime vs
+      // el envío) — el propio envío reemplazará el temporal por el real. Evita QR/carta doble.
+      const yaOptimista = msg.direction === 'out' && S.messages.some(m => String(m.id).indexOf('tmp_') === 0 && (m.media_url||'') === (msg.media_url||'') && (m.body||'') === (msg.body||''));
+      if (esActivo && !S.messages.find(m => m.id === msg.id) && !yaOptimista) { S.messages.push(msg); renderThread(); updateWaWindow(); }
+      const idx = S.conversations.findIndex(c => c.id === msg.conversation_id);
+      /* Si la conversación no está en la lista (p. ej. la de práctica del
+         simulador), este evento no le incumbe a la bandeja. */
+      if (idx !== -1) {
+        S.conversations[idx].last_message    = msg.body || '[Imagen]';
+        S.conversations[idx].last_message_at = msg.sent_at;
+        S.conversations[idx].last_sender     = msg.direction === 'in' ? 'contact' : 'agent';
+        // "Sin leer" SOLO sube con mensajes ENTRANTES de un chat que NO estás viendo.
+        // Si el chat está abierto (o el mensaje es tuyo), no genera notificación.
+        if (msg.direction === 'in' && !esActivo) {
+          S.conversations[idx].unread_count = (Number(S.conversations[idx].unread_count) || 0) + 1;
+        } else if (esActivo && (Number(S.conversations[idx].unread_count) || 0) > 0) {
+          S.conversations[idx].unread_count = 0;                                                    // lo estás viendo → leído
+          sb.from('chat_conversations').update({ unread_count: 0 }).eq('id', msg.conversation_id);  // y también en la BD
+        }
+        S.conversations.sort((a,b) => new Date(b.last_message_at) - new Date(a.last_message_at));
+        // Si el cliente quedó "Entregado" y vuelve a escribir, es un pedido NUEVO:
+        // se le quitan las etiquetas de estado para que vuelva limpio a la bandeja.
+        if (msg.direction === 'in') limpiarEstadoSiVuelveAEscribir(S.conversations[idx]);
+        renderConvList(); renderBadges();
+      }
+  }
+
 }
 
 /* El sonido de mensaje nuevo. Lo toca pos-notify.js, que es donde viven el tono
