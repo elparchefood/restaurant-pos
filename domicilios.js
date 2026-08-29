@@ -1971,13 +1971,17 @@ async function enviarACocina() {
     };
     // Atar el pedido al turno abierto (si no, queda fuera de todo cuadre)
     try { if (typeof window.posSessionId === 'function') _orderData.session_id = await window.posSessionId(); } catch(e) {}
-    const { data: _saved, error: _err } = await sb.from('pos_orders').insert(_orderData).select().single();
-    if (_err) throw _err;
-    const _oid = _saved.id;
+
+    /*  ══ EL BOTON RESPONDE YA (29-ago-2026) ══════════════════════════════
+        Mismo camino que venta rapida: el pedido NUEVO se encola en el equipo
+        (milisegundos) y la cola lo sube por detras; el id provisional ES el
+        definitivo, asi que `nuevo.supabaseId` sirve igual para cancelar o
+        agregar despues. La impresion la hace el receptor global cuando el
+        pedido llega a la base. Sin cola (o si fallara), el camino de siempre. */
     const _itemsData = _cartSnapshot.map(function(it) { return _filaConCombo({
       tenant_id:     S.tenantId,
       branch_id:     S.branchId,
-      order_id:      _oid,
+      order_id:      null,               //  lo pone el lote (o el insert de abajo)
       product_id:    it.id,
       name:          it.name,
       product_name:  it.name,
@@ -1989,11 +1993,32 @@ async function enviarACocina() {
       status:        'pending',
       selections:    { mods: it.mods || {} },
     }, it.id); });
-    if (_itemsData.length) await sb.from('pos_order_items').insert(_itemsData);
+
+    let _oid = null;
+    if (window.posSync && posSync.enqueueOrderBatch) {
+      try {
+        //  Pedido + items en UN lote local. La cola les pone el mismo id.
+        const _r = await posSync.enqueueOrderBatch(_orderData, _itemsData, null, null);
+        _oid = _r.orderId;
+      } catch (e) { console.warn('[domicilios] cola:', e && e.message); }
+    }
+    let _fueDirecto = false;
+    if (!_oid) {
+      _fueDirecto = true;
+      const { data: _saved, error: _err } = await sb.from('pos_orders').insert(_orderData).select().single();
+      if (_err) throw _err;
+      _oid = _saved.id;
+      _itemsData.forEach(function (it) { it.order_id = _oid; });
+      if (_itemsData.length) await sb.from('pos_order_items').insert(_itemsData);
+    }
     // Guardar ID de Supabase en el objeto de delivery (para poder cancelar después)
     nuevo.supabaseId = _oid;
-    // Auto-print comanda de cocina en Electron
-    if (typeof posAutoprint === 'function' && window.electronPOS) {
+    /*  Impresion: si el pedido fue POR LA COLA todavia no esta en la base, y
+        posAutoprint lo consulta de alla — imprimiria vacio. En ese camino
+        imprime el receptor global (pos-print-listener, activo en ventas)
+        cuando llegue el INSERT, con su barrido de seguridad. El autoprint
+        directo queda solo para el camino sin cola. */
+    if (_fueDirecto && typeof posAutoprint === 'function' && window.electronPOS) {
       await Promise.race([posAutoprint(_oid), new Promise(res => setTimeout(res, 9000))]);
     }
   } catch(_e) { console.error('[domicilios] enviarACocina:', _e); }
