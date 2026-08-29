@@ -500,7 +500,7 @@ function prodCard(p, color) {
     <div class="tp-prod-foot">
       <div class="tp-prod-name">${escHtml(p.name)}</div>
       <div class="tp-prod-row">
-        <div class="tp-prod-price" style="color:${color || 'var(--brand)'}">${precioTxt || '—'}</div>
+        <div class="tp-prod-price" style="color:${color || 'var(--brand)'}">${precioTxt || ''}</div>
         <div class="tp-qty-badge" style="background:${color || 'var(--brand)'}">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </div>

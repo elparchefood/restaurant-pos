@@ -231,18 +231,34 @@
 
       Devuelve el texto ya formateado porque cada pantalla formatea distinto
       (COPF, fmt); se le pasa la funcion que use.                             */
+  /*  ¿Qué precio se canta en la reja de productos?
+
+      Regla de Sergio (29-ago-2026, y es la segunda vez que la explica):
+      **si el mesero todavía tiene que escoger algo, ahí NO va precio.** Ni el
+      más barato, ni un rango, ni un guión: solo el nombre y la foto. El precio
+      aparece al abrir el producto, en la presentación o en la variante que se
+      elija, que es donde vive de verdad.
+
+      Mi primer intento puso un rango ("$27.000 - $55.000") y seguía mal: un
+      rango tampoco es el precio. Y con Premium se veía por qué una sola cifra
+      es directamente mentira — sus presentaciones valen 0 y el precio real sale
+      del cruce tamaño × tipo (Pollo/Carne/Mixta), así que "28.000" era el
+      más barato de una matriz que llega a 69.000.
+
+      Se canta el precio SOLO cuando no hay nada que escoger: una hamburguesa,
+      un perro, un sándwich. Una presentación única no es escoger (el producto
+      ES esa), por eso `> 1` y no `>= 1`.  */
   function precioEtiqueta(prod, fmt) {
     var f = fmt || function (n) { return String(n); };
     var pres = (prod && prod.presentations) || [];
-    var vals = pres.map(function (x) { return Number(x && x.price) || 0; })
-                   .filter(function (n) { return n > 0; });
-    if (pres.length > 1 && vals.length) {
-      var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
-      return min === max ? f(min) : (f(min) + ' - ' + f(max));
-    }
+    var vars = (prod && prod.variables) || [];
+
+    if (pres.length > 1 || vars.length) return null;   //  hay que escoger -> sin precio
+
     var base = Number(prod && prod.price) || 0;
     if (base > 0) return f(base);
-    return vals.length ? f(vals[0]) : null;   //  null = no hay precio que decir
+    var uno = pres.length === 1 ? (Number(pres[0] && pres[0].price) || 0) : 0;
+    return uno > 0 ? f(uno) : null;   //  null = no hay precio que decir
   }
 
   window.posCarta = {
