@@ -636,6 +636,27 @@ async function cargarCuentaCobro() {
     esc[actual].classList.add('on');
     for (var i = 0; i < puntos.length; i++) puntos[i].classList.toggle('on', i === actual);
     contar(esc[actual]);
+    rescatarItems(esc[actual]);
+  }
+
+  /*  ⚠️ LA MISMA RED QUE LAS CIFRAS, POR LA MISMA RAZÓN.
+
+      Los platos de la escena de la carta entran de a uno con una animación
+      que empieza en invisible (`both`, para que no parpadeen antes de su
+      turno). Si el navegador no corre animaciones —pestaña de fondo, vista
+      incrustada— se quedan en invisible: la tarjeta se ve VACÍA, que es peor
+      que verla sin animación.
+
+      A los 1,6 s se comprueba si de verdad se ven. Si no, se le quita la
+      animación al elemento y cae a su estilo normal, que es visible.       */
+  function rescatarItems(seccion) {
+    var items = seccion.querySelectorAll('.rp-item');
+    if (!items.length) return;
+    setTimeout(function () {
+      for (var i = 0; i < items.length; i++) {
+        if (getComputedStyle(items[i]).opacity === '0') items[i].style.animation = 'none';
+      }
+    }, 1600);
   }
 
   /*  Las cifras del cierre de caja SUMANDO, que es lo que pidio Sergio: el
@@ -692,6 +713,7 @@ async function cargarCuentaCobro() {
   });
 
   contar(esc[0]);
+  rescatarItems(esc[0]);
   arrancar();
 })();
 
