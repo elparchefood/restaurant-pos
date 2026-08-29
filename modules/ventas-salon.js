@@ -532,6 +532,7 @@
                 zone_id: t.zone_id || 'z_adentro',
                 status: t.status || 'libre',
                 current_order_id: t.current_order_id || null,
+                grupo_id: t.grupo_id || null,
                 total: 0, items_count: 0, minutes: 0, mesero_initials: '', persons: 0, openedAt: null
               };
             });
@@ -675,6 +676,10 @@
             zone_id:         t.zone_id,
             sort_order:      t.sort_order,
             current_order_id: t.current_order_id || null,
+            //  ⚠️ Este objeto es el ULTIMO que se arma y pisa a los anteriores.
+            //  Sin `grupo_id` aqui, no importa que las consultas si lo traigan:
+            //  se pierde en el ultimo paso. Fue exactamente lo que pasó.
+            grupo_id:        t.grupo_id || null,
             sesion_at:       t.sesion_at || null,
             openedAt:        openedAt || null,
             status:          t.status || 'libre',
@@ -3470,10 +3475,19 @@
               const { error: ordErr } = await sbC.from('pos_orders').update({ status: 'cancelled' }).eq('id', ordId);
               if (ordErr) throw ordErr;
             }
-            const { error: tblErr } = await sbC.from('pos_tables').update({ status: 'libre', current_order_id: null, sesion_at: null }).eq('id', tableId);
+            /*  Si la cuenta ocupaba varias mesas, cancelarla las suelta todas:
+                una acompañante que se queda ocupada apunta a un pedido que ya
+                no existe, y no hay forma de liberarla desde su tarjeta.     */
+            const _libreC = { status: 'libre', current_order_id: null, sesion_at: null, grupo_id: null };
+            const _tblC = state.tables.find(x => x.id === tableId);
+            const _grupoC = (_tblC && _tblC.grupo_id) ? _tblC.grupo_id : null;
+            let _qC = sbC.from('pos_tables').update(_libreC);
+            _qC = _grupoC ? _qC.eq('grupo_id', _grupoC) : _qC.eq('id', tableId);
+            const { error: tblErr } = await _qC;
             if (tblErr) throw tblErr;
-            const tbl = state.tables.find(x => x.id === tableId);
-            if (tbl) { tbl.status = 'libre'; tbl.current_order_id = null; }
+            state.tables.forEach(x => {
+              if (x.id === tableId || (_grupoC && x.grupo_id === _grupoC)) Object.assign(x, _libreC);
+            });
             state.selectedTableId = null;
             state.currentOrder = null;
             state.orderItems = [];
@@ -4376,7 +4390,8 @@
   }
 
   function vsLiberarMesaCampos() {
-    return { status: 'libre', current_order_id: null, sesion_at: null,
+    //  `grupo_id: null` tambien: una mesa libre no puede seguir unida a nada.
+    return { status: 'libre', current_order_id: null, sesion_at: null, grupo_id: null,
              esperando_at: null, comiendo_at: null, pendiente_pago_at: null, comiendo_method: null };
   }
 

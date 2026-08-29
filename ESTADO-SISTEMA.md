@@ -122,6 +122,25 @@ pantallas; en `ventas-salon.css` quedó la nota de dónde se fueron.
 **Lección:** una función que usa clases de otra pantalla es una función rota esperando
 a que alguien la abra.
 
+### ⚠️ La trampa de la columna nueva — tres veces el mismo día
+
+`grupo_id` se creó en la tabla y funcionaba en la mesa. Pero **no llegaba** a tres
+sitios, y en los tres por la misma razón: **una lista de campos escrita a mano**.
+
+| Dónde | Síntoma |
+|---|---|
+| `ventas-salon.js`, las dos consultas de `pos_tables` | el plano no sabía que dos mesas eran una |
+| `cocina.js`, las dos consultas de `pos_tables` | la comanda seguía diciéndose «Mesa 05» |
+| `ventas-salon.js`, `guardarPlanoSalon` + `planoGuardado` | la base traía el grupo, el equipo lo guardaba sin él, y al repintar desde el equipo se perdía |
+
+Ninguno dio error: un `select` sin la columna devuelve la fila igual, solo que sin ese
+dato. Se veía **casi** bien, que es la peor forma de estar mal.
+
+**Regla para la próxima columna:** después del `ALTER TABLE`, buscar en el código
+**todas** las listas de campos de esa tabla — los `select('a, b, c')` y los objetos que
+se arman campo por campo para guardar en el equipo — y añadirla en cada una. La columna
+no existe hasta que llega a la pantalla.
+
 ---
 
 ## 🟢 Si hay que escoger, en la reja NO va precio — 29-ago-2026 (commits `8f5fcf8` → `cdab20e`)
