@@ -26,6 +26,10 @@ button{font-family:inherit}
 .bp-logo-box{width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.16);
   border:1px solid rgba(255,255,255,.28);backdrop-filter:blur(4px);
   display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;flex-shrink:0}
+/*  El logo, no una letra. Hasta el 29-ago-2026 estas dos cajas decían «L»:
+    la inicial de Lumen POS, la marca vieja. Era lo primero que veía quien
+    entraba a comprar Cobra.  */
+.bp-logo-box img,.m-logo-box img{width:74%;height:74%;object-fit:contain;display:block}
 .bp-logo-name{font-size:15px;font-weight:800;letter-spacing:-.01em}
 .bp-logo-sub{font-size:11px;color:rgba(255,255,255,.7);font-weight:500}
 .bp-mid{position:relative;z-index:2;max-width:420px}
