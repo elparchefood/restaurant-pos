@@ -416,6 +416,44 @@ async function tpUnirMesas() {
   }
 }
 
+/*  ⚠️ DESPUÉS DE CADA ESCRITURA DE LA MESA, EL ESPEJO (comprobado el
+    29-ago-2026 en el Restaurante de Prueba, y fallaba).
+
+    Al guardar el pedido, la Mesa 05 pasó a «esperando» y la 06 —unida a ella—
+    se quedó en «libre». En el plano eso es una mesa disponible: alguien sienta
+    gente encima de un pedido en curso.
+
+    Pasa porque guardar la mesa no tiene UN solo camino: unas veces va por la
+    cola de `posSync`, otras por un `insert` directo, otras por el `upsert` de
+    enviar a cocina. Perseguir cada uno sería dejar el próximo sin cubrir.
+
+    Por eso esto NO adivina qué se escribió: vuelve a leer la fila de verdad de
+    la principal y la copia a las demás. Es una consulta más, y solo cuando hay
+    mesas unidas — que no es lo de todos los días.                          */
+async function tpEspejarGrupo() {
+  try {
+    if (!window.posMesas) return;
+    const yo = tpMesaYo();
+    if (!yo || !yo.grupo_id) return;
+    const g = yo.grupo_id;
+
+    const { data } = await sb.from('pos_tables').select('*').eq('id', S.tableId).maybeSingle();
+    if (!data) return;
+
+    const campos = posMesas.camposEspejo(data);
+    const { error } = await sb.from('pos_tables').update(campos)
+      .eq('grupo_id', g).neq('id', S.tableId);
+    if (error) throw error;
+
+    (S.tables || []).forEach(t => {
+      if (t.grupo_id === g && String(t.id) !== String(S.tableId)) Object.assign(t, campos);
+      if (String(t.id) === String(S.tableId)) Object.assign(t, data);
+    });
+  } catch (e) {
+    console.warn('[mesa] espejo del grupo:', e && e.message);
+  }
+}
+
 async function tpSepararMesas() {
   try {
     const n = await posMesas.separar(S.tables, S.tableId);
@@ -861,6 +899,7 @@ async function tpMarcarComiendo(method) {
       comiendo_method: method,
     }).eq('id', S.tableId);
     if (S.table) S.table.status = 'comiendo';
+    await tpEspejarGrupo();   //  las mesas unidas copian el estado de esta
     // Quitar toast y botón si siguen visibles
     const t = document.getElementById('tp-esperando-toast');
     if (t) t.remove();
@@ -1697,6 +1736,7 @@ async function saveOrder() {
       }
     }
 
+    await tpEspejarGrupo();   //  las mesas unidas copian el estado de esta
     toast('Pedido guardado' + (S.order?._offline ? ' (sin conexión)' : ''), 'ok');
   } catch(e) {
     console.error('saveOrder:', e);
@@ -1744,6 +1784,7 @@ async function sendToKitchen() {
       current_order_id: S.order.id,
     };
     await sb.from('pos_tables').upsert(tableRow, { onConflict: 'id' });
+    await tpEspejarGrupo();   //  las mesas unidas copian el estado de esta
 
     // 3. Toast + imprimir comanda + redirect
     const msg = cobroAdelantado

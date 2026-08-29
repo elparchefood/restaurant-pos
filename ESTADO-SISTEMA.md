@@ -35,6 +35,67 @@ puede trabajar", no lleva tope.
 
 ---
 
+## 🟢 Editar mesa y Unir mesas — 29-ago-2026 (commit `97695ae`)
+
+Los dos botones de la barra de la mesa llevaban ahí **desde el principio sin hacer
+nada**: caían en el `default` del switch de acciones de `tomar-pedido.js`.
+
+**Editar mesa** — Sergio: *«abrí la mesa pero el cliente se cambió; para no salirme y
+volverme a entrar a la otra, desde ahí puedo editar la mesa»*. Mueve el pedido entero
+con su estado y su reloj. Los tiempos **no se reinician**: una mesa de 40 minutos
+aparecería recién sentada y las alertas de cocina empezarían de cero. La mesa de
+origen queda libre. Solo se ofrecen las libres.
+
+**Unir mesas** — *«hay personas que unen las mesas para comer todos juntos»*. Las dos
+quedan con el mismo estado, el mismo pedido y el mismo tiempo. Se pueden separar
+cuando se quiera; al separar la cuenta se queda **completa en la principal** (repartir
+los productos a ojo sería peor que no separarlas).
+
+### Cómo está representado — y por qué así
+
+`pos-mesas.js` (nuevo, dentro de `pos-nucleo.js`) + `sql/2026-08-29-unir-mesas.sql`.
+
+**El pedido NO se parte.** Sigue teniendo UNA mesa (`pos_orders.table_id`): la
+principal, la que se tocó primero. Las acompañantes se marcan con el mismo
+`pos_tables.grupo_id` y se les copia estado, pedido y relojes.
+
+Se descartó la otra forma —un pedido por mesa que se suman al cobrar— porque obliga a
+tocar **todo lo que cuenta dinero**: cobro, caja, informes, puntos, cocina. Así, para
+el dinero, un grupo de mesas es exactamente lo que siempre fue: un pedido en una mesa.
+Lo único que cambia es cómo se ve.
+
+El `grupo_id` lleva dentro cuál es la principal (`g:<idDeLaPrincipal>`): una pantalla
+que solo tiene la fila de UNA mesa sabe si manda, sin otra consulta.
+
+### Las cinco pantallas, para que digan todas lo mismo
+
+| Pantalla | Qué cambió |
+|---|---|
+| Mesa (`tomar-pedido.js`) | los dos botones; el encabezado dice «Mesas 5 y 6» y el cuadro «5+6» |
+| Salón (`ventas-salon.js`) | unir/separar en los tres puntos; aviso en la tarjeta; el estado y el liberar van al **grupo entero** |
+| Cocina (`cocina.js`) | la comanda se titula «Mesas 5 y 6» |
+| Pagos (`pagos.js`) | al cobrar se sueltan **todas** las mesas del grupo |
+| Impresión (`pos-print.js`) | el recibo dice «Mesas» y las lista |
+
+Dos de esas no son adorno: si el estado solo cambiara en la principal, en el plano se
+verían dos mesas unidas con **dos colores y dos relojes distintos**; y si al cobrar
+solo se liberara la principal, las acompañantes se quedarían ocupadas para siempre
+apuntando a un pedido ya cobrado.
+
+### 🔴→🟢 Un fallo que apareció por el camino
+
+El cuadro de confirmar de la mesa («Vaciar comanda», `tpConfirm`) usa las clases
+`vs-confirm-*`, que **solo existían en `styles/modules/ventas-salon.css`** — y ese
+archivo lo carga únicamente `ventas.html`. Dentro de la mesa el cuadro salía **sin
+diseño**: texto suelto al pie de la página. Comprobado contra producción antes de
+tocarlo. Los estilos se sacaron a `styles/pos-dialogo.css`, que ahora cargan las dos
+pantallas; en `ventas-salon.css` quedó la nota de dónde se fueron.
+
+**Lección:** una función que usa clases de otra pantalla es una función rota esperando
+a que alguien la abra.
+
+---
+
 ## 🟢 Si hay que escoger, en la reja NO va precio — 29-ago-2026 (commits `8f5fcf8` → `cdab20e`)
 
 Sergio, y tuvo que decírmelo **dos veces**:
