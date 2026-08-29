@@ -101,6 +101,7 @@ function handleDatos() {
   const negocio = $('reg-negocio').value.trim();
   const email   = $('reg-email').value.trim();
   const pass    = $('reg-pass').value;
+  const pass2   = ($('reg-pass2') ? $('reg-pass2').value : pass);
   const ref     = $('reg-ref').value.trim();
   const terms   = $('chk-terms').classList.contains('on');
 
@@ -110,6 +111,10 @@ function handleDatos() {
     return showError('datos-error','datos-error-msg','Completa todos los campos obligatorios');
   if (pass.length < 8)
     return showError('datos-error','datos-error-msg','La contraseña debe tener al menos 8 caracteres');
+  /*  Se compara ANTES de los términos: si alguien se equivocó al repetirla,
+      lo que tiene que arreglar es eso, no marcar una casilla.              */
+  if (pass !== pass2)
+    return showError('datos-error','datos-error-msg','Las dos contraseñas no son iguales');
   if (!terms)
     return showError('datos-error','datos-error-msg','Debes aceptar los términos de servicio');
 
