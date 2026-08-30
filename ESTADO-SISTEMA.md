@@ -3,6 +3,46 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 📊 El desglose de ventas sale de los métodos del restaurante — 30-ago-2026
+
+Sergio: *«el tablero muestra cosas que yo ni siquiera tengo»*. Eran **seis
+tarjetas fijas en el código** que no miraban la configuración. Con los cuatro
+métodos de El Parche (Efectivo, Transferencia, Puntos, Billetera) eso daba tres
+problemas, y el tercero es de verdad:
+
+1. Cuatro tarjetas en $0 para siempre: Tarjeta, En línea + vales, Al crédito.
+2. **Dos métodos suyos sin tarjeta ninguna**: Puntos y Billetera.
+3. 🔴 **Sus transferencias no aparecían.** Comprobado ejecutando la función
+   real en la pantalla: un método de tipo `transferencia` cae en la casilla
+   `transfer`, y la tarjeta «Depósito / Transferencia» leía la casilla `bank`.
+   **Dos casillas distintas**: la plata entraba en una y la pantalla miraba la
+   otra. Más de $1.200.000 en una semana, invisibles.
+
+Ahora sale de **`posMetodos.agrupar`**, lo mismo que ya usaba Caja: una tarjeta
+por método configurado, con el nombre que le puso el restaurante, y «Otros» solo
+si quedó plata sin reconocer — así **ningún peso desaparece**. Los descuentos van
+aparte y al final: no son una forma de pago. Sin métodos configurados no se
+pinta una lista inventada, se dice que faltan.
+
+**Y fuera las líneas de tendencia.** No eran datos: eran seis listas escritas a
+mano en el código (`[14,20,16,24,28,32,30]` y parecidas), iguales todos los días
+tuviera el negocio lo que tuviera. Parecían información y no lo eran. Si algún
+día se quiere una tendencia, se calcula con los últimos 7 días — mientras no se
+calcule, no se dibuja.
+
+Probado en el Restaurante de Prueba: con un pago en efectivo y uno por
+transferencia, las tarjetas mostraron **Efectivo $47.000 (37%)** y
+**Transferencia $80.000 (63%)**. Antes esa transferencia no salía en ninguna.
+
+⚠️ **Sobre el datáfono**, que Sergio preguntó: en Colombia funciona **aparte**.
+El cajero cobra en el datáfono y en el POS marca que ese pedido se pagó con
+tarjeta. La versión integrada existe pero exige certificarse con el adquiriente
+(Redeban, Credibanco) o con Bold/Wompi: es un desarrollo por proveedor, no una
+función general. Lo que sí hay que cuidar es que el total por tarjeta del cierre
+**cuadre contra el lote del datáfono**.
+
+---
+
 ## 💳 El mes se sella solo, y limpieza de la base — 30-ago-2026 (commits `13aea39`, `d078a90`)
 
 ### El cobro mensual ya tiene de dónde salir
