@@ -1,7 +1,108 @@
 # ESTADO DEL SISTEMA — Cobra POS
-> Última actualización: 2026-08-29
+> Última actualización: 2026-08-30
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
+
+## 🟢 Paco entiende «te pago el pedido y el domicilio aparte» — 30-ago-2026 (commit `501b059`)
+
+**Lo pidió Sergio**, con una condición expresa: *«no debe reconocer las palabras
+ni la frase exacta sino la intención»*. Así que la decisión la toma el **lector
+de IA** (`paga_solo_pedido` en el clasificador de `delay-reply-banco`), no una
+lista de expresiones. Es la regla de siempre de Paco.
+
+**El caso.** El cliente transfiere solo la comida y le paga el domicilio en
+efectivo al domiciliario cuando llega. Hasta ahora el comprobante se comparaba
+contra el **total** —que lleva el domicilio dentro—, así que ese pago **nunca
+cuadraba**: el cliente pagaba bien y el sistema le decía «estamos verificando»
+para siempre. Pasa poco, pero pasa.
+
+**Qué hace ahora:**
+1. Paco lo reconoce y **confirma el trato**, diciendo por cuánto debe ser el
+   comprobante. La frase es configurable: `frases.domicilio_aparte`.
+2. Queda escrito en `pending_order_data.domicilio_aparte`
+   (`{ domi, monto_transferencia }`).
+3. `verify-transfer` compara el comprobante contra **la comida sin el
+   domicilio**, igual que ya hacía con el pago mixto.
+4. El pedido nace con la marca **`[domi_por_cobrar]`** en `notes` — la MISMA que
+   ya pone el salón al pasar un pedido pagado a domicilio, y la misma que lee
+   `vsDomiPorCobrar`. En la tarjeta se lee «El domi cobra $X».
+
+⚠️ **Lo que NO cambia, y es la parte delicada: el pedido queda PAGADO.**
+`posCobrable` (pos-core.js) ya descuenta el domicilio de lo que el restaurante
+tiene que recibir, así que **pagar la comida es pagar el pedido**. El domicilio
+es un AVISO, no un estado. Esto ya se rompió una vez convirtiéndolo en
+«pendiente de cobro» y dejó **todos** los domicilios del turno en rojo.
+
+**Cómo se probó antes de subirlo** (nada de esto tocó a un cliente):
+- **14 frases contra el clasificador REAL** —misma llamada, mismo modelo
+  (`gpt-4o-mini`), misma temperatura— en una función temporal que no escribe
+  nada, no manda WhatsApp y quedó borrada. **14 de 14.**
+- La primera versión fallaba con *«todo en efectivo cuando llegue»*: ahí no se
+  transfiere nada. Se afinó el lector **y** quedó una guarda en el código
+  (`intenciones.pago !== "efectivo"`), porque al medir los 7 casos buenos salen
+  todos con `transferencia` y ese único falso positivo salía con `efectivo`.
+- Se comprobó que el compilador **no reporta ni un error nuevo** respecto a la
+  versión publicada: los que salen ya estaban.
+- Las dos funciones responden tras desplegarlas. (La API dice `ACTIVE` incluso
+  cuando la función no arranca: hay que probarla.)
+
+`delay-reply-banco` v276 · `verify-transfer` v49.
+
+---
+
+## 🔴→🟢 La noche de los pedidos vacíos — 29/30-ago-2026 (commits `51bf7c1`, `a4c386e`, `20a4581`)
+
+Una noche entera de servicio con pedidos que nacían **con precio y sin comida**.
+La causa raíz resultó ser **un cambio mío de esa misma tarde**.
+
+**La causa.** Para que el botón de enviar respondiera al instante, el pedido se
+encola en el equipo y la pantalla salta de una; la subida va por detrás. Sube el
+**pedido**, y el cambio de pantalla corta la petición **antes de que suban los
+productos**. Hasta ahí es recuperable: la cola queda pendiente y la siguiente
+pantalla la reintenta. El problema era el reintento, que decía:
+
+```
+// 2. Insertar los items — solo si la orden es nueva (en retry, asumimos que ya existen)
+if (!orderAlreadyExisted) {
+```
+
+Esa suposición es **justo la contraria** de lo que pasa. Al reintentar, el
+pedido choca con el suyo propio (`23505`), se marcaba «ya existía» y **los
+productos no se mandaban nunca más**.
+
+Por eso era intermitente (turno 34 bien, turno 35 diecisiete segundos después
+vacío: depende de si a la subida le da tiempo), y por eso **ninguna de las tres
+barreras de `venta-rapida.js` lo vio nunca** — ese camino no pasa por ellas.
+
+**Arreglado en `pos-sync.js` (`_execOrderBatch`):**
+1. Si el pedido ya estaba, se **pregunta** si tiene productos antes de darlos por
+   puestos.
+2. El pedido nace con la cocina apagada y se enciende **cuando los platos ya
+   están dentro** — así la impresora no puede sacar otra comanda en blanco.
+
+**Lo demás de esa noche:**
+- **Las mesas con estado no abrían en la tablet** (`a4c386e`): al pintar la
+  cuenta desde la copia local se llamaba `updateSheetContent`, que solo RELLENA
+  el panel; quien lo ABRE es `showSheetLoading`. Las mesas libres sí abrían
+  porque no tienen pedido guardado.
+- **Cancelar un pedido rápido no comprobaba nada** (`20a4581`): la tarjeta se
+  quitaba de la pantalla pasara lo que pasara y al recargar el pedido volvía —
+  se ve exactamente como «le doy a cancelar y no pasa nada».
+- **Comandas dobles**, **impresiones que se daban por hechas al fallar**, y **los
+  pedidos de salón que desde la tablet no imprimían nunca**.
+- Blindaje en `venta-rapida.js`: cada fila se corrige antes de mandarla
+  (un `product_price` vacío o un `product_id` inventado tumbaban **la
+  inserción entera**, no solo esa línea), y si el lote falla se intenta plato
+  por plato.
+
+⚠️ **La lección de método, que costó más de una hora:** publiqué cuatro arreglos
+seguidos (20:12, 21:18, 21:44, 21:57) y **ninguno llegó a los equipos**, porque
+una pestaña abierta sigue con el código viejo. Yo leía la base y concluía «las
+barreras no actuaron, luego el fallo es otro». No era otro: no estaban ahí.
+Además el HTML se cachea 10 minutos, así que ni recargar basta siempre —
+**Ctrl+Shift+R**.
+
+---
 
 ## 🔴→🟢 El tope de 15 s dejó sin login — 29-ago-2026 (commit `7908259`)
 
