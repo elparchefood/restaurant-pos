@@ -848,20 +848,39 @@
       // un solo UPDATE atómico; el que gane imprime, el otro ve 0 filas y NO repite.
       // A prueba de fallos: si el claim da error o no se puede leer, se imprime igual
       // (mejor imprimir que dejar a la cocina sin comanda).
+      /*  ⚠️ EL CANDADO SE REINTENTA (29-ago-2026, en pleno turno).
+
+          Sergio: «todas las comandas de hoy están saliendo dobles».
+
+          El candado estaba bien pensado — un UPDATE atómico, gana uno solo —
+          pero se rendía a la PRIMERA: si la petición fallaba, se seguía e se
+          imprimía igual. Con el servidor lento de estos días (y el tope de 15 s
+          que corta las consultas) las dos ventanas fallaban el candado a la
+          vez, las dos se iban por el camino de respaldo, y salían dos comandas.
+
+          Ahora se intenta hasta TRES veces antes de rendirse. Y si aun así no
+          se puede, se imprime: una cocina sin comanda es peor que una comanda
+          repetida. Pero eso deja de ser lo normal y vuelve a ser la excepción
+          que se penso que era.                                              */
       var claimed = false;
       if (marcar && !yaEnviados) {
         var sbClaim = window._pos && window._pos.sb;
         if (sbClaim) {
-          try {
-            var cl = await sbClaim.from('pos_orders')
-              .update({ printed_at: new Date().toISOString() })
-              .eq('id', orderId).is('printed_at', null).select('id');
-            if (!cl.error) {
-              if (cl.data && cl.data.length) claimed = true;
-              else { _diagToast('Comanda ya enviada por otra ventana', '#64748b'); return; }
-            }
-            // claim con error → seguir e imprimir igual (fallback seguro)
-          } catch (e) { /* red/permiso: imprimir igual */ }
+          var _claimOk = false;
+          for (var _ci = 0; _ci < 3 && !_claimOk; _ci++) {
+            try {
+              var cl = await sbClaim.from('pos_orders')
+                .update({ printed_at: new Date().toISOString() })
+                .eq('id', orderId).is('printed_at', null).select('id');
+              if (!cl.error) {
+                _claimOk = true;
+                if (cl.data && cl.data.length) claimed = true;
+                else { _diagToast('Comanda ya enviada por otra ventana', '#64748b'); return; }
+              }
+            } catch (e) { /* se reintenta abajo */ }
+            if (!_claimOk && _ci < 2) await _sleep(400);
+          }
+          if (!_claimOk) _diagToast('No se pudo asegurar el candado — imprimo igual', '#b45309');
         }
       }
 
@@ -946,9 +965,29 @@
                 automatico apagado, sus items siguen sin marcar — y asi el
                 dia que se encienda, o si alguien imprime a mano, no se los
                 encuentra ya dados por enviados.                          */
+            /*  ⚠️ ESTA MARCA TAMBIEN SE REINTENTA, y no es un detalle.
+
+                Medido hoy: en los pedidos de las 19:15 y 19:19 los items
+                quedaron marcados; en los de las 19:49 y 19:54, NO — con el
+                servidor lento la escritura se perdio y nadie se entero, porque
+                el catch de afuera se la traga.
+
+                Un item sin marcar hace creer que la comanda nunca salio: al
+                agregar algo a esa mesa se vuelve a imprimir el pedido ENTERO
+                en vez de solo lo nuevo. Es la segunda mitad del problema de
+                las comandas dobles.                                        */
             if (marcar) {
               var ids = impresos.map(function (it) { return it.id; }).filter(Boolean);
-              if (ids.length) await sb2.from('pos_order_items').update({ kitchen_printed_at: new Date().toISOString() }).in('id', ids);
+              if (ids.length) {
+                var _mk = false;
+                for (var _mi = 0; _mi < 3 && !_mk; _mi++) {
+                  var rm = await sb2.from('pos_order_items')
+                    .update({ kitchen_printed_at: new Date().toISOString() }).in('id', ids);
+                  if (!rm.error) _mk = true;
+                  else if (_mi < 2) await _sleep(400);
+                }
+                if (!_mk) console.warn('[posprint] los items no quedaron marcados como impresos');
+              }
             }
           }
         } catch(e) { console.warn('[posprint] marcar impreso:', e); }
