@@ -57,7 +57,38 @@
     '.pm-sel:hover{border-color:#DCE0E8}',
     '.pm-sel:focus{border-color:#5B6BFF;box-shadow:0 0 0 3px rgba(91,107,255,.12)}',
     '.pm-sel:disabled{background-color:#F8FAFC;color:#64748B;cursor:default}',
-    '.pm-nota{font-size:11px;color:#94A3B8;padding:0 14px 10px;line-height:1.45}'
+    '.pm-nota{font-size:11px;color:#94A3B8;padding:0 14px 10px;line-height:1.45}',
+    /*  DESPLEGABLES PROPIOS. Sergio: "me parecen muy simples al desplegar".
+        Y tiene razon: la lista de un <select> la dibuja el sistema operativo
+        y NO se puede diseñar por dentro — ni el logo, ni la direccion, ni el
+        precio caben ahi. Por eso estan hechos a mano.                      */
+    '.pm-campo{margin:0 10px 8px}',
+    '.pm-tr{display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid #ECEEF2;',
+    '  border-radius:11px;background:#fff;cursor:pointer;user-select:none}',
+    '.pm-tr:hover{border-color:#DCE0E8;background:#FCFCFD}',
+    '.pm-campo.abierto .pm-tr{border-color:#5B6BFF;box-shadow:0 0 0 3px rgba(91,107,255,.10)}',
+    '.pm-cv{margin-left:auto;color:#94A3B8;flex-shrink:0;transition:transform .15s}',
+    '.pm-campo.abierto .pm-cv{transform:rotate(180deg)}',
+    '.pm-list{display:none;margin-top:6px;border:1px solid #5B6BFF;border-radius:11px;',
+    '  overflow:hidden;background:#fff;max-height:260px;overflow-y:auto}',
+    '.pm-campo.abierto .pm-list{display:block}',
+    '.pm-it{display:flex;align-items:center;gap:10px;padding:10px 11px;border-bottom:1px solid #F1F5F9;cursor:pointer}',
+    '.pm-it:last-child{border-bottom:none}',
+    '.pm-it:hover{background:#F8FAFC}',
+    '.pm-it.on{background:#F5F6FF}',
+    '.pm-av{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;',
+    '  font-size:12px;font-weight:800;flex-shrink:0;overflow:hidden}',
+    '.pm-av img{width:100%;height:100%;object-fit:cover}',
+    '.pm-t{font-size:13px;color:#0F172A;font-weight:700;line-height:1.25}',
+    '.pm-s{font-size:11px;color:#94A3B8;line-height:1.35}',
+    '.pm-ck{margin-left:auto;color:#16A34A;flex-shrink:0}',
+    '.pm-pr{margin-left:auto;text-align:right;font-size:12px;color:#0F172A;font-weight:700;line-height:1.3}',
+    '.pm-pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:#EEF2FF;color:#4338CA;margin-left:6px}',
+    '.pm-new{display:flex;align-items:center;gap:9px;padding:11px;background:#FAFBFF;',
+    '  border-top:1px solid #ECEEF2;color:#5B6BFF;font-size:12.5px;font-weight:700;cursor:pointer}',
+    '.pm-new:hover{background:#F1F4FF}',
+    '.pm-txt{min-width:0}',
+    '.pm-txt .pm-t,.pm-txt .pm-s{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
   ].join('');
 
   function css() {
@@ -105,8 +136,11 @@
       s.from('tenants').select('plan,status,periodo_inicio,periodo_fin,saldo_favor,pagado_periodo')
         .eq('id', tenantId).maybeSingle(),
       s.from('pos_planes').select('*').order('orden', { nullsFirst: false }),
-      s.from('brands').select('id,name,email_domain').eq('tenant_id', tenantId).order('name'),
-      s.from('branches').select('id,name,brand_id').eq('tenant_id', tenantId).order('name')
+      /*  `logo_url` y `address` van aqui a proposito: son lo que da diseño a
+          las listas. Un `select` sin la columna NO da error — devuelve la
+          fila sin el dato y el logo no sale nunca, sin que nadie sepa por que. */
+      s.from('brands').select('id,name,email_domain,logo_url').eq('tenant_id', tenantId).order('name'),
+      s.from('branches').select('id,name,brand_id,address').eq('tenant_id', tenantId).order('name')
     ]);
     var t = _r[0], planes = _r[1], marcas = _r[2], sucs = _r[3];
     var plan = (t.data && t.data.plan) || 'starter';
@@ -162,39 +196,120 @@
       desplegables de abajo (30-ago-2026).                                   */
 
   // ── Lo que se inyecta en el desplegable ────────────────────────────────
-  /*  TRES DESPLEGABLES, NI UN BOTON SUELTO (30-ago-2026, pedido por Sergio).
+  /*  TRES DESPLEGABLES HECHOS A MANO (30-ago-2026, pedido por Sergio).
 
-      Antes esto pintaba: la fila del plan, una LISTA con todas las sucursales
-      del restaurante una debajo de otra, y dos botones sueltos de "Crear nueva
-      marca" y "Crear nueva sucursal". Sergio: *"no me gustan todos esos
-      botones... me gustaría que simplemente hayan dos desplegables"*. Y tiene
-      razon: con dos marcas y cinco sucursales ese menu era una escalera.
+      Primero fueron tres `<select>`. Sergio: *"me parecen muy simples al
+      desplegar"*. Y no era cuestion de esmero: **la lista de un `<select>` la
+      dibuja el sistema operativo y no se puede diseñar por dentro** — ni el
+      logo de la marca, ni la direccion de la sucursal, ni el precio del plan
+      caben ahi. Para que quepan, hay que dibujarlos uno.
 
-      Ahora son tres listas y nada mas:
-        · el plan     — solo los que se VENDEN (Starter y Pro)
-        · la marca    — al cambiarla, la de abajo se rellena con SUS sucursales
-        · la sucursal — esta es la que cambia de verdad el contexto
-
-      "Crear nueva" deja de ser un boton y pasa a ser la ultima opcion de cada
-      lista. Asi, un restaurante con una marca y una sucursal abre y ve su
-      nombre y "crear nueva". Nada mas.
+      Antes de esto era peor: una lista con TODAS las sucursales una debajo de
+      otra y dos botones sueltos de "crear". Con dos marcas y cinco sucursales
+      ese menu era una escalera.
 
       Ojo con el orden: cambiar la MARCA no cambia de contexto — solo rellena
-      la lista de abajo. Si cambiara de una, el usuario no alcanzaria a escoger
-      sucursal porque la pantalla se recarga.                                */
-  function _opt(valor, texto, sel) {
-    return '<option value="' + esc(valor) + '"' + (sel ? ' selected' : '') + '>' + esc(texto) + '</option>';
+      la lista de abajo. Si cambiara de una, la pantalla se recargaria antes de
+      que el usuario alcance a escoger sucursal.
+
+      Se abre uno a la vez: dos listas abiertas en un menu de 330 px no caben.  */
+
+  var COLORES = ['#5B6BFF', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#0EA5E9'];
+
+  function _iniciales(nombre) {
+    var w = String(nombre || '?').trim().split(/\s+/).filter(Boolean);
+    return ((w[0] || '?')[0] + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase();
   }
 
-  function _sucsHTML(marcaId) {
+  //  El logo de verdad si lo hay; las iniciales si no. La mayoria de marcas
+  //  nuevas no tienen logo el primer dia y no pueden verse rotas por eso.
+  function _avatar(m, i) {
+    var col = COLORES[i % COLORES.length];
+    if (m && m.logo_url) {
+      return '<span class="pm-av" style="background:#F1F5F9"><img src="' + esc(m.logo_url)
+           + '" alt="" onerror="this.parentNode.textContent=\'' + esc(_iniciales(m.name)) + '\'"></span>';
+    }
+    return '<span class="pm-av" style="background:' + col + '22;color:' + col + '">'
+         + esc(_iniciales(m && m.name)) + '</span>';
+  }
+
+  var SVG_CHECK = '<svg class="pm-ck" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  var SVG_CHEV  = '<svg class="pm-cv" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+  var SVG_MAS   = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+  var SVG_SEDE  = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+
+  function _fila(av, titulo, sub, extra, activa, datos) {
+    return '<div class="pm-it' + (activa ? ' on' : '') + '"' + (datos || '') + '>'
+      + av
+      + '<span class="pm-txt"><span class="pm-t">' + titulo + '</span>'
+      + (sub ? '<span class="pm-s">' + sub + '</span>' : '') + '</span>'
+      + (activa ? SVG_CHECK : (extra || ''))
+      + '</div>';
+  }
+
+  function _nuevo(texto) {
+    return '<div class="pm-new" data-crear="1">' + SVG_MAS + esc(texto) + '</div>';
+  }
+
+  //  ── las tres listas ──────────────────────────────────────────────────
+  function _listaMarcas() {
+    var actual = ctx.marca ? ctx.marca.id : null;
+    var topeM = ctx.limites.max_marcas;
+    var puede = (topeM == null) || ctx.marcas.length < topeM;
+    var h = ctx.marcas.map(function (m, i) {
+      var n = sucursalesDeMarca(m.id).length;
+      return _fila(_avatar(m, i), esc(m.name),
+        n + (n === 1 ? ' sucursal' : ' sucursales'), '', m.id === actual,
+        ' data-marca="' + esc(m.id) + '"');
+    }).join('');
+    return h + _nuevo(puede ? 'Crear nueva marca' : 'Mejora tu plan para más marcas');
+  }
+
+  function _listaSucs(marcaId) {
     var lista = sucursalesDeMarca(marcaId);
     var actual = ctx.sucursal ? ctx.sucursal.id : null;
-    var h = lista.map(function (x) { return _opt(x.id, x.name, x.id === actual); }).join('');
-    if (!lista.length) h = _opt('', 'Esta marca no tiene sucursales', true);
     var topeS = ctx.limites.max_sucursales;
-    var puedeSuc = (topeS == null) || lista.length < topeS;
-    h += _opt('__nueva', puedeSuc ? '+  Crear nueva sucursal' : '\u2191  Mejora tu plan para más sucursales', false);
-    return h;
+    var puede = (topeS == null) || lista.length < topeS;
+    var h = lista.map(function (x) {
+      var av = '<span class="pm-av" style="background:#DCFCE7;color:#16A34A">' + SVG_SEDE + '</span>';
+      //  Sin direccion no se inventa nada: se queda el nombre solo.
+      return _fila(av, esc(x.name), x.address ? esc(x.address) : '', '',
+        x.id === actual, ' data-suc="' + esc(x.id) + '"');
+    }).join('');
+    if (!lista.length) h = '<div class="pm-it"><span class="pm-txt"><span class="pm-s">Esta marca todavía no tiene sucursales.</span></span></div>';
+    return h + _nuevo(puede ? 'Crear nueva sucursal' : 'Mejora tu plan para más sucursales');
+  }
+
+  function _listaPlanes() {
+    var av = function (clave) {
+      var col = clave === 'starter' ? '#64748B' : '#5B6BFF';
+      return '<span class="pm-av" style="background:' + col + '18;color:' + col + '">'
+        + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        + (clave === 'starter'
+            ? '<path d="M12 22c4.97 0 9-4.03 9-9V7h-6a9 9 0 0 0-9 9v6z"/><path d="M3 21c0-6 3-9 9-9"/>'
+            : '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>')
+        + '</svg></span>';
+    };
+    var lista = (ctx.planes || []).slice();
+    //  El plan interno se ve, pero no se puede escoger: no se le ofrece a nadie.
+    if (!lista.some(function (x) { return x.plan === ctx.plan; }) && ctx.planActual) {
+      lista.unshift(ctx.planActual);
+    }
+    return lista.map(function (x) {
+      var suyo = x.plan === ctx.plan;
+      var precio = '<span class="pm-pr">$' + Number(x.precio || 0).toLocaleString('es-CO')
+                 + '<span class="pm-s">al mes</span></span>';
+      return _fila(av(x.plan),
+        esc(x.nombre) + (suyo ? '<span class="pm-pill">Tu plan</span>' : ''),
+        esc(x.resumen || ''), precio, false,
+        suyo ? '' : ' data-plan="' + esc(x.plan) + '"');
+    }).join('');
+  }
+
+  function _campo(id, triggerHTML, listaHTML) {
+    return '<div class="pm-campo" id="' + id + '">'
+      + '<div class="pm-tr">' + triggerHTML + SVG_CHEV + '</div>'
+      + '<div class="pm-list">' + listaHTML + '</div></div>';
   }
 
   function pintar() {
@@ -203,96 +318,102 @@
     var viejo = document.getElementById('pm-bloque');
     if (viejo) viejo.remove();
 
-    var nMarcas = ctx.marcas.length;
     var marcaId = ctx.marca ? ctx.marca.id : null;
-    var topeM = ctx.limites.max_marcas;
-    var puedeMarca = (topeM == null) || nMarcas < topeM;
+    var iMarca = ctx.marcas.map(function (m) { return m.id; }).indexOf(marcaId);
+    var planNom = (ctx.planActual && ctx.planActual.nombre) || ctx.plan;
 
-    //  El plan: los que se venden, mas el suyo si no esta a la venta (el
-    //  interno de Sergio). Ese se ve pero no se puede escoger desde aqui.
-    var planes = ctx.planes || [];
-    var suyoEstaEnLista = planes.some(function (x) { return x.plan === ctx.plan; });
-    var planHTML = planes.map(function (x) {
-      return _opt(x.plan, x.nombre + '  ·  $' + Number(x.precio || 0).toLocaleString('es-CO'), x.plan === ctx.plan);
-    }).join('');
-    if (!suyoEstaEnLista) {
-      var nom = (ctx.planActual && ctx.planActual.nombre) || ctx.plan;
-      planHTML = _opt(ctx.plan, nom, true) + planHTML;
-    }
+    var trPlan = '<span class="pm-av" style="background:#EEF2FF;color:#5B6BFF">'
+      + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>'
+      + '<span class="pm-txt"><span class="pm-t">' + esc(planNom) + '</span>'
+      + '<span class="pm-s">Tu plan</span></span>';
 
-    var marcaHTML = ctx.marcas.map(function (x) { return _opt(x.id, x.name, x.id === marcaId); }).join('')
-      + _opt('__nueva', puedeMarca ? '+  Crear nueva marca' : '\u2191  Mejora tu plan para más marcas', false);
+    var trMarca = _avatar(ctx.marca, iMarca < 0 ? 0 : iMarca)
+      + '<span class="pm-txt"><span class="pm-t">' + esc(ctx.marca ? ctx.marca.name : '—') + '</span>'
+      + '<span class="pm-s">Marca</span></span>';
+
+    var trSuc = '<span class="pm-av" style="background:#DCFCE7;color:#16A34A">' + SVG_SEDE + '</span>'
+      + '<span class="pm-txt"><span class="pm-t">' + esc(ctx.sucursal ? ctx.sucursal.name : '—') + '</span>'
+      + '<span class="pm-s">' + esc((ctx.sucursal && ctx.sucursal.address) || 'Sucursal') + '</span></span>';
 
     var div = document.createElement('div');
     div.id = 'pm-bloque';
     div.innerHTML =
         '<div class="user-dropdown-divider"></div>'
       + '<div class="pm-sec">Tu plan</div>'
-      + '<div class="pm-sel-w"><select class="pm-sel" id="pm-plan">' + planHTML + '</select></div>'
+      + _campo('pm-c-plan', trPlan, _listaPlanes())
       + '<div class="user-dropdown-divider"></div>'
       + '<div class="pm-sec">Estás trabajando en</div>'
-      + '<div class="pm-sel-w"><div class="pm-sel-l">Marca</div>'
-      +   '<select class="pm-sel" id="pm-marca">' + marcaHTML + '</select></div>'
-      + '<div class="pm-sel-w"><div class="pm-sel-l">Sucursal</div>'
-      +   '<select class="pm-sel" id="pm-suc">' + _sucsHTML(marcaId) + '</select></div>'
+      + _campo('pm-c-marca', trMarca, _listaMarcas())
+      + _campo('pm-c-suc', trSuc, _listaSucs(marcaId))
       + '<div class="pm-nota" id="pm-nota"></div>';
 
     var ref = dd.querySelector('.user-dropdown-divider');
     if (ref) dd.insertBefore(div, ref); else dd.appendChild(div);
 
-    var selPlan = document.getElementById('pm-plan');
-    var selMarca = document.getElementById('pm-marca');
-    var selSuc = document.getElementById('pm-suc');
+    //  Ni un clic de aqui dentro debe cerrar el menu de usuario.
+    div.addEventListener('click', function (e) { e.stopPropagation(); });
 
-    //  Que un clic dentro del menu no lo cierre.
-    [selPlan, selMarca, selSuc].forEach(function (el) {
-      el.addEventListener('click', function (e) { e.stopPropagation(); });
+    //  Uno abierto a la vez.
+    div.querySelectorAll('.pm-campo').forEach(function (c) {
+      c.querySelector('.pm-tr').addEventListener('click', function () {
+        var estaba = c.classList.contains('abierto');
+        div.querySelectorAll('.pm-campo').forEach(function (o) { o.classList.remove('abierto'); });
+        if (!estaba) c.classList.add('abierto');
+      });
     });
 
-    /*  LA MARCA SOLO FILTRA. Cambiarla rellena la lista de abajo con SUS
-        sucursales y deja al usuario escoger; no cambia de contexto todavia. */
-    selMarca.addEventListener('change', function (e) {
-      e.stopPropagation();
-      if (selMarca.value === '__nueva') {
-        selMarca.value = marcaId || '';
-        puedeMarca ? modalMarca() : modalTope('marca', nMarcas, topeM);
-        return;
-      }
-      selSuc.innerHTML = _sucsHTML(selMarca.value);
-      var n = sucursalesDeMarca(selMarca.value).length;
-      document.getElementById('pm-nota').textContent = n
-        ? 'Elige una sucursal para trabajar en esa marca.'
-        : 'Esta marca todavía no tiene sucursales.';
-    });
+    var cMarca = document.getElementById('pm-c-marca');
+    var cSuc = document.getElementById('pm-c-suc');
+    var nota = document.getElementById('pm-nota');
 
-    //  LA SUCURSAL SI CAMBIA EL CONTEXTO: valida y recarga la pantalla.
-    selSuc.addEventListener('change', function (e) {
-      e.stopPropagation();
-      var v = selSuc.value;
-      if (v === '__nueva') {
-        selSuc.innerHTML = _sucsHTML(selMarca.value);
-        var lista = sucursalesDeMarca(selMarca.value);
+    function engancharMarcas() {
+      cMarca.querySelectorAll('[data-marca]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var id = b.dataset.marca;
+          cMarca.classList.remove('abierto');
+          //  Solo filtra: la lista de abajo se rellena y se abre para escoger.
+          cSuc.querySelector('.pm-list').innerHTML = _listaSucs(id);
+          engancharSucs(id);
+          cSuc.classList.add('abierto');
+          nota.textContent = sucursalesDeMarca(id).length
+            ? 'Elige una sucursal para trabajar en esa marca.' : '';
+        });
+      });
+      cMarca.querySelector('[data-crear]').addEventListener('click', function () {
+        cMarca.classList.remove('abierto');
+        var topeM = ctx.limites.max_marcas;
+        ((topeM == null) || ctx.marcas.length < topeM)
+          ? modalMarca() : modalTope('marca', ctx.marcas.length, topeM);
+      });
+    }
+
+    function engancharSucs(marcaDe) {
+      cSuc.querySelectorAll('[data-suc]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var id = b.dataset.suc;
+          if (ctx.sucursal && id === ctx.sucursal.id) { cSuc.classList.remove('abierto'); return; }
+          nota.textContent = 'Cambiando…';
+          window.posContexto.cambiar(id);
+        });
+      });
+      var crear = cSuc.querySelector('[data-crear]');
+      if (crear) crear.addEventListener('click', function () {
+        cSuc.classList.remove('abierto');
+        var lista = sucursalesDeMarca(marcaDe);
         var topeS = ctx.limites.max_sucursales;
         ((topeS == null) || lista.length < topeS)
           ? modalSucursal() : modalTope('sucursal', lista.length, topeS);
-        return;
-      }
-      if (!v || (ctx.sucursal && v === ctx.sucursal.id)) return;
-      document.getElementById('pm-nota').textContent = 'Cambiando…';
-      window.posContexto.cambiar(v);
-    });
+      });
+    }
 
-    /*  EL PLAN. Por ahora avisa y no cobra: el cambio con prorrateo necesita
-        las fechas de la suscripcion, que HOY NO EXISTEN en la base (`tenants`
-        solo guarda `plan`). Se hace en el siguiente paso; mientras tanto es
-        preferible no ofrecer un boton que mueva plata sin saber las fechas. */
-    selPlan.addEventListener('change', function (e) {
-      e.stopPropagation();
-      var nuevo = selPlan.value;
-      selPlan.value = ctx.plan;
-      if (nuevo === ctx.plan) return;
-      var destino = (ctx.planes || []).filter(function (x) { return x.plan === nuevo; })[0];
-      modalPlan(destino);
+    engancharMarcas();
+    engancharSucs(marcaId);
+
+    document.getElementById('pm-c-plan').querySelectorAll('[data-plan]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        document.getElementById('pm-c-plan').classList.remove('abierto');
+        modalPlan((ctx.planes || []).filter(function (x) { return x.plan === b.dataset.plan; })[0]);
+      });
     });
   }
 
