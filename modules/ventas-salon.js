@@ -1120,7 +1120,7 @@
          piden una sola vez por pantalla y quedan guardadas. */
       try { await vsEmpresas(); } catch (e) {}
       var q = sb.from('pos_orders')
-        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, waiter_id, domiciliario, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at, cliente_id, notes, domi_movil, domi_empresa_id, origen')
+        .select('id, customer_name, channel, total, subtotal, packaging_fee, delivery_fee, paid_amount, payment_method, waiter_name, waiter_id, domiciliario, status, created_at, opened_at, delivery_status, delivered_at, estado, estado_at, cliente_id, notes, domi_movil, domi_empresa_id, origen, pos_order_items(count)')
         .eq('channel', 'domicilio')
         .not('status', 'eq', 'cancelled')
         .gte('created_at', cajaStart)
@@ -1182,7 +1182,17 @@
           id: r.id,
           cliente: r.customer_name || 'Sin cliente',
           canal: r.channel || 'whatsapp',
-          items: 0,
+          /*  ⚠️ LA CUENTA DE VERDAD, NO UN CERO FIJO (29-ago-2026).
+
+              Aquí decía `items: 0` a secas, y la tarjeta pequeña de cada
+              domicilio pintaba «0 ítems» siempre — aunque el pedido tuviera
+              tres platos. Sergio lo veía en cada tarjeta.
+
+              La trae la propia consulta con `pos_order_items(count)`: viene
+              en el mismo viaje, no cuesta una consulta aparte, y llega como
+              una lista de un solo elemento con el número dentro.          */
+          items: (r.pos_order_items && r.pos_order_items[0]
+                    && Number(r.pos_order_items[0].count)) || 0,
           total: totalNum,
           subtotal: parseFloat(r.subtotal) || 0,        // solo productos
           empaque:  parseFloat(r.packaging_fee) || 0,

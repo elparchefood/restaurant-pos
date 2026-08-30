@@ -589,7 +589,7 @@
     const tel     = (document.getElementById('vr-cli-telefono').value || '').trim();
     const barrio  = (document.getElementById('vr-cli-barrio').value   || '').trim();
     const dir     = (document.getElementById('vr-cli-direccion').value|| '').trim();
-    if (!nombre) { alert('Ingresa un nombre'); return; }
+    if (!nombre) { vrAviso('Escribe un nombre para el cliente'); return; }
     if (S.editCliId) {
       const idx = S.clientes.findIndex(c => c.id === S.editCliId);
       if (idx >= 0) {
@@ -740,7 +740,9 @@
     if (_btnTr) _btnTr.addEventListener('click', vrAbrirTraspaso);
 
     $('vr-btn-vaciar').addEventListener('click', function() {
-      if (confirm('¿Vaciar el pedido?')) vaciarCart();
+      vrConfirmar('Vaciar el pedido',
+        '¿Quitar todos los productos del pedido? Esto no se puede deshacer.',
+        'Sí, vaciar', 'danger').then(function (ok) { if (ok) vaciarCart(); });
     });
 
     // Guardar
@@ -1019,7 +1021,7 @@ async function loadCatalog() {
       }
     } catch (e) {
       console.error('[venta-rapida] agregarAlPedido:', e);
-      alert('No se pudo agregar: ' + (e.message || e));
+      vrError('No se pudo agregar: ' + (e.message || e));
       return;
     }
 
@@ -1036,9 +1038,9 @@ async function loadCatalog() {
     const { data: o, error } = await sb.from('pos_orders')
       .select('id, customer_name, subtotal, packaging_fee, total, status, delivered_at')
       .eq('id', orderId).maybeSingle();
-    if (error || !o) { alert('No encontré ese pedido'); return; }
+    if (error || !o) { await vrError('No encontré ese pedido.'); return; }
     if (o.status === 'cancelled' || o.delivered_at) {
-      alert('Ese pedido ya se cerró. Haz una venta nueva.');
+      await vrError('Ese pedido ya se cerró. Haz una venta nueva.', 'Pedido cerrado');
       window.location.href = 'ventas.html?floor=__rapidas__';
       return;
     }
@@ -1083,11 +1085,62 @@ async function loadCatalog() {
     return 'Escoge una etiqueta antes de guardar el pedido';
   }
 
-  /* Aviso corto arriba, no un alert: un alert obliga a soltar la pantalla táctil
-     y darle a Aceptar en plena atención. */
+  /*  ⚠️ NUNCA LAS VENTANAS DEL NAVEGADOR (29-ago-2026).
+
+      `alert` y `confirm` son la cara de Chrome, no la de Cobra: se ven de
+      otro producto, bloquean la pantalla entera y en la tablet obligan a
+      soltar lo que se esté haciendo. Este es el mismo marco que usan Ventas
+      y Tomar pedido (`styles/pos-dialogo.css`), así que las tres pantallas
+      preguntan igual.                                                       */
+  function vrCuadro(opts) {
+    var o = opts || {};
+    var variante = o.variant || 'brand';
+    return new Promise(function (resolve) {
+      var capa = document.createElement('div');
+      capa.className = 'vs-confirm-overlay';
+      var iconos = {
+        green:  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+        danger: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+        brand:  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+      };
+      //  Sin botón de cancelar cuando solo hay que enterarse.
+      var cancelar = o.cancelLabel
+        ? '<button class="vs-c-cancel">' + o.cancelLabel + '</button>' : '';
+      capa.innerHTML =
+        '<div class="vs-confirm-card">' +
+          '<div class="vs-confirm-icon ' + variante + '">' + (iconos[variante] || '') + '</div>' +
+          '<div class="vs-confirm-title">' + (o.title || '') + '</div>' +
+          '<div class="vs-confirm-msg">' + (o.msg || '') + '</div>' +
+          '<div class="vs-confirm-actions">' + cancelar +
+            '<button class="vs-c-ok ' + variante + '">' + (o.okLabel || 'Entendido') + '</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(capa);
+      function cerrar(r) { capa.remove(); resolve(r); }
+      capa.querySelector('.vs-c-ok').addEventListener('click', function () { cerrar(true); });
+      var btnC = capa.querySelector('.vs-c-cancel');
+      if (btnC) btnC.addEventListener('click', function () { cerrar(false); });
+      capa.addEventListener('click', function (e) { if (e.target === capa) cerrar(false); });
+    });
+  }
+
+  //  Preguntar (sí / no).
+  function vrConfirmar(titulo, msg, okLabel, variante) {
+    return vrCuadro({ title: titulo, msg: msg, okLabel: okLabel || 'Sí',
+                      cancelLabel: 'Cancelar', variant: variante || 'brand' });
+  }
+
+  //  Un problema que hay que leer: cuadro, no barrita que se va sola.
+  function vrError(msg, titulo) {
+    return vrCuadro({ title: titulo || 'No se pudo', msg: msg, variant: 'danger' });
+  }
+
+  /* Aviso corto arriba, no un cuadro: un cuadro obliga a soltar la pantalla
+     táctil y darle a Aceptar en plena atención. Solo para cosas que se leen
+     de paso; lo que hay que atender va por `vrError`. */
   function vrAviso(msg) {
     try { if (window.posStock && typeof window.posStock.toast === 'function') { window.posStock.toast(msg); return; } } catch (e) {}
-    alert(msg);
+    vrCuadro({ title: 'Aviso', msg: msg, variant: 'brand' });
   }
 
   async function guardarPedido() {
@@ -1097,10 +1150,10 @@ async function loadCatalog() {
     if (!sb) return;
     try {
       await upsertOrder(sb, false);
-      alert('Pedido guardado.');
+      vrAviso('Pedido guardado');
     } catch(e) {
       console.error('guardarPedido:', e);
-      alert('Error al guardar: ' + e.message);
+      vrError('Error al guardar: ' + e.message);
     }
   }
 
@@ -1167,7 +1220,7 @@ async function loadCatalog() {
       window.location.href = 'ventas.html';
     } catch(e) {
       console.error('enviarACocina:', e);
-      alert('Error al enviar: ' + e.message);
+      vrError('Error al enviar: ' + e.message);
     }
   }
 
@@ -1187,7 +1240,7 @@ async function loadCatalog() {
       finalizarVenta();
       window.location.href = `pagos.html?order=${orderId}&channel=rapido`;
     } catch(e) {
-      alert('Error: ' + e.message);
+      vrError('Error: ' + e.message);
     }
   }
 
