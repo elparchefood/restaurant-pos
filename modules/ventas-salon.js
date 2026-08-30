@@ -3934,9 +3934,43 @@
       var antes = state.cobroAdelantado;
       await loadCobroAdelantado();
       if (state.cobroAdelantado !== antes) pintarToggleCobro();
+
+      /*  ⚠️ AL VOLVER SE RECARGA TODO, NO SOLO EL AJUSTE (29-ago-2026).
+
+          Sergio: *«hice un pago de una mesa desde el computador y en la
+          tablet no se actualizó el estado de esa mesa en tiempo real»*.
+
+          Comprobé los avisos en vivo uno por uno contra el servidor —con
+          filtro de sede y sin él, en mesas y en pedidos— y llegan todos. El
+          problema no es que no lleguen: es que la tablet se duerme. Cuando
+          la pantalla se apaga o la app pasa al fondo, el sistema corta la
+          conexión, y los avisos de ese rato NO se guardan en ninguna parte:
+          se pierden. Al volver, la pantalla sigue mostrando lo de antes
+          para siempre — hasta que alguien recarga a mano.
+
+          Aquí ya había un enganche para volver a leer el cobro adelantado.
+          Le faltaba lo importante: volver a pedir las mesas y los pedidos, y
+          reconectar la escucha si se había caído.                         */
+      try {
+        var sbR = window._pos && window._pos.sb;
+        var vivo = !!(sbR && sbR.realtime && sbR.realtime.isConnected
+                      && sbR.realtime.isConnected());
+        if (sbR && !vivo) {
+          //  La escucha se cayó con el sueño: se tira la vieja y se abre otra.
+          try { if (realtimeSub) sbR.removeChannel(realtimeSub); } catch (e) {}
+          realtimeSub = null;
+          subscribeRealtime();
+        }
+      } catch (e) { console.warn('[VS] reconectar al volver:', e && e.message); }
+
+      //  Frenado: `focus` y `visibilitychange` disparan casi a la vez y esto
+      //  hace una sola recarga en vez de dos.
+      loadDataFrenado();
     };
     window.addEventListener('focus', refrescar);
     document.addEventListener('visibilitychange', refrescar);
+    //  Y cuando vuelve el internet, lo mismo.
+    window.addEventListener('online', refrescar);
   }
 
   async function loadCobroAdelantado() {
