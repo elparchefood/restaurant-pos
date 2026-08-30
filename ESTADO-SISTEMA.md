@@ -3,6 +3,50 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## ⚡ Tomar pedido: de 4 rondas a 3 — 30-ago-2026 (commits `1cbd860`, `3e6dce2`, `b2f33b8`)
+
+Sergio: *«tardó abriendo la pantalla de toma de pedidos»*. **Medido en la
+página real, no deducido**: 15 llamadas al servidor, **~250 ms cada una**, y los
+datos no pesan casi nada. El tiempo de esa pantalla **no es cuánto trae, es
+cuántos viajes hace** — y cuántos de esos van en fila esperando al anterior.
+
+**Lo que iba en fila sin motivo:**
+1. **El pedido de la mesa** era el último de la cadena y solo necesita el número
+   de mesa, que viene en la dirección. Se pide al arrancar; si la mesa está
+   libre se descarta y no cuesta nada porque iba en paralelo.
+2. **El inventario** esperaba a que terminaran la mesa y la carta, sin depender
+   de ninguna de las dos.
+3. **Los puntos eran la última llamada de todas**: los pide `posTabs.registrar`,
+   y a eso se llega después de cargar la carta y los combos. Ahora se disparan
+   al arrancar.
+
+**Lo que se pedía dos veces:** `pos_combos` y `pos_puntos_catalogo`, en cada
+apertura. No era culpa de ningún sitio — los dos que llaman tienen su motivo —
+sino que la función de carga **no recordaba nada**. Ahora, si ya hay una
+petición en vuelo la segunda se cuelga de la misma (que es lo que pasa al
+arrancar: salen casi a la vez y un simple «ya lo traje» no las atrapa), y
+durante un minuto se responde con lo ya traído. El minuto es a propósito: la
+pantalla que refresca por detrás sigue viendo los combos nuevos del turno.
+
+**Medido antes y después, en la misma pantalla y la misma mesa:**
+
+| | antes | después |
+|---|---|---|
+| rondas en fila | 4 | **3** |
+| tiempo de red | ~1.080 ms | **~800 ms** |
+| consultas repetidas | 5 | 2 (y las dos son legítimas) |
+
+**Por qué me paré en 3 rondas.** Las que quedan son el suelo de esta pantalla:
+la tercera la ocupan `brands` (encadenada tras `branches`, del selector de marca
+en `pos-core.js`) y el `UPDATE` que cierra pedidos huérfanos cuando la mesa está
+libre — que **no puede** salir antes, porque hay que saber que la mesa está
+libre. Quitar `brands` no bajaría de 3, y toca un módulo del núcleo que usa
+**toda** pantalla. Las otras repetidas (`pos_users`, `branches`) viven ahí
+mismo: bajan de 16 llamadas a 14, pero **no bajan ni una ronda**. No vale el
+riesgo hoy.
+
+---
+
 ## 🟢 La entrega del efectivo del domiciliario — 30-ago-2026 (commit `4be8cff`)
 
 Planeado el 27-ago (`PLAN-entrega-efectivo.md`) y sin hacer. Volvió a salir
