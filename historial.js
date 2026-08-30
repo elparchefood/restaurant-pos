@@ -94,7 +94,7 @@ function applyFilters() {
       con status 'paid'. Por eso se mira en los tres sitios — preguntar solo
       por `status` devolveria cero entregados y pareceria que no hay.        */
   if (HS.estado && HS.estado !== 'all') {
-    lista = lista.filter(function (o) {
+    list = list.filter(function (o) {
       if (HS.estado === 'entregado') {
         return String(o.estado || '') === 'entregado'
             || String(o.delivery_status || '') === 'entregado'
