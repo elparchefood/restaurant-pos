@@ -212,6 +212,12 @@
     // ya la insertó — seguimos sin crear duplicado.
     const orderPayload = { ...entry.orderData, id: tempId };
     delete orderPayload._tempId;
+    /*  Nace con la cocina apagada cuando trae comida: se enciende en el paso
+        2, cuando los platos ya están dentro. Un pedido que no trae productos
+        (no debería existir) conserva lo que traiga, para no cambiarle nada. */
+    const _avisarCocina = !!orderPayload.visible_cocina
+                       && !!(entry.itemsData && entry.itemsData.length);
+    if (_avisarCocina) orderPayload.visible_cocina = false;
 
     const { data: orderRows, error: orderErr } = await sb
       .from('pos_orders').insert(orderPayload).select().single();
@@ -226,8 +232,37 @@
       realOrderId = orderRows.id;
     }
 
-    // 2. Insertar los items — solo si la orden es nueva (en retry, asumimos que ya existen)
-    if (!orderAlreadyExisted) {
+    /*  2. LOS PRODUCTOS. ⚠️ NO SE DA POR HECHO QUE YA ESTEN (29-ago-2026).
+
+        Aquí decía: «solo si la orden es nueva; en retry, asumimos que ya
+        existen». Esa suposición es justo la contraria de lo que pasa.
+
+        Lo que ocurre de verdad: el botón encola el pedido y navega de una
+        —para eso se hizo, para que responda al instante—. La subida arranca
+        por detrás, mete el PEDIDO, y el cambio de página mata la petición
+        antes de que entren los PRODUCTOS. La cola queda pendiente y la
+        siguiente pantalla la reintenta: el pedido choca con el suyo propio
+        (23505), se marcaba «ya existía»... y los productos no se mandaban
+        nunca más.
+
+        Resultado: un pedido con precio y sin comida, que además sacaba una
+        comanda vacía por la impresora. Le pasó a Sergio y a Mónica toda la
+        noche del 29-ago, y era intermitente porque depende de si a la subida
+        le da tiempo o no antes de que cambie la pantalla.
+
+        Ahora, si el pedido ya estaba, se PREGUNTA si tiene productos. Solo
+        se saltan si de verdad hay alguno.                                  */
+    let faltanItems = !orderAlreadyExisted;
+    if (orderAlreadyExisted) {
+      const { data: yaHay, error: leerErr } = await sb
+        .from('pos_order_items').select('id').eq('order_id', realOrderId).limit(1);
+      //  Si no se puede comprobar, se deja pendiente y se reintenta luego:
+      //  mandarlos a ciegas duplicaría la comida de un pedido bueno.
+      if (leerErr) throw leerErr;
+      faltanItems = !(yaHay && yaHay.length);
+    }
+
+    if (faltanItems) {
       const items = entry.itemsData.map(item => {
         const it = { ...item };
         if (it.order_id === tempId) it.order_id = realOrderId;
@@ -236,6 +271,16 @@
       if (items.length > 0) {
         const { error: itemsErr } = await sb.from('pos_order_items').insert(items);
         if (itemsErr && itemsErr.code !== '23505') throw itemsErr;
+        /*  La cocina se entera cuando HAY COMIDA, no antes.
+
+            El pedido se inserta con la marca de cocina apagada (más abajo, en
+            el paso 1) y se enciende aquí, ya con los platos dentro. Así la
+            impresora no puede volver a sacar una comanda en blanco ni la
+            pantalla de cocina mostrar un pedido sin nada que cocinar.     */
+        if (_avisarCocina) {
+          try { await sb.from('pos_orders').update({ visible_cocina: true }).eq('id', realOrderId); }
+          catch (e) { console.warn('[posSync] no se pudo avisar a cocina:', e); }
+        }
       }
     }
 
