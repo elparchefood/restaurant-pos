@@ -1207,6 +1207,20 @@ async function loadCatalog() {
     }, i.productId || i.id)));
   }
 
+  /*  Deshacer un pedido que acaba de nacer y quedo inservible. Se anula en
+      vez de borrarse: un renglon anulado se puede mirar despues; una fila
+      borrada no cuenta lo que paso.                                        */
+  async function _deshacerSiNuevo(sb, esNuevo) {
+    if (!esNuevo || !S.orderId) return;
+    try {
+      await sb.from('pos_orders').update({
+        status: 'cancelled', visible_cocina: false,
+        notes: '[ANULADO: el pedido quedo sin productos]',
+      }).eq('id', S.orderId);
+    } catch (e) { console.error('[venta rapida] tampoco se pudo anular:', e); }
+    S.orderId = null;
+  }
+
   async function upsertOrder(sb, visible, orderStatus) {
     const user   = window._pos && window._pos.state && window._pos.state.user;
     const userId = user ? user.id : null;
@@ -1217,6 +1231,13 @@ async function loadCatalog() {
         los productos no se pueden guardar, un pedido recién nacido hay que
         deshacerlo, y uno que ya existía hay que dejarlo como estaba.       */
     const _esNuevo = !S.orderId;
+
+    /*  ⚠️ NI UN PEDIDO SIN PRODUCTOS. Es la primera de tres barreras contra
+        el «pedido volando»: si el carrito está vacío no hay nada que guardar,
+        y crear la cabecera igual deja un fantasma con empaque y sin comida. */
+    if (!S.cart.length) {
+      throw new Error('El pedido no tiene productos. Agrega algo antes de guardar.');
+    }
     let _viejos = null;   // ids de los items que habia antes (solo al actualizar)
 
     // Crear o reusar orden
@@ -1302,7 +1323,13 @@ async function loadCatalog() {
     }
 
     // Insertar ítems
-    const items = S.cart.map(i => (_filaConCombo({
+    /*  ⚠️ SEGUNDA BARRERA: armar las filas puede REVENTAR (un combo raro, un
+        campo que no está). Si revienta aquí, la excepción sube y el pedido se
+        queda creado y vacío — que es exactamente lo que pasó dos veces hoy.
+        Se atrapa, se deshace el pedido y se avisa.                         */
+    let items;
+    try {
+      items = S.cart.map(i => (_filaConCombo({
       order_id:      S.orderId,
       product_id:    i.productId || i.id,
       name:          i.name,
@@ -1316,7 +1343,12 @@ async function loadCatalog() {
       notes:         i.note || null,
       selections:    i.selections || {},
       status:        'pending',
-    }, i.productId || i.id)));
+      }, i.productId || i.id)));
+    } catch (e) {
+      console.error('[venta rapida] no se pudieron armar los productos:', e);
+      await _deshacerSiNuevo(sb, _esNuevo);
+      throw new Error('No se pudo preparar el pedido. No se creó nada: vuelve a intentarlo.');
+    }
     /*  ══ SI LOS PRODUCTOS NO ENTRAN, EL PEDIDO NO EXISTE ═══════════════
 
         Sergio, 29-ago-2026: pasó un pedido de mesa a para llevar y *«quedó en
@@ -1340,18 +1372,7 @@ async function loadCatalog() {
       const { error: itemErr } = await sb.from('pos_order_items').insert(items);
       if (itemErr) {
         console.error('[venta rapida] los productos no se guardaron:', itemErr);
-        if (_esNuevo && S.orderId) {
-          /*  Recién nacido y sin productos: se anula para que no se quede
-              rondando en las pantallas. Si esto también falla, al menos el
-              aviso de abajo sale y la cajera sabe que hay algo raro.      */
-          try {
-            await sb.from('pos_orders').update({
-              status: 'cancelled', visible_cocina: false,
-              notes: '[ANULADO: no se pudieron guardar los productos]',
-            }).eq('id', S.orderId);
-          } catch (e) { console.error('[venta rapida] tampoco se pudo anular:', e); }
-          S.orderId = null;
-        }
+        await _deshacerSiNuevo(sb, _esNuevo);
         throw new Error('No se pudieron guardar los productos del pedido. '
                       + 'No se creó nada: vuelve a intentarlo.');
       }
@@ -1359,6 +1380,34 @@ async function loadCatalog() {
       if (_viejos && _viejos.length) {
         try { await sb.from('pos_order_items').delete().in('id', _viejos); }
         catch (e) { console.warn('[venta rapida] los items viejos no se borraron:', e); }
+      }
+    }
+
+    /*  ══ TERCERA BARRERA: SE COMPRUEBA QUE DE VERDAD QUEDARON ═══════════
+
+        29-ago-2026, segunda vez en una noche. El primer arreglo confiaba en
+        que la inserción avisara del error. Y el pedido de las 21:12 volvió a
+        nacer vacío — con subtotal $69.000 en la base y CERO productos, o sea
+        que el carrito SÍ tenía comida. Falló por otro camino.
+
+        Aquí se deja de suponer: se vuelve a preguntar a la base cuántos
+        productos tiene el pedido. Si no hay ninguno, el pedido no existe —
+        se anula y se avisa. Un pedido con precio y sin comida es lo peor que
+        puede quedar en una caja.
+
+        Cuesta una consulta por pedido nuevo. Vale cada milisegundo.        */
+    if (_esNuevo && S.orderId) {
+      let quedaron = -1;
+      try {
+        const ck = await sb.from('pos_order_items').select('id').eq('order_id', S.orderId);
+        if (!ck.error) quedaron = (ck.data || []).length;
+      } catch (e) { /* si no se puede comprobar, se deja pasar: ver abajo */ }
+
+      //  `-1` = no se pudo comprobar. En ese caso NO se anula: anular un
+      //  pedido bueno por no haber podido leer sería peor que el problema.
+      if (quedaron === 0) {
+        await _deshacerSiNuevo(sb, true);
+        throw new Error('El pedido quedó sin productos y se anuló. Vuelve a hacerlo.');
       }
     }
 
