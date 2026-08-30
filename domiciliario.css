@@ -1,3 +1,17 @@
+/*  EL TEXTO NO SE SELECCIONA (30-ago-2026, pedido por Sergio).
+
+    Esta app va en un telefono y en la calle: al mantener pulsado, el navegador
+    seleccionaba la palabra y sacaba la lupa y el menu de copiar justo cuando
+    lo que se queria era tocar un boton.
+
+    Se dejan copiables las dos cosas que el domiciliario de verdad usa fuera de
+    la app — la direccion, que pega en el mapa, y el telefono, que marca — mas
+    el dinero.                                                               */
+body{-webkit-user-select:none;-moz-user-select:none;user-select:none;
+     -webkit-touch-callout:none}
+input,textarea,.tnum,.pos-sel,[data-sel],.li-s,.dir,.tel{
+  -webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+
 /* Cobra POS — App Domiciliario (móvil). Tokens y componentes exactos. */
 :root{--bg:#FAFAFB;--surface:#FFFFFF;--surface-2:#F8FAFC;--surface-3:#F1F5F9;--border:#ECEEF2;--border-soft:#F1F5F9;--ink:#0F172A;--ink-2:#475569;--ink-3:#64748B;--muted:#94A3B8;--faint:#CBD5E1;--brand:#5B6BFF;--brand-press:#4F5BE3;--brand-tint:#EEF2FF;--brand-ring:#C7D2FE;--violet:#8B5CF6;--success:#16A34A;--success-tint:#DCFCE7;--warn:#F59E0B;--warn-tint:#FFFBEB;--danger:#DC2626;--danger-tint:#FEF2F2;--danger-border:#FECACA}
 *{box-sizing:border-box}

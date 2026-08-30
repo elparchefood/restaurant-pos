@@ -658,3 +658,47 @@ window.posLlaveSalon = function () {
   try { localStorage.removeItem('pos.config.salon.v1'); } catch (e) {}
   return 'pos.config.salon.v1.' + (b || 'sin-sede');
 };
+
+/*  ══ EL TEXTO NO SE SELECCIONA (30-ago-2026, pedido por Sergio) ═══════════
+
+    Sergio: *"actualmente todo se puede seleccionar el texto, eso hace que el
+    programa se vea poco profesional"*. Y tiene razon: un POS es un programa,
+    no una pagina web — arrastrar el raton por el escritorio dejaba media
+    pantalla en azul.
+
+    En la TABLET pesa todavia mas: al mantener pulsado, el navegador
+    seleccionaba la palabra y sacaba la lupa y el menu de copiar, justo cuando
+    lo que se queria era tocar un boton.
+
+    Se inyecta desde aqui y no desde `pos-core.css` porque esa hoja solo la
+    cargan 13 de las 30 pantallas, y el nucleo lo cargan 24. Una regla que solo
+    aplica en media aplicacion se ve peor que no tenerla.
+
+    Las tres paginas legales (terminos, privacidad, borrado de datos) no cargan
+    el nucleo, asi que ahi el texto se sigue pudiendo copiar — que es lo
+    correcto: son documentos, no pantallas de trabajo.                       */
+(function () {
+  try {
+    if (document.getElementById('pos-no-sel')) return;
+    var st = document.createElement('style');
+    st.id = 'pos-no-sel';
+    st.textContent = [
+      'body{-webkit-user-select:none;-moz-user-select:none;user-select:none}',
+      /*  LO QUE SI SE PUEDE COPIAR, y por que cada uno:
+            · lo que se escribe: sin esto no se podria ni corregir un campo;
+            · el dinero y los numeros — `.tnum` la usa ya todo el sistema;
+            · los datos del cliente: nombre, telefono y direccion se pegan en
+              WhatsApp o en el mapa todos los dias;
+            · `.pos-sel` y `data-sel`, la puerta para lo que venga despues.  */
+      'input,textarea,select,[contenteditable="true"],[contenteditable=""],',
+      '.tnum,.pos-sel,[data-sel],',
+      '.vs-info-value,.vs-dir,.vs-dir-tx,.vs-dir-calle,.vs-dir-barrio,',
+      '.d-cliente,.d-cli-addr,.d-dir-seg',
+      '{-webkit-user-select:text;-moz-user-select:text;user-select:text}',
+      /*  El cursor lo dice sin que nadie lo explique: barra de texto sobre un
+          dato copiable, flecha sobre lo demas.                             */
+      '.tnum,.pos-sel,[data-sel]{cursor:text}'
+    ].join('');
+    (document.head || document.documentElement).appendChild(st);
+  } catch (e) { /* si esto falla, se sigue pudiendo seleccionar: no es grave */ }
+})();
