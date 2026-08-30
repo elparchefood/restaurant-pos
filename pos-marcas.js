@@ -89,7 +89,12 @@
     '.pm-new{display:flex;align-items:center;gap:9px;padding:13px 11px;background:#FAFBFF;',
     '  border-top:1px solid #ECEEF2;color:#5B6BFF;font-size:12.5px;font-weight:700;cursor:pointer}',
     '.pm-new:hover{background:#F1F4FF}',
-    '.pm-txt{min-width:0}',
+    /*  El nombre y su linea de abajo son <span>, o sea que van SEGUIDOS en la
+        misma linea si no se dice lo contrario: se veia "RicurasMarca" y
+        "Ricuras NorteCarrera 70 n 70 - 40". No lo vi comprobando el texto —
+        el texto estaba bien— sino mirando la pantalla.                    */
+    '.pm-txt{min-width:0;display:block}',
+    '.pm-t,.pm-s{display:block}',
     '.pm-txt .pm-t,.pm-txt .pm-s{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
   ].join('');
 
