@@ -963,8 +963,232 @@ function renderTopVentas(items) {
     </div>`).join('');
 }
 
+
+/* ═══ EL EFECTIVO QUE TODAVIA ESTA EN LA CALLE ══════════════════════════════
+
+   Cuando un domiciliario cobra en efectivo, esa plata queda en su bolsillo.
+   Hasta hoy no habia forma de decir que la entrego: el numero de "Efectivo en
+   mano" de su app nunca bajaba, y si mañana faltaban $40.000 no habia donde
+   mirar. Medido en El Parche antes de hacerlo: 69 domicilios en efectivo en 60
+   dias, ~$120.000 por noche pasando de mano en mano sin dejar rastro.
+
+   LA REGLA, que es de Sergio y ordena todo lo demas:
+
+     El domiciliario NO puede poner su propia cuenta en ceros. Solo mira lo que
+     debe. Quien confirma es quien de verdad recibe la plata: la cajera.
+
+   Se guarda POR PEDIDO y no como un monto suelto: asi la entrega parcial sale
+   sola —se reciben los pedidos que trajo y los demas siguen pendientes— y
+   siempre se sabe CUAL plata llego y cual no.
+
+   ⚠️ ESTO NO ES UN INGRESO, ES UN CAMBIO DE MANOS. La venta ya se registro
+   cuando el domiciliario cobro; el efectivo esperado del cierre YA la cuenta.
+   Si esta entrega se registrara como ingreso, el arqueo quedaria al doble y
+   nadie se daria cuenta hasta el cierre. Por eso aqui no se toca `pos_cash_moves`
+   ni el calculo del esperado: solo se marca de quien es la custodia.        */
+
+//  Un pedido cuya plata sigue en la calle.
+function cjDomiEsPendiente(o) {
+  if (!o || o.status === 'cancelled') return false;
+  var ch = String(o.channel || '').toLowerCase();
+  if (ch !== 'domicilio' && ch !== 'delivery') return false;
+  if (String(o.payment_method || '').toLowerCase() !== 'efectivo') return false;
+  if (!(parseFloat(o.paid_amount) || 0)) return false;   // nadie ha pagado: no hay plata
+  return !o.domi_entrega_id;                             // null = todavia no llego al cajon
+}
+
+/*  QUIEN TIENE LA PLATA. Dos formas de operar y las dos son reales:
+    interno = un empleado con su usuario · externo = una empresa con moviles.
+    El Parche opera 157 de 157 con externos, asi que dar por hecho lo primero
+    habria dejado la pantalla vacia para siempre.                           */
+function cjDomiCustodio(o) {
+  if (o.domiciliario_id) {
+    return { clave: 'int:' + o.domiciliario_id, tipo: 'interno',
+             nombre: o.domiciliario || 'Domiciliario',
+             domiciliario_id: o.domiciliario_id, empresa_id: null, movil: null };
+  }
+  var mov = String(o.domi_movil || '').trim();
+  if (mov) {
+    return { clave: 'mov:' + mov, tipo: 'externo', nombre: 'Móvil ' + mov,
+             domiciliario_id: null, empresa_id: o.domi_empresa_id || null, movil: mov };
+  }
+  //  Sin nadie anotado. Se muestra igual: esa plata existe y hay que recibirla.
+  return { clave: 'sin', tipo: 'externo', nombre: 'Sin domiciliario anotado',
+           domiciliario_id: null, empresa_id: null, movil: null };
+}
+
+function cjDomiGrupos(orders) {
+  var list = (orders || S.orders || []).filter(cjDomiEsPendiente);
+  var mapa = {};
+  list.forEach(function (o) {
+    var c = cjDomiCustodio(o);
+    if (!mapa[c.clave]) mapa[c.clave] = { info: c, pedidos: [], total: 0 };
+    mapa[c.clave].pedidos.push(o);
+    mapa[c.clave].total += parseFloat(o.paid_amount) || 0;
+  });
+  return Object.keys(mapa).map(function (k) { return mapa[k]; })
+    .sort(function (a, b) { return b.total - a.total; });
+}
+
+function renderDomiEfectivo() {
+  var card = document.getElementById('cj-domi-card');
+  var cont = document.getElementById('cj-domi-lista');
+  if (!card || !cont) return;
+  var grupos = cjDomiGrupos(S.orders);
+  var total = grupos.reduce(function (a, g) { return a + g.total; }, 0);
+
+  //  Sin nada pendiente la tarjeta no se muestra: una tarjeta vacia todos los
+  //  dias es ruido, y lo que es ruido deja de mirarse.
+  if (!grupos.length) { card.classList.add('is-hidden'); return; }
+  card.classList.remove('is-hidden');
+  document.getElementById('cj-domi-n').textContent = grupos.length;
+  document.getElementById('cj-domi-total').textContent = COPF(total);
+
+  cont.innerHTML = grupos.map(function (g) {
+    return '<div class="cj-mv-row" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid #F1F5F9">'
+      + '<div style="flex:1;min-width:0">'
+      +   '<div style="font-size:13.5px;font-weight:700;color:#0F172A">' + cjEsc(g.info.nombre) + '</div>'
+      +   '<div style="font-size:11.5px;color:#64748B;margin-top:2px">' + g.pedidos.length + (g.pedidos.length === 1 ? ' pedido' : ' pedidos') + ' por entregar</div>'
+      + '</div>'
+      + '<div class="tnum" style="font-weight:800;color:#B45309">' + COPF(g.total) + '</div>'
+      + '<button class="cj-btn-primary" data-domi-clave="' + cjEsc(g.info.clave) + '">Recibir</button>'
+      + '</div>';
+  }).join('');
+
+  cont.querySelectorAll('[data-domi-clave]').forEach(function (b) {
+    b.addEventListener('click', function () { cjDomiAbrir(b.dataset.domiClave); });
+  });
+}
+
+//  El texto del cliente nunca se pega crudo en la pantalla.
+function cjEsc(t) {
+  return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+  });
+}
+
+var CJ_DOMI = { grupo: null };
+
+function cjDomiAbrir(clave) {
+  var g = cjDomiGrupos(S.orders).filter(function (x) { return x.info.clave === clave; })[0];
+  if (!g) { showToast('Ese domiciliario ya no tiene nada pendiente'); return; }
+  CJ_DOMI.grupo = g;
+  document.getElementById('dr-quien').textContent = g.info.nombre;
+  document.getElementById('dr-nota').value = '';
+
+  /*  Vienen TODOS marcados y se desmarca lo que no trajo: lo normal es que
+      entregue todo, y hacerle marcar cinco casillas para el caso comun es
+      trabajo de mas en pleno turno.                                        */
+  document.getElementById('dr-pedidos').innerHTML = g.pedidos.map(function (o) {
+    var hora = o.created_at ? new Date(o.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '';
+    var quien = o.customer_name || 'Sin cliente';
+    return '<label style="display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid #F1F5F9;cursor:pointer">'
+      + '<input type="checkbox" class="dr-chk" checked data-id="' + cjEsc(o.id) + '" data-monto="' + (parseFloat(o.paid_amount) || 0) + '" style="width:17px;height:17px;accent-color:#5B6BFF">'
+      + '<div style="flex:1;min-width:0">'
+      +   '<div style="font-size:13px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + cjEsc(quien) + '</div>'
+      +   '<div style="font-size:11px;color:#94A3B8">' + hora + '</div>'
+      + '</div>'
+      + '<div class="tnum" style="font-size:13px;font-weight:700">' + COPF(parseFloat(o.paid_amount) || 0) + '</div>'
+      + '</label>';
+  }).join('');
+
+  document.getElementById('dr-pedidos').querySelectorAll('.dr-chk').forEach(function (c) {
+    c.addEventListener('change', cjDomiRecalcular);
+  });
+  cjDomiRecalcular();
+  openPanel('panel-domi-recibir');
+}
+window.cjDomiAbrir = cjDomiAbrir;
+
+function cjDomiRecalcular() {
+  var t = 0;
+  document.querySelectorAll('#dr-pedidos .dr-chk').forEach(function (c) {
+    if (c.checked) t += parseFloat(c.dataset.monto) || 0;
+  });
+  var el = document.getElementById('dr-total');
+  if (el) el.textContent = COPF(t);
+  var btn = document.getElementById('btn-dr-confirmar');
+  if (btn) btn.disabled = (t <= 0);
+}
+
+async function cjDomiRecibir() {
+  var g = CJ_DOMI.grupo;
+  if (!g) return;
+  var ids = [], monto = 0;
+  document.querySelectorAll('#dr-pedidos .dr-chk').forEach(function (c) {
+    if (c.checked) { ids.push(c.dataset.id); monto += parseFloat(c.dataset.monto) || 0; }
+  });
+  if (!ids.length) { showToast('No marcaste ningún pedido'); return; }
+
+  var btn = document.getElementById('btn-dr-confirmar');
+  if (btn) btn.disabled = true;
+  try {
+    var nota = (document.getElementById('dr-nota').value || '').trim();
+    var quienRecibe = S.session && S.session.cashier_name
+      ? S.session.cashier_name
+      : ((S.user && S.user.user_metadata && S.user.user_metadata.nombre) || 'Caja');
+
+    var ins = await sb.from('pos_domi_entregas').insert({
+      tenant_id:       S.tenantId,
+      branch_id:       S.branchId,
+      session_id:      (S.session && S.session.id) || null,
+      custodio_tipo:   g.info.tipo,
+      domiciliario_id: g.info.domiciliario_id,
+      empresa_id:      g.info.empresa_id,
+      movil:           g.info.movil,
+      custodio_nombre: g.info.nombre,
+      recibido_por:    (S.user && S.user.id) || null,
+      recibido_nombre: quienRecibe,
+      monto:           monto,
+      nota:            nota || null,
+    }).select('id').single();
+
+    if (ins.error || !ins.data) throw (ins.error || new Error('no se pudo guardar la entrega'));
+    var entregaId = ins.data.id;
+
+    /*  Recien ahora se marcan los pedidos. Si esto fallara a medias, la entrega
+        quedaria diciendo mas plata de la que de verdad cambio de manos — asi
+        que se lee cuantos quedaron marcados DE VERDAD y, si son menos, se
+        corrige el monto de la entrega y se deja dicho por que. Vale mas un
+        renglon que se explica que un numero que miente.                     */
+    var up = await sb.from('pos_orders')
+      .update({ domi_entrega_id: entregaId, domi_entregado_caja: true })
+      .in('id', ids).select('id, paid_amount');
+
+    var quedaron = (up.data || []).length;
+    if (up.error || quedaron !== ids.length) {
+      var real = (up.data || []).reduce(function (a, o) { return a + (parseFloat(o.paid_amount) || 0); }, 0);
+      console.error('[caja] la entrega marco', quedaron, 'de', ids.length, up.error);
+      await sb.from('pos_domi_entregas').update({
+        monto: real,
+        nota: ((nota ? nota + ' · ' : '') + 'Solo se pudieron marcar ' + quedaron + ' de ' + ids.length + ' pedidos').slice(0, 300),
+      }).eq('id', entregaId);
+      showToast('Se recibieron ' + quedaron + ' de ' + ids.length + ' pedidos — revisa la lista');
+    } else {
+      showToast('Recibido ' + COPF(monto) + ' de ' + g.info.nombre);
+    }
+
+    //  La pantalla sigue al dato, no al reves: se relee y se repinta.
+    (up.data || []).forEach(function (r) {
+      var o = (S.orders || []).find(function (x) { return x.id === r.id; });
+      if (o) { o.domi_entrega_id = entregaId; o.domi_entregado_caja = true; }
+    });
+    closePanel('panel-domi-recibir');
+    renderDomiEfectivo();
+  } catch (e) {
+    console.error('[caja] recibir efectivo del domiciliario:', e);
+    showToast('No se pudo registrar: ' + ((e && e.message) || e));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+window.cjDomiRecibir = cjDomiRecibir;
+
 // ── Movimientos ────────────────────────────────────────────────
 function renderMovimientos(moves) {
+  //  La plata de la calle vive en esta misma pantalla: es dinero del turno que
+  //  no es una venta nueva. Se repinta con ella para no tener dos caminos.
+  try { renderDomiEfectivo(); } catch (e) { console.error('[caja] efectivo domiciliarios:', e); }
   const cont  = document.getElementById('mv-lista');
   const badge = document.getElementById('mv-count');
   if (!cont) return;
@@ -1514,6 +1738,33 @@ document.getElementById('btn-cerrar').addEventListener('click', async function()
   document.getElementById('cerrar-sub').textContent      = `Caja 01 · Turno ${turno}`;
   document.getElementById('cerrar-esperado').textContent = COPF(efectivo);
 
+  /*  ⚠️ LO QUE TODAVIA ESTA EN LA CALLE, DICHO EN VOZ ALTA.
+
+      El esperado de arriba incluye los domicilios cobrados en efectivo, porque
+      la venta se registra cuando el domiciliario cobra. Si esa plata aun no ha
+      llegado al cajon, el arqueo sale corto por ese valor exacto y no hay
+      forma de saber por que.
+
+      Es un AVISO y no una resta: el numero de arriba se calcula igual que
+      siempre. Cambiar la cuenta seria cambiar un numero que Sergio ya conoce,
+      y eso se decide con el delante, no de madrugada.                      */
+  try {
+    var _pend = cjDomiGrupos(active);
+    var _pendTotal = _pend.reduce(function (a, g) { return a + g.total; }, 0);
+    var _avisoDomi = document.getElementById('cerrar-domi-aviso');
+    if (_avisoDomi) {
+      if (_pendTotal > 0) {
+        _avisoDomi.classList.remove('is-hidden');
+        _avisoDomi.innerHTML = 'De ese total, <b>' + COPF(_pendTotal) + '</b> todavía lo tienen '
+          + (_pend.length === 1 ? 'el domiciliario' : 'los domiciliarios') + ': '
+          + _pend.map(function (g) { return cjEsc(g.info.nombre) + ' (' + COPF(g.total) + ')'; }).join(' · ')
+          + '. Si no lo recibes en «Ingresos y egresos», el conteo va a salir corto por ese valor.';
+      } else {
+        _avisoDomi.classList.add('is-hidden');
+      }
+    }
+  } catch (e) { console.error('[caja] aviso de efectivo en la calle:', e); }
+
   // Métodos CONFIGURADOS en "Métodos de pago" (antes esta lista estaba fija en
   // el código y mostraba Tarjeta/Nequi/Daviplata aunque no existieran).
   const methods = S.payMethods || [];
@@ -1613,6 +1864,8 @@ document.getElementById('btn-confirmar-cerrar').addEventListener('click', async 
                            contado !== null ? (contado - esperado) : null, contado);
   closePanel('panel-cerrar');
 });
+
+document.getElementById('btn-dr-confirmar')?.addEventListener('click', cjDomiRecibir);
 
 document.getElementById('btn-mov').addEventListener('click', function() {
   if (!S.session) { showToast('Abre la caja primero'); return; }

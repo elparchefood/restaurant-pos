@@ -187,8 +187,16 @@
       <div class="li"><div class="li-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 10l9-6 9 6"></path><path d="M5 10v9h14v-9"></path><path d="M3 19h18"></path></svg></div><div><div class="li-t">#1036 · Sara Muñoz</div><div class="li-s">Ya venía pago · Bancolombia · 5:48 p. m.</div></div><div class="li-v tnum" style="color:var(--ink-3)">$ 39.000</div></div>
     </div>
 
-    <button class="btn-o brand" id="btn-resumen-caja">Enviar resumen a caja</button>
-    <button class="btn-p" id="btn-cerrar-turno">Cerrar turno y entregar efectivo</button>
+    <!-- ENTREGAS DE HOY — su prueba de que entrego, con hora y quien recibio. -->
+    <div class="sec is-hidden" id="t-entregas-sec"><span class="sec-l">Entregas de hoy</span></div>
+    <div class="list is-hidden" id="t-entregas"></div>
+
+    <!-- Los dos botones que habia aqui —"Enviar resumen a caja" y "Cerrar turno
+         y entregar efectivo"— no hacian nada: mostraban un aviso y ya. Y no
+         deben existir: el domiciliario NO puede poner su propia cuenta en
+         ceros. Quien confirma es quien recibe la plata, en Caja. Aqui queda
+         solo lo que tiene que saber. -->
+    <div id="t-porentregar" class="is-hidden" style="margin-top:14px;padding:13px 15px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;font-size:13px;color:#92400E;line-height:1.5"></div>
   </div>
 </div>
 
@@ -451,6 +459,6 @@
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <!-- Los tonos, afinados una sola vez para todo Cobra. -->
 <script src="pos-notify.js?v=1798620000"></script>
-<script src="domiciliario.js?v=1792875000"></script>
+<script src="domiciliario.js?v=1798890000"></script>
 </body>
 </html>

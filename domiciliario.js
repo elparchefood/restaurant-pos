@@ -205,8 +205,12 @@
        ayer, y sin este corte la lista crece para siempre. */
     var hoy = new Date(); hoy.setHours(0, 0, 0, 0);
     var r = await sb.from('pos_orders')
+      /*  `domi_entrega_id` va en esta lista a proposito: es lo que dice si esa
+          plata ya llego al cajon. Un `select` sin la columna NO da error —
+          devuelve la fila sin el dato, y el "Efectivo en mano" seguiria sin
+          bajar nunca sin que nadie sepa por que.                          */
       .select('id,customer_name,notes,total,delivery_fee,payment_method,paid_amount,'
-            + 'delivery_status,delivered_at,opened_at,estado_at,status')
+            + 'delivery_status,delivered_at,opened_at,estado_at,status,domi_entrega_id')
       .eq('domiciliario_id', S.yo.id)
       /* NO se filtra por estado. Antes pedia `listo`, `camino` o `entregado`,
          y medido en la base esos dos primeros NO EXISTEN: en 140 domicilios
@@ -269,6 +273,8 @@
         estado: ESTADO_APP[o.delivery_status] || 'asignado',
         pago: pagado ? 'pagado' : 'contra',
         metodo: o.payment_method || '',
+        //  ¿Esa plata ya la recibio la caja? La marca la pone la cajera.
+        enCaja: !!o.domi_entrega_id,
         entregadoAt: o.delivered_at || null,
         recibidoAt: o.opened_at || null,
         items: items[o.id] || []
@@ -635,21 +641,93 @@
      TOTALES DEL TURNO
      ══════════════════════════════════════════════════════════════════ */
   function totales() {
-    var efectivo = 0, digital = 0, porCobrar = 0;
+    /*  ⚠️ "EFECTIVO EN MANO" ES LO QUE TODAVIA TIENE ENCIMA (30-ago-2026).
+
+        Antes sumaba TODO lo cobrado en efectivo del dia y no bajaba nunca,
+        aunque ya lo hubiera entregado tres veces. Al final del turno ese
+        numero no significaba nada.
+
+        Ahora se descuenta lo que la caja ya recibio. Y ojo con quien puede
+        bajarlo: **el domiciliario no**. La marca la pone la cajera al
+        confirmar que recibio — el que entrega el dinero no puede ser el
+        mismo que dice que lo entrego. Aqui solo se MIRA.                  */
+    var efectivo = 0, digital = 0, porCobrar = 0, entregado = 0;
     S.pedidos.forEach(function (p) {
       if (p.estado === 'entregado') {
-        if (/efectivo/i.test(p.metodo)) efectivo += p.total;
-        else digital += p.total;
+        if (/efectivo/i.test(p.metodo)) {
+          if (p.enCaja) entregado += p.total;
+          else efectivo += p.total;
+        } else digital += p.total;
       } else if (p.pago === 'contra') {
         porCobrar += p.total;
       }
     });
-    return { efectivo: efectivo, digital: digital, porCobrar: porCobrar };
+    return { efectivo: efectivo, digital: digital, porCobrar: porCobrar, entregado: entregado };
+  }
+
+  /*  ENTREGAS DE HOY — SU PRUEBA.
+
+      Hora, monto y **quien lo recibio**. Es lo unico que el domiciliario puede
+      enseñar si mañana alguien dice que falta plata; por eso se lee de la base
+      y no de lo que la app crea recordar.                                   */
+  var ENTREGAS = [];
+  async function cargarEntregas() {
+    try {
+      if (!S.yo || !S.yo.id) return;
+      var hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+      var r = await sb.from('pos_domi_entregas')
+        .select('id,monto,recibido_at,recibido_nombre,nota')
+        .eq('domiciliario_id', S.yo.id)
+        .gte('recibido_at', hoy.toISOString())
+        .order('recibido_at', { ascending: false });
+      if (!r.error) { ENTREGAS = r.data || []; pintarEntregas(); }
+    } catch (e) { console.warn('[domi] entregas:', e && e.message); }
+  }
+
+  function pintarEntregas() {
+    var sec = $('t-entregas-sec'), lista = $('t-entregas');
+    if (!sec || !lista) return;
+    if (!ENTREGAS.length) { sec.classList.add('is-hidden'); lista.classList.add('is-hidden'); return; }
+    sec.classList.remove('is-hidden'); lista.classList.remove('is-hidden');
+    lista.innerHTML = ENTREGAS.map(function (e) {
+      var h = e.recibido_at ? new Date(e.recibido_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '';
+      var quien = e.recibido_nombre || 'Caja';
+      return '<div class="li">'
+        + '<div class="li-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>'
+        + '<div><div class="li-t">Recibió ' + escapaTexto(quien) + '</div><div class="li-s">' + h
+        + (e.nota ? ' · ' + escapaTexto(e.nota) : '') + '</div></div>'
+        + '<div class="li-v tnum">' + cop(Number(e.monto) || 0) + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function escapaTexto(t) {
+    return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
   }
 
   function pintarTurno() {
     var t = totales(), ent = entregados();
     if ($('t-efectivo')) $('t-efectivo').textContent = cop(t.efectivo);
+
+    /*  Lo que le falta entregar, dicho con todas las letras. Sustituye al
+        boton de "Cerrar turno y entregar efectivo", que prometia una accion
+        que el domiciliario no puede hacer.                                */
+    var _pe = $('t-porentregar');
+    if (_pe) {
+      if (t.efectivo > 0) {
+        _pe.classList.remove('is-hidden');
+        _pe.innerHTML = 'Tienes <b>' + cop(t.efectivo) + '</b> para entregar en caja.'
+          + (t.entregado > 0 ? ' Hoy ya entregaste ' + cop(t.entregado) + '.' : '');
+      } else if (t.entregado > 0) {
+        _pe.classList.remove('is-hidden');
+        _pe.innerHTML = 'Estás al día: hoy entregaste <b>' + cop(t.entregado) + '</b>.';
+      } else {
+        _pe.classList.add('is-hidden');
+      }
+    }
+    pintarEntregas();
     if ($('t-digital')) $('t-digital').textContent = cop(t.digital);
     if ($('t-nped')) $('t-nped').textContent = String(ent.length);
     if ($('t-pend')) $('t-pend').textContent = String(activos().length);
@@ -2471,8 +2549,11 @@
       }
 
       if (t.closest('#btn-logout')) { salir(); return; }
-      if (t.closest('#btn-resumen-caja')) { toast('La caja ya ve tu efectivo pendiente'); return; }
-      if (t.closest('#btn-cerrar-turno')) { toast('Entrega el efectivo en caja'); return; }
+      /*  Los botones "Enviar resumen a caja" y "Cerrar turno y entregar
+          efectivo" se quitaron el 30-ago-2026. No hacian nada — mostraban
+          este aviso y ya — y ademas no deben existir: el domiciliario no
+          puede poner su propia cuenta en ceros. Quien confirma que recibio
+          el dinero es la cajera, desde Caja → Ingresos y egresos.        */
 
       /* Cerrar tocando el fondo, no el contenido. */
       if (t.classList && t.classList.contains('ov')) {
@@ -2548,6 +2629,9 @@
   async function arrancar() {
     await cargarCuenta();
     await cargarPedidos();
+    /*  Las entregas van en el mismo grupo, no en fila: no dependen de los
+        pedidos y esperarlas era medio segundo de pantalla en blanco.     */
+    cargarEntregas();
     pintarTodo();
 
     /* ── QUE EL PEDIDO APAREZCA SOLO, Y QUE NO SE PIERDA ────────────────

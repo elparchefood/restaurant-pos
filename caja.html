@@ -176,6 +176,15 @@
           <div class="cj-card cj-mv-card"><div class="cj-mv-k" style="color:#DC2626"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg> Egresos</div><div class="cj-mv-v" style="color:#991B1B" id="mv-total-out">$0</div></div>
           <div class="cj-card cj-mv-card"><div class="cj-mv-k" style="color:#64748B"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> Neto</div><div class="cj-mv-v" id="mv-total-neto">$0</div></div>
         </div>
+        <!-- ===== EFECTIVO DE DOMICILIARIOS =====================================
+             La plata que se cobro en la calle y todavia no ha llegado al cajon.
+             Solo se ve cuando hay algo pendiente: una tarjeta vacia todos los
+             dias es ruido, y lo que no es ruido deja de mirarse.            -->
+        <div class="cj-card is-hidden" id="cj-domi-card" style="overflow:hidden;margin-bottom:16px">
+          <div class="cj-mv-list-head"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> Efectivo de domiciliarios <span class="cj-count-badge" id="cj-domi-n">0</span><span style="margin-left:auto;font-weight:800;color:#B45309" id="cj-domi-total">$0</span></div>
+          <div id="cj-domi-lista"></div>
+        </div>
+
         <div class="cj-card" style="overflow:hidden">
           <div class="cj-mv-list-head"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> Movimientos del turno <span class="cj-count-badge" id="mv-count">0</span></div>
           <div id="mv-lista"></div>
@@ -343,6 +352,35 @@
 </div>
 
 <!-- ② REGISTRAR MOVIMIENTO -->
+<!-- ===== RECIBIR EL EFECTIVO DE UN DOMICILIARIO =========================
+     Vienen TODOS los pedidos marcados y se desmarca lo que no trajo. Asi la
+     entrega parcial no obliga a hacer cuentas: se recibe lo que llego y lo
+     demas se queda pendiente, con nombre y apellido.                      -->
+<div class="cj-overlay is-hidden" id="panel-domi-recibir">
+  <div class="cj-modal">
+    <div class="cj-modal-head">
+      <div>
+        <div class="cj-modal-title">Recibir efectivo</div>
+        <div class="cj-modal-sub" id="dr-quien">—</div>
+      </div>
+      <button class="cj-close" onclick="closePanel('panel-domi-recibir')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="cj-modal-body">
+      <div class="cj-field-label">Pedidos que trae</div>
+      <div id="dr-pedidos" style="max-height:320px;overflow-y:auto;margin-top:6px"></div>
+      <div class="cj-field-label" style="margin-top:18px">Nota (si faltó algo)</div>
+      <input class="cj-input" id="dr-nota" placeholder="Opcional. Ej. queda debiendo $5.000">
+    </div>
+    <div class="cj-modal-foot" style="justify-content:space-between;align-items:center">
+      <div style="font-size:13px;color:#64748B">Recibes <b class="tnum" id="dr-total" style="color:#0F172A">$0</b></div>
+      <div style="display:flex;gap:8px">
+        <button class="cj-btn-ghost" onclick="closePanel('panel-domi-recibir')">Cancelar</button>
+        <button class="cj-btn-primary" id="btn-dr-confirmar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Recibí el dinero</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="cj-overlay is-hidden" id="panel-movimiento">
   <div class="cj-modal">
     <div class="cj-modal-head"><div class="cj-modal-title">Registrar movimiento</div><button class="cj-close" onclick="closePanel('panel-movimiento')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
@@ -459,6 +497,10 @@
       <div id="cerrar-resumen" style="display:flex;flex-direction:column;gap:2px;margin-bottom:14px"></div>
       <div class="cj-expected">
         <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;font-weight:700;color:#0F172A">Efectivo esperado en caja</span><span style="font-size:17px;font-weight:800;color:#0F172A" id="cerrar-esperado">$0</span></div>
+        <!-- El efectivo que todavia tienen los domiciliarios. Es AVISO, no resta:
+             el numero de arriba se calcula igual que siempre. Si no se dice, el
+             arqueo aparece corto y nadie sabe por que. -->
+        <div class="is-hidden" id="cerrar-domi-aviso" style="margin-top:8px;padding:9px 11px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;font-size:12.5px;color:#92400E;line-height:1.45"></div>
         <button class="cj-btn-ghost sm" style="margin-top:10px;width:100%;justify-content:center" onclick="openPanel('panel-arqueo')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/><path d="m5 7-3 6h6Z"/><path d="m19 7-3 6h6Z"/><path d="M8 21h8"/></svg> Hacer arqueo (contar efectivo)</button>
       </div>
       <div id="orders-warn" style="display:none;margin-top:14px">
@@ -491,6 +533,6 @@
 <script>if(window.posRequirePin) posRequirePin(['ventas.ver','pedidos.cobrar']);</script>
 <script src="pos-cierre-print.js?v=1788010000"></script>
 <script src="pos-creditos.js?v=1"></script>
-<script src="caja.js?v=1798750000"></script>
+<script src="caja.js?v=1798890000"></script>
 </body>
 </html>
