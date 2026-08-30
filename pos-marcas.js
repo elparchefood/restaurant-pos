@@ -410,12 +410,26 @@
       try {
         var s2 = sb();
         if (baja) {
-          /*  Baja: se aplica YA. El vencimiento no se toca a proposito.  */
-          var r = await s2.from('tenants').update({
-            plan: destino.plan,
-            saldo_favor: Number(ctx.saldoFavor || 0) + (monto || 0)
-          }).eq('id', ctx.tenantId).select('plan');
-          if (r.error || !(r.data && r.data.length)) throw (r.error || new Error('no se pudo cambiar'));
+          /*  ⚠️ EL CAMBIO LO HACE EL SERVIDOR, NO ESTA PANTALLA.
+
+              El primer intento hacia un `update` directo a `tenants` desde
+              aqui. No funciono — y menos mal: esa tabla solo deja LEER. Si
+              dejara escribir, cualquiera se pondria en el plan mas alto gratis
+              desde la consola del navegador.
+
+              Y por lo mismo el monto NO se manda: lo calcula el servidor. Un
+              saldo a favor que llega desde el navegador es un saldo que el
+              navegador escoge. El numero que se ve arriba es solo para que la
+              persona sepa a que atenerse.                                  */
+          var ses = await s2.auth.getSession();
+          var tok = ses && ses.data && ses.data.session && ses.data.session.access_token;
+          var resp = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/cambiar-plan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+            body: JSON.stringify({ plan: destino.plan })
+          });
+          var out = await resp.json().catch(function () { return {}; });
+          if (!resp.ok || !out.ok) throw new Error(out.error || 'no se pudo cambiar');
           location.reload();
         } else {
           /*  Sube: NO se toca `plan`. Queda el cobro pendiente y el plan nuevo
