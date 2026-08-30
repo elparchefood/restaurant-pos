@@ -987,34 +987,51 @@ function renderTopVentas(items) {
    nadie se daria cuenta hasta el cierre. Por eso aqui no se toca `pos_cash_moves`
    ni el calculo del esperado: solo se marca de quien es la custodia.        */
 
-//  Un pedido cuya plata sigue en la calle.
+/*  ⚠️ SOLO EL DOMICILIARIO INTERNO. CON EXTERNOS NO SE MUESTRA NADA.
+
+    Regla de Sergio, del 24-jul-2026 y reclamada el 30-ago: **con domiciliarios
+    externos el dinero del domicilio no queda registrado en ningun lado**. No es
+    plata del restaurante ni la custodia nadie del restaurante: es de la empresa
+    que reparte.
+
+    La primera version de esto agrupaba tambien a los externos por su movil
+    ("Movil 31 tiene $53.000"). Sergio: *"como trabajo con domiciliarios
+    externos, para mi no debio haber cambiado nada"*. Y tiene razon: eso es
+    justo la division que la regla prohibe, y le habria aparecido una pantalla
+    nueva pidiendole cobrar una plata que no le corresponde — el mismo error
+    que ya cometi el 29-ago dejando todos los domicilios en "pendiente de
+    cobrar".
+
+    El criterio de "interno" es el MISMO que ya usa `cjDomiCanjeEfectivo` unas
+    lineas mas abajo: sin decir nada, es externo.                            */
+function cjDomiEsInterno(o) {
+  return String((o && o.domi_courier) || 'externo').toLowerCase() === 'interno';
+}
+
+//  Un pedido cuya plata sigue en la calle, en manos de un empleado del negocio.
 function cjDomiEsPendiente(o) {
   if (!o || o.status === 'cancelled') return false;
   var ch = String(o.channel || '').toLowerCase();
   if (ch !== 'domicilio' && ch !== 'delivery') return false;
+  if (!cjDomiEsInterno(o)) return false;                 // externo: no se registra nada
   if (String(o.payment_method || '').toLowerCase() !== 'efectivo') return false;
   if (!(parseFloat(o.paid_amount) || 0)) return false;   // nadie ha pagado: no hay plata
   return !o.domi_entrega_id;                             // null = todavia no llego al cajon
 }
 
-/*  QUIEN TIENE LA PLATA. Dos formas de operar y las dos son reales:
-    interno = un empleado con su usuario · externo = una empresa con moviles.
-    El Parche opera 157 de 157 con externos, asi que dar por hecho lo primero
-    habria dejado la pantalla vacia para siempre.                           */
+/*  QUIEN TIENE LA PLATA. Aqui ya solo llegan pedidos de domiciliario INTERNO
+    (lo filtra `cjDomiEsPendiente`), asi que siempre es un empleado del negocio.
+    Si el restaurante marco el domicilio como interno pero no anoto a quien se
+    lo dio, se agrupan todos juntos: la plata existe igual y hay que recibirla,
+    y esconderla por un dato que falta seria peor.                          */
 function cjDomiCustodio(o) {
   if (o.domiciliario_id) {
     return { clave: 'int:' + o.domiciliario_id, tipo: 'interno',
              nombre: o.domiciliario || 'Domiciliario',
-             domiciliario_id: o.domiciliario_id, empresa_id: null, movil: null };
+             domiciliario_id: o.domiciliario_id, movil: null };
   }
-  var mov = String(o.domi_movil || '').trim();
-  if (mov) {
-    return { clave: 'mov:' + mov, tipo: 'externo', nombre: 'Móvil ' + mov,
-             domiciliario_id: null, empresa_id: o.domi_empresa_id || null, movil: mov };
-  }
-  //  Sin nadie anotado. Se muestra igual: esa plata existe y hay que recibirla.
-  return { clave: 'sin', tipo: 'externo', nombre: 'Sin domiciliario anotado',
-           domiciliario_id: null, empresa_id: null, movil: null };
+  return { clave: 'int:sin', tipo: 'interno', nombre: 'Domiciliario sin anotar',
+           domiciliario_id: null, movil: null };
 }
 
 function cjDomiGrupos(orders) {
@@ -1134,7 +1151,6 @@ async function cjDomiRecibir() {
       session_id:      (S.session && S.session.id) || null,
       custodio_tipo:   g.info.tipo,
       domiciliario_id: g.info.domiciliario_id,
-      empresa_id:      g.info.empresa_id,
       movil:           g.info.movil,
       custodio_nombre: g.info.nombre,
       recibido_por:    (S.user && S.user.id) || null,
