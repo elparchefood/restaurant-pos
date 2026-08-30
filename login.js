@@ -775,6 +775,33 @@ async function cargarCuentaCobro() {
 })();
 
 // ── Enter key ────────────────────────────────────────
+/*  ══ LLEGAR DIRECTO AL REGISTRO ═══════════════════════════════════════
+
+    La portada de cobrapos.app tiene dos botones que dicen "Empezar con
+    Starter" y "Empezar con Pro". Alguien que aprieta uno de esos YA decidio
+    cual quiere: hacerlo aterrizar en la pantalla de iniciar sesion, buscar
+    "Crear una cuenta" y volver a escoger el mismo plan es perder gente en el
+    unico paso que de verdad importa.
+
+    Por eso esta pantalla entiende dos cosas que le llegan por la direccion:
+      login.html?plan=pro       -> abre el registro con Pro ya marcado
+      login.html?registro=1     -> abre el registro
+
+    Sin nada, abre en iniciar sesion, que es como entra todos los dias quien
+    ya es cliente.                                                          */
+function abrirSegunEnlace() {
+  var q;
+  try { q = new URLSearchParams(location.search); } catch (e) { return; }
+
+  var plan = (q.get('plan') || '').toLowerCase();
+  if (plan === 'starter' || plan === 'pro') {
+    selectPlan(plan);          // solo apunta cual es; la pantalla del plan
+    goStep('datos');           // se pinta cuando se llegue a ella
+    return;
+  }
+  if (q.has('registro')) goStep('datos');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('login-pass').addEventListener('keydown', e => {
     if (e.key === 'Enter') handleLogin();
@@ -784,4 +811,8 @@ document.addEventListener('DOMContentLoaded', () => {
   pintarPlan();
   cargarPrecios();   // y cuando lleguen los de la base, se vuelve a pintar
   cargarCuentaCobro();  // la cuenta a la que se transfiere, desde la consola
+
+  //  Al final: primero queda todo enganchado y pintado, y solo entonces se
+  //  mueve la pantalla a donde pide la direccion.
+  abrirSegunEnlace();
 });
