@@ -1716,3 +1716,16 @@
   box-shadow:0 1px 2px rgba(15,23,42,.1);
 }
 .vs-form-campo[hidden]{display:none;}
+
+/*  Aviso: el domicilio lo cobra el domiciliario.
+    Ambar, no rojo: no es un error ni una deuda del restaurante — es un
+    recado. Rojo haria pensar que algo esta mal cuando todo esta bien.  */
+.vs-domi-cobrar{
+  display:inline-flex; align-items:center; gap:5px;
+  background:#FFF7ED; color:#B45309; border:1px solid #FED7AA;
+  font-size:10px; font-weight:700; line-height:1.5;
+  padding:1px 7px; border-radius:20px; white-space:nowrap;
+  max-width:100%; overflow:hidden; text-overflow:ellipsis;
+}
+.vs-domi-cobrar svg{flex-shrink:0}
+.vs-mesa-footer-left .vs-domi-cobrar{margin-top:3px}

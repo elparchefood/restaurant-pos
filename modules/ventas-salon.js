@@ -371,6 +371,10 @@
   function SVG_UNION(size) {
     return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="2" y="7" width="8" height="10" rx="2"/><rect x="14" y="7" width="8" height="10" rx="2"/><path d="M10 12h4"/></svg>`;
   }
+  //  La moto: el aviso de que el domicilio lo cobra quien lo lleva.
+  function SVG_MOTO(size) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 17.5h-6l-2-9h-3"/><path d="M9 8.5h7l2 9"/></svg>`;
+  }
   function SVG_PAX(size) {
     return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
   }
@@ -1816,6 +1820,35 @@
     return `<div class="vs-grid vs-domi-grid" id="vs-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));grid-auto-rows:160px;align-content:start;display:grid;gap:12px">${cards}</div>`;
   }
 
+  /*  ══ «EL DOMICILIO QUEDA POR COBRAR» — ES UN AVISO, NO UN ESTADO ═════
+
+      Sergio, 29-ago-2026: *«si una persona hace un pedido desde la página
+      pero solo paga el valor del pedido —porque la pidió para recoger y luego
+      internamente la pasamos a domicilio— sigue apareciendo pagado, pero debe
+      haber un letrerito que diga que queda pendiente el cobro del domicilio,
+      para yo poder decirle al domiciliario que lo cobre. No cambia nada
+      interno, simplemente es un aviso»*.
+
+      ⚠️ Y esa última frase es la importante. Un rato antes yo convertí esto
+      mismo en un ESTADO —«pendiente de cobrar»— y dejé todos los domicilios
+      del turno esperando un pago que no le corresponde al restaurante. El
+      pedido sigue PAGADO. Esto solo se pinta al lado.
+
+      Cuándo sale: hay domicilio cobrado en el pedido, sabemos cuánto entró, y
+      lo que entró no lo cubre. O sea: el cliente pagó la comida y el domicilio
+      lo recoge quien lo lleva.                                              */
+  function vsDomiPorCobrar(d) {
+    if (!d || d.payStatus !== 'pagado') return 0;
+    var fee = Number(d.domiFee) || 0;
+    if (fee <= 0) return 0;
+    var pagado = Number(d.paidAmount) || 0;
+    var total  = Number(d.total) || 0;
+    if (pagado <= 0 || pagado >= total - 1) return 0;
+    //  Nunca más de lo que vale el domicilio: si falta más, es otra cosa y no
+    //  se puede llamar «el domicilio».
+    return Math.min(fee, Math.round(total - pagado));
+  }
+
   function renderDomicilioCard(d) {
     const meta  = DELIVERY_META[d.estado] || DELIVERY_META.preparacion;
     const canal = CANAL_META[d.canal] || { label: d.canal, color: '#64748B', bg: '#F1F5F9' };
@@ -1852,6 +1885,7 @@
           <div class="vs-mesa-footer-active">
             <div class="vs-mesa-footer-left">
               <span class="vs-mesa-items">${d.items} ítems · <span style="color:${payColor};font-weight:600">${payLabel}</span></span>
+              ${vsDomiPorCobrar(d) ? `<span class="vs-domi-cobrar">${SVG_MOTO(9)} El domi cobra ${fmtCurrency(vsDomiPorCobrar(d))}</span>` : ''}
             </div>
             <div class="vs-mesa-total">${fmtCurrency(d.total)}</div>
           </div>
@@ -2364,6 +2398,7 @@
             <div class="vs-rail-title-main">
               <h2 class="vs-rail-title" title="${_esc(d.cliente)}" data-nombre-largo="${_esc(d.cliente)}">${d.cliente}</h2>
               ${vsPuntosChip(d, isPagado)}
+              ${vsDomiPorCobrar(d) ? `<span class="vs-domi-cobrar" title="El cliente pagó solo el pedido. Dile al domiciliario que cobre el domicilio.">${SVG_MOTO(10)} Falta cobrar el domicilio: ${fmtCurrency(vsDomiPorCobrar(d))}</span>` : ''}
             </div>
             <span class="vs-state-pill" style="color:${meta.color};background:${meta.tint}">
               <span class="vs-state-dot" style="background:${meta.color}"></span>${meta.label}
