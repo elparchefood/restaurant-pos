@@ -1140,33 +1140,39 @@
         else if (r.delivered_at) estado = 'entregado';
         else if (r.status === 'paid' || r.status === 'completed') estado = 'entregado';
         else if (r.status === 'in_progress') estado = 'camino';
-        /*  ══ LO QUE SE PAGÓ, NO LO QUE DICE LA ETIQUETA ══════════════════
+        /*  ⚠️ EL DOMICILIO NO ENTRA EN LO QUE HAY QUE COBRAR. NO CAMBIAR.
 
-            Sergio, 29-ago-2026, en pleno turno: un cliente pidió por la app
-            PARA RECOGER y pagó $51.000. Después escribió que lo quería a
-            domicilio; Sergio le hizo el cambio y el pedido pasó a $56.000 —
-            pero seguía diciendo **«Pagado»**, porque el estado en la base era
-            `paid` y eso ganaba antes de mirar cuánto entró.
+            Se compara contra lo COBRABLE (`posCobrable`, que deja el domicilio
+            por fuera), NO contra el total.
 
-            «Parece que ya estuviera pago de verdad. El sistema debería dejar
-            pendiente el pago que falta, los $5.000 del domicilio.»
+            Por qué, en palabras de Sergio (29-ago-2026, después de que yo lo
+            rompiera en pleno turno): *«nosotros no cobramos el domicilio, lo
+            cobra el domiciliario, porque trabajamos con domicilios externos.
+            La mayoría de casos, cuando el cliente paga en efectivo, nosotros
+            solo recibimos el valor del pedido. Ahí no debería aparecer que
+            está pendiente de pago: el sistema se queda esperando un pago que
+            ni siquiera nos corresponde»*.
 
-            Antes se comparaba contra lo COBRABLE (sin el domicilio) para que
-            un pedido de la app donde el cliente paga solo la comida no se
-            viera "a medias". Pero eso esconde plata que alguien tiene que
-            recoger: medido hoy, hay **74 pedidos** en esa situación y en todos
-            el hueco es exactamente el valor del domicilio.
+            ── LO QUE ME PASÓ, PARA QUE NO SE REPITA ──────────────────────
+            Cambié esto por comparar contra el total. Medí 74 pedidos con el
+            hueco exacto del domicilio y lo leí como plata escondida. Era al
+            revés: esos 74 son el caso NORMAL, y el hueco es justamente la
+            plata que se lleva el domiciliario. El resultado fue que TODOS los
+            domicilios del turno aparecieron "pendientes de cobrar".
 
-            Ahora manda la cuenta: si lo abonado no cubre el total, sale
-            «Faltan $X» y el botón de cobrar aparece. Si no hay abono
-            registrado —un solo pedido viejo en toda la base— se respeta la
-            etiqueta de la base para no marcarlo como impago sin razón.    */
+            La lección: cuando una medición dice que "casi todo está mal", lo
+            que casi siempre está mal es la regla con la que estoy midiendo.
+            Y este comentario ya decía que era a propósito — lo leí y lo
+            cambié igual.
+
+            (El cobro del domicilio existe y es OPCIONAL: hay casos en que sí
+            lo reciben. Eso se maneja al cobrar, no marcando el pedido como
+            impago.)                                                        */
         var totalNum = parseFloat(r.total) || 0;
         var paidNum  = parseFloat(r.paid_amount) || 0;
-        var payStatus = (paidNum >= totalNum - 1) ? 'pagado'
-                      : paidNum > 0 ? 'parcial'
-                      : (window.posEstaPagado ? window.posEstaPagado(r)
+        var payStatus = (window.posEstaPagado ? window.posEstaPagado(r)
                           : (r.status === 'paid' || r.status === 'completed')) ? 'pagado'
+                      : paidNum > 0 ? 'parcial'
                       : 'pendiente';
         return {
           id: r.id,
