@@ -3793,7 +3793,38 @@
           if (sbQX && qxId) {
             /* Ya preguntó la ventana de arriba. Aquí solo se devuelve el saldo
                —que no es negociable— y se avisa de que se hizo. */
-            await sbQX.from('pos_orders').update({ status: 'cancelled' }).eq('id', qxId);
+
+            /*  ⚠️ SI NO SE ANULÓ, NO SE BORRA DE LA PANTALLA (29-ago-2026).
+
+                Antes no se miraba si la anulación había entrado: la tarjeta se
+                quitaba igual y `render()` dejaba la pantalla limpia. Al
+                recargar volvía el pedido, tal cual estaba. Desde fuera eso se
+                ve como «le doy a cancelar y no pasa nada» — que es justo lo
+                que reporta Sergio con los pedidos que quedaron vacíos.
+
+                Ahora manda la base: si el borrado no entró, la tarjeta se
+                queda donde está y se dice por qué.                          */
+            const _rQX = await sbQX.from('pos_orders')
+              .update({ status: 'cancelled', visible_cocina: false })
+              .eq('id', qxId).select('id');
+            if (_rQX.error || !(_rQX.data && _rQX.data.length)) {
+              const _porQue = (_rQX.error && (_rQX.error.message || _rQX.error.code))
+                            || 'la base no dejó tocar ese pedido';
+              console.error('[ventas] no se pudo cancelar el pedido rapido:', _rQX.error);
+              try {
+                await sbQX.from('pos_diag').insert({
+                  donde: 'ventas/quick-cancelar',
+                  mensaje: String(_porQue).slice(0, 300),
+                  extra: { order_id: qxId },
+                });
+              } catch (e) {}
+              vsConfirm({
+                title: 'No se pudo cancelar',
+                msg: 'El pedido sigue ahí: ' + _porQue,
+                okLabel: 'Entendido', cancelLabel: 'Cerrar', variant: 'danger',
+              });
+              return;
+            }
             const _devQX = window.posSaldo ? await posSaldo.devolverDeOrden(qxId) : 0;
             if (_devQX > 0 && typeof toast === 'function') {
               toast('Se le devolvieron ' + posSaldo.money(_devQX) + ' de saldo al cliente');
