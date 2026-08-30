@@ -25,9 +25,26 @@
     if (window.__posPrintListenerOn) return;          // no duplicar por doble carga
     window.__posPrintListenerOn = true;
 
-    // Al arrancar, recuperar hasta 10 min hacia atrás (pedidos hechos mientras
-    // esta página cargaba o el equipo estaba en otra pantalla sin receptor).
-    var sinceIso = new Date(Date.now() - 10 * 60000).toISOString();
+    /*  ⚠️ EL BARRIDO NO PUEDE MIRAR HACIA ATRÁS DE CUANDO ARRANCÓ.
+
+        Ventana fija de 10 minutos + el cambio de hoy (que el barrido también
+        recoja los de salón) = al recargar la caja se reimprimía todo lo que
+        estuviera sin marcar de los últimos 10 minutos. Sergio: *«nuevamente
+        volvieron a salir comandas del pedido que hice»*. Fue mío.
+
+        Ahora son dos cortes a la vez:
+          · una ventana CORTA y rodante (4 min), recalculada en cada pasada;
+          · y nunca antes del momento en que este receptor arrancó.
+
+        Con eso, recargar la pantalla ya no puede reimprimir historia: lo de
+        antes de arrancar es de otro, y quien tuviera que imprimirlo ya tuvo su
+        turno. Lo que sí sigue cubriendo es para lo que existe — un pedido
+        hecho mientras esta página cargaba o mientras el aviso en vivo perdió la
+        conexión un instante.                                                 */
+    var ARRANQUE = Date.now();
+    function ventanaDesde() {
+      return new Date(Math.max(ARRANQUE, Date.now() - 4 * 60000)).toISOString();
+    }
     var _seenReprint = {};   // {orderId: reprint_at} — dedupe de señales
 
     // Candado anti-bucle: solo la PRIMERA comanda (printed_at nulo). Sin este
@@ -124,7 +141,7 @@
               y ya se envió. Sin esto el paracaídas tampoco los recogía.   */
           .or('visible_cocina.eq.true,and(channel.eq.salon,status.in.(in_progress,ready,paid,pendiente_pago))')
           .is('printed_at', null)
-          .gte('created_at', sinceIso)
+          .gte('created_at', ventanaDesde())
           .not('status', 'in', '("cancelled","abandoned")')
           .order('created_at', { ascending: true })
           .limit(10);
@@ -137,11 +154,9 @@
       _sweeping = false;
     }
     setTimeout(sweep, 3000);                          // recuperación al abrir la página
-    setInterval(function () {
-      // mantener la ventana del barrido siempre "reciente" (últimos 10 min)
-      sinceIso = new Date(Date.now() - 10 * 60000).toISOString();
-      sweep();
-    }, 45000);
+    //  La ventana ya se recalcula sola en cada pasada (`ventanaDesde`), asi
+    //  que aqui solo hay que llamar al barrido.
+    setInterval(sweep, 45000);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) sweep(); });
 
     console.log('[POS PrintListener] Receptor global de impresión activo');
