@@ -1213,6 +1213,11 @@ async function loadCatalog() {
     const total  = calcTotal();
     const sub    = calcSubtotal();
     const status = orderStatus || 'in_progress';
+    /*  ¿El pedido nace ahora o ya existía? Hace falta saberlo más abajo: si
+        los productos no se pueden guardar, un pedido recién nacido hay que
+        deshacerlo, y uno que ya existía hay que dejarlo como estaba.       */
+    const _esNuevo = !S.orderId;
+    let _viejos = null;   // ids de los items que habia antes (solo al actualizar)
 
     // Crear o reusar orden
     if (!S.orderId) {
@@ -1271,8 +1276,29 @@ async function loadCatalog() {
       };
       if (orderStatus) updatePayload.status = orderStatus;
       await sb.from('pos_orders').update(updatePayload).eq('id', S.orderId);
-      // Borrar ítems anteriores
-      await sb.from('pos_order_items').delete().eq('order_id', S.orderId);
+      /*  ⚠️ LOS VIEJOS SE BORRAN DESPUÉS, NO ANTES (29-ago-2026).
+
+          Antes se borraban aquí y se insertaban los nuevos más abajo. Si el
+          borrado pasaba y la inserción fallaba —servidor lento, un dato que la
+          base no acepta— el pedido se quedaba SIN NINGÚN producto, con su
+          total intacto. Un pedido que ya estaba bien terminaba vacío.
+
+          Ahora se anotan sus ids y se borran al final, solo si los nuevos
+          entraron. En el peor caso quedan los viejos, que es lo que había.  */
+      let _leidos = false;
+      try {
+        const _vj = await sb.from('pos_order_items').select('id').eq('order_id', S.orderId);
+        if (!_vj.error) { _viejos = (_vj.data || []).map(function (x) { return x.id; }); _leidos = true; }
+      } catch (e) { /* se resuelve abajo */ }
+      if (!_leidos) {
+        /*  No se pudieron leer los viejos. Si se sigue sin borrarlos, el
+            pedido termina con los productos REPETIDOS — peor que el problema
+            original. Asi que en ese caso se borra como se hacia antes, aqui
+            mismo, aceptando el riesgo conocido de quedarse sin items si la
+            insercion falla. Entre repetir y vaciar, vaciar avisa; repetir no. */
+        try { await sb.from('pos_order_items').delete().eq('order_id', S.orderId); } catch (e) {}
+        _viejos = [];
+      }
     }
 
     // Insertar ítems
@@ -1291,9 +1317,49 @@ async function loadCatalog() {
       selections:    i.selections || {},
       status:        'pending',
     }, i.productId || i.id)));
+    /*  ══ SI LOS PRODUCTOS NO ENTRAN, EL PEDIDO NO EXISTE ═══════════════
+
+        Sergio, 29-ago-2026: pasó un pedido de mesa a para llevar y *«quedó en
+        el aire, volando... quedó vacío»*, y encima no lo dejaba borrar.
+
+        Lo comprobé en la base: el pedido nació a las 19:45:47 con total
+        $65.000 y CERO productos. La cabecera se guardó, los productos no.
+
+        Y la causa estaba aquí, en una línea:
+
+            if (itemErr) console.warn('items insert:', itemErr);
+
+        El error se escribía en la consola — que en la caja no mira nadie — y
+        la función seguía como si todo hubiera salido bien. La cajera veía su
+        pedido creado, la cocina no recibía nada, y quedaba un fantasma con
+        plata y sin comida.
+
+        Ahora: si los productos no entran, se deshace lo hecho y se avisa.
+        Vale más un «vuelve a intentarlo» que un pedido que parece bueno.   */
     if (items.length) {
       const { error: itemErr } = await sb.from('pos_order_items').insert(items);
-      if (itemErr) console.warn('items insert:', itemErr);
+      if (itemErr) {
+        console.error('[venta rapida] los productos no se guardaron:', itemErr);
+        if (_esNuevo && S.orderId) {
+          /*  Recién nacido y sin productos: se anula para que no se quede
+              rondando en las pantallas. Si esto también falla, al menos el
+              aviso de abajo sale y la cajera sabe que hay algo raro.      */
+          try {
+            await sb.from('pos_orders').update({
+              status: 'cancelled', visible_cocina: false,
+              notes: '[ANULADO: no se pudieron guardar los productos]',
+            }).eq('id', S.orderId);
+          } catch (e) { console.error('[venta rapida] tampoco se pudo anular:', e); }
+          S.orderId = null;
+        }
+        throw new Error('No se pudieron guardar los productos del pedido. '
+                      + 'No se creó nada: vuelve a intentarlo.');
+      }
+      //  Entraron los nuevos: recién ahora se pueden borrar los de antes.
+      if (_viejos && _viejos.length) {
+        try { await sb.from('pos_order_items').delete().in('id', _viejos); }
+        catch (e) { console.warn('[venta rapida] los items viejos no se borraron:', e); }
+      }
     }
 
     return S.orderId;
