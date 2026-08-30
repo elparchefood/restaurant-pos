@@ -316,10 +316,17 @@
         si solo cambiara la etiqueta, se bajaria, cobraria el saldo y seguiria
         usando lo de arriba gratis.                                          */
 
+  /*  Dias ENTEROS de hoy al vencimiento. Con `ceil` sobre la hora exacta, un
+      vencimiento a 5 dias decia "6 dias" — porque contaba tambien lo que
+      queda de hoy. Sergio lo planteo como "faltando 5 dias", y en una factura
+      un dia de mas o de menos es plata: se cuenta por fecha, no por reloj.  */
   function _diasQueSobran() {
     if (!ctx.periodoFin) return null;          // sin fecha no se puede prorratear
-    var fin = new Date(ctx.periodoFin + 'T23:59:59');
-    var d = Math.ceil((fin.getTime() - Date.now()) / 86400000);
+    var f = String(ctx.periodoFin).slice(0, 10).split('-');
+    var fin = Date.UTC(+f[0], +f[1] - 1, +f[2]);
+    var h = new Date();
+    var hoy = Date.UTC(h.getFullYear(), h.getMonth(), h.getDate());
+    var d = Math.round((fin - hoy) / 86400000);
     return d > 0 ? d : 0;
   }
 
