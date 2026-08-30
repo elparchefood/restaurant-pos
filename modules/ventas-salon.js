@@ -1871,15 +1871,29 @@
       lo que entró no lo cubre. O sea: el cliente pagó la comida y el domicilio
       lo recoge quien lo lleva.                                              */
   function vsDomiPorCobrar(d) {
-    if (!d || d.payStatus !== 'pagado') return 0;
+    /*  ⚠️ SEGUNDA VERSIÓN. La primera comparaba lo pagado contra el total, y
+        MENTÍA en todos los domicilios.
+
+        Por qué: la pantalla de cobro **nunca incluye el domicilio** (cobra
+        `posCobrable`, que lo deja por fuera). Así que `paid_amount` jamás va a
+        igualar el total en un domicilio, lo haya cobrado el domiciliario o no.
+        Comprobado con el pedido de Miguel: total $50.000, cobrado $45.000
+        (comida + empaque), y el cliente había pagado TODO. El aviso decía que
+        faltaban $5.000 y era falso.
+
+        La lección: **no se puede deducir un hecho que el sistema nunca
+        registró.** Si nadie anota si el domicilio se cobró, ninguna cuenta lo
+        va a averiguar.
+
+        Ahora es una MARCA, no una deducción: solo aparece cuando el propio
+        Cobra sabe que el domicilio quedó a deber — hoy, un pedido que YA
+        estaba pagado y al que se le añadió el domicilio al pasarlo a
+        domicilio. Ese es exactamente el caso que Sergio describió.          */
+    if (!d) return 0;
     var fee = Number(d.domiFee) || 0;
     if (fee <= 0) return 0;
-    var pagado = Number(d.paidAmount) || 0;
-    var total  = Number(d.total) || 0;
-    if (pagado <= 0 || pagado >= total - 1) return 0;
-    //  Nunca más de lo que vale el domicilio: si falta más, es otra cosa y no
-    //  se puede llamar «el domicilio».
-    return Math.min(fee, Math.round(total - pagado));
+    if (!/\[domi_por_cobrar\]/i.test(String(d.notas || d.notes || ''))) return 0;
+    return fee;
   }
 
   function renderDomicilioCard(d) {
@@ -4622,6 +4636,27 @@
       const fee = parseInt(d.fee, 10) || 0;
       cambios.delivery_fee = fee;
       cambios.delivery_status = 'recibido';
+
+      /*  ══ LA MARCA DE «EL DOMICILIO QUEDA A DEBER» ═══════════════════════
+
+          Sergio, 29-ago-2026: *«el cliente pidió para recoger y pagó; luego
+          internamente lo pasamos a domicilio. Debe haber un letrerito que diga
+          que queda pendiente el cobro del domicilio, para yo poder decirle al
+          domiciliario que lo cobre»*.
+
+          Este es el ÚNICO momento en que Cobra sabe con certeza que ese
+          domicilio no está pagado: el pedido ya estaba cobrado y el domicilio
+          se le añade ahora, después. En cualquier otro domicilio no hay forma
+          de saberlo — nadie registra si el domiciliario recibió esos pesos.
+
+          Va en las notas y no en una columna nueva a propósito: es el mismo
+          patrón de `[barrio:...]` y `[etq:...]`, y una migración en pleno
+          servicio hace esperar a todas las pantallas.                       */
+      var _yaPago = (window.posEstaPagado ? window.posEstaPagado(ord)
+                      : (ord.status === 'paid' || ord.status === 'completed'));
+      if (fee > 0 && _yaPago) {
+        cambios.notes = ((cambios.notes || '') + ' [domi_por_cobrar]').trim();
+      }
       cambios.table_id = null;
       //  El total llevaba el domicilio viejo (si venia de domicilio): se
       //  quita el de antes y se pone el de ahora.
