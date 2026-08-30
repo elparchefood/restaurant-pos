@@ -287,16 +287,48 @@
     return h + _nuevo(puede ? 'Crear nueva sucursal' : 'Mejora tu plan para más sucursales');
   }
 
+  /*  UN ICONO PROPIO POR PLAN (30-ago-2026).
+
+      Antes Pro y Premium salían con EL MISMO dibujo — el código solo
+      distinguía "starter" de "todo lo demás" — y el de Starter era una planta
+      que a 15 píxeles no se entendía. Sergio, con razón: *"son íconos feos, son
+      íconos que no se nota que son"*.
+
+      Escogió bandera / cohete / diamante. Van dibujados con los trazos de la
+      misma familia de iconos que usa el resto del producto (línea de 2, 24x24,
+      esquinas redondas), no con aproximaciones: un icono mal trazado se ve
+      exactamente como el garabato que estamos quitando.
+
+      El color acompaña la escalera: gris el básico, azul de marca el de en
+      medio, morado el de arriba — el mismo morado que ya usa la etiqueta.   */
+  var PLAN_COLOR = { starter: '#64748B', pro: '#5B6BFF', premium: '#8B5CF6' };
+
+  function _svgPlan(clave) {
+    var a = 'width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+          + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+    if (clave === 'starter') {
+      //  Bandera: el asta y el paño ondeando.
+      return '<svg ' + a + '><path d="M5 5a5 5 0 0 1 7 0a5 5 0 0 0 7 0v9a5 5 0 0 1 -7 0a5 5 0 0 0 -7 0z"/>'
+           + '<line x1="5" y1="21" x2="5" y2="5"/></svg>';
+    }
+    if (clave === 'premium') {
+      //  Diamante: el contorno y la línea de la faceta. Dos trazos y se lee.
+      return '<svg ' + a + '><path d="M6 4h12l3 5l-9 11l-9 -11z"/>'
+           + '<line x1="3" y1="9" x2="21" y2="9"/></svg>';
+    }
+    //  Cohete: el cuerpo, la llama y la ventanilla.
+    return '<svg ' + a + '><path d="M4 13a8 8 0 0 1 7 7a6 6 0 0 0 3 -5a9 9 0 0 0 6 -8a3 3 0 0 0 -3 -3a9 9 0 0 0 -8 6a6 6 0 0 0 -5 3"/>'
+         + '<path d="M7 14a6 6 0 0 0 -3 6a6 6 0 0 0 6 -3"/>'
+         + '<circle cx="15" cy="9" r="1"/></svg>';
+  }
+
+  function _avatarPlan(clave) {
+    var col = PLAN_COLOR[clave] || '#5B6BFF';
+    return '<span class="pm-av" style="background:' + col + '18;color:' + col + '">'
+         + _svgPlan(clave) + '</span>';
+  }
+
   function _listaPlanes() {
-    var av = function (clave) {
-      var col = clave === 'starter' ? '#64748B' : '#5B6BFF';
-      return '<span class="pm-av" style="background:' + col + '18;color:' + col + '">'
-        + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
-        + (clave === 'starter'
-            ? '<path d="M12 22c4.97 0 9-4.03 9-9V7h-6a9 9 0 0 0-9 9v6z"/><path d="M3 21c0-6 3-9 9-9"/>'
-            : '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>')
-        + '</svg></span>';
-    };
     var lista = (ctx.planes || []).slice();
     //  El plan interno se ve, pero no se puede escoger: no se le ofrece a nadie.
     if (!lista.some(function (x) { return x.plan === ctx.plan; }) && ctx.planActual) {
@@ -306,7 +338,7 @@
       var suyo = x.plan === ctx.plan;
       var precio = '<span class="pm-pr">$' + Number(x.precio || 0).toLocaleString('es-CO')
                  + '<span class="pm-s">al mes</span></span>';
-      return _fila(av(x.plan),
+      return _fila(_avatarPlan(x.plan),
         esc(x.nombre) + (suyo ? '<span class="pm-pill">Tu plan</span>' : ''),
         esc(x.resumen || ''), precio, false,
         suyo ? '' : ' data-plan="' + esc(x.plan) + '"');
@@ -329,8 +361,9 @@
     var iMarca = ctx.marcas.map(function (m) { return m.id; }).indexOf(marcaId);
     var planNom = (ctx.planActual && ctx.planActual.nombre) || ctx.plan;
 
-    var trPlan = '<span class="pm-av" style="background:#EEF2FF;color:#5B6BFF">'
-      + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>'
+    //  El campo cerrado muestra el icono de SU plan, no una estrella fija:
+    //  así se reconoce de un vistazo cual se tiene sin abrir nada.
+    var trPlan = _avatarPlan(ctx.plan)
       + '<span class="pm-txt"><span class="pm-t">' + esc(planNom) + '</span>'
       + '<span class="pm-s">Tu plan</span></span>';
 
