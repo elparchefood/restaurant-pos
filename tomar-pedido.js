@@ -53,6 +53,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (urlGuests > 0) S.personas = urlGuests;
   pintarPersonas();
 
+  /*  ⚠️ EL PEDIDO DE LA MESA SE PIDE YA (29-ago-2026).
+
+      Sergio: la pantalla *«tarda abriendo la toma de pedidos»*. Lo medí en la
+      página de verdad: 15 llamadas al servidor, cada una ~250 ms, y los datos
+      pesan prácticamente nada. **No es el volumen, son los viajes** — y van
+      en fila india: usuario → mesa y carta → inventario → pedido de la mesa.
+      1,6 segundos, de los cuales casi todo es esperar turno.
+
+      Este es el último de la fila y no depende de ninguno de los anteriores:
+      solo necesita el número de mesa, que viene en la dirección. Así que se
+      pide aquí, de una, y cuando `loadOpenOrder` lo necesite ya estará puesto.
+
+      Si la mesa resulta estar libre se descarta, y no cuesta nada: iba en
+      paralelo con lo demás.
+
+      (El `.then` no sobra: sin él la consulta no sale hasta que alguien la
+      espera, y todo el arreglo se quedaría en nada.)                       */
+  S.pedidoPedidoYa = sb
+    .from('pos_orders')
+    .select('*, pos_order_items(*)')
+    .eq('table_id', S.tableId)
+    .eq('tenant_id', S.tenantId)
+    .in('status', ['open', 'in_progress'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+    .then(function (r) { return r; }, function (e) { return { data: null, error: e }; });
+
   // 3. Pintar shell inmediato
   paintShell();
 
@@ -62,9 +90,14 @@ document.addEventListener('DOMContentLoaded', async () => {
      el catalogo hubiera cargado bien. El renderCatGrid() de mas abajo no
      llegaba a ejecutarse nunca y la pantalla se quedaba en Cargando
      categorias... para siempre. Cada carga responde por si misma. */
+  /*  El inventario entra en el mismo grupo: no depende de la mesa ni de la
+      carta, y esperando su turno costaba otros ~230 ms de pantalla en
+      blanco. Su fallo nunca fue grave — ya iba envuelto en su propio
+      try/catch — así que aquí también responde por sí mismo.            */
   const _cargas = await Promise.allSettled([
     loadTable(),
     loadCatalog(),
+    (window.posStock ? posStock.load(sb) : Promise.resolve()),
   ]);
   _cargas.forEach(function (r, i) {
     if (r.status === 'rejected') {
@@ -73,8 +106,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // 4b. Estado de inventario (para bloquear/avisar productos sin insumo)
-  if (window.posStock) { try { await posStock.load(sb); } catch (e) { console.warn('posStock:', e); } }
+  // 4b. El inventario ya vino arriba, con la mesa y la carta.
 
   // 5. Cargar pedido activo de la mesa (si existe)
   await loadOpenOrder();
@@ -638,15 +670,15 @@ async function loadOpenOrder() {
         .in('status', ['open', 'in_progress']);
       return;
     }
-    const { data } = await sb
-      .from('pos_orders')
-      .select('*, pos_order_items(*)')
-      .eq('table_id', S.tableId)
-      .eq('tenant_id', S.tenantId)
-      .in('status', ['open', 'in_progress'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    /*  Ya se pidió al arrancar (ver arriba). Si por lo que sea no está,
+        se pide aquí como toda la vida.                                   */
+    const _res = S.pedidoPedidoYa
+      ? await S.pedidoPedidoYa
+      : await sb.from('pos_orders').select('*, pos_order_items(*)')
+          .eq('table_id', S.tableId).eq('tenant_id', S.tenantId)
+          .in('status', ['open', 'in_progress'])
+          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    const data = _res && _res.data;
 
     if (!data) return;
     S.order = data;
