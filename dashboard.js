@@ -690,7 +690,10 @@ function iconoPorTipo(tipo) {
   if (t.indexOf('transfer') >= 0) return 'bank';
   if (t.indexOf('credito')  >= 0) return 'credit';
   if (t.indexOf('punto')    >= 0) return 'voucher';
-  if (t.indexOf('saldo')    >= 0 || t.indexOf('billeter') >= 0) return 'voucher';
+  //  La billetera lleva TARJETA, por pedido de Sergio: es como la ve el
+  //  cliente — una tarjeta con saldo— y ademas la distingue de los puntos,
+  //  que hasta hoy compartian el mismo dibujo.
+  if (t.indexOf('saldo')    >= 0 || t.indexOf('billeter') >= 0) return 'card';
   if (t.indexOf('linea')    >= 0 || t.indexOf('online') >= 0)   return 'online';
   return 'online';
 }

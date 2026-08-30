@@ -104,6 +104,26 @@
               <div class="hs-canal-opt" data-canal="domicilio"><span class="hs-canal-dot" style="background:#22C55E"></span>Domicilio</div>
             </div>
           </div>
+
+          <!--  FILTRO POR ESTADO. Es lo que de verdad reemplaza al boton
+                "Entregados" que se quito de la pantalla de ventas: lo que
+                hacia falta no era otra pantalla, era poder preguntarle a esta
+                por lo ya entregado. Los colores son los mismos que usan las
+                etiquetas de cada pedido en la lista.  -->
+          <div class="hs-canal-wrap">
+            <button class="cc-fchip" id="btn-estado-filter">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>
+              Estado
+            </button>
+            <div class="hs-canal-dropdown" id="estado-dropdown">
+              <div class="hs-canal-opt on" data-estado="all"><span class="hs-canal-dot" style="background:#94A3B8"></span>Todos</div>
+              <div class="hs-canal-opt" data-estado="paid"><span class="hs-canal-dot" style="background:#16A34A"></span>Pagado</div>
+              <div class="hs-canal-opt" data-estado="entregado"><span class="hs-canal-dot" style="background:#0EA5E9"></span>Entregado</div>
+              <div class="hs-canal-opt" data-estado="pendiente_pago"><span class="hs-canal-dot" style="background:#D97706"></span>Pendiente de pago</div>
+              <div class="hs-canal-opt" data-estado="in_progress"><span class="hs-canal-dot" style="background:#F97316"></span>En preparación</div>
+              <div class="hs-canal-opt" data-estado="cancelled"><span class="hs-canal-dot" style="background:#DC2626"></span>Anulado</div>
+            </div>
+          </div>
         </div>
       </div>
       <!-- Barra de búsqueda -->
@@ -155,6 +175,6 @@
      veia todo lo vendido con solo escribir la direccion. No echa a nadie —
      al que no tenga el permiso le sale el PIN del administrador. -->
 <script>if(window.posRequirePin) posRequirePin('ventas.ver');</script>
-<script src="historial.js?v=1798932000"></script>
+<script src="historial.js?v=1798935000"></script>
 </body>
 </html>

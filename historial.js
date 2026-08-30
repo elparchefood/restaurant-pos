@@ -89,6 +89,23 @@ async function loadItems(orderId) {
 function applyFilters() {
   let list = HS.orders.slice();
 
+  /*  POR ESTADO. `entregado` no vive en `status` sino en la columna `estado`
+      (y en `delivery_status` para los domicilios): un pedido entregado sigue
+      con status 'paid'. Por eso se mira en los tres sitios — preguntar solo
+      por `status` devolveria cero entregados y pareceria que no hay.        */
+  if (HS.estado && HS.estado !== 'all') {
+    lista = lista.filter(function (o) {
+      if (HS.estado === 'entregado') {
+        return String(o.estado || '') === 'entregado'
+            || String(o.delivery_status || '') === 'entregado'
+            || !!o.delivered_at;
+      }
+      if (HS.estado === 'paid') return o.status === 'paid' || o.status === 'completed';
+      if (HS.estado === 'in_progress') return o.status === 'in_progress' || o.status === 'ready';
+      return o.status === HS.estado;
+    });
+  }
+
   if (HS.canal !== 'all') {
     list = list.filter(o => {
       if (HS.canal === 'salon') return o.channel !== 'rapido' && o.channel !== 'domicilio';
@@ -395,6 +412,7 @@ function bindFilters() {
   });
 
   /* Canal dropdown */
+  if (!HS.estado) HS.estado = 'all';
   const canalBtn = document.getElementById('btn-canal-filter');
   const canalDd  = document.getElementById('canal-dropdown');
   canalBtn.addEventListener('click', (e) => {
@@ -402,6 +420,33 @@ function bindFilters() {
     canalDd.classList.toggle('open');
   });
   document.addEventListener('click', () => canalDd.classList.remove('open'));
+  /*  El de estado, con el mismo comportamiento que el de canal: se abre uno y
+      se cierra el otro, para que no queden dos listas abiertas encima.     */
+  const estBtn = document.getElementById('btn-estado-filter');
+  const estDd  = document.getElementById('estado-dropdown');
+  if (estBtn && estDd) {
+    estBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      canalDd.classList.remove('open');
+      estDd.classList.toggle('open');
+    });
+    document.addEventListener('click', () => estDd.classList.remove('open'));
+    document.querySelectorAll('[data-estado]').forEach(opt => {
+      opt.addEventListener('click', (e) => {
+        e.stopPropagation();
+        HS.estado = opt.dataset.estado;
+        document.querySelectorAll('[data-estado]').forEach(o => o.classList.remove('on'));
+        opt.classList.add('on');
+        estDd.classList.remove('open');
+        //  El boton dice cual esta puesto: un filtro activo que no se ve es
+        //  la forma mas facil de creer que faltan pedidos.
+        estBtn.classList.toggle('on', HS.estado !== 'all');
+        HS.selectedId = null;
+        renderList();
+      });
+    });
+  }
+
   document.querySelectorAll('[data-canal]').forEach(opt => {
     opt.addEventListener('click', (e) => {
       e.stopPropagation();
