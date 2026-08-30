@@ -16,7 +16,15 @@ const HS = {
 };
 
 /* ─── Helpers ─── */
-function COPF(n) { return '$ ' + Math.round(n || 0).toLocaleString('es-CO'); }
+/*  ⚠️ AQUI ESTABA `function COPF(...)`, Y TUMBABA LA PANTALLA ENTERA.
+
+    El nucleo ya declara `const COPF` (pos-core.js). Declararla otra vez aqui,
+    en el mismo ambito global, no es un aviso: es un SyntaxError — y el
+    navegador descarta el ARCHIVO COMPLETO. Por eso el historial se quedaba en
+    "Cargando pedidos..." para siempre y sin un solo error visible: no es que
+    la consulta fallara, es que este archivo nunca llego a ejecutarse.
+
+    Se usa la del nucleo, que ademas es la que usa el resto del producto.  */
 
 function todayRange() {
   const s = new Date(); s.setHours(0,0,0,0);

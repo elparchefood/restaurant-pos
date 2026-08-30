@@ -3,8 +3,16 @@
 // ═══════════════════════════════════════════════════
 // SUPABASE (inicialización directa, sin pos-core.js)
 // ═══════════════════════════════════════════════════
-const SUPABASE_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRibHVqZmR1c2NzbHhqbXJqYmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDU3NTcsImV4cCI6MjA5NjY4MTc1N30.0zudypPzlrOQ6dDa1Vp2XFFDL4Ea8dep1r3KMuEZGn0';
+/*  ⚠️ AQUI ESTABAN `const SUPABASE_URL` y `const SUPABASE_KEY`, Y TUMBABAN
+    LA PANTALLA ENTERA.
+
+    El nucleo ya las declara con los MISMOS valores (pos-core.js). Repetirlas
+    aqui es un SyntaxError y el navegador descarta el archivo completo: el
+    inventario se quedaba en "Cargando inventario..." para siempre, sin un solo
+    error a la vista.
+
+    Se usan las del nucleo. El cliente propio (`iv_sb`) se queda: tiene su
+    propia configuracion.                                                   */
 const iv_sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { storageKey: 'cobra-pos-session' }
 });
