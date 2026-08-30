@@ -84,7 +84,9 @@
     '.pm-ck{margin-left:auto;color:#16A34A;flex-shrink:0}',
     '.pm-pr{margin-left:auto;text-align:right;font-size:12px;color:#0F172A;font-weight:700;line-height:1.3}',
     '.pm-pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:#EEF2FF;color:#4338CA;margin-left:6px}',
-    '.pm-new{display:flex;align-items:center;gap:9px;padding:11px;background:#FAFBFF;',
+    /*  13px arriba y abajo, no 11: medido en tamaño tablet quedaba en 39 px de
+        alto y un dedo pide 44. Las demas filas ya median 51.              */
+    '.pm-new{display:flex;align-items:center;gap:9px;padding:13px 11px;background:#FAFBFF;',
     '  border-top:1px solid #ECEEF2;color:#5B6BFF;font-size:12.5px;font-weight:700;cursor:pointer}',
     '.pm-new:hover{background:#F1F4FF}',
     '.pm-txt{min-width:0}',
@@ -349,6 +351,12 @@
 
     var ref = dd.querySelector('.user-dropdown-divider');
     if (ref) dd.insertBefore(div, ref); else dd.appendChild(div);
+
+    /*  El menu de usuario mide 240 px — lo medi en la pantalla, no lo supuse —
+        y con logo + nombre + precio a la derecha eso queda apretado. Se
+        ensancha solo donde vive este bloque (el escritorio), no en todas las
+        pantallas. 300 px siguen cabiendo en un telefono de 375.           */
+    dd.style.minWidth = '300px';
 
     //  Ni un clic de aqui dentro debe cerrar el menu de usuario.
     div.addEventListener('click', function (e) { e.stopPropagation(); });
