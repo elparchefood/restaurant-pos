@@ -542,6 +542,94 @@
     });
   }
 
+  /*  ══ LO QUE HAY EN CADA MESA (30-ago-2026) ═══════════════════════════
+
+      Cuanto lleva la mesa, cuantos items, cuanto va y quien atiende. Vive en
+      su propia funcion porque `fetchTables` tiene DOS caminos y hasta hoy
+      solo uno de los dos lo calculaba.
+
+      ⚠️ EL FALLO QUE ARREGLA. El camino de respaldo —el que se toma cuando el
+      equipo no tiene el plano del salon guardado— devolvia
+      `total: 0, items_count: 0, persons: 0` escritos a mano. Es decir: en la
+      TABLET, y en cualquier computador la primera vez que se abre Ventas, y
+      en cada equipo nuevo de cada restaurante que compre Cobra, las mesas
+      ocupadas se veian con el estado correcto pero con **"0 items - $0"**.
+      El estado se leia de la base; la plata no la leia nadie.
+
+      No daba error en la consola: la carga "salia bien", solo que con ceros.
+
+      Las consultas van de a una (`.eq`) y no con `.in()` a proposito: con
+      varios UUID a la vez `.in()` falla en la tablet, que es justo el equipo
+      que siempre entra por este camino.                                    */
+  async function vsDatosDePedido(sb, mesas) {
+    const porMesa = {};
+    if (!sb || !mesas || !mesas.length) return porMesa;
+
+    const CAMPOS = 'id, table_id, total, guests, waiter_name, waiter_id, opened_at, created_at';
+    const ids = mesas.map(function (t) { return t.id; }).filter(Boolean);
+    const curIds = mesas.map(function (t) { return t.current_order_id; }).filter(Boolean);
+
+    //  Primero el barrido por mesa: agarra tambien las mesas que quedaron con
+    //  pedido abierto pero sin `current_order_id` (pasa si se cerro el
+    //  navegador a mitad de camino).
+    try {
+      const r = await sb.from('pos_orders').select(CAMPOS)
+        .in('table_id', ids)
+        .not('status', 'eq', 'completed')
+        .not('status', 'eq', 'cancelled')
+        .not('status', 'eq', 'paid');
+      (r.data || []).forEach(function (o) { porMesa[o.table_id] = o; });
+    } catch (e) {
+      console.warn('[ventas-salon] no pude leer los pedidos de las mesas:', e.message || e);
+    }
+
+    //  Y encima, el pedido que la mesa dice tener. Manda este: en cobro
+    //  adelantado el pedido ya esta 'paid' y el barrido de arriba lo descarta,
+    //  pero la comida sigue sin salir y la mesa sigue ocupada.
+    if (curIds.length) {
+      const actuales = (await Promise.all(curIds.map(function (oid) {
+        return sb.from('pos_orders').select(CAMPOS).eq('id', oid)
+          .not('status', 'eq', 'cancelled').maybeSingle()
+          .then(function (r) { return r.data; })
+          .catch(function () { return null; });
+      }))).filter(Boolean);
+      actuales.forEach(function (o) { porMesa[o.table_id] = o; });
+    }
+
+    //  Cuantos items tiene cada uno.
+    const pedidos = Object.keys(porMesa).map(function (k) { return porMesa[k]; });
+    if (pedidos.length) {
+      const cuentas = await Promise.all(pedidos.map(function (o) {
+        return sb.from('pos_order_items').select('id').eq('order_id', o.id)
+          .then(function (r) { return { oid: o.id, n: (r.data || []).length }; })
+          .catch(function () { return { oid: o.id, n: 0 }; });
+      }));
+      const mapa = {};
+      cuentas.forEach(function (c) { mapa[c.oid] = c.n; });
+      pedidos.forEach(function (o) { o.__items = mapa[o.id] || 0; });
+    }
+    return porMesa;
+  }
+
+  /*  Los mismos numeros, ya listos para la tarjeta. Aqui se decide que se
+      enseña cuando no hay pedido: ceros, que es la verdad de una mesa libre. */
+  function vsCamposDeMesa(ord, usuarios) {
+    const nombre = (ord && ord.waiter_name) || (ord && usuarios && usuarios[ord.waiter_id]) || '';
+    const iniciales = nombre
+      ? nombre.split(' ').map(function (w) { return w[0]; }).join('').toUpperCase().slice(0, 2)
+      : '';
+    const abierta = ord ? (ord.opened_at || ord.created_at) : null;
+    return {
+      total:           ord ? (ord.total || 0) : 0,
+      items_count:     ord ? (ord.__items || 0) : 0,
+      persons:         ord ? (ord.guests || 0) : 0,
+      mesero:          nombre,
+      mesero_initials: iniciales,
+      openedAt:        abierta || null,
+      minutes:         abierta ? Math.round((Date.now() - new Date(abierta).getTime()) / 60000) : 0,
+    };
+  }
+
   async function fetchTables() {
     const baseTables = mesasBase();
 
@@ -565,18 +653,32 @@
               if (!zonesMap[zid]) zonesMap[zid] = { id: zid, name: t.zone_name || zid };
             });
             state.zones = Object.values(zonesMap);
-            return fbRows.map(function(t) {
+            //  ANTES AQUI IBAN CEROS ESCRITOS A MANO. Ver la nota de
+            //  `vsDatosDePedido`: este es el camino de la tablet.
+            var fbMesas = fbRows.map(function(t) {
               return {
                 id: t.id, name: t.name || ('Mesa ' + t.number),
                 number: parseInt(t.name, 10) || t.number || 1,
                 seats: t.capacity || 4,
                 zone_id: t.zone_id || 'z_adentro',
+                sort_order: (t.sort_order != null) ? t.sort_order : 9999,
                 status: t.status || 'libre',
                 current_order_id: t.current_order_id || null,
                 grupo_id: t.grupo_id || null,
+                sesion_at: t.sesion_at || null,
+                pendiente_pago_at: t.pendiente_pago_at || null,
+                esperando_at: t.esperando_at || null,
+                comiendo_at: t.comiendo_at || null,
                 total: 0, items_count: 0, minutes: 0, mesero_initials: '', persons: 0, openedAt: null
               };
             });
+            var fbPed = await vsDatosDePedido(sbFallback, fbMesas);
+            var fbUsr = await vsUsuarios();
+            fbMesas.forEach(function (m) {
+              var d = vsCamposDeMesa(fbPed[m.id], fbUsr);
+              for (var k in d) m[k] = d[k];
+            });
+            return fbMesas;
           }
         }
       } catch(fbErr) { console.warn('[fetchTables] fallback error:', fbErr.message); }
@@ -651,64 +753,24 @@
           };
         });
 
-        // Órdenes activas para todas las mesas combinadas
-        const allIds = Object.keys(mergedMap);
-        const { data: ordersData } = await sb
-          .from('pos_orders')
-          .select('id, table_id, total, guests, waiter_name, waiter_id, opened_at, created_at')
-          .in('table_id', allIds)
-          .not('status', 'eq', 'completed')
-          .not('status', 'eq', 'cancelled')
-          .not('status', 'eq', 'paid');
-        const orderMap = {};
-        (ordersData || []).forEach(function(o){ orderMap[o.table_id] = o; });
+        //  Los pedidos de todas las mesas, con la misma funcion que usa el
+        //  camino de respaldo: un solo sitio donde arreglar, un solo sitio
+        //  donde equivocarse.
+        const orderMap = await vsDatosDePedido(sb, Object.values(mergedMap));
 
-        // Además, las órdenes ACTUALES de cada mesa (current_order_id). Pueden estar
-        // 'paid' en cobro adelantado y aun así siguen en curso (comida por entregar).
-        // Tienen PRIORIDAD sobre el respaldo por table_id. Se consultan una a una
-        // porque .in() con múltiples UUIDs falla en algunos entornos (tablet/WebView).
-        const curIds = Object.values(mergedMap)
-          .map(function(t){ return t.current_order_id; })
-          .filter(Boolean);
-        if (curIds.length > 0) {
-          const curOrders = (await Promise.all(curIds.map(function(oid){
-            return sb.from('pos_orders')
-              .select('id, table_id, total, guests, waiter_name, waiter_id, opened_at, created_at')
-              .eq('id', oid)
-              .not('status', 'eq', 'cancelled')
-              .maybeSingle()
-              .then(function(r){ return r.data; })
-              .catch(function(){ return null; });
-          }))).filter(Boolean);
-          curOrders.forEach(function(o){ orderMap[o.table_id] = o; });
-        }
-
-        // Contar ítems por orden — usamos .eq() individual por orden en vez de .in()
-        // porque .in() con múltiples UUIDs falla en algunos entornos (tablet/WebView).
-        const itemsCountMap = {};
-        const activeOrders = Object.values(orderMap).filter(function(o){ return o && o.id; });
-        if (activeOrders.length > 0) {
-          const countResults = await Promise.all(activeOrders.map(function(o) {
-            return sb.from('pos_order_items').select('id').eq('order_id', o.id)
-              .then(function(r){ return { oid: o.id, count: (r.data || []).length }; });
-          }));
-          countResults.forEach(function(c){ itemsCountMap[c.oid] = c.count; });
-        }
+        //  (Aqui estaban el repaso por `current_order_id` y el conteo de
+        //  items. Se mudaron a `vsDatosDePedido`, que ahora los hace para los
+        //  dos caminos.)
 
         const _vsUsr = await vsUsuarios();
         const enriched = Object.values(mergedMap).map(function(t) {
           const ord = orderMap[t.id];
-          // El nombre completo de quien atiende. Antes solo se guardaban las
-          // iniciales y luego se intentaba reconstruir el nombre con una lista
-          // fija de ejemplo; como los meseros reales no estaban en esa lista,
-          // la tarjeta terminaba mostrando "SA" en vez de "Sergio Abadia".
-          const _mesero = (ord && ord.waiter_name) || (ord && _vsUsr[ord.waiter_id]) || '';
-          const now = Date.now();
-          const openedAt = ord ? (ord.opened_at || ord.created_at) : null;
-          const minutes = openedAt ? Math.round((now - new Date(openedAt).getTime()) / 60000) : 0;
-          const initials = (ord && ord.waiter_name)
-            ? ord.waiter_name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2)
-            : '';
+          //  El nombre completo de quien atiende sale de `vsCamposDeMesa`.
+          //  Antes solo se guardaban las iniciales y luego se intentaba
+          //  reconstruir el nombre con una lista fija de ejemplo; como los
+          //  meseros reales no estaban en esa lista, la tarjeta terminaba
+          //  mostrando "SA" en vez de "Sergio Abadia".
+          const _d = vsCamposDeMesa(ord, _vsUsr);
           return {
             id:              t.id,
             name:            t.name,
@@ -722,18 +784,18 @@
             //  se pierde en el ultimo paso. Fue exactamente lo que pasó.
             grupo_id:        t.grupo_id || null,
             sesion_at:       t.sesion_at || null,
-            openedAt:        openedAt || null,
+            openedAt:        _d.openedAt,
             status:          t.status || 'libre',
             // Sellos por estado: el reloj arranca desde el del estado ACTUAL
             pendiente_pago_at: t.pendiente_pago_at || null,
             esperando_at:      t.esperando_at || null,
             comiendo_at:       t.comiendo_at || null,
-            total:           ord ? (ord.total || 0) : 0,
-            items_count:     ord ? (itemsCountMap[ord.id] || 0) : 0,
-            minutes:         minutes,
-            mesero:          _mesero,
-            mesero_initials: initials || (_mesero ? _mesero.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2) : ''),
-            persons:         ord ? (ord.guests || 0) : 0,
+            total:           _d.total,
+            items_count:     _d.items_count,
+            minutes:         _d.minutes,
+            mesero:          _d.mesero,
+            mesero_initials: _d.mesero_initials,
+            persons:         _d.persons,
           };
         });
         enriched.sort(function(a, b){ return (a.sort_order != null ? a.sort_order : 9999) - (b.sort_order != null ? b.sort_order : 9999); });
