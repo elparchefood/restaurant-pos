@@ -1643,13 +1643,14 @@
               <span style="font-weight:500">Historial</span>
             </span>
           </button>
-          <button class="lm-nav" style="color:#475569" data-action="nav-entregados">
-            <span class="lm-nav-inner">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-              <span style="font-weight:500">Entregados</span>
-            </span>
-            <span class="lm-nav-badge" id="vs-badge-entregados">—</span>
-          </button>
+          <!--  Aqui estaba "Entregados". Se quito el 30-ago-2026: su
+                data-action no lo escuchaba NADIE y su contador decia raya
+                porque tampoco lo llenaba nadie. Un boton muerto enseña que en
+                este programa los botones a veces no sirven, y la proxima vez
+                que algo tarde la gente cree que esta roto.
+
+                Lo que hacia falta —ver lo ya entregado— lo cubre el Historial,
+                que ademas filtra por fecha y canal.  -->
         </nav>
 
         <div class="vs-sidebar-spacer"></div>

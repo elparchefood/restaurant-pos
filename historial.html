@@ -30,9 +30,14 @@
     <div class="sidebar-section">
       <div class="sidebar-label">Operación</div>
       <nav class="lm-navlist" style="display:flex;flex-direction:column;gap:2px">
-        <button class="nav-item" onclick="location.href='ventas.html'">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-          Ventas
+        <!--  REGRESAR, no "Ventas": se vuelve a DONDE SE ESTABA, que no siempre
+              es la pantalla de ventas — al historial se llega tambien desde el
+              escritorio o desde caja. Si no hay a donde volver (se abrio esta
+              direccion directamente), se va a ventas, que es de donde viene
+              casi siempre.  -->
+        <button class="nav-item" onclick="if(history.length>1){history.back()}else{location.href='ventas.html'}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          Regresar
         </button>
         <button class="nav-item active">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -41,15 +46,10 @@
       </nav>
     </div>
 
-    <div class="sidebar-section" style="margin-top:8px">
-      <div class="sidebar-label">Sistema</div>
-      <nav class="lm-navlist" style="display:flex;flex-direction:column;gap:2px">
-        <button class="nav-item" onclick="location.href='configuracion.html'">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 9.4a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82-1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9H20a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
-          Configuración
-        </button>
-      </nav>
-    </div>
+    <!--  Aqui estaba el bloque "Sistema / Configuracion". Se quito el
+          30-ago-2026: a Configuracion ya se llega desde el menu de usuario y
+          desde el escritorio, y repetir el mismo destino en cada pantalla
+          alarga el menu sin dar nada.  -->
 
     <div class="sys-status" style="margin-top:auto">
       <div class="sys-row"><span id="sb-user-name">—</span><span id="sb-role">—</span></div>
@@ -155,6 +155,6 @@
      veia todo lo vendido con solo escribir la direccion. No echa a nadie —
      al que no tenga el permiso le sale el PIN del administrador. -->
 <script>if(window.posRequirePin) posRequirePin('ventas.ver');</script>
-<script src="historial.js?v=1798930000"></script>
+<script src="historial.js?v=1798932000"></script>
 </body>
 </html>
