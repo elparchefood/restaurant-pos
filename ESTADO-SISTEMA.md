@@ -3,6 +3,52 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 💳 El mes se sella solo, y limpieza de la base — 30-ago-2026 (commits `13aea39`, `d078a90`)
+
+### El cobro mensual ya tiene de dónde salir
+
+Faltaba la pieza central: **0 de 4 restaurantes tenían fecha de período**, así que
+no había vencimiento, ni saldo a favor, ni forma de saber a quién cobrarle.
+
+Se sella con un **disparador en la base**, no con código en la consola: hoy un
+pago se aprueba desde la consola de plataforma, pero mañana puede aprobarlo un
+verificador automático. Si el sellado vive en la pantalla, cualquier otro camino
+deja al restaurante sin fecha.
+
+Probado caso por caso, no deducido:
+
+| caso | resultado |
+|---|---|
+| primer pago | sella inicio y fin, y consume el saldo a favor |
+| renovación pagada **antes** de vencer | suma al vencimiento, **no a hoy** — quien paga con tres días de adelanto no los pierde |
+| aprobar dos veces el mismo pago | **no** corre el mes otra vez |
+| saldo a favor | baja la factura (249.000 − 30.000 = 219.000) y solo se consume lo aplicado; si sobra, queda |
+
+`provision` devuelve ahora `periodo_fin` y `saldo_favor`, y guarda en cada pago
+**cuánto saldo lo cubrió** (`saldo_aplicado`) — sin ese dato el saldo se
+perdería entero aunque la factura fuera menor. La consola muestra en cada
+cliente «vence en X días», en rojo si ya venció.
+
+**Pendiente por decisión de Sergio:** los avisos a los 10, 7 y 3 días. La vista
+`v_suscripciones_por_vencer` ya da la lista.
+
+### Limpieza
+
+Borradas **565 filas de diagnóstico** (13 con teléfonos de clientes dentro), un
+cliente de prueba que estaba en El Parche y dos pedidos de prueba. Los 442
+pedidos de El Parche, intactos.
+
+Y **quitado el diagnóstico que las generaba**: 492 de esas 565 venían de uno que
+anota «todas las mesas libres» — que es exactamente lo que pasa con el
+restaurante cerrado. No distinguía el fallo de lo normal: 492 filas en 22 días,
+ninguna de un fallo real.
+
+⚠️ **No se borró ningún restaurante, y no hay que borrarlos.** Los dos que
+parecen de prueba tienen un para qué: «Demo Restaurant» es el que revisa Meta y
+«Restaurante de Prueba» es donde se prueba todo antes de tocar El Parche.
+
+---
+
 ## 🎨 El menú de marca/sucursal y el texto que ya no se selecciona — 30-ago-2026
 
 **Tres desplegables hechos a mano** (`pos-marcas.js`, solo lo carga el
