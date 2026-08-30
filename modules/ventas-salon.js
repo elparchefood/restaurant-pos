@@ -4120,6 +4120,26 @@
     if (nuevoEstado === 'libre') {
       patch.pendiente_pago_at = null; patch.esperando_at = null; patch.comiendo_at = null;
     }
+    /*  ⚠️ MARCAR LA MESA SERVIDA TAMBIEN LO ANOTA EN EL PEDIDO (30-ago-2026).
+
+        Hasta hoy este cambio de estado solo tocaba `pos_tables`, y el pedido
+        no guardaba en ninguna parte a que hora llego la comida a la mesa:
+        medido, 0 de 136 mesas tenian `delivered_at`. Por eso el escritorio no
+        podia decir cuanto se demora la atencion en mesa — no es que el
+        calculo estuviera mal, es que el dato no se guardaba.
+
+        Se anota al pasar a "comiendo", que es justo cuando el mesero dice que
+        ya sirvio. Solo si el pedido no lo tenia ya: marcar dos veces no puede
+        mover la hora hacia adelante.                                       */
+    try {
+      if (nuevoEstado === 'comiendo' && t && t.current_order_id) {
+        await sb.from('pos_orders')
+          .update({ delivered_at: ahora.toISOString() })
+          .eq('id', t.current_order_id)
+          .is('delivered_at', null);
+      }
+    } catch (e) { console.warn('[VS] anotar la hora de servir:', e && e.message); }
+
     /*  MESAS UNIDAS (29-ago-2026): el estado va a TODO el grupo. Si solo
         cambiara la principal, en el plano se verían dos mesas unidas con dos
         colores distintos y dos relojes — y el mesero no sabría a cuál creerle.  */

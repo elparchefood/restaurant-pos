@@ -233,7 +233,12 @@ async function loadWaiters(branchId) {
 async function loadTodayOrders(branchId) {
   const { start, end } = todayRange();
   const q = sb.from('pos_orders')
-    .select('id,total,total_final,delivery_fee,status,channel,payment_method,created_at,waiter_name,waiter_id,table_id,pos_order_items(id,quantity,unit_price,total,product_id,pos_products(id,name,pos_categories(name)))')
+    /*  `cliente_id`, `guests` y `delivered_at` van en esta lista a proposito:
+        son los que alimentan Clientes, el ticket por persona y los dos
+        tiempos. Un select sin la columna NO da error — devuelve la fila sin
+        el dato — y los tres paneles saldrian vacios sin que nadie sepa por
+        que. Ya paso hoy con `logo_url` y con `periodo_fin`.               */
+    .select('id,total,total_final,delivery_fee,status,channel,payment_method,created_at,delivered_at,cliente_id,guests,waiter_name,waiter_id,table_id,pos_order_items(id,quantity,unit_price,total,product_id,pos_products(id,name,pos_categories(name)))')
     .gte('created_at', start).lte('created_at', end).neq('status','cancelled');
   if (branchId) q.eq('branch_id', branchId);
   const { data } = await q;
@@ -854,9 +859,22 @@ function renderMeseroDelDia(orders) {
   pctEl.textContent = (nm ? nm + (nm === 1 ? ' mesa' : ' mesas') + ' · ' : '') + p + '% de las ventas';
 }
 
+/*  ⚠️ ESTO CONTABA PEDIDOS Y LOS LLAMABA CLIENTES (30-ago-2026).
+
+    Buscaba `o.customer_id`, una columna que NO EXISTE — la real se llama
+    `cliente_id`. Como nunca encontraba nada, caía en el respaldo
+    `|| orders.length` y mostraba el número de PEDIDOS bajo el rótulo
+    "Clientes". Con 40 pedidos de 12 personas decía 40.
+
+    Medido en El Parche: 320 de 427 pedidos sí traen el cliente identificado,
+    asi que el dato de verdad estaba ahí todo el tiempo.
+
+    Y se dice cuantos NO se pudieron identificar, en vez de esconderlo: un
+    total que no cuadra con la caja se explica solo si se dice por que.      */
 function renderClientes(orders) {
-  const uniq = new Set(orders.filter(o => o.customer_id).map(o => o.customer_id));
-  const total = uniq.size || orders.length;
+  const uniq = new Set(orders.filter(o => o.cliente_id).map(o => o.cliente_id));
+  const sinIdentificar = orders.filter(o => !o.cliente_id).length;
+  const total = uniq.size;
   const grand = orders.reduce((s, o) => s + (o.total || 0), 0);
   const t = document.getElementById('clientes-total');
   if (t) t.textContent = total;
@@ -864,17 +882,34 @@ function renderClientes(orders) {
   if (cp) cp.textContent = total;
   const cpm = document.getElementById('clientes-per-meta');
   if (cpm) cpm.textContent = 'consumo ' + COPF(grand);
+
+  /*  EMPRESAS: se quita. No hay forma de saber cual cliente es una empresa —
+      `pos_clientes` no tiene ni tipo ni NIT — asi que ese numero estaba
+      escrito a mano en cero y no iba a cambiar nunca. En su sitio va lo que si
+      se sabe y ademas hace falta: cuantas ventas quedaron sin cliente.     */
   const ce  = document.getElementById('clientes-empresas');
-  if (ce) ce.textContent = '0';
+  if (ce) ce.textContent = String(sinIdentificar);
   const cem = document.getElementById('clientes-emp-meta');
-  if (cem) cem.textContent = 'con consumo de $0';
+  if (cem) cem.textContent = sinIdentificar === 1 ? 'venta sin identificar' : 'ventas sin identificar';
+  const cel = document.querySelector('#clientes-empresas');
+  if (cel && cel.previousElementSibling) cel.previousElementSibling.textContent = 'Sin cliente';
 }
 
 function renderTicketPromedio(orders) {
   const tot    = orders.reduce((s, o) => s + (o.total || 0), 0);
   const n      = orders.length || 1;
   const tVenta = Math.round(tot / n);
-  const tPers  = Math.round(tot / (n * 1.5 || 1));
+  /*  ⚠️ ANTES ERA `tot / (n * 1.5)`: un 1,5 escrito a mano, como si cada
+      pedido fuera de persona y media. El dato real existe — `guests`, el
+      numero de personas de la mesa — y esta lleno en los 427 pedidos de El
+      Parche, con un promedio de 1,89. Se usa ese.
+
+      Si un pedido no lo trae (una venta rapida, por ejemplo) cuenta como una
+      persona: es lo minimo cierto, no una suposicion.                      */
+  const personas = orders.reduce(function (a, o) {
+    return a + Math.max(1, Number(o.guests) || 1);
+  }, 0) || 1;
+  const tPers  = Math.round(tot / personas);
   const tv = document.getElementById('ticket-venta');
   if (tv) tv.textContent = COPF(tVenta);
   const tvm = document.getElementById('ticket-venta-meta');
@@ -882,7 +917,8 @@ function renderTicketPromedio(orders) {
   const tp = document.getElementById('ticket-persona');
   if (tp) tp.textContent = COPF(tPers);
   const tpm = document.getElementById('ticket-persona-meta');
-  if (tpm) tpm.textContent = 'estimado · ' + COPF(tot);
+  //  Ya no dice "estimado": ahora son personas contadas, no supuestas.
+  if (tpm) tpm.textContent = personas + (personas === 1 ? ' persona' : ' personas');
   if (S.chartData) {
     const prev  = S.chartData.lastWeek.reduce((s, d) => s + d.total, 0);
     const prevN = S.chartData.lastWeek.reduce((s, d) => s + d.count, 0) || 1;
@@ -969,14 +1005,50 @@ async function loadOpsKPIs(orders, branchId) {
   const totalOrders = orders.length + cancelled;
   const pctCancelled = totalOrders > 0 ? ((cancelled / totalOrders) * 100).toFixed(2) : '0.00';
 
+  /*  ⚠️ MEDIA UNA COLUMNA QUE NO EXISTE (30-ago-2026).
+
+      Buscaba `dispatched_at`, que NO esta en `pos_orders`. Por eso mostraba
+      una raya pasara lo que pasara. La marca de verdad es `delivered_at`.
+
+      Y se usa la MEDIANA, no el promedio: medido en El Parche, en venta
+      rapida el promedio da 178 minutos y la mediana 47. La diferencia son
+      unos pocos pedidos que alguien marco entregados horas despues, y con el
+      promedio esos pocos se comen el numero de todos los demas.
+
+      Se dice sobre cuantos pedidos esta calculado: un tiempo sin decir de
+      cuantos no se puede juzgar.                                           */
   let dispatchAvg = '—';
-  const withDispatch = orders.filter(o => o.dispatched_at && o.created_at);
-  if (withDispatch.length) {
-    const avg = withDispatch.reduce((s, o) => {
-      const diff = (new Date(o.dispatched_at) - new Date(o.created_at)) / 60000;
-      return s + diff;
-    }, 0) / withDispatch.length;
-    dispatchAvg = Math.round(avg) + ' min';
+  let dispatchSub = 'Del pedido a la entrega';
+  const conEntrega = orders
+    .filter(o => o.delivered_at && o.created_at)
+    .map(o => (new Date(o.delivered_at) - new Date(o.created_at)) / 60000)
+    .filter(m => m >= 0)
+    .sort((a, b) => a - b);
+  if (conEntrega.length) {
+    const mid = Math.floor(conEntrega.length / 2);
+    const mediana = conEntrega.length % 2
+      ? conEntrega[mid]
+      : (conEntrega[mid - 1] + conEntrega[mid]) / 2;
+    dispatchAvg = Math.round(mediana) + ' min';
+    dispatchSub = 'Mediana de ' + conEntrega.length + (conEntrega.length === 1 ? ' pedido' : ' pedidos');
+  } else {
+    dispatchSub = 'Aun sin entregas marcadas hoy';
+  }
+
+  //  Solo salon: los domicilios y las rapidas ya cuentan en el despacho.
+  let mesaAvg = '—', mesaSub = 'Del pedido a la mesa';
+  const enMesa = orders
+    .filter(o => o.table_id && o.delivered_at && o.created_at)
+    .map(o => (new Date(o.delivered_at) - new Date(o.created_at)) / 60000)
+    .filter(m => m >= 0)
+    .sort((a, b) => a - b);
+  if (enMesa.length) {
+    const m2 = Math.floor(enMesa.length / 2);
+    const med2 = enMesa.length % 2 ? enMesa[m2] : (enMesa[m2 - 1] + enMesa[m2]) / 2;
+    mesaAvg = Math.round(med2) + ' min';
+    mesaSub = 'Mediana de ' + enMesa.length + (enMesa.length === 1 ? ' mesa' : ' mesas');
+  } else {
+    mesaSub = 'Se llena al marcar la mesa servida';
   }
 
   const tables = new Set(orders.filter(o => o.table_id).map(o => o.table_id));
@@ -990,8 +1062,13 @@ async function loadOpsKPIs(orders, branchId) {
 
   const ITEMS = [
     { label:'Ventas anuladas',       value:String(cancelled),     sub:pctCancelled+'% de las ventas ('+totalOrders+')', icon:'x',     tone:cancelled>0?'warn':'neutral' },
-    { label:'Tiempo de despacho',    value:dispatchAvg,           sub:'Frecuencia de atencion',                          icon:'clock', tone:'neutral' },
-    { label:'Atencion en mesa',      value:'Sin datos',           sub:'Encuestas de satisfaccion',                      icon:'user',  tone:'neutral' },
+    { label:'Tiempo de despacho',    value:dispatchAvg,           sub:dispatchSub,                                      icon:'clock', tone:'neutral' },
+    /*  ATENCION EN MESA: lo mismo pero SOLO del salon — cuanto pasa desde que
+        se toma el pedido hasta que la comida llega a la mesa. Hasta hoy el
+        salon no marcaba la entrega en ninguna parte (0 de 136 mesas), asi que
+        este numero empieza a existir desde que se marca la mesa como
+        "comiendo". Mientras no haya, se dice; no se pone "Sin datos" fijo. */
+    { label:'Atencion en mesa',      value:mesaAvg,               sub:mesaSub,                                          icon:'user',  tone:'neutral' },
     { label:'Mesas atendidas',       value:String(tables.size||0), sub:'Salon · pedidos activos',                    icon:'table', tone:tables.size>0?'up':'neutral' },
   ];
 
