@@ -4077,15 +4077,36 @@ console.log('[POS Events] Sistema de eventos listo');
   }
 
   async function _printHtml(html, docType, area) {
+    /*  ⚠️ SI LA IMPRESORA FALLA, ESTO NO PUEDE TERMINAR BIEN.
+
+        Sergio, 29-ago-2026, en pleno turno: *«al hacer el pedido no imprimió
+        la comanda, la tuve que imprimir manual»* — y el pedido quedó marcado
+        como impreso en la base.
+
+        Aquí estaba el porqué. Cuando la impresión silenciosa fallaba, se
+        escribía un aviso en la consola —que en la caja no mira nadie— y la
+        función **seguía de largo y terminaba sin error**. Quien la llamó daba
+        la comanda por impresa, marcaba `printed_at`, y el papel nunca salió.
+        El respaldo web tampoco servía: engancha un `onload` y devuelve al
+        instante, sin esperar a que se imprima nada.
+
+        Ahora, si el equipo TIENE impresora y falla, se lanza el error. Con eso
+        el reintento vuelve a intentarlo, y si tampoco sale, `printed_at` se
+        libera y el aviso rojo aparece en pantalla. Mejor un error a la vista
+        que una cocina esperando una comanda que nadie va a llevar.
+
+        El respaldo web se queda SOLO para los equipos sin impresora conectada
+        (un navegador cualquiera): ahí abrir el diálogo es lo mejor que se
+        puede hacer.                                                          */
     if (window.electronPOS && window.electronPOS.printHtmlSilent) {
-      try {
-        var printerName = await _getTargetPrinter(docType || 'comanda', area);
-        var result = await window.electronPOS.printHtmlSilent(html, printerName);
-        if (result && result.ok) return;
-        console.warn('[posprint] silent print falló, fallback web:', result && result.error);
-      } catch(e) { console.warn('[posprint] silent print excepción:', e); }
+      var printerName = await _getTargetPrinter(docType || 'comanda', area);
+      var result = await window.electronPOS.printHtmlSilent(html, printerName);
+      if (result && result.ok) return;
+      var motivo = (result && result.error) || 'la impresora no confirmó';
+      console.error('[posprint] la impresora no imprimió:', motivo);
+      throw new Error(motivo);
     }
-    // Fallback: impresión web normal (abre diálogo)
+    // Sin impresora conectada: impresión web normal (abre diálogo)
     var existing = document.getElementById('pos-print-frame');
     if (existing) existing.remove();
     var iframe = document.createElement('iframe');
@@ -4381,7 +4402,19 @@ console.log('[POS Events] Sistema de eventos listo');
       // Se marca "enviado a cocina" solo cuando el pedido de verdad está en
       // cocina (visible_cocina). En prepago sin pagar (no visible) NO se marca:
       // así la comanda pendiente reimprime completa hasta que se cobre.
-      var marcar = !force && !!order.visible_cocina;
+      /*  ⚠️ `visible_cocina` NO alcanza para saber si esta comanda cuenta.
+
+          Con el cobro adelantado, un pedido de salón nunca la lleva — y con
+          `marcar` en false no se reclama el candado (dos equipos pueden
+          imprimir la misma comanda) ni se marcan los ítems (al agregar algo a
+          esa mesa se reimprime el pedido entero). Las dos cosas se vieron hoy.
+
+          Mismo criterio que el receptor: lleva la marca, o es de salón y ya se
+          envió a cocina.                                                     */
+      var _enviado = ['in_progress', 'ready', 'paid', 'completed', 'pendiente_pago']
+                       .indexOf(String(order.status || '')) >= 0;
+      var marcar = !force && (!!order.visible_cocina ||
+                     (String(order.channel || '') === 'salon' && _enviado));
 
       var items = fuente.map(function (it) {
         var sel = it.selections || {};
