@@ -1260,13 +1260,46 @@
         No estorba: corre despues de pintar, sin await, una mesa a la vez, y
         solo si no se trajo en el ultimo minuto. En El Parche son 2-4 mesas
         ocupadas — dos consultas chiquitas por recarga del plano. */
+    /*  ══ LA CUENTA, LISTA ANTES DE QUE LA PIDAN ══════════════════════════
+
+        Sergio, 29-ago-2026: *«acabo de cobrar un domicilio y se demoró
+        abriendo la pantalla de pago, pero se supone que los datos ya deben
+        haber cargado en segundo plano»*. Y tenía razón: esto solo recorría
+        `state.tables`. **Los domicilios y las ventas rápidas nunca se
+        precargaban** — se cobran igual de seguido que una mesa y llegaban a la
+        pantalla de pago con las manos vacías.
+
+        Ahora entran los tres canales. Se piden de a uno y en segundo plano: no
+        es una carrera, es tener la cuenta lista para cuando la toquen.
+
+        El orden importa: primero lo que TODAVÍA NO SE HA COBRADO, que es lo
+        único que alguien va a abrir para cobrar. Un pedido ya pagado se abre
+        para mirarlo, y ahí medio segundo no molesta a nadie.               */
     setTimeout(async function precargarCobros() {
       try {
         if (!window.posCache) return;
-        const ids = (state.tables || [])
+
+        const deMesas = (state.tables || [])
           .filter(function (t) { return t.current_order_id && t.status !== 'libre'; })
-          .map(function (t) { return t.current_order_id; })
-          .slice(0, 8);
+          .map(function (t) { return { id: t.current_order_id, pagado: false }; });
+
+        const deDomis = (state.deliveries || [])
+          .filter(function (d) { return d && d.id && d.estado !== 'entregado'; })
+          .map(function (d) { return { id: d.id, pagado: d.payStatus === 'pagado' }; });
+
+        const deRapidas = (state.quickOrders || [])
+          .filter(function (q) { return q && q.id; })
+          .map(function (q) { return { id: q.id, pagado: q.payStatus === 'pagado' }; });
+
+        const todos = deMesas.concat(deDomis, deRapidas);
+        //  Sin repetidos: una mesa y su pedido pueden venir por dos caminos.
+        const vistos = {};
+        const ids = todos
+          .filter(function (x) { if (vistos[x.id]) return false; vistos[x.id] = 1; return true; })
+          .sort(function (a2, b2) { return (a2.pagado ? 1 : 0) - (b2.pagado ? 1 : 0); })
+          .map(function (x) { return x.id; })
+          .slice(0, 14);
+
         for (const oid of ids) {
           const ya = posCache.leer('pago.' + oid);
           if (ya && ya.edadSeg < 60) continue;
@@ -1885,7 +1918,6 @@
           <div class="vs-mesa-footer-active">
             <div class="vs-mesa-footer-left">
               <span class="vs-mesa-items">${d.items} ítems · <span style="color:${payColor};font-weight:600">${payLabel}</span></span>
-              ${vsDomiPorCobrar(d) ? `<span class="vs-domi-cobrar">${SVG_MOTO(9)} El domi cobra ${fmtCurrency(vsDomiPorCobrar(d))}</span>` : ''}
             </div>
             <div class="vs-mesa-total">${fmtCurrency(d.total)}</div>
           </div>
