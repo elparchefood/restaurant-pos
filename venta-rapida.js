@@ -1372,9 +1372,33 @@ async function loadCatalog() {
       const { error: itemErr } = await sb.from('pos_order_items').insert(items);
       if (itemErr) {
         console.error('[venta rapida] los productos no se guardaron:', itemErr);
+        /*  ⚠️ EL MOTIVO, A LA VISTA Y GUARDADO.
+
+            29-ago, 22:00. Todos los pedidos de venta rápida están quedando sin
+            productos y yo llevo tres hipótesis sin acertar: probé los permisos,
+            probé las políticas de seguridad con la sesión real de la cajera, y
+            las dos dejan insertar. Me falta EL ERROR, y estaba yendo solo a la
+            consola.
+
+            Ahora sale en el aviso de pantalla y queda escrito en `pos_diag`,
+            con las tres cosas que hacen falta para entenderlo: el mensaje de la
+            base, cuántos productos tenía el carrito y cómo se ve el primero.  */
+        var _motivo = (itemErr && (itemErr.message || itemErr.details || itemErr.code)) || 'sin detalle';
+        try {
+          await sb.from('pos_diag').insert({
+            donde: 'venta-rapida/items',
+            mensaje: String(_motivo).slice(0, 300),
+            extra: {
+              codigo: itemErr && itemErr.code,
+              detalle: itemErr && itemErr.details,
+              pista: itemErr && itemErr.hint,
+              cuantos: items.length,
+              primera: items[0] || null,
+            },
+          });
+        } catch (e) { /* si ni el diagnóstico entra, queda el aviso en pantalla */ }
         await _deshacerSiNuevo(sb, _esNuevo);
-        throw new Error('No se pudieron guardar los productos del pedido. '
-                      + 'No se creó nada: vuelve a intentarlo.');
+        throw new Error('No se pudieron guardar los productos: ' + _motivo);
       }
       //  Entraron los nuevos: recién ahora se pueden borrar los de antes.
       if (_viejos && _viejos.length) {
