@@ -13,7 +13,7 @@
    Los límites viven en la tabla `pos_planes`, no aquí: así se ajustan sin
    tocar código.
 
-   EL SWITCH YA ESTÁ (ver _cambiarHTML más abajo). Este comentario decía que
+   EL SWITCH YA ESTA (hoy son los tres desplegables). Este comentario decia que
    no, y siguió diciéndolo mucho después de que se construyó: se apoya en
    window.posContexto, que es justo el contexto central que aquí se echaba de
    menos. Se corrige el 23-ago-2026, junto con el aviso que le repetía lo
@@ -44,7 +44,20 @@
     '.pm-btn.ghost{background:#fff;border:1px solid #ECEEF2;color:#64748B}',
     '.pm-btn.main{background:#5B6BFF;color:#fff}',
     '.pm-btn.main:disabled{opacity:.6;cursor:default}',
-    '.pm-tope{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;border-radius:12px;padding:13px 15px;font-size:13px;line-height:1.55}'
+    '.pm-tope{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;border-radius:12px;padding:13px 15px;font-size:13px;line-height:1.55}',
+    /*  Los tres desplegables del menu. Antes esto era una lista de todas las
+        sucursales, una debajo de otra, mas dos botones sueltos de "crear". */
+    '.pm-sel-w{padding:4px 14px 10px}',
+    '.pm-sel-l{font-size:11px;font-weight:600;color:#64748B;margin-bottom:4px}',
+    '.pm-sel{width:100%;appearance:none;-webkit-appearance:none;border:1px solid #ECEEF2;',
+    '  border-radius:10px;padding:9px 30px 9px 11px;font-family:inherit;font-size:13px;',
+    '  font-weight:600;color:#0F172A;background:#fff;cursor:pointer;outline:none;',
+    "  background-image:url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>\");",
+    '  background-repeat:no-repeat;background-position:right 9px center}',
+    '.pm-sel:hover{border-color:#DCE0E8}',
+    '.pm-sel:focus{border-color:#5B6BFF;box-shadow:0 0 0 3px rgba(91,107,255,.12)}',
+    '.pm-sel:disabled{background-color:#F8FAFC;color:#64748B;cursor:default}',
+    '.pm-nota{font-size:11px;color:#94A3B8;padding:0 14px 10px;line-height:1.45}'
   ].join('');
 
   function css() {
@@ -77,11 +90,28 @@
     var tenantId = (u.user_metadata && u.user_metadata.tenant_id) || u.id;
     var branchId = (u.user_metadata && u.user_metadata.branch_id) || window._branchId || null;
 
-    var t = await s.from('tenants').select('plan,status').eq('id', tenantId).maybeSingle();
+    /*  LAS CUATRO CONSULTAS VAN A LA VEZ (30-ago-2026).
+
+        Estaban una detras de otra con `await`, y como el plan hacia falta para
+        pedir sus limites parecian encadenadas de verdad. No lo estaban: se
+        piden TODOS los planes de una (son tres filas) y el del restaurante se
+        escoge aqui mismo. Cuatro viajes de ~250 ms pasan a uno.
+
+        Y de paso hacen falta todos para el desplegable de plan.            */
+    var _r = await Promise.all([
+      /*  Las fechas van en esta lista a proposito: un `select` sin la columna
+          NO da error, devuelve la fila sin el dato — y el prorrateo saldria
+          en cero sin que nadie sepa por que.                              */
+      s.from('tenants').select('plan,status,periodo_inicio,periodo_fin,saldo_favor,pagado_periodo')
+        .eq('id', tenantId).maybeSingle(),
+      s.from('pos_planes').select('*').order('orden', { nullsFirst: false }),
+      s.from('brands').select('id,name,email_domain').eq('tenant_id', tenantId).order('name'),
+      s.from('branches').select('id,name,brand_id').eq('tenant_id', tenantId).order('name')
+    ]);
+    var t = _r[0], planes = _r[1], marcas = _r[2], sucs = _r[3];
     var plan = (t.data && t.data.plan) || 'starter';
-    var lim = await s.from('pos_planes').select('*').eq('plan', plan).maybeSingle();
-    var marcas = await s.from('brands').select('id,name,email_domain').eq('tenant_id', tenantId).order('name');
-    var sucs = await s.from('branches').select('id,name,brand_id').eq('tenant_id', tenantId).order('name');
+    var todosPlanes = planes.data || [];
+    var lim = { data: todosPlanes.filter(function (x) { return x.plan === plan; })[0] || null };
 
     var suc = (sucs.data || []).filter(function (x) { return x.id === branchId; })[0] || (sucs.data || [])[0] || null;
     var marca = (marcas.data || []).filter(function (x) { return suc && x.id === suc.brand_id; })[0] || (marcas.data || [])[0] || null;
@@ -89,6 +119,14 @@
     ctx = {
       tenantId: tenantId, plan: plan,
       limites: lim.data || { max_marcas: 1, max_sucursales: 1 },
+      /*  Solo los que se VENDEN salen en el desplegable. El plan interno de
+          Sergio (`premium`, `a_la_venta = false`) no se le ofrece a nadie —
+          pero si es el suyo, se muestra como el que tiene puesto.          */
+      planes: todosPlanes.filter(function (x) { return x.a_la_venta; }),
+      planActual: lim.data || null,
+      periodoFin: (t.data && t.data.periodo_fin) || null,
+      saldoFavor: Number((t.data && t.data.saldo_favor) || 0),
+      pagadoPeriodo: (t.data && t.data.pagado_periodo != null) ? Number(t.data.pagado_periodo) : null,
       marcas: marcas.data || [], sucursales: sucs.data || [],
       marca: marca, sucursal: suc
     };
@@ -119,62 +157,46 @@
     });
   }
 
-  /* ══ EL SWITCH: cambiar de marca y de sucursal ══
-     Regla de Sergio: "en el desplegable no pueden aparecer todas las
-     sucursales revueltas: se debe escoger la marca y luego la sucursal".
-     Por eso van en dos niveles — marca, y debajo SOLO sus sucursales.
+  /*  Aqui vivian `_cambiarHTML` y `_engancharCambiar`, que pintaban la lista
+      larga de sucursales con su palomita verde. Las reemplazaron los tres
+      desplegables de abajo (30-ago-2026).                                   */
 
-     Se apoya en window.posContexto (pos-core), que es quien sabe cuales tiene
-     PERMITIDAS este usuario. Si solo hay una marca no se pinta el nivel de
-     marcas: seria una fila que no decide nada. Y si solo hay una sucursal, no
-     se pinta nada: no hay nada entre lo que elegir. */
-  function _cambiarHTML() {
-    var C = window.posContexto;
-    if (!C) return '';
-    var sucs = C.sucursales(), marcas = C.marcas();
-    if (sucs.length < 2) return '';
+  // ── Lo que se inyecta en el desplegable ────────────────────────────────
+  /*  TRES DESPLEGABLES, NI UN BOTON SUELTO (30-ago-2026, pedido por Sergio).
 
-    var actual = C.sucursalId(), marcaAct = C.marcaId();
-    var h = '<div class="user-dropdown-divider"></div>'
-          + '<div class="pm-sec">Cambiar de ' + (marcas.length > 1 ? 'marca o sucursal' : 'sucursal') + '</div>';
+      Antes esto pintaba: la fila del plan, una LISTA con todas las sucursales
+      del restaurante una debajo de otra, y dos botones sueltos de "Crear nueva
+      marca" y "Crear nueva sucursal". Sergio: *"no me gustan todos esos
+      botones... me gustaría que simplemente hayan dos desplegables"*. Y tiene
+      razon: con dos marcas y cinco sucursales ese menu era una escalera.
 
-    marcas.forEach(function (m) {
-      var suyas = C.sucursalesDe(m.id);
-      if (!suyas.length) return;
-      if (marcas.length > 1) {
-        h += '<div class="pm-row" style="padding-bottom:2px">'
-           + '<b style="font-size:11.5px">' + esc(m.name) + '</b>'
-           + (m.id === marcaAct ? '<span class="pm-plan" style="margin-left:auto">ACTUAL</span>' : '')
-           + '</div>';
-      }
-      suyas.forEach(function (s) {
-        var esta = s.id === actual;
-        h += '<button class="user-dropdown-item pm-ir" data-suc="' + esc(s.id) + '"'
-           + (esta ? ' disabled style="opacity:.55;cursor:default"' : '') + '>'
-           + '<span style="width:15px;display:inline-flex;justify-content:center">'
-           + (esta
-              ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
-              : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>')
-           + '</span>'
-           + (marcas.length > 1 ? '<span style="padding-left:4px">' : '<span>') + esc(s.name) + '</span>'
-           + '</button>';
-      });
-    });
+      Ahora son tres listas y nada mas:
+        · el plan     — solo los que se VENDEN (Starter y Pro)
+        · la marca    — al cambiarla, la de abajo se rellena con SUS sucursales
+        · la sucursal — esta es la que cambia de verdad el contexto
+
+      "Crear nueva" deja de ser un boton y pasa a ser la ultima opcion de cada
+      lista. Asi, un restaurante con una marca y una sucursal abre y ve su
+      nombre y "crear nueva". Nada mas.
+
+      Ojo con el orden: cambiar la MARCA no cambia de contexto — solo rellena
+      la lista de abajo. Si cambiara de una, el usuario no alcanzaria a escoger
+      sucursal porque la pantalla se recarga.                                */
+  function _opt(valor, texto, sel) {
+    return '<option value="' + esc(valor) + '"' + (sel ? ' selected' : '') + '>' + esc(texto) + '</option>';
+  }
+
+  function _sucsHTML(marcaId) {
+    var lista = sucursalesDeMarca(marcaId);
+    var actual = ctx.sucursal ? ctx.sucursal.id : null;
+    var h = lista.map(function (x) { return _opt(x.id, x.name, x.id === actual); }).join('');
+    if (!lista.length) h = _opt('', 'Esta marca no tiene sucursales', true);
+    var topeS = ctx.limites.max_sucursales;
+    var puedeSuc = (topeS == null) || lista.length < topeS;
+    h += _opt('__nueva', puedeSuc ? '+  Crear nueva sucursal' : '\u2191  Mejora tu plan para más sucursales', false);
     return h;
   }
 
-  function _engancharCambiar(div) {
-    div.querySelectorAll('.pm-ir').forEach(function (b) {
-      b.addEventListener('click', function (e) {
-        e.stopPropagation();
-        if (b.disabled) return;
-        b.textContent = 'Cambiando…';
-        window.posContexto.cambiar(b.dataset.suc);   // valida y recarga
-      });
-    });
-  }
-
-  // ── Lo que se inyecta en el desplegable ────────────────────────────────
   function pintar() {
     var dd = document.getElementById('user-dropdown');
     if (!dd || !ctx) return;
@@ -182,49 +204,237 @@
     if (viejo) viejo.remove();
 
     var nMarcas = ctx.marcas.length;
-    var nSucs = sucursalesDeMarca(ctx.marca && ctx.marca.id).length;
-    var topeM = ctx.limites.max_marcas;      // null = sin límite
-    var topeS = ctx.limites.max_sucursales;
+    var marcaId = ctx.marca ? ctx.marca.id : null;
+    var topeM = ctx.limites.max_marcas;
     var puedeMarca = (topeM == null) || nMarcas < topeM;
-    var puedeSuc = (topeS == null) || nSucs < topeS;
+
+    //  El plan: los que se venden, mas el suyo si no esta a la venta (el
+    //  interno de Sergio). Ese se ve pero no se puede escoger desde aqui.
+    var planes = ctx.planes || [];
+    var suyoEstaEnLista = planes.some(function (x) { return x.plan === ctx.plan; });
+    var planHTML = planes.map(function (x) {
+      return _opt(x.plan, x.nombre + '  ·  $' + Number(x.precio || 0).toLocaleString('es-CO'), x.plan === ctx.plan);
+    }).join('');
+    if (!suyoEstaEnLista) {
+      var nom = (ctx.planActual && ctx.planActual.nombre) || ctx.plan;
+      planHTML = _opt(ctx.plan, nom, true) + planHTML;
+    }
+
+    var marcaHTML = ctx.marcas.map(function (x) { return _opt(x.id, x.name, x.id === marcaId); }).join('')
+      + _opt('__nueva', puedeMarca ? '+  Crear nueva marca' : '\u2191  Mejora tu plan para más marcas', false);
 
     var div = document.createElement('div');
     div.id = 'pm-bloque';
     div.innerHTML =
         '<div class="user-dropdown-divider"></div>'
       + '<div class="pm-sec">Tu plan</div>'
-      + '<div class="pm-row"><span class="pm-ic">'
-      +   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
-      +   '</span><span>Plan contratado</span>'
-      +   '<span class="pm-plan">' + esc((ctx.limites.nombre || ctx.plan).toUpperCase()) + '</span></div>'
+      + '<div class="pm-sel-w"><select class="pm-sel" id="pm-plan">' + planHTML + '</select></div>'
       + '<div class="user-dropdown-divider"></div>'
       + '<div class="pm-sec">Estás trabajando en</div>'
-      + '<div class="pm-row"><span class="pm-ic">'
-      +   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>'
-      +   '</span><span><b>' + esc(ctx.marca ? ctx.marca.name : '—') + '</b>'
-      +   '<div class="pm-sub">' + esc(ctx.sucursal ? ctx.sucursal.name : '—') + ' · '
-      +     nMarcas + ' marca' + (nMarcas === 1 ? '' : 's') + ' · ' + nSucs + ' sucursal' + (nSucs === 1 ? '' : 'es')
-      +   '</div></span></div>'
-      + _cambiarHTML()
-      + '<button class="user-dropdown-item" id="pm-nueva-marca">'
-      +   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
-      +   (puedeMarca ? 'Crear nueva marca' : 'Crear marca (mejora tu plan)') + '</button>'
-      + '<button class="user-dropdown-item" id="pm-nueva-suc">'
-      +   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
-      +   (puedeSuc ? 'Crear nueva sucursal' : 'Crear sucursal (mejora tu plan)') + '</button>';
-
-    _engancharCambiar(div);
+      + '<div class="pm-sel-w"><div class="pm-sel-l">Marca</div>'
+      +   '<select class="pm-sel" id="pm-marca">' + marcaHTML + '</select></div>'
+      + '<div class="pm-sel-w"><div class="pm-sel-l">Sucursal</div>'
+      +   '<select class="pm-sel" id="pm-suc">' + _sucsHTML(marcaId) + '</select></div>'
+      + '<div class="pm-nota" id="pm-nota"></div>';
 
     var ref = dd.querySelector('.user-dropdown-divider');
     if (ref) dd.insertBefore(div, ref); else dd.appendChild(div);
 
-    document.getElementById('pm-nueva-marca').addEventListener('click', function (e) {
-      e.stopPropagation();
-      puedeMarca ? modalMarca() : modalTope('marca', nMarcas, topeM);
+    var selPlan = document.getElementById('pm-plan');
+    var selMarca = document.getElementById('pm-marca');
+    var selSuc = document.getElementById('pm-suc');
+
+    //  Que un clic dentro del menu no lo cierre.
+    [selPlan, selMarca, selSuc].forEach(function (el) {
+      el.addEventListener('click', function (e) { e.stopPropagation(); });
     });
-    document.getElementById('pm-nueva-suc').addEventListener('click', function (e) {
+
+    /*  LA MARCA SOLO FILTRA. Cambiarla rellena la lista de abajo con SUS
+        sucursales y deja al usuario escoger; no cambia de contexto todavia. */
+    selMarca.addEventListener('change', function (e) {
       e.stopPropagation();
-      puedeSuc ? modalSucursal() : modalTope('sucursal', nSucs, topeS);
+      if (selMarca.value === '__nueva') {
+        selMarca.value = marcaId || '';
+        puedeMarca ? modalMarca() : modalTope('marca', nMarcas, topeM);
+        return;
+      }
+      selSuc.innerHTML = _sucsHTML(selMarca.value);
+      var n = sucursalesDeMarca(selMarca.value).length;
+      document.getElementById('pm-nota').textContent = n
+        ? 'Elige una sucursal para trabajar en esa marca.'
+        : 'Esta marca todavía no tiene sucursales.';
+    });
+
+    //  LA SUCURSAL SI CAMBIA EL CONTEXTO: valida y recarga la pantalla.
+    selSuc.addEventListener('change', function (e) {
+      e.stopPropagation();
+      var v = selSuc.value;
+      if (v === '__nueva') {
+        selSuc.innerHTML = _sucsHTML(selMarca.value);
+        var lista = sucursalesDeMarca(selMarca.value);
+        var topeS = ctx.limites.max_sucursales;
+        ((topeS == null) || lista.length < topeS)
+          ? modalSucursal() : modalTope('sucursal', lista.length, topeS);
+        return;
+      }
+      if (!v || (ctx.sucursal && v === ctx.sucursal.id)) return;
+      document.getElementById('pm-nota').textContent = 'Cambiando…';
+      window.posContexto.cambiar(v);
+    });
+
+    /*  EL PLAN. Por ahora avisa y no cobra: el cambio con prorrateo necesita
+        las fechas de la suscripcion, que HOY NO EXISTEN en la base (`tenants`
+        solo guarda `plan`). Se hace en el siguiente paso; mientras tanto es
+        preferible no ofrecer un boton que mueva plata sin saber las fechas. */
+    selPlan.addEventListener('change', function (e) {
+      e.stopPropagation();
+      var nuevo = selPlan.value;
+      selPlan.value = ctx.plan;
+      if (nuevo === ctx.plan) return;
+      var destino = (ctx.planes || []).filter(function (x) { return x.plan === nuevo; })[0];
+      modalPlan(destino);
+    });
+  }
+
+  /*  ══ CAMBIO DE PLAN ═══════════════════════════════════════════════════
+
+      Las reglas son de Sergio y cada una cierra un hueco real:
+
+      · **El saldo a favor es LA DIFERENCIA entre planes** por los dias que
+        sobran, jamas el precio completo. Si fuera el completo, alguien podria
+        subir a Pro pagando solo la diferencia por unos dias, bajarse al dia
+        siguiente y recibir MAS saldo del que pago — repitiendo el ciclo, el
+        sistema le sale gratis.
+      · **El saldo nunca pasa de lo que de verdad se pago** en el periodo. Sin
+        ese tope, un mes de promocion se convertiria en saldo real.
+      · **Cambiar de plan NO mueve el vencimiento.** Si lo moviera, se podria
+        estirar la fecha a base de cambios.
+      · **Al SUBIR, el plan nuevo no se activa hasta que el pago se verifique.**
+        Decision expresa de Sergio: si se activara antes, cualquiera sube y no
+        paga. Por eso subir deja un cobro pendiente y NO toca `plan`.
+      · **Al BAJAR, el cambio es inmediato** y se pierden las funciones de una:
+        si solo cambiara la etiqueta, se bajaria, cobraria el saldo y seguiria
+        usando lo de arriba gratis.                                          */
+
+  function _diasQueSobran() {
+    if (!ctx.periodoFin) return null;          // sin fecha no se puede prorratear
+    var fin = new Date(ctx.periodoFin + 'T23:59:59');
+    var d = Math.ceil((fin.getTime() - Date.now()) / 86400000);
+    return d > 0 ? d : 0;
+  }
+
+  function _cop(n) { return '$' + Math.round(n).toLocaleString('es-CO'); }
+
+  /*  Lo que se gana o se pierde. Solo se nombran las llaves que de verdad
+      frenan algo hoy: comprobado en el codigo, de las 13 que existen solo
+      `puntos` y `nfc` se preguntan en algun sitio. Prometer que se pierde
+      "kardex" cuando nada lo comprueba seria mentirle al que paga.          */
+  var NOMBRES = { puntos: 'los puntos de fidelidad', nfc: 'el saldo del cliente' };
+
+  function _difFunciones(desde, hasta) {
+    var a = (desde && desde.funciones) || [], b = (hasta && hasta.funciones) || [];
+    return a.filter(function (k) { return b.indexOf(k) < 0 && NOMBRES[k]; })
+            .map(function (k) { return NOMBRES[k]; });
+  }
+
+  function modalPlan(destino) {
+    if (!destino) return;
+    var actual = ctx.planActual || { precio: 0, nombre: ctx.plan, funciones: [] };
+    var pAct = Number(actual.precio) || 0;
+    var pNue = Number(destino.precio) || 0;
+    var baja = pNue < pAct;
+    var dias = _diasQueSobran();
+    var DIAS_MES = 30;
+
+    //  Siempre sobre la DIFERENCIA, nunca sobre el precio completo.
+    var monto = (dias == null) ? null
+      : Math.abs(pAct - pNue) * Math.min(dias, DIAS_MES) / DIAS_MES;
+    //  Y el saldo nunca puede pasar de lo que de verdad entro por el periodo.
+    if (baja && monto != null && ctx.pagadoPeriodo != null) monto = Math.min(monto, ctx.pagadoPeriodo);
+
+    var pierde = baja ? _difFunciones(actual, destino) : [];
+    var gana = baja ? [] : _difFunciones(destino, actual);
+
+    var topeM = destino.max_marcas;
+    var apretado = (topeM != null) && ctx.marcas.length > topeM;
+
+    var cuerpo = '';
+    if (baja) {
+      cuerpo += '<div class="pm-tope"><b>Vas a bajar a ' + esc(destino.nombre) + '.</b><br>'
+        + (pierde.length ? 'Dejas de tener ' + esc(pierde.join(' y ')) + '. ' : '')
+        + 'El cambio es inmediato.'
+        + (apretado ? '<br><br>Tienes ' + ctx.marcas.length + ' marcas y ' + esc(destino.nombre)
+            + ' permite ' + topeM + '. No se borra ninguna, pero no podrás crear más.' : '')
+        + '</div>';
+      cuerpo += monto == null
+        ? '<div class="pm-nota" style="padding:0">No tenemos la fecha de tu período, así que este cambio no genera saldo a favor.</div>'
+        : '<div class="pm-row" style="padding:0"><span>Te quedan <b>' + dias + ' días</b> pagados de '
+          + esc(actual.nombre) + '. Se te descuentan <b>' + _cop(monto)
+          + '</b> de tu próxima factura.</span></div>';
+    } else {
+      cuerpo += '<div class="pm-tope" style="background:#EEF2FF;border-color:#C7D2FE;color:#3730A3">'
+        + '<b>Vas a subir a ' + esc(destino.nombre) + '.</b>'
+        + (gana.length ? '<br>Vas a tener ' + esc(gana.join(' y ')) + '.' : '') + '</div>';
+      cuerpo += monto == null
+        ? '<div class="pm-nota" style="padding:0">No tenemos la fecha de tu período: se te cobrará el mes completo de '
+          + esc(destino.nombre) + '.</div>'
+        : '<div class="pm-row" style="padding:0"><span>Para terminar el mes en ' + esc(destino.nombre)
+          + ' pagas <b>' + _cop(monto) + '</b> por los <b>' + dias + ' días</b> que faltan. '
+          + 'Del próximo mes en adelante, ' + _cop(pNue) + '.</span></div>';
+      cuerpo += '<div class="pm-nota" style="padding:0">' + esc(destino.nombre)
+        + ' se activa cuando confirmemos tu pago.</div>';
+    }
+
+    var ov = document.createElement('div');
+    ov.className = 'pm-ov';
+    ov.innerHTML = '<div class="pm-modal">'
+      + '<div class="pm-head"><div class="pm-title">Cambiar a ' + esc(destino.nombre) + '</div></div>'
+      + '<div class="pm-body">' + cuerpo + '<div class="pm-err" id="pm-plan-err"></div></div>'
+      + '<div class="pm-foot"><button class="pm-btn ghost" id="pm-plan-no">Cancelar</button>'
+      + '<button class="pm-btn main" id="pm-plan-si">'
+      + (baja ? 'Sí, bajar a ' + esc(destino.nombre) : 'Continuar al pago') + '</button></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    document.getElementById('pm-plan-no').addEventListener('click', function () { ov.remove(); });
+
+    document.getElementById('pm-plan-si').addEventListener('click', async function () {
+      var btn = this; btn.disabled = true; btn.textContent = 'Un momento…';
+      var err = document.getElementById('pm-plan-err');
+      try {
+        var s2 = sb();
+        if (baja) {
+          /*  Baja: se aplica YA. El vencimiento no se toca a proposito.  */
+          var r = await s2.from('tenants').update({
+            plan: destino.plan,
+            saldo_favor: Number(ctx.saldoFavor || 0) + (monto || 0)
+          }).eq('id', ctx.tenantId).select('plan');
+          if (r.error || !(r.data && r.data.length)) throw (r.error || new Error('no se pudo cambiar'));
+          location.reload();
+        } else {
+          /*  Sube: NO se toca `plan`. Queda el cobro pendiente y el plan nuevo
+              entra cuando el pago se verifique.                            */
+          var r2 = await s2.from('pos_pagos_suscripcion').insert({
+            tenant_id: ctx.tenantId,
+            plan: destino.plan,
+            periodo: 'prorrateo',
+            monto: (monto == null ? pNue : monto),
+            status: 'pendiente',
+            nota: (monto == null
+              ? 'Cambio a ' + destino.nombre + ' (mes completo: sin fecha de período)'
+              : 'Diferencia por ' + dias + ' días para subir a ' + destino.nombre)
+          }).select('id');
+          if (r2.error || !(r2.data && r2.data.length)) throw (r2.error || new Error('no se pudo registrar'));
+          ov.remove();
+          aviso('Listo, falta el pago',
+            'Registramos tu cambio a ' + destino.nombre + '. Se activa apenas confirmemos el pago de '
+            + _cop(monto == null ? pNue : monto) + '.');
+        }
+      } catch (e) {
+        console.error('[plan] cambio:', e);
+        err.textContent = 'No se pudo: ' + ((e && e.message) || e);
+        btn.disabled = false;
+        btn.textContent = baja ? 'Sí, bajar a ' + destino.nombre : 'Continuar al pago';
+      }
     });
   }
 
