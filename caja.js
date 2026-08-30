@@ -1030,6 +1030,15 @@ function cjDomiCustodio(o) {
              nombre: o.domiciliario || 'Domiciliario',
              domiciliario_id: o.domiciliario_id, movil: null };
   }
+  /*  Sin id de usuario pero CON nombre escrito: se agrupa por el nombre. Le
+      pasa a quien anota "se lo llevo Andres" sin que Andres tenga usuario en
+      Cobra — y decirle "Domiciliario sin anotar" cuando el SI lo anoto seria
+      darle la razon al revés.                                             */
+  var nom = String((o && o.domiciliario) || '').trim();
+  if (nom) {
+    return { clave: 'int:nom:' + nom.toLowerCase(), tipo: 'interno', nombre: nom,
+             domiciliario_id: null, movil: null };
+  }
   return { clave: 'int:sin', tipo: 'interno', nombre: 'Domiciliario sin anotar',
            domiciliario_id: null, movil: null };
 }
