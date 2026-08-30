@@ -793,6 +793,47 @@
 /* Un combo no es un producto: product_id queda vacio y lo que llevaba se anota
    en selections, para que la comanda y el inventario lo lean despues aunque
    mañana el combo cambie en el catalogo. */
+/*  ⚠️ UNA LINEA MALA YA NO VACIA EL PEDIDO ENTERO (29-ago-2026).
+
+    Comprobado esta noche contra la base: si a UNA fila le falta el precio,
+    Postgres rechaza LAS DEMAS TAMBIEN — la inserción es una sola operación,
+    entra todo o no entra nada:
+
+        null value in column "product_price" ... violates not-null constraint
+
+    Por eso un pedido de tres platos podía quedar en cero. Aquí se corrige
+    ANTES de mandarlo: nombre siempre, precios y cantidad siempre numéricos,
+    y el `product_id` solo si de verdad es un identificador — un id inventado
+    (un combo sin cargar, un punto de lealtad) tumbaba la inserción con
+    «invalid input syntax for type uuid» y se llevaba por delante el pedido.
+
+    Preferimos guardar el plato con un dato imperfecto que perder el pedido:
+    la cocina necesita saber QUE cocinar; el precio se corrige en caja.     */
+var _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function _num(v, minimo) {
+  var n = Number(v);
+  if (!isFinite(n)) n = 0;
+  return (typeof minimo === 'number' && n < minimo) ? minimo : n;
+}
+
+function _filaSegura(f) {
+  var nom = String(f.name || f.product_name || '').trim() || 'Producto';
+  f.name          = nom;
+  f.product_name  = nom;
+  f.product_price = _num(f.product_price, 0);
+  f.unit_price    = _num(f.unit_price, 0);
+  f.quantity      = Math.max(1, Math.round(_num(f.quantity, 1)));
+  f.total         = _num(f.total, 0);
+  if (!_UUID_RE.test(String(f.product_id || ''))) f.product_id = null;
+  if (!f.selections || typeof f.selections !== 'object') f.selections = {};
+  //  Si las opciones no se pueden convertir a texto, van vacias: el plato
+  //  entra igual. Un adicional perdido no vale un pedido perdido.
+  try { JSON.stringify(f.selections); } catch (e) { f.selections = {}; }
+  if (f.notes != null) f.notes = String(f.notes);
+  return f;
+}
+
 function _filaConCombo(fila, id) {
   if (!window.posCombos || !posCombos.esCombo(id)) return fila;
   var extra = posCombos.camposDB(id);
@@ -945,7 +986,7 @@ async function loadCatalog() {
     const prod = calcSubtotal();
     const emp  = calcEmpaque();
     try {
-      const filas = S.cart.map(function (i) { return _filaConCombo({
+      const filas = S.cart.map(function (i) { return _filaSegura(_filaConCombo({
         order_id:      ag.id,
         product_id:    i.productId || i.id,
         name:          i.name,
@@ -961,7 +1002,7 @@ async function loadCatalog() {
         // Sin tenant_id la politica de aislamiento rechaza el insert. El insert
         // normal (mas abajo) si lo manda; a este se le habia quedado.
         tenant_id:     S.tenantId,
-      }, i.productId || i.id); });
+      }, i.productId || i.id)); });
       const r = await sb.from('pos_order_items').insert(filas);
       if (r.error) throw r.error;
 
@@ -1329,7 +1370,7 @@ async function loadCatalog() {
         Se atrapa, se deshace el pedido y se avisa.                         */
     let items;
     try {
-      items = S.cart.map(i => (_filaConCombo({
+      items = S.cart.map(i => _filaSegura(_filaConCombo({
       order_id:      S.orderId,
       product_id:    i.productId || i.id,
       name:          i.name,
@@ -1397,8 +1438,36 @@ async function loadCatalog() {
             },
           });
         } catch (e) { /* si ni el diagnóstico entra, queda el aviso en pantalla */ }
-        await _deshacerSiNuevo(sb, _esNuevo);
-        throw new Error('No se pudieron guardar los productos: ' + _motivo);
+        /*  ── RESCATE: UNA POR UNA ─────────────────────────────
+
+            El lote entra o no entra completo. Así que si algo lo tumbó, se
+            intenta plato por plato: lo que se pueda salvar, se salva, y el
+            pedido queda con comida en lugar de quedar en blanco.
+
+            Solo si NO entra ninguno se deshace el pedido — que es el caso en
+            que de verdad no hay nada que cocinar.                          */
+        var _entraron = [], _fallaron = [];
+        for (var _k = 0; _k < items.length; _k++) {
+          var _uno = await sb.from('pos_order_items').insert([items[_k]]);
+          if (_uno.error) _fallaron.push(items[_k].name || 'un producto');
+          else _entraron.push(items[_k].name);
+        }
+        if (!_entraron.length) {
+          await _deshacerSiNuevo(sb, _esNuevo);
+          throw new Error('No se pudieron guardar los productos: ' + _motivo);
+        }
+        //  Entró parte. El pedido sigue en pie y se dice EXACTAMENTE qué
+        //  falta, para que en caja lo agreguen a mano y la cocina no se
+        //  quede esperando un plato que nadie pidió.
+        try {
+          await sb.from('pos_diag').insert({
+            donde: 'venta-rapida/items-rescate',
+            mensaje: 'entraron ' + _entraron.length + ' de ' + items.length,
+            extra: { fallaron: _fallaron, motivo: String(_motivo).slice(0, 200) },
+          });
+        } catch (e) {}
+        vrAviso('No se pudieron guardar: ' + _fallaron.join(', ')
+              + '. El resto del pedido sí quedó — agrega esos a mano.');
       }
       //  Entraron los nuevos: recién ahora se pueden borrar los de antes.
       if (_viejos && _viejos.length) {
