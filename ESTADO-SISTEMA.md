@@ -3,6 +3,53 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🎨 El menú de marca/sucursal y el texto que ya no se selecciona — 30-ago-2026
+
+**Tres desplegables hechos a mano** (`pos-marcas.js`, solo lo carga el
+Escritorio). Antes eran: la fila del plan, una lista con TODAS las sucursales
+una debajo de otra y dos botones sueltos de «crear». Sergio: *«no me gustan
+todos esos botones»*. Luego fueron tres `<select>`, y tampoco: *«me parecen muy
+simples al desplegar»*.
+
+⚠️ **Y no era cuestión de esmero: la lista de un `<select>` la dibuja el sistema
+operativo y no se puede diseñar por dentro.** Ni el logo de la marca, ni la
+dirección de la sucursal, ni el precio del plan caben ahí. Por eso están hechos
+a mano.
+
+- **marca** — su logo real (iniciales de color si no tiene) y cuántas sucursales.
+- **sucursal** — su dirección debajo del nombre; con dos sedes en la misma ciudad
+  el nombre solo no basta.
+- **plan** — precio a la derecha y el `resumen` que ya estaba escrito en
+  `pos_planes`, con la etiqueta «Tu plan».
+
+Cambiar la **marca** solo rellena la lista de abajo; la que cambia el contexto
+es la **sucursal**. Si la marca cambiara de una, la pantalla se recargaría antes
+de que el usuario alcance a escoger sucursal.
+
+**Dos fallos que solo se vieron MIRANDO la pantalla**, no comprobando el texto:
+el menú medía 240 px (no los 330 de la maqueta) y el nombre salía pegado a su
+subtítulo — «RicurasMarca» — porque los dos son `<span>`. El texto estaba bien;
+la unica forma de verlo era la captura.
+
+### El texto ya no se selecciona
+
+Sergio: *«todo se puede seleccionar el texto, eso hace que el programa se vea
+poco profesional»*. Se inyecta desde `pos-core.js` — y no desde `pos-core.css` —
+porque esa hoja solo la cargan 13 de las 30 pantallas y el núcleo lo cargan 24.
+
+**Sigue copiándose** lo que alguien de verdad pega en otro lado: lo que se
+escribe, el dinero (`.tnum`, más las clases propias del escritorio — `.big-num`
+y compañía, que **no** usan `.tnum`, comprobado en la pantalla), y el nombre,
+teléfono y dirección del cliente. Queda **`.pos-sel` y `data-sel`** como puerta
+para lo que venga: al añadir un dato nuevo que se copie, se marca con eso.
+
+Las tres páginas legales no cargan el núcleo, así que ahí el texto se sigue
+copiando — son documentos, no pantallas de trabajo. La app del domiciliario lo
+lleva en su propio CSS: en un teléfono, mantener pulsado sacaba la lupa y el
+menú de copiar justo cuando se quería tocar un botón.
+
+---
+
 ## ⚡ Tomar pedido: de 4 rondas a 3 — 30-ago-2026 (commits `1cbd860`, `3e6dce2`, `b2f33b8`)
 
 Sergio: *«tardó abriendo la pantalla de toma de pedidos»*. **Medido en la
