@@ -235,7 +235,10 @@ Deno.serve(async (req) => {
       const tid = String((user.user_metadata || {}).tenant_id || "");
       if (!tid) return json(400, { error: "esta cuenta todavia no tiene un negocio" });
 
-      const tRes = await sbAdmin("GET", `/rest/v1/tenants?id=eq.${tid}&select=id,name,plan,status&limit=1`);
+      /*  Las fechas y el saldo van en este select a proposito: sin ellos no se
+          puede decir cuando vence ni descontar lo que se debe a favor — y un
+          select sin la columna NO da error, devuelve la fila sin el dato.  */
+      const tRes = await sbAdmin("GET", `/rest/v1/tenants?id=eq.${tid}&select=id,name,plan,status,periodo_inicio,periodo_fin,saldo_favor&limit=1`);
       const ten = Array.isArray(tRes.data) ? (tRes.data as Array<Record<string, unknown>>)[0] : null;
       if (!ten) return json(404, { error: "cuenta no encontrada" });
 
@@ -257,10 +260,29 @@ Deno.serve(async (req) => {
         trimestral: { meses: 3,  off: 0.10 },
         anual:      { meses: 12, off: 0.20 },
       };
-      const cobro = (per: string) => {
+      const bruto = (per: string) => {
         const d = PERIODOS[per];
         if (!d || base == null) return null;
         return Math.round(base * (1 - tierOff) * sucursales * d.meses * (1 - d.off));
+      };
+
+      /*  EL SALDO A FAVOR SE DESCUENTA DE LA FACTURA.
+
+          Sale de bajarse de plan: son los dias que ya habia pagado del plan
+          caro y va a usar en el barato. La regla de Sergio es que se le
+          descuenten del proximo pago, y este es el proximo pago.
+
+          Nunca deja la factura en negativo: si el saldo es mayor, lo que sobra
+          se queda para la siguiente. Por eso se guarda CUANTO se aplico
+          (`saldo_aplicado`) y no se da por consumido entero.               */
+      const saldo = Math.max(0, Number(ten.saldo_favor || 0));
+      const aplicado = (per: string) => {
+        const b = bruto(per);
+        return b == null ? 0 : Math.min(saldo, b);
+      };
+      const cobro = (per: string) => {
+        const b = bruto(per);
+        return b == null ? null : Math.max(0, b - aplicado(per));
       };
 
       /*  Un pago que ya esta en revision no se vuelve a pedir. Sin esto, alguien
@@ -281,7 +303,13 @@ Deno.serve(async (req) => {
           status: ten.status || "active",
           negocio: ten.name || "",
           plan, plan_nombre: (pl && pl.nombre) || plan, sucursales,
+          //  Para que la pantalla pueda decir "te vence en X dias" sin
+          //  calcularlo por su cuenta ni pedir la tabla de restaurantes.
+          periodo_inicio: ten.periodo_inicio || null,
+          periodo_fin: ten.periodo_fin || null,
+          saldo_favor: saldo,
           precios: { mensual: cobro("mensual"), trimestral: cobro("trimestral"), anual: cobro("anual") },
+          precios_sin_saldo: { mensual: bruto("mensual"), trimestral: bruto("trimestral"), anual: bruto("anual") },
           pendiente,
           cuenta: cta ? { banco: cta.banco, tipo: cta.tipo, titular: cta.titular, numero: cta.numero, nota: cta.nota, qr_url: cta.qr_url } : null,
         });
@@ -297,10 +325,14 @@ Deno.serve(async (req) => {
 
       const ins = await sbAdmin("POST", "/rest/v1/pos_pagos_suscripcion", {
         tenant_id: tid, plan, sucursales, periodo, monto: cobro(periodo),
+        //  Cuanto saldo cubrio esta factura. El disparador de la base lo resta
+        //  al aprobar; sin este dato, el saldo se perderia entero aunque la
+        //  factura fuera menor.
+        saldo_aplicado: aplicado(periodo),
         comprobante_url: comp, status: "pending", creado_por: user.id,
       });
       if (!ins.ok) return json(500, { error: "no se pudo registrar el pago: " + ins.text });
-      return json(200, { ok: true, monto: cobro(periodo), periodo });
+      return json(200, { ok: true, monto: cobro(periodo), periodo, saldo_aplicado: aplicado(periodo) });
     }
 
     // ── ONBOARDING: el usuario crea SU propio negocio (una sola vez) ──────────

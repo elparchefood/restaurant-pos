@@ -520,6 +520,31 @@ function renderClientes() {
     var total    = copPlan(planTotal(planHoy, branches));
     var activo   = r.tenant_status !== 'suspended';
     var fechaRaw = r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+
+    /*  CUANDO SE LE VENCE. Es lo que convierte esta lista en algo accionable:
+        sin fecha, la consola dice quien es cliente pero no a quien hay que
+        cobrarle esta semana.
+
+        Se cuenta por FECHA y no por reloj: en una factura un dia de mas es
+        plata. Y si no hay fecha se dice "sin fecha" — no se inventa un
+        vencimiento, que seria peor que no tener ninguno.                   */
+    var vence = '<span style="color:#CBD5E1">sin fecha</span>';
+    if (r.periodo_fin) {
+      var f = String(r.periodo_fin).slice(0,10).split('-');
+      var finMs = Date.UTC(+f[0], +f[1]-1, +f[2]);
+      var hd = new Date();
+      var hoyMs = Date.UTC(hd.getFullYear(), hd.getMonth(), hd.getDate());
+      var dias = Math.round((finMs - hoyMs) / 86400000);
+      var col = dias < 0 ? '#DC2626' : dias <= 3 ? '#B45309' : dias <= 10 ? '#92400E' : '#64748B';
+      var txt = dias < 0 ? ('venció hace ' + (-dias) + (dias === -1 ? ' día' : ' días'))
+              : dias === 0 ? 'vence hoy'
+              : ('vence en ' + dias + (dias === 1 ? ' día' : ' días'));
+      vence = '<span style="color:' + col + ';font-weight:' + (dias <= 10 ? '700' : '500') + '">' + txt + '</span>';
+    }
+    if (r.saldo_favor > 0) {
+      vence += '<div style="font-size:11px;color:#16A34A;margin-top:2px">$'
+             + Math.round(r.saldo_favor).toLocaleString('es-CO') + ' a favor</div>';
+    }
     var planBadge= badgeHtml(PLAN_TONE[planHoy] || 'gray', planNombre(planHoy), false);
 
     return '<tr style="'+(!activo?'opacity:.62':'')+'">'+
@@ -528,7 +553,7 @@ function renderClientes() {
       '<td>'+planBadge+'</td>'+
       '<td class="a-num">'+branches+'</td>'+
       '<td class="a-num a-cell-strong">'+total+'<span style="font-weight:500;color:#94A3B8;font-size:11.5px">/mes</span></td>'+
-      '<td class="a-cell-muted">'+fechaRaw+'</td>'+
+      '<td class="a-cell-muted">'+fechaRaw+'<div style="font-size:11.5px;margin-top:3px">'+vence+'</div></td>'+
       '<td>'+statusBadge(r.tenant_status || r.status)+
         (r.pago_pend ? '<div style="margin-top:5px">'+badgeHtml('amber','Pago por revisar',true)+'</div>' : '')+'</td>'+
       '<td><div class="a-act-col">'+
@@ -973,7 +998,10 @@ async function loadRegistrations() {
     /* Si el restaurante esta suspendido NO se sabe por la solicitud (esa queda
        'approved' para siempre: aprobada si fue). Se sabe por el estado de su
        cuenta. Se trae aparte y se pega a cada fila. */
-    var ten = await sb.from('tenants').select('id,status,plan');
+    /*  `periodo_fin` va en esta lista a proposito: es lo que dice a quien hay
+        que cobrarle pronto. Sin el, la consola no puede avisar de nada — y un
+        select sin la columna no da error, devuelve la fila sin el dato.   */
+    var ten = await sb.from('tenants').select('id,status,plan,periodo_fin,saldo_favor');
     var porId = {};
     (ten.data || []).forEach(function (t) { porId[t.id] = t; });
     /* Y los pagos de renovacion que esperan revision. Un cliente suspendido
@@ -990,6 +1018,8 @@ async function loadRegistrations() {
       var t = r.tenant_id ? porId[r.tenant_id] : null;
       r.tenant_status = t ? t.status : null;
       r.plan_actual   = t ? t.plan : r.plan;
+      r.periodo_fin   = t ? t.periodo_fin : null;
+      r.saldo_favor   = t ? (Number(t.saldo_favor) || 0) : 0;
       r.pago_pend     = r.tenant_id ? (pagoDe[r.tenant_id] || null) : null;
     });
   } catch(e) {
