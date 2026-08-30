@@ -511,7 +511,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 //  getSession lee del equipo; getUser salia a internet por el mismo dato.
     let user = (window._pos && window._pos.state && window._pos.state.user) || null;
     if (!user) { try { user = (await sb.auth.getSession()).data.session.user; } catch (e) {} }
-    if (!user) { location.href = 'index.html'; return; }
+    //  A login, no a index.html: desde el 30-ago-2026 index.html es la
+    //  pagina de venta de Cobra, no el POS. Mandar ahi a alguien que solo
+    //  perdio la sesion es sacarlo del programa.
+    if (!user) { location.href = 'login.html'; return; }
 
     const meta = user.user_metadata || {};
     const nombre = meta.nombre || meta.name || user.email || '—';
