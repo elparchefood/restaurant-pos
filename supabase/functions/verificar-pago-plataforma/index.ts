@@ -40,7 +40,11 @@ const OPENAI_KEY   = Deno.env.get("OPENAI_API_KEY")!;
 const GMAIL_CLIENT_ID     = Deno.env.get("GMAIL_CLIENT_ID")!;
 const GMAIL_CLIENT_SECRET = Deno.env.get("GMAIL_CLIENT_SECRET")!;
 
-const TOPE_INTENTOS = 3;
+/*  Seis intentos, uno cada cinco minutos = media hora larga de margen. Antes
+    eran 3, que con el aviso del banco tardando uno o dos minutos se agotaban
+    enseguida. Se puede subir porque ahora el comprobante se lee UNA vez: los
+    reintentos solo vuelven a mirar el correo, que no cuesta.                */
+const TOPE_INTENTOS = 6;
 const VENTANA_HORAS = 48;   //  alguien puede transferir y subir el comprobante al rato
 
 const CORS = {
@@ -232,7 +236,49 @@ Deno.serve(async (req: Request) => {
   let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { /* cuerpo vacío -> falta el id */ }
   const regId = String(body.registration_id || "");
-  if (!regId) return json({ error: "falta registration_id" }, 400);
+
+  /*  ══ MODO BARRIDO: SIN ID, SE REVISAN LAS QUE ESTAN ESPERANDO ═════════
+
+      Por que hace falta (30-ago-2026): la pantalla de registro llama a esta
+      funcion UNA vez y espera 45 segundos. El correo del banco no llega al
+      instante — suele tardar uno o dos minutos — asi que si tarda, la persona
+      veia "estamos verificando" y NADIE volvia a revisar nunca. Se quedaba
+      esperando a que Sergio entrara a la consola y aprobara a mano.
+
+      Las columnas para reintentar (`verif_intentos`, `verif_at`) ya existian
+      y no las usaba nadie.
+
+      Ahora una tarea la llama cada pocos minutos sin id, y se revisan todas
+      las que esperan. Cada una se procesa como una llamada aparte a proposito:
+      asi un comprobante ilegible no puede tumbar el barrido de los demas, y la
+      logica de verificacion —que ya estaba probada— no se toca.
+
+      El tope de intentos sigue mandando: pasado ese punto la solicitud se deja
+      para que la mire una persona.                                          */
+  if (!regId) {
+    const pend = await sbGet(
+      `pos_registrations?status=eq.pending&comprobante_url=not.is.null` +
+      `&verif_intentos=lt.${TOPE_INTENTOS}&select=id&order=created_at.asc&limit=20`
+    );
+    if (!pend.length) return json({ ok: true, barrido: true, revisadas: 0 });
+
+    let aprobadas = 0;
+    for (const r of pend) {
+      try {
+        const rr = await fetch(`${SUPABASE_URL}/functions/v1/verificar-pago-plataforma`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "apikey": SERVICE_KEY,
+                     "Authorization": `Bearer ${SERVICE_KEY}` },
+          body: JSON.stringify({ registration_id: r.id }),
+        });
+        const dd = await rr.json().catch(() => ({}));
+        if (dd && dd.verificado && dd.creado) aprobadas++;
+      } catch (e) {
+        console.error("[barrido] solicitud", r.id, String((e as Error).message || e).slice(0, 120));
+      }
+    }
+    return json({ ok: true, barrido: true, revisadas: pend.length, aprobadas });
+  }
 
   // 1. La solicitud
   const regs = await sbGet(`pos_registrations?id=eq.${regId}&limit=1`);
@@ -273,12 +319,28 @@ Deno.serve(async (req: Request) => {
   }
 
   // 3. Leer el comprobante
-  const firmada = await urlFirmada(ruta);
-  if (!firmada) return await fallar("No se pudo abrir el comprobante");
+  /*  EL COMPROBANTE SE LEE UNA SOLA VEZ (30-ago-2026).
 
-  const c = await leerComprobante(firmada);
-  if (!c.parece_valido || !c.monto) {
-    return await fallar("La imagen no parece un comprobante de pago legible", c);
+      La imagen no cambia entre un intento y otro, pero antes se volvia a leer
+      en cada uno — y leerla cuesta plata y segundos. Lo que de verdad hay que
+      repetir es la busqueda en el correo del banco, que es lo que todavia no
+      habia llegado.
+
+      Si ya hay una lectura buena guardada, se usa. Esto es lo que hace que
+      reintentar salga barato y, por eso, que se pueda reintentar mas veces. */
+  let c: Record<string, unknown>;
+  const guardado = reg.verif_extraido as Record<string, unknown> | null;
+  if (guardado && guardado.parece_valido && guardado.monto) {
+    c = guardado;
+  } else {
+    const firmada = await urlFirmada(ruta);
+    if (!firmada) return await fallar("No se pudo abrir el comprobante");
+    c = await leerComprobante(firmada) as unknown as Record<string, unknown>;
+    if (!c.parece_valido || !c.monto) {
+      return await fallar("La imagen no parece un comprobante de pago legible", c);
+    }
+    //  Se guarda YA, para que el proximo intento no la vuelva a leer.
+    await sbPatch(`pos_registrations?id=eq.${regId}`, { verif_extraido: c });
   }
 
   // 4. ¿Coincide con lo que tenía que pagar?

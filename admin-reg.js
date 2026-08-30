@@ -418,7 +418,23 @@ function renderSolicitudes() {
       '<td class="a-num">'+branches+(off>0?'<span style="color:#16A34A;font-size:11.5px;font-weight:700;margin-left:6px">−'+(off*100)+'%</span>':'')+'</td>'+
       '<td class="a-num a-cell-strong">'+total+'<span style="font-weight:500;color:#94A3B8;font-size:11.5px">/mes</span></td>'+
       '<td class="a-cell-muted">'+fechaRaw+'</td>'+
-      '<td>'+statusBadge(r.status)+'</td>'+
+      '<td>'+statusBadge(r.status)+
+        /*  POR QUE NO SE PUDO VERIFICAR SOLO. Sin esto, aprobar a mano es
+            aprobar a ciegas: no se sabe si el sistema fallo por un
+            comprobante ilegible, por un monto que no cuadra o porque el
+            aviso del banco todavia no habia llegado. Y esas tres cosas se
+            resuelven distinto.
+
+            Solo se muestra cuando ya se intento: antes del primer intento no
+            hay nada que contar.                                          */
+        ((r.verif_intentos && r.status === 'pending')
+          ? '<div style="margin-top:5px;font-size:11px;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;'
+            + 'border-radius:7px;padding:5px 8px;line-height:1.4">'
+            + (r.verif_detalle ? String(r.verif_detalle).slice(0,120) : 'No se pudo confirmar el pago')
+            + '<div style="color:#B45309;margin-top:2px">' + r.verif_intentos
+            + (r.verif_intentos === 1 ? ' intento' : ' intentos') + '</div></div>'
+          : '')+
+      '</td>'+
       '<td>'+
         (r.comprobante_url
           ? '<button class="a-receipt" onclick="viewComprobante(\''+r.id+'\',\''+nombre+'\',\''+r.comprobante_url+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg> Ver</button>'

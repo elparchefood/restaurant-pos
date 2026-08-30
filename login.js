@@ -492,8 +492,15 @@ function fillConfirm() {
     if (t)   t.textContent = '¡Listo! Tu cuenta ya está activa';
     if (sub) sub.textContent = 'Confirmamos tu pago y te mandamos un correo con tus datos de entrada. Ya puedes iniciar sesión.';
   } else {
-    if (t)   t.textContent = 'Recibimos tu comprobante';
-    if (sub) sub.textContent = 'Estamos verificando tu pago. Apenas quede confirmado te damos el acceso y te llega un correo. Si algo no cuadra, te escribimos.';
+    /*  El registro SI quedo hecho: lo unico que falta es confirmar el pago.
+        Decirle "estamos verificando" a secas deja la duda de si su registro
+        se guardo. Sergio, 30-ago: *"igual le dices que el registro es exitoso
+        y que espere mientras los asesores aprueban su ingreso"*.
+
+        El sistema reintenta solo cada pocos minutos; si aun asi no cuadra, un
+        humano lo revisa desde la consola y con eso le llega el acceso igual. */
+    if (t)   t.textContent = '¡Registro exitoso!';
+    if (sub) sub.textContent = 'Tu cuenta quedó creada. Estamos confirmando tu pago: apenas quede verificado te llega un correo con tu acceso. Si se demora, uno de nuestros asesores lo revisa y te lo aprueba.';
   }
   $('cf-plan').textContent     = REG.plan === 'pro' ? 'Pro' : 'Starter';
   $('cf-branches').textContent = REG.branches + ' sucursal' + (REG.branches > 1 ? 'es' : '');
