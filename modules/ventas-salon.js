@@ -1322,22 +1322,18 @@
     /* RASTRO: el salon volvio a mostrar todas las mesas libres teniendo los
        datos buenos, y sin ningun error. Se anota que trajo la carga y que quedo
        en pantalla, para verlo escrito la proxima vez en vez de deducirlo. */
-    try {
-      var _libres = (state.tables || []).filter(function (t) { return t.status === 'libre'; }).length;
-      var _tot = (state.tables || []).length;
-      if (_tot && _libres === _tot) {
-        var _sbD = window._pos && window._pos.sb;
-        if (_sbD) _sbD.from('pos_diag').insert({
-          donde: 'ventas-salon/todasLibres',
-          mensaje: 'Quedaron ' + _tot + ' mesas y TODAS libres tras cargar',
-          extra: {
-            desde_plano: !!(window.posCache && posCache.leer('salon')),
-            mesas: (state.tables || []).map(function (t) { return t.name + ':' + t.status; }).join(' '),
-            branch: (window._pos && window._pos.state && window._pos.state.branchId) || null
-          }
-        }).then(function(){}, function(){});
-      }
-    } catch (_e) {}
+    /*  Aqui vivia un diagnostico que anotaba "quedaron N mesas y TODAS libres
+        tras cargar". Se puso para cazar un fallo real, pero **no distingue el
+        fallo de lo normal**: que todas las mesas esten libres es exactamente lo
+        que pasa con el restaurante cerrado.
+
+        Resultado medido: 492 filas en 22 dias, ninguna de un fallo. Y llenaba
+        `pos_diag` — que ademas guarda datos de clientes— de ruido.
+
+        Se quita el 30-ago-2026 al limpiar la base. Si el fallo vuelve, se
+        instrumenta otra vez, pero con una senal que solo se de cuando algo
+        esta MAL: por ejemplo, todas libres HABIENDO pedidos abiertos.      */
+
     guardarPlanoSalon();   // para que la próxima vez el salón salga al instante
     if (state.selectedTableId) {
       const { order, items, sessionOrders: _sess } = await fetchOrderData(state.selectedTableId);
