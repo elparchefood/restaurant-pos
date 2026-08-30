@@ -216,7 +216,28 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
   const totalEsperado = await calcularTotalEsperado(pendingData, branchId, cfg);
   const mixtoPD = pendingData?.pago_mixto as Record<string, unknown> | null | undefined;
   const parteDigital = mixtoPD && Number(mixtoPD.monto_digital) > 0 ? Number(mixtoPD.monto_digital) : 0;
-  const esperadoTransfer = parteDigital > 0 ? parteDigital : totalEsperado;
+
+  /*  EL DOMICILIO APARTE (30-ago-2026, pedido por Sergio).
+
+      Si en el chat se acordó que el cliente transfiere SOLO la comida y le
+      paga el domicilio en efectivo al domiciliario, el comprobante NUNCA va a
+      cuadrar contra el total — porque el total lleva el domicilio dentro. Sin
+      esto, ese pago se queda «verificando» para siempre aunque sea correcto.
+
+      Lo acordó Paco reconociendo la INTENCION del cliente (`paga_solo_pedido`
+      del lector de IA), no una frase suelta, y lo dejó escrito en
+      `pending_order_data.domicilio_aparte`. Aquí solo se respeta.
+
+      El pago mixto manda si están los dos: ahí el monto digital es un acuerdo
+      explícito y exacto, y no hay nada que deducir.                        */
+  const domiApartePD = pendingData?.domicilio_aparte as Record<string, unknown> | null | undefined;
+  const montoSinDomi = (!parteDigital && domiApartePD && Number(domiApartePD.monto_transferencia) > 0)
+    ? Number(domiApartePD.monto_transferencia)
+    : 0;
+
+  const esperadoTransfer = parteDigital > 0 ? parteDigital
+                         : montoSinDomi > 0 ? montoSinDomi
+                         : totalEsperado;
   const montoComprobante = Number(visionResult.monto.replace(/\D/g, "")) || 0;
   let montoCoincide = true;
   if (esperadoTransfer > 0 && montoComprobante > 0) {
@@ -228,7 +249,8 @@ async function verifyTransfer(conversationId: string, manual = false): Promise<s
 
   if (!montoCoincide) {
     return await pagoSinConfirmar(conversationId,
-      `Pagó ${fmtMonto(montoComprobante, monedaCfg)} y ${parteDigital > 0 ? "lo acordado por transferencia era" : "el pedido es"} ${fmtMonto(esperadoTransfer, monedaCfg)}`);
+      `Pagó ${fmtMonto(montoComprobante, monedaCfg)} y ${parteDigital > 0 ? "lo acordado por transferencia era"
+        : montoSinDomi > 0 ? "el pedido sin el domicilio es" : "el pedido es"} ${fmtMonto(esperadoTransfer, monedaCfg)}`);
   }
 
   // 8b. ANTI-REPLAY: un mismo comprobante (referencia) NO puede pagar dos pedidos.
@@ -892,10 +914,23 @@ async function crearPedido(
      salia sin numero y el cliente sin puntos. Las marcas anti-replay van en
      audit_pago, su propia casilla. */
   const telNota = telLocalVT(fromPhone);
+  /*  ⚠️ SE DECLARA AQUI, ANTES DE LAS NOTAS, PORQUE LAS NOTAS LA USAN.
+      La primera version la dejaba veinte lineas mas abajo: en JavaScript eso
+      no es un aviso, es un error en el momento de crear el pedido — y habria
+      tumbado TODOS los pedidos del chat, no solo este caso raro.          */
+  const _mixtoNotas = pendingData.pago_mixto as Record<string, unknown> | null | undefined;
+  const domiaCP = pendingData.domicilio_aparte as Record<string, unknown> | null | undefined;
+  const cobraDomiAparte = !_mixtoNotas && !!domiaCP && Number(pedido.domiPrecio) > 0;
+
   const notasPedido = [
     String(pendingData.direccion || ""),
     pendingData.barrio ? `[barrio:${String(pendingData.barrio).toUpperCase()}]` : "",
     telNota ? `[tel:${telNota}]` : "",
+    /*  La marca que hace que en la tarjeta se lea «El domi cobra $X». Es la
+        MISMA que ya pone el salón al pasar un pedido pagado a domicilio
+        (ventas-salon.js), y la misma que lee `vsDomiPorCobrar`. Va en las
+        notas igual que [barrio:] y [tel:]: sin columna nueva.             */
+    cobraDomiAparte ? "[domi_por_cobrar]" : "",
   ].filter(Boolean).join(" ");
   const auditPago = [
     referencia ? `Ref:${referencia}` : "",
@@ -910,9 +945,16 @@ async function crearPedido(
   // digital si es pago mixto. Queda en pos_orders.paid_amount + una fila en
   // pos_payments — el mismo circuito de abonos que usa la caja del POS.
   const mixtoCP = pendingData.pago_mixto as Record<string, unknown> | null | undefined;
+  /*  Si se acordó el domicilio aparte, lo pagado es la comida: el total menos
+      el domicilio. Y ojo — eso NO deja el pedido a medio pagar: `posCobrable`
+      (pos-core.js) descuenta el domicilio de lo que el restaurante tiene que
+      recibir, así que pagar la comida ES pagar el pedido. Sale **Pagado**, con
+      el aviso de que el domi cobra su parte.                               */
   const montoPagado = mixtoCP && Number(mixtoCP.monto_digital) > 0
     ? Math.min(Number(mixtoCP.monto_digital), pedido.total)
-    : pedido.total;
+    : cobraDomiAparte
+      ? Math.max(0, pedido.total - Number(pedido.domiPrecio))
+      : pedido.total;
 
   const orderRecord: Record<string, unknown> = {
     branch_id:      branchId,

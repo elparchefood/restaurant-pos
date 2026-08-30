@@ -1322,7 +1322,7 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
 {"carta":bool,"precio":bool,"ubicacion":bool,"domicilio":bool,"horario":bool,"pedir":bool,
  "pago":"efectivo"|"transferencia"|null,"entrega":"domicilio"|"recoger"|null,
  "rechaza_direccion":bool,"agregados":[string],
- "confirma":bool,"rechaza_mas":bool,"corrige":bool,
+ "confirma":bool,"rechaza_mas":bool,"corrige":bool,"paga_solo_pedido":bool,
  "pregunta":bool,"despedida":bool,"queja":bool,"quiere_humano":bool,"fuera_tema":bool,
  "categoria":string|null}
 
@@ -1381,6 +1381,26 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
   "davi plata", "transfe", "x nequi". Si no dice nada de pago -> null.
 - "entrega": "domicilio" si quiere que se lo lleven, "recoger" si el pasa por el
   pedido ("yo paso", "lo recojo", "pa llevar", "voy por el"). Si no dice -> null.
+- "paga_solo_pedido": true si el cliente quiere pagar por transferencia SOLO
+  el valor de la comida, y el DOMICILIO pagarlo aparte, en efectivo, cuando le
+  llegue el pedido.
+  Es una INTENCION, no una frase: puede decirlo de mil formas y con errores.
+  SI lo son: "te puedo pagar solo el pedido y el domicilio se lo doy al
+  muchacho", "te transfiero lo de la comida y el envio se lo pago en la mano",
+  "el domicilio lo pago cuando llegue", "te consigno sin el domicilio", "puedo
+  pagarte aparte el envio en efectivo", "le doy el domi al que lo trae".
+  NO lo son: pagar TODO en efectivo (eso es pago:"efectivo") · pagar todo por
+  transferencia · partir el pago en dos montos cualesquiera ("la mitad por
+  nequi y la mitad en efectivo": eso es otra cosa y la maneja otra parte) ·
+  preguntar CUANTO vale el domicilio (eso es "domicilio":true) · pedir que se
+  lo lleven (eso es "entrega").
+  OJO con el caso que mas se parece y NO lo es: "todo en efectivo cuando
+  llegue", "pago todo al recibir", "contra entrega". Ahi no se transfiere
+  NADA y el domicilio no va aparte de nada -> paga_solo_pedido:false y
+  pago:"efectivo". Para que sea true tiene que haber DOS pagos distintos:
+  la comida por transferencia y el domicilio en efectivo.
+  Si no queda claro que lo que va aparte es EL DOMICILIO y en efectivo -> false.
+
 - "rechaza_direccion": true SOLO si esta diciendo que NO quiere la direccion que
   se le propuso y quiere otra ("no", "no, otra", "cambiala", "es en otro lado").
 - "agregados": lo que el cliente quiere QUE LE PONGAN ENCIMA a otro plato, no
@@ -4250,6 +4270,59 @@ INTENCION, no las palabras exactas.` },
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: pregMix, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
           return;
         }
+      }
+    }
+  }
+
+  /*  14e-octavo. EL DOMICILIO APARTE, EN EFECTIVO AL RECIBIR.
+
+      Pedido por Sergio el 30-ago-2026: *«cuando el cliente diga "te puedo
+      pagar solo el pedido y yo pago acá el domicilio"»*. Y con una condición
+      expresa: **no se reconoce por las palabras ni por la frase exacta, sino
+      por la intención** — la decide el lector de IA (`paga_solo_pedido`), no
+      una lista de expresiones. Es la regla de siempre de Paco.
+
+      Qué cambia cuando pasa: el comprobante se verifica contra la comida SIN
+      el domicilio, y el pedido nace con la marca `[domi_por_cobrar]` para que
+      en la tarjeta se lea «El domi cobra $X».
+
+      ⚠️ Lo que NO cambia, y es la parte delicada: **el pedido queda PAGADO**.
+      El domicilio es un AVISO, no un estado — `posCobrable` ya descuenta el
+      domicilio de lo que el restaurante tiene que recibir, así que pagar la
+      comida es pagar el pedido. Esto ya se rompió una vez convirtiéndolo en
+      «pendiente de cobro» y dejó TODOS los domicilios del turno en rojo.
+
+      Pasa poco, pero pasa. Y si no se reconoce, ese comprobante nunca cuadra:
+      el cliente paga y el sistema le dice que está verificando, para siempre. */
+  {
+    const st = state as unknown as Record<string, unknown>;
+    /*  ⚠️ LA GUARDA DEL EFECTIVO. Probado contra el clasificador real con 14
+        frases: los 7 casos buenos salen todos con pago "transferencia", y el
+        UNICO falso positivo —«todo en efectivo cuando llegue»— sale con
+        "efectivo". Ahi no se transfiere nada, así que no hay nada que separar
+        ni que confirmarle a nadie. El lector ya lo distingue; esto es el
+        cinturón por si un día deja de distinguirlo.                        */
+    if (intenciones.paga_solo_pedido === true
+        && intenciones.pago !== "efectivo"
+        && !st.pago_mixto            // el mixto ya fija el monto exacto: no se toca
+        && !st.domicilio_aparte      // ya acordado en un mensaje anterior
+        && state.producto
+        && !state.resumen_enviado) {
+      const preciosDA = await calcularPreciosPedido(state, branchId, domiciliosCfg, cfg._operacion as Record<string, unknown> | null);
+      const domiDA = preciosDA.esLlevar ? 0 : (Number(preciosDA.domi) || 0);
+      const comidaDA = Number(preciosDA.pedido) || 0;   // comida + empaque
+      /*  Sin domicilio no hay nada que separar: si viene a recoger, o el
+          envío es gratis, el trato no aplica y el flujo sigue igual que
+          siempre. Mejor no hacer nada que hacer algo raro.                */
+      if (domiDA > 0 && comidaDA > 0) {
+        st.domicilio_aparte = { domi: domiDA, monto_transferencia: comidaDA };
+        const fraseDA = (getFraseTexto(frasesCfg.domicilio_aparte) ||
+          "¡Claro que sí! \uD83D\uDE4C Me transfieres {{monto_pedido}} del pedido y el domicilio ({{monto_domicilio}}) se lo pagas en efectivo al domiciliario cuando llegue. El comprobante debe ser por {{monto_pedido}} \uD83E\uDDFE")
+          .replace(/\{\{?\s*monto_pedido\s*\}?\}/g, fmtCOP(comidaDA))
+          .replace(/\{\{?\s*monto_domicilio\s*\}?\}/g, fmtCOP(domiDA));
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+        await sendWaAndSave(convId, tenantId, fraseDA, fromPhone, phoneId, accessToken);
+        // sin return: el flujo sigue igual (resumen -> QR -> comprobante)
       }
     }
   }
