@@ -33,7 +33,43 @@
     return null;
   }
 
-  async function cargar(sb, tenantId) {
+  /*  ⚠️ NO SE REPITE UN VIAJE QUE SE ACABA DE HACER (30-ago-2026).
+
+      Medido en la pantalla de tomar pedido: `pos_combos` se pedia DOS VECES en
+      cada apertura, y `pos_puntos_catalogo` igual. No era un error de nadie —
+      los dos sitios que llaman tienen su motivo— sino que esta funcion no
+      recordaba nada: cada llamada salia a internet.
+
+      Cada viaje cuesta ~250 ms y los datos no pesan casi nada; el tiempo de esa
+      pantalla es CUANTOS VIAJES hace, no cuanto trae.
+
+      Dos cosas, y hacen falta las dos:
+        · si ya hay una en vuelo, la segunda se cuelga de la MISMA (que es lo
+          que pasa al arrancar: las dos salen casi a la vez y un simple "ya lo
+          traje" no las atrapa);
+        · y durante un minuto se responde con lo que ya se trajo.
+
+      El minuto es a proposito: la pantalla que refresca por detras cada tanto
+      sigue viendo los combos nuevos del turno, que antes tambien veia.       */
+  var _ultimo = { llave: null, cuando: 0, vuelo: null };
+  var FRESCO_MS = 60000;
+
+  async function cargar(sb, tenantId, forzar) {
+    var llave = String(tenantId || '');
+    if (!forzar && _ultimo.llave === llave) {
+      if (_ultimo.vuelo) return _ultimo.vuelo;
+      if (Date.now() - _ultimo.cuando < FRESCO_MS) return _combos;
+    }
+    _ultimo.llave = llave;
+    _ultimo.vuelo = _cargarDeVerdad(sb, tenantId).then(function (r) {
+      _ultimo.vuelo = null; _ultimo.cuando = Date.now(); return r;
+    }, function (e) {
+      _ultimo.vuelo = null; _ultimo.llave = null; throw e;
+    });
+    return _ultimo.vuelo;
+  }
+
+  async function _cargarDeVerdad(sb, tenantId) {
     try {
       var r = await sb.from('pos_combos').select('id,name,description,price,photo_url,items,active')
         .eq('tenant_id', tenantId).eq('active', true).order('name');

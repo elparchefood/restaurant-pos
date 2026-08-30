@@ -31,7 +31,29 @@
   }
   function setCtx(t, b) { _tenant = t; _branch = b; }
 
-  async function cargar() {
+  /*  El mismo caso que en pos-combos.js: esto se pedia DOS VECES en cada
+      apertura de la pantalla de pedidos, y cada viaje cuesta ~250 ms. Si ya
+      hay una peticion en vuelo la segunda se cuelga de ella, y durante un
+      minuto se responde con lo que ya se trajo.                            */
+  var _ultimoP = { llave: null, cuando: 0, vuelo: null };
+  var FRESCO_P_MS = 60000;
+
+  async function cargar(forzar) {
+    var llave = String(_tenant || '');
+    if (!forzar && _ultimoP.llave === llave) {
+      if (_ultimoP.vuelo) return _ultimoP.vuelo;
+      if (Date.now() - _ultimoP.cuando < FRESCO_P_MS) return _cat;
+    }
+    _ultimoP.llave = llave;
+    _ultimoP.vuelo = _cargarPuntos().then(function (r) {
+      _ultimoP.vuelo = null; _ultimoP.cuando = Date.now(); return r;
+    }, function (e) {
+      _ultimoP.vuelo = null; _ultimoP.llave = null; throw e;
+    });
+    return _ultimoP.vuelo;
+  }
+
+  async function _cargarPuntos() {
     var s = sb(); if (!s || !_tenant) return;
     var r = await s.from('pos_puntos_catalogo').select('*').eq('tenant_id', _tenant).eq('activo', true);
     _cat = r.data || [];
@@ -46,6 +68,7 @@
       var rp = await s.from('pos_products').select('id,presentations,variables').in('id', ids);
       (rp.data || []).forEach(function (p) { _prods[p.id] = p; });
     }
+    return _cat;
   }
 
   async function disponibles(tel) {
