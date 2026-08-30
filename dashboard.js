@@ -249,9 +249,19 @@ async function loadTodayOrders(branchId) {
   // Desglose REAL de pagos del día (pos_payments — reparte bien los mixtos)
   S.pagosHoy = [];
   try {
+    /*  ⚠️ LOS METODOS SE CARGAN AUNQUE NO HAYA PEDIDOS (30-ago-2026).
+
+        Estaban DENTRO del `if (ids.length)`: sin ventas hoy no se cargaban, y
+        el desglose — que ahora sale de los metodos configurados — concluía que
+        el restaurante no tenía ninguno y sacaba "Todavía no hay métodos de
+        pago". Le pasó a Sergio con la caja cerrada y cero pedidos, teniendo
+        cuatro configurados.
+
+        No cuesta un viaje de mas: la lista vive en el equipo y solo sale a la
+        red la primera vez.                                                  */
+    if (window.posMetodos) await posMetodos.cargar(sb, branchId);
     const ids = S.todayOrders.map(o => o.id);
     if (ids.length) {
-      if (window.posMetodos) await posMetodos.cargar(sb, branchId);
       const { data: pd } = await sb.from('pos_payments').select('order_id,method,amount').in('order_id', ids);
       S.pagosHoy = pd || [];
     }
@@ -713,6 +723,21 @@ function pagosPorMetodo(orders) {
 function renderDesglose(orders) {
   const el = document.getElementById('desglose-grid');
   if (!el) return;
+
+  /*  El escritorio pinta primero desde la copia del equipo — para no dejar la
+      pantalla en gris — y eso puede pasar ANTES de que carguen los metodos. Si
+      todavia no estan, se piden y se repinta al llegar: mas vale pintar dos
+      veces que decirle a alguien que no tiene metodos cuando si los tiene.  */
+  if (window.posMetodos && !posMetodos.lista().length && !renderDesglose._pidiendo) {
+    renderDesglose._pidiendo = true;
+    var _br = (window._pos && window._pos.state && window._pos.state.branchId) || null;
+    if (_br) {
+      Promise.resolve(posMetodos.cargar(sb, _br)).then(function () {
+        renderDesglose._pidiendo = false;
+        if (posMetodos.lista().length) renderDesglose(orders);
+      }, function () { renderDesglose._pidiendo = false; });
+    } else { renderDesglose._pidiendo = false; }
+  }
 
   var filas = pagosPorMetodo(orders);
 
