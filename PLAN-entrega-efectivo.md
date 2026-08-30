@@ -4,12 +4,13 @@
 27-ago-2026 y construido tres dias despues, cuando el pendiente volvio a salir
 porque Paco empezo a poner esa misma marca solo.
 
-> ⚠️ **Un hallazgo cambio el diseno respecto a lo que dice este plan.** Estaba
-> escrito solo para domiciliarios INTERNOS, y medido en la base El Parche no
-> tiene ninguno: **157 de 157 domicilios son con empresa externa** y
-> `domiciliario_id` esta vacio en los 157. Lo construido agrupa por las DOS
-> formas — usuario interno, o empresa/movil — y tiene un tercer caso para los
-> pedidos sin nadie anotado, que existen y esa plata tambien hay que recibirla.
+> ⚠️ **SOLO APLICA AL DOMICILIARIO INTERNO, como decia este plan.** Yo me sali
+> de eso al construirlo — medi que El Parche opera 157 de 157 con externos y
+> agrupe tambien a los externos por su movil para que la pantalla no le saliera
+> vacia. Sergio lo reclamo el mismo dia: con externos **no debe cambiar nada**,
+> porque esa plata no es del restaurante ni la custodia nadie del restaurante.
+> Corregido: con externos no se muestra absolutamente nada. Que a Sergio le
+> salga vacia NO era un problema a resolver — era la respuesta correcta.
 >
 > Lo demas del plan se cumplio tal cual, incluida la regla de Sergio.
 > Probado de punta a punta en el Restaurante de Prueba: entrega parcial

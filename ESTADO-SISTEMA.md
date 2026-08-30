@@ -37,11 +37,29 @@ cobrar. Por eso no se toca `pos_cash_moves` ni el cálculo del esperado: hacerlo
 habría dejado el arqueo **al doble** y nadie se daría cuenta hasta el cierre.
 Era el riesgo más grande de todo esto y estaba señalado en el plan.
 
-**El hallazgo que cambió el diseño:** el plan estaba escrito solo para
-domiciliarios **internos**, y El Parche no tiene ninguno — **157 de 157**
-domicilios son con empresa externa y `domiciliario_id` está vacío en los 157.
-Agrupa por las dos formas (usuario interno · empresa/móvil) y por un tercer caso
-real: pedidos sin nadie anotado, cuya plata también hay que recibir.
+⚠️ **SOLO APLICA AL DOMICILIARIO INTERNO. Con externos no se muestra NADA.**
+
+Esto lo corregi el mismo dia, porque lo hice mal primero. La primera version
+agrupaba tambien a los externos por su movil («Móvil 31 tiene $53.000»). Sergio
+lo reclamo: *«como trabajo con domiciliarios externos, para mi no debio haber
+cambiado nada»*. Y la regla estaba escrita desde el **24-jul-2026**:
+
+> Domiciliario **EXTERNO** → el dinero del domicilio **no queda registrado en
+> ningun lado**. No es venta ni ingreso del restaurante: es del externo.
+
+Con externos esa plata no la custodia nadie del restaurante, asi que una
+pantalla pidiendo «recibir» es pedirle cobrar algo que no le corresponde — el
+mismo error que ya cometi el 29-ago dejando todos los domicilios en «pendiente
+de cobrar». **Es la segunda vez que rompo la misma regla en dos dias.**
+
+El criterio de «interno» es el MISMO que ya usaba `cjDomiCanjeEfectivo` unas
+lineas mas abajo: **sin decir nada, es externo**. Comprobado contra la base tras
+el arreglo: en El Parche, **0 pedidos y $0** en 60 dias. No le cambia nada, que
+es exactamente como debe ser.
+
+Dentro de lo interno se agrupa por usuario si lo hay, por el nombre escrito a
+mano si no, y queda un rotulo generico para cuando no se anoto a nadie — esa
+plata existe igual y hay que recibirla.
 
 **Base:** tabla `pos_domi_entregas` (con `custodio_tipo`, quién recibió, monto,
 nota y turno de caja) + `pos_orders.domi_entrega_id` — `null` = sigue en la
