@@ -34,7 +34,32 @@
     // filtro, el update de printed_at re-disparaba la impresión sin parar.
     // Los ítems agregados a una mesa ocupada se disparan por el listener de
     // pos_order_items (INSERT) más abajo, no por aquí.
-    function shouldPrint(o) { return o && o.visible_cocina && !o.printed_at; }
+    /*  ⚠️ LOS DE SALON CON COBRO ADELANTADO NO LLEVAN `visible_cocina`.
+
+        Sergio, 29-ago-2026, en pleno turno: *«al hacer el pedido no imprimió
+        la comanda, la tuve que imprimir manual»*. Comprobado en la base: el
+        pedido de las 21:38 tenía `visible_cocina = false`.
+
+        Por qué: con el cobro adelantado encendido, un pedido de salón NO se
+        marca `visible_cocina` — se cobra antes y llega a la cocina por ser de
+        salón, no por la marca. `cocina.js` ya lo sabía y trae los de salón con
+        una consulta aparte; **este receptor nunca recibió el mismo trato**, así
+        que exigía una marca que esos pedidos jamás van a tener.
+
+        Y el hueco solo se abre desde la TABLET: el que toma el pedido en el
+        computador de la caja imprime por la llamada directa, que no pasa por
+        aquí. Desde la tablet no hay llamada directa —no es el equipo con
+        impresora— y el receptor lo descartaba. Nadie imprimía.
+
+        Se exige que YA SE HAYA ENVIADO a cocina: un pedido que todavía se está
+        armando no puede salir por la impresora.                             */
+    var ENVIADOS = ['in_progress', 'ready', 'paid', 'completed', 'pendiente_pago'];
+    function yaEnviado(o) { return ENVIADOS.indexOf(String(o && o.status || '')) >= 0; }
+    function shouldPrint(o) {
+      if (!o || o.printed_at) return false;
+      if (o.visible_cocina) return true;
+      return String(o.channel || '') === 'salon' && yaEnviado(o);
+    }
 
     function handleRow(o) {
       if (!o || !o.id) return;
@@ -95,7 +120,9 @@
            Con una sola sucursal no se nota; con dos, si. */
         var q = sb.from('pos_orders')
           .select('id, reprint_at')
-          .eq('visible_cocina', true)
+          /*  El mismo criterio del receptor: o lleva la marca, o es de salón
+              y ya se envió. Sin esto el paracaídas tampoco los recogía.   */
+          .or('visible_cocina.eq.true,and(channel.eq.salon,status.in.(in_progress,ready,paid,pendiente_pago))')
           .is('printed_at', null)
           .gte('created_at', sinceIso)
           .not('status', 'in', '("cancelled","abandoned")')
