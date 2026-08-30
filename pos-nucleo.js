@@ -1668,7 +1668,12 @@ window.posLlaveSalon = function () {
       'input,textarea,select,[contenteditable="true"],[contenteditable=""],',
       '.tnum,.pos-sel,[data-sel],',
       '.vs-info-value,.vs-dir,.vs-dir-tx,.vs-dir-calle,.vs-dir-barrio,',
-      '.d-cliente,.d-cli-addr,.d-dir-seg',
+      '.d-cliente,.d-cli-addr,.d-dir-seg,',
+      /*  El escritorio no usa `.tnum`: sus cifras tienen sus propias clases.
+          Se comprobo en la pantalla — el dinero salia sin poder copiarse, que
+          es justo lo que Sergio pidio que SI se pudiera.                   */
+      '.big-num,.goal-value,.split-value,.mini-stat-value,.hero-stat-value,',
+      '.top-hero-num,.bcard-value,.qm-order-total,.qm-detail-total',
       '{-webkit-user-select:text;-moz-user-select:text;user-select:text}',
       /*  El cursor lo dice sin que nadie lo explique: barra de texto sobre un
           dato copiable, flecha sobre lo demas.                             */
