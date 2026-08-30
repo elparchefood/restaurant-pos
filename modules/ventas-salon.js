@@ -1140,15 +1140,33 @@
         else if (r.delivered_at) estado = 'entregado';
         else if (r.status === 'paid' || r.status === 'completed') estado = 'entregado';
         else if (r.status === 'in_progress') estado = 'camino';
-        // Estado de pago REAL: lo abonado (paid_amount — lo llenan el bot al verificar
-        // transferencias y los abonos de caja) contra el total del pedido.
-        // Contra lo COBRABLE (sin domicilio), no contra el total: si no, todo
-        // domicilio en que el cliente pagó solo la comida se ve "a medias".
+        /*  ══ LO QUE SE PAGÓ, NO LO QUE DICE LA ETIQUETA ══════════════════
+
+            Sergio, 29-ago-2026, en pleno turno: un cliente pidió por la app
+            PARA RECOGER y pagó $51.000. Después escribió que lo quería a
+            domicilio; Sergio le hizo el cambio y el pedido pasó a $56.000 —
+            pero seguía diciendo **«Pagado»**, porque el estado en la base era
+            `paid` y eso ganaba antes de mirar cuánto entró.
+
+            «Parece que ya estuviera pago de verdad. El sistema debería dejar
+            pendiente el pago que falta, los $5.000 del domicilio.»
+
+            Antes se comparaba contra lo COBRABLE (sin el domicilio) para que
+            un pedido de la app donde el cliente paga solo la comida no se
+            viera "a medias". Pero eso esconde plata que alguien tiene que
+            recoger: medido hoy, hay **74 pedidos** en esa situación y en todos
+            el hueco es exactamente el valor del domicilio.
+
+            Ahora manda la cuenta: si lo abonado no cubre el total, sale
+            «Faltan $X» y el botón de cobrar aparece. Si no hay abono
+            registrado —un solo pedido viejo en toda la base— se respeta la
+            etiqueta de la base para no marcarlo como impago sin razón.    */
         var totalNum = parseFloat(r.total) || 0;
         var paidNum  = parseFloat(r.paid_amount) || 0;
-        var payStatus = (window.posEstaPagado ? window.posEstaPagado(r)
-                          : (r.status === 'paid' || r.status === 'completed')) ? 'pagado'
+        var payStatus = (paidNum >= totalNum - 1) ? 'pagado'
                       : paidNum > 0 ? 'parcial'
+                      : (window.posEstaPagado ? window.posEstaPagado(r)
+                          : (r.status === 'paid' || r.status === 'completed')) ? 'pagado'
                       : 'pendiente';
         return {
           id: r.id,
