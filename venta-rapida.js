@@ -902,7 +902,18 @@ async function loadCatalog() {
     await _catalogFetch(sb, _ck, false);
   }
 
+  //  Lo mismo que en tomar pedido: los puntos no tienen por que ir los ultimos.
+  function _adelantarPuntos() {
+    try {
+      if (window.posPuntos && S.tenantId) {
+        posPuntos.setCtx(S.tenantId, S.branchId || null);
+        posPuntos.cargar();
+      }
+    } catch (e) { console.warn('[puntos] adelantar:', e && e.message); }
+  }
+
   async function _catalogFetch(sb, cacheKey, isBackground) {
+    _adelantarPuntos();
     for (let intento = 1; intento <= 3; intento++) {
     try {
       const PALETA = [

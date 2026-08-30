@@ -90,6 +90,25 @@ document.addEventListener('DOMContentLoaded', async () => {
      el catalogo hubiera cargado bien. El renderCatGrid() de mas abajo no
      llegaba a ejecutarse nunca y la pantalla se quedaba en Cargando
      categorias... para siempre. Cada carga responde por si misma. */
+  /*  ⚠️ LOS PUNTOS SE PIDEN YA, NO AL FINAL DE TODO (30-ago-2026).
+
+      Medido en la pantalla real: `pos_puntos_catalogo` era **la ultima**
+      llamada de todas y arrancaba justo cuando terminaban los combos — porque
+      quien la pide es `posTabs.registrar`, y a eso se llega despues de cargar
+      la carta y los combos. Iba en fila detras de todo sin depender de nada:
+      solo necesita el tenant, que se sabe desde el primer momento.
+
+      Se dispara aqui y NO se espera. Cuando la pestaña se registre mas
+      adelante, se cuelga de esta misma peticion en vez de hacer otra (la
+      guarda de pos-puntos.js), asi que no cuesta un viaje de mas: cuesta uno
+      MENOS en la cola.                                                      */
+  try {
+    if (window.posPuntos && S.tenantId) {
+      posPuntos.setCtx(S.tenantId, S.branchId || null);
+      posPuntos.cargar();
+    }
+  } catch (e) { console.warn('[puntos] adelantar:', e && e.message); }
+
   /*  El inventario entra en el mismo grupo: no depende de la mesa ni de la
       carta, y esperando su turno costaba otros ~230 ms de pantalla en
       blanco. Su fallo nunca fue grave — ya iba envuelto en su propio
