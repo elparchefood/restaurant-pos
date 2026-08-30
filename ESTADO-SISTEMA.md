@@ -3,6 +3,62 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 La entrega del efectivo del domiciliario — 30-ago-2026 (commit `4be8cff`)
+
+Planeado el 27-ago (`PLAN-entrega-efectivo.md`) y sin hacer. Volvió a salir
+porque desde el 30-ago Paco pone la marca `[domi_por_cobrar]` él solo, así que
+iba a aparecer más seguido.
+
+**El problema, medido antes de tocar nada:** 69 domicilios cobrados en efectivo
+en 60 días en El Parche, ~$120.000 por noche en el bolsillo del domiciliario sin
+dejar rastro. Y al cerrar caja, **el efectivo esperado ya cuenta esa plata**
+(la venta se registra cuando el domiciliario cobra), así que si aún no ha
+llegado al cajón el arqueo sale corto por ese valor exacto y no hay dónde mirar.
+
+**La regla, de Sergio, que ordena todo lo demás:** el domiciliario **no** puede
+poner su propia cuenta en ceros. Solo mira lo que debe. Quien confirma es quien
+de verdad recibe la plata: la cajera.
+
+**Lo construido:**
+- **Caja → Ingresos y egresos**: tarjeta *«Efectivo de domiciliarios»* con quién
+  tiene plata y cuánto. Se abre, vienen **todos los pedidos marcados**, se
+  desmarca lo que no trajo y *«Recibí el dinero»*. La entrega parcial sale sola.
+- **App del domi**: *«Efectivo en mano»* ya solo cuenta lo que **todavía tiene
+  encima**, y aparecen sus *«Entregas de hoy»* con hora, monto y quién recibió —
+  esa es su prueba. Fuera los dos botones que no hacían nada.
+- **En el cierre**, un aviso que nombra a cada uno y cuánto trae.
+
+⚠️ **Es un AVISO, no una resta.** El efectivo esperado se calcula igual que
+siempre. Cambiar ese número es cambiar algo que Sergio ya conoce y se decide con
+él delante.
+
+⚠️ **No es un ingreso, es un cambio de manos.** La venta ya se registró al
+cobrar. Por eso no se toca `pos_cash_moves` ni el cálculo del esperado: hacerlo
+habría dejado el arqueo **al doble** y nadie se daría cuenta hasta el cierre.
+Era el riesgo más grande de todo esto y estaba señalado en el plan.
+
+**El hallazgo que cambió el diseño:** el plan estaba escrito solo para
+domiciliarios **internos**, y El Parche no tiene ninguno — **157 de 157**
+domicilios son con empresa externa y `domiciliario_id` está vacío en los 157.
+Agrupa por las dos formas (usuario interno · empresa/móvil) y por un tercer caso
+real: pedidos sin nadie anotado, cuya plata también hay que recibir.
+
+**Base:** tabla `pos_domi_entregas` (con `custodio_tipo`, quién recibió, monto,
+nota y turno de caja) + `pos_orders.domi_entrega_id` — `null` = sigue en la
+calle. La columna vieja `domi_entregado_caja`, que existía y **no la usaba ni una
+línea de código**, se mantiene en el mismo sentido para que nadie lea esa y crea
+otra cosa. Migración en `migraciones/2026-08-30-entrega-efectivo-domiciliario.sql`,
+corrida con el local cerrado (un DDL hace esperar a todas las pantallas).
+
+**Probado de punta a punta** en el Restaurante de Prueba, no deducido: tres
+domicilios en efectivo de dos móviles, se recibió **$32.000 de $77.000**
+desmarcando uno, y quedó la fila con quién recibió, la hora y la nota; el
+pedido no entregado siguió pendiente; la tarjeta pasó de $168.000 a $136.000; y
+el aviso del cierre nombró a los tres. Datos de prueba borrados y comprobado que
+El Parche quedó sin tocar.
+
+---
+
 ## 🟢 Paco entiende «te pago el pedido y el domicilio aparte» — 30-ago-2026 (commit `501b059`)
 
 **Lo pidió Sergio**, con una condición expresa: *«no debe reconocer las palabras

@@ -1,6 +1,20 @@
 # La entrega del efectivo del domiciliario — plan
 
-**Estado: planeado, sin implementar.** Decidido con Sergio el 27-ago-2026.
+**Estado: HECHO el 30-ago-2026** (commit `4be8cff`). Decidido con Sergio el
+27-ago-2026 y construido tres dias despues, cuando el pendiente volvio a salir
+porque Paco empezo a poner esa misma marca solo.
+
+> ⚠️ **Un hallazgo cambio el diseno respecto a lo que dice este plan.** Estaba
+> escrito solo para domiciliarios INTERNOS, y medido en la base El Parche no
+> tiene ninguno: **157 de 157 domicilios son con empresa externa** y
+> `domiciliario_id` esta vacio en los 157. Lo construido agrupa por las DOS
+> formas — usuario interno, o empresa/movil — y tiene un tercer caso para los
+> pedidos sin nadie anotado, que existen y esa plata tambien hay que recibirla.
+>
+> Lo demas del plan se cumplio tal cual, incluida la regla de Sergio.
+> Probado de punta a punta en el Restaurante de Prueba: entrega parcial
+> (se recibieron $32.000 de $77.000 y el resto quedo pendiente con su nota),
+> la fila de la entrega con quien recibio y a que hora, y el aviso del cierre.
 
 ## El problema
 
