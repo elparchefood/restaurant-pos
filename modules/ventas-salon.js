@@ -1367,7 +1367,18 @@
         state.currentOrder = _o;
         state.orderItems = (_o.pos_order_items || []).slice();
         state.sessionOrders = [_o];
-        renderRail(); updateSheetContent();
+        renderRail();
+        /*  ⚠️ EN TABLET HAY QUE ABRIR EL PANEL, NO SOLO RELLENARLO.
+
+            Sergio, 29-ago, dos veces: *«desde la tablet no puedo abrir la
+            tarjeta de las mesas que ya tienen un estado»*. Y era esto:
+            `updateSheetContent` solo cambia el contenido de dentro; quien
+            ABRE el panel es `showSheetLoading` — y al pintar desde la copia
+            nos lo saltábamos. Las mesas libres sí abrían porque no tienen
+            pedido guardado, así que caían por el camino de siempre.
+
+            `showSheet` hace las dos cosas: rellena y abre.                 */
+        showSheet();
         _pintadoYa = true;
       }
     } catch (e) { /* sin copia: el "Cargando" de siempre */ }
