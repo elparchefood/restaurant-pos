@@ -578,19 +578,14 @@ const S2h = { orders: [] };
 const S2tp = { all: [] };
 
 // ── sparkline SVG ─────────────────────────────────────
-function sparkline(data, color) {
-  const max = Math.max(...data, 1);
-  const min = Math.min(...data);
-  const W = 64, H = 22;
-  const range = max - min || 1;
-  const pts = data.map((v, i) =>
-    `${(i / (data.length - 1)) * W},${H - ((v - min) / range) * H}`
-  ).join(' ');
-  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">` +
-    `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-}
+/*  Aqui vivia `sparkline`, que dibujaba una lineita de tendencia en cada
+    tarjeta del desglose. Los datos NO eran datos: eran seis listas escritas a
+    mano en el codigo ([14,20,16,24,28,32,30] y parecidas), iguales todos los
+    dias tuviera el negocio lo que tuviera. Parecian informacion y no lo eran.
 
-// ── icon helpers ──────────────────────────────────────
+    Se quitan el 30-ago-2026 con el desglose nuevo. Si algun dia se quiere una
+    tendencia de verdad, se calcula con los ultimos 7 dias — pero mientras no
+    se calcule, no se dibuja.                                                */
 function payIcon(type) {
   const a = `width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
   const M = {
@@ -617,57 +612,14 @@ function canalIcon(type) {
 }
 
 // ── normalise helpers ─────────────────────────────────
-function normPM(pm) {
-  /* Primero los metodos que Sergio configuro: son los unicos que existen. La
-     lista de palabras de abajo queda solo como respaldo para datos historicos
-     de antes de que existiera la configuracion.
+/*  Aqui vivian `normPM` y `buildPagosPM`, que metian cada pago en una de seis
+    casillas fijas. Ese era el fallo: un metodo de tipo "transferencia" caia en
+    la casilla `transfer` y la tarjeta del tablero leia `bank` — dos casillas
+    distintas, y la plata no aparecia.
 
-     Antes, lo que no reconocia caia en 'cash' por defecto — una transferencia
-     guardada con su id entraba como EFECTIVO y descuadraba el arqueo sin que
-     nadie lo viera. */
-  if (window.posMetodos) {
-    const m = posMetodos.resolver(pm);
-    if (m) {
-      const t = String(m.tipo || '').toLowerCase();
-      if (t.indexOf('efectivo') >= 0) return 'cash';
-      if (t.indexOf('transfer') >= 0) return 'transfer';
-      if (t.indexOf('tarjet')   >= 0) return 'card';
-      if (t.indexOf('credito')  >= 0) return 'credit';
-      return 'otro';
-    }
-  }
-  const s = (pm || '').toLowerCase();
-  if (s.includes('efectivo') || s.includes('cash'))            return 'cash';
-  if (s.includes('tarjet')   || s.includes('card'))            return 'card';
-  if (s.includes('nequi')    || s.includes('daviplata'))       return 'transfer';
-  if (s.includes('transfer') || s.includes('deposit') ||
-      s.includes('bancolombia'))                               return 'bank';
-  if (s.includes('online')   || s.includes('linea') || s.includes('qr')) return 'online';
-  if (s.includes('vale')     || s.includes('voucher') || s.includes('sodexo')) return 'voucher';
-  if (s.includes('credito')  || s.includes('credit'))         return 'credit';
-  return 'cash';
-}
-
-// Reparto REAL por método: pos_payments primero (mixtos bien repartidos),
-// fallback a payment_method para pedidos sin desglose
-function buildPagosPM(orders) {
-  const pm = { cash:0, card:0, bank:0, online:0, credit:0, voucher:0, transfer:0 };
-  const conDesglose = new Set();
-  ((S.pagosHoy) || []).forEach(p => {
-    const k = normPM(p.method);
-    pm[k] = (pm[k] || 0) + (parseFloat(p.amount) || 0);
-    conDesglose.add(p.order_id);
-  });
-  (orders || []).forEach(o => {
-    if (conDesglose.has(o.id)) return;
-    const s = (o.payment_method || '').toLowerCase();
-    if (s === 'multiple') return; // sin desglose no se puede repartir
-    const k = normPM(o.payment_method);
-    pm[k] = (pm[k] || 0) + (parseFloat(o.total) || 0);
-  });
-  return pm;
-}
-
+    Los reemplaza `posMetodos.agrupar`, que agrupa por el metodo que el
+    restaurante configuro y deja en "Otros" lo que no reconoce, de modo que
+    ningun peso desaparece.                                                  */
 function normChannel(ch) {
   const s = (ch || '').toLowerCase();
   if (s.includes('dine') || s.includes('salon') || s.includes('mesa')) return 'salon';
@@ -688,39 +640,129 @@ async function loadWaiterNames(branchId) {
 }
 
 // ── DESGLOSE DE VENTAS ────────────────────────────────
+/*  ══ EL DESGLOSE SALE DE LOS METODOS DEL RESTAURANTE ══════════════════════
+
+    Sergio, 30-ago-2026: *"el tablero muestra cosas que yo ni siquiera tengo...
+    si una persona maneja tarjeta, esa persona debera crear el metodo de pago
+    en configuracion, pero no debe estar quemado"*.
+
+    Antes eran SEIS tarjetas fijas escritas en el codigo — efectivo, tarjeta,
+    en linea + vales, deposito, credito, descuentos — y no miraban la
+    configuracion para nada. Con los cuatro metodos de El Parche eso daba:
+
+      · cuatro tarjetas en $0 para siempre (tarjeta, vales, credito);
+      · DOS metodos suyos sin tarjeta ninguna: Puntos y Billetera;
+      · y un fallo de verdad: sus TRANSFERENCIAS no aparecian. Comprobado
+        ejecutando la funcion real — un metodo de tipo "transferencia" cae en
+        la casilla `transfer`, y la tarjeta "Deposito / Transferencia" leia la
+        casilla `bank`. Dos casillas distintas: la plata entraba en una y la
+        pantalla miraba la otra. Mas de $1.200.000 en una semana, invisibles.
+
+    Ahora sale de `posMetodos.agrupar`, que es lo que ya usa la pantalla de
+    Caja: una tarjeta por metodo configurado, en su orden, y "Otros" solo si
+    quedo plata sin reconocer — asi ningun peso desaparece.
+
+    Los descuentos van APARTE y al final: no son una forma de pago.           */
+
+//  Un icono por TIPO de metodo, no por un nombre fijo: el restaurante le pone
+//  el nombre que quiera ("Nequi del negocio") y el icono sigue teniendo sentido.
+//  El nombre del metodo lo escribe el restaurante: nunca se pega crudo.
+function escTxt(t) {
+  return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+  });
+}
+
+function iconoPorTipo(tipo) {
+  var t = String(tipo || '').toLowerCase();
+  if (t.indexOf('efectivo') >= 0) return 'cash';
+  if (t.indexOf('tarjet')   >= 0) return 'card';
+  if (t.indexOf('transfer') >= 0) return 'bank';
+  if (t.indexOf('credito')  >= 0) return 'credit';
+  if (t.indexOf('punto')    >= 0) return 'voucher';
+  if (t.indexOf('saldo')    >= 0 || t.indexOf('billeter') >= 0) return 'voucher';
+  if (t.indexOf('linea')    >= 0 || t.indexOf('online') >= 0)   return 'online';
+  return 'online';
+}
+
+var COLOR_TIPO = {
+  cash: '#5B6BFF', card: '#06B6D4', bank: '#8B5CF6',
+  credit: '#F59E0B', voucher: '#10B981', online: '#0EA5E9',
+};
+
+/*  Lo cobrado por metodo. Se arma con la MISMA regla que la caja: primero el
+    desglose real de `pos_payments` (que reparte bien los pagos mixtos) y, para
+    los pedidos que no lo tienen, el metodo del pedido.                      */
+function pagosPorMetodo(orders) {
+  var filas = [];
+  var conDesglose = {};
+  ((S.pagosHoy) || []).forEach(function (p) {
+    conDesglose[p.order_id] = true;
+    filas.push({ method: p.method, amount: p.amount });
+  });
+  (orders || []).forEach(function (o) {
+    if (conDesglose[o.id]) return;
+    //  'multiple' sin desglose no se puede repartir sin inventar: se deja fuera.
+    if (String(o.payment_method || '').toLowerCase() === 'multiple') return;
+    filas.push({ method: o.payment_method, amount: o.total });
+  });
+  if (!window.posMetodos) return [];
+  return posMetodos.agrupar(filas, 'method', 'amount');
+}
+
 function renderDesglose(orders) {
-  const pm = buildPagosPM(orders);
-  const grand = orders.reduce((s,o) => s + (parseFloat(o.total)||0), 0);
-
-  const CARDS = [
-    { key:'cash',    label:'Ventas en efectivo',      color:'#5B6BFF', spark:[14,20,16,24,28,32,30], tag:null },
-    { key:'card',    label:'Ventas con tarjeta',       color:'#06B6D4', spark:[2,3,2,1,2,1,2],        tag:null },
-    { key:'online',  label:'Ventas en linea + vales',  color:'#10B981', spark:[1,2,1,2,1,1,1],        tag:null },
-    { key:'bank',    label:'Deposito / Transferencia', color:'#8B5CF6', spark:[6,8,7,5,9,8,10],       tag:null },
-    { key:'credit',  label:'Ventas al credito',        color:'#F59E0B', spark:[1,1,2,1,2,1,1],        tag:'Intereses $0' },
-    { key:'voucher', label:'Total de descuentos',      color:'#94A3B8', spark:[2,1,3,1,2,1,2],        tag:null },
-  ];
-
   const el = document.getElementById('desglose-grid');
   if (!el) return;
-  el.innerHTML = CARDS.map(c => {
-    const val  = pm[c.key] || 0;
-    const muted = val === 0;
-    const col  = muted ? '#94A3B8' : c.color;
-    const p    = grand > 0 ? Math.round((val / grand) * 100) : 0;
-    return `<div class="bcard">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div class="bcard-icon" style="background:${col}14;color:${col}">${payIcon(c.key)}</div>
-        ${sparkline(c.spark, col)}
-      </div>
-      <div class="bcard-label">${c.label}</div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px">
-        <div class="bcard-value" style="color:${muted ? '#94A3B8' : '#0F172A'}">${COPF(val)}</div>
-        ${p > 0 ? `<span class="bcard-pct">${p}% del total</span>` : ''}
-      </div>
-      ${c.tag ? `<div class="bcard-tag" style="color:${muted?'#94A3B8':'#16A34A'};background:${muted?'#F1F5F9':'#DCFCE7'}">${c.tag}</div>` : ''}
-    </div>`;
+
+  var filas = pagosPorMetodo(orders);
+
+  //  Los descuentos: no son una forma de pago, van aparte y al final.
+  var descuentos = (orders || []).reduce(function (a, o) {
+    return a + (parseFloat(o.discount_amount != null ? o.discount_amount : o.discount) || 0);
+  }, 0);
+
+  var grand = filas.reduce(function (a, f) { return a + f.monto; }, 0);
+
+  /*  Sin metodos configurados no se pinta una lista inventada: se dice que
+      faltan. Un tablero que muestra tarjetas vacias parece roto; uno que dice
+      que falta configurar algo, se entiende.                               */
+  if (!filas.length) {
+    el.innerHTML = '<div class="bcard" style="grid-column:1/-1;text-align:center;padding:26px">'
+      + '<div class="bcard-label">Todavía no hay métodos de pago</div>'
+      + '<div style="font-size:12.5px;color:#94A3B8;margin-top:6px">'
+      + 'Crea los tuyos en Configuración → Métodos de pago y aquí verás cuánto entró por cada uno.</div></div>';
+    return;
+  }
+
+  var html = filas.map(function (f) {
+    var ico = iconoPorTipo(f.tipo);
+    var col = COLOR_TIPO[ico] || '#0EA5E9';
+    var muted = f.monto === 0;
+    var c = muted ? '#94A3B8' : col;
+    var pct = grand > 0 ? Math.round((f.monto / grand) * 100) : 0;
+    return '<div class="bcard">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between">'
+      +   '<div class="bcard-icon" style="background:' + c + '14;color:' + c + '">' + payIcon(ico) + '</div>'
+      + '</div>'
+      + '<div class="bcard-label">' + escTxt(f.nombre) + '</div>'
+      + '<div style="display:flex;align-items:baseline;gap:8px;margin-top:4px">'
+      +   '<div class="bcard-value" style="color:' + (muted ? '#94A3B8' : '#0F172A') + '">' + COPF(f.monto) + '</div>'
+      +   (pct > 0 ? '<span class="bcard-pct">' + pct + '% del total</span>' : '')
+      + '</div></div>';
   }).join('');
+
+  if (descuentos > 0) {
+    html += '<div class="bcard">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between">'
+      +   '<div class="bcard-icon" style="background:#94A3B814;color:#94A3B8">' + payIcon('voucher') + '</div>'
+      + '</div>'
+      + '<div class="bcard-label">Total de descuentos</div>'
+      + '<div style="display:flex;align-items:baseline;gap:8px;margin-top:4px">'
+      +   '<div class="bcard-value" style="color:#0F172A">' + COPF(descuentos) + '</div>'
+      + '</div></div>';
+  }
+
+  el.innerHTML = html;
 
   const ey = document.getElementById('desglose-eyebrow');
   if (ey) ey.textContent = 'Caja · ' + orders.length + ' pedidos hoy';
