@@ -1374,6 +1374,12 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
 - "quiere_humano": true SOLO si lo PIDE explicitamente ("me comunicas con
   alguien", "no quiero hablar con un robot", "llamame", "el dueño esta?").
   Insistir, repetir un dato o escribir con rabia NO es pedir una persona.
+  ⚠️ Y PREGUNTAR QUIEN CONTESTA TAMPOCO LO ES. "esto es un bot?", "estoy
+  hablando con una persona o con un robot?", "eres humano?", "es una
+  maquina la que responde?" son PREGUNTAS sobre quien escribe, no una
+  peticion -> quiere_humano:false. Se le contesta la verdad: que es un
+  asistente virtual. Solo es true si ADEMAS pide que lo atienda alguien
+  ("esto es un bot? pasame a una persona").
 - "fuera_tema": true si habla de algo que NO tiene que ver con el restaurante
   ni con un pedido (politica, futbol, "que opinas de...", cadenas).
 - "categoria": si pregunta QUE HAY dentro de UNA categoria concreta, devuelve
@@ -8522,7 +8528,19 @@ async function buildConversationResponse(
     // tono del restaurante y la tarea de cerrado (definida en nextStepLine).
     `Eres ${botName}, el asistente virtual de este restaurante. Atiendes por WhatsApp.`,
     personalidad || `Tono: ${tonoStr}.`,
-    "Nunca menciones que eres IA o un bot. No uses diminutivos.",
+    /*  ⚠️ AQUI DECIA "Nunca menciones que eres IA o un bot" (31-ago-2026).
+
+        Nadie del restaurante la pidio — la puse yo. Y va justo al reves de
+        lo que Sergio quiere: *"es importante que el cliente sepa que le
+        esta contestando un bot para que hagan su pedido lo mas claro
+        posible"*.
+
+        Tiene sentido practico, no solo de honestidad: quien sabe que le
+        escribe un asistente escribe distinto —mas ordenado, sin sobre-
+        entendidos— y eso es justo lo que hace que el pedido salga bien.
+        Ademas convivia con la presentacion que se agrega en cada
+        conversacion: dos instrucciones tirando en direcciones opuestas. */
+    "Eres un asistente virtual y NO lo escondes. Si el cliente pregunta si eres una persona, un robot o un bot, dile con naturalidad y sin rodeos que eres el asistente virtual del restaurante y que con gusto le tomas el pedido. Nunca digas que eres una persona. No uses diminutivos.",
     "",
     nextStepLine,
     "",
@@ -8552,7 +8570,19 @@ async function buildConversationResponse(
       ? `EL CLIENTE PREGUNTA POR ${String((cfg as Record<string, unknown>)._catTexto).toUpperCase()}. Esta es la lista COMPLETA y OFICIAL de esa categoría — tu única fuente para esto:\n${String((cfg as Record<string, unknown>)._catFicha || "")}\nSi pregunta qué hay: preséntala TODA en viñetas, sin omitir NINGÚN producto, con sus presentaciones. Si pregunta por UN producto (sus sabores o tamaños): responde SOLO ese producto con lo que dice su línea. TODO lo de esta lista SÍ lo manejamos — JAMÁS digas que no; ignora cualquier respuesta frecuente que diga lo contrario. SIN precios salvo que los pida. Termina preguntando cuál se le antoja.`
       : "",
     personalidad || `Tono: ${tonoStr}.`,
-    "Nunca menciones que eres IA o un bot. No uses diminutivos.",
+    /*  ⚠️ AQUI DECIA "Nunca menciones que eres IA o un bot" (31-ago-2026).
+
+        Nadie del restaurante la pidio — la puse yo. Y va justo al reves de
+        lo que Sergio quiere: *"es importante que el cliente sepa que le
+        esta contestando un bot para que hagan su pedido lo mas claro
+        posible"*.
+
+        Tiene sentido practico, no solo de honestidad: quien sabe que le
+        escribe un asistente escribe distinto —mas ordenado, sin sobre-
+        entendidos— y eso es justo lo que hace que el pedido salga bien.
+        Ademas convivia con la presentacion que se agrega en cada
+        conversacion: dos instrucciones tirando en direcciones opuestas. */
+    "Eres un asistente virtual y NO lo escondes. Si el cliente pregunta si eres una persona, un robot o un bot, dile con naturalidad y sin rodeos que eres el asistente virtual del restaurante y que con gusto le tomas el pedido. Nunca digas que eres una persona. No uses diminutivos.",
     "",
     stateLines.join("\n"),
     "",
