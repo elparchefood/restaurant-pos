@@ -2011,26 +2011,25 @@
     const timeStr = d.estado === 'entregado' ? _dur : `${_dur} aqui`;
     const isPagado  = d.payStatus === 'pagado';
     const isParcial = d.payStatus === 'parcial';
-    let payColor = isPagado ? '#16A34A' : isParcial ? '#C2410C' : '#D97706';
-    const payBg   = isPagado ? '#DCFCE7' : isParcial ? '#FFEDD5' : '#FEF3C7';
-    let payLabel = isPagado ? 'Pagado'
+    const payColor = isPagado ? '#16A34A' : isParcial ? '#C2410C' : '#D97706';
+    const payBg    = isPagado ? '#DCFCE7' : isParcial ? '#FFEDD5' : '#FEF3C7';
+    const payLabel = isPagado ? 'Pagado'
                    : isParcial ? ('Faltan ' + fmtCurrency(Math.max(0, (d.total||0) - (d.paidAmount||0))))
                    : 'Por pagar';
 
-    /*  ══ EL AVISO TAMBIÉN EN LA TARJETA DE LA LISTA ══════════════════════
+    /*  ⚠️ AQUI NO VA EL AVISO DE «FALTA COBRAR EL DOMICILIO», NI NINGUN OTRO.
 
-        Antes solo salía al ABRIR el pedido, y por eso Sergio no se enteró: en
-        la lista el pedido decía «Pagado» en verde, que es la palabra que uno
-        mira para saber que ya no hay que hacer nada. Se dio cuenta sacando la
-        cuenta a mano.
+        Lo puse aqui el 30-ago-2026 sin que nadie lo pidiera, razonando que en
+        la lista se lee «Pagado» y por eso Sergio no se habia enterado. Su
+        respuesta: *"la tarjeta pequeña, la de la izquierda, ahi no debe ir
+        nada. El aviso solo debe ir en la comanda grande de la derecha"*. Y me
+        recordo que ya me lo habia dicho antes.
 
-        Un aviso que hay que ir a buscar no es un aviso. Aquí la etiqueta pasa
-        a decir la verdad completa —está pagado el pedido, falta el
-        domicilio— y en ámbar, que es el color de "esto todavía pide algo".  */
-    if (vsDomiPorCobrar(d)) {
-      payLabel = isPagado ? 'Pagado · falta el domi' : payLabel + ' · falta el domi';
-      payColor = '#D97706';
-    }
+        La tarjeta de la lista dice lo minimo para escoger cual abrir: estado,
+        nombre, canal, items, si esta pagado y cuanto. Todo lo demas va en el
+        panel. Si se le agrega una cosa mas cada vez que algo parece
+        importante, deja de servir para lo unico que sirve — mirar de un
+        vistazo y decidir.                                                   */
     const hasNext  = !!DELIVERY_NEXT[d.estado];
 
     return `
