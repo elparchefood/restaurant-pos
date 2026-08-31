@@ -15730,3 +15730,95 @@ tenga un error de arranque: hay que llamarla con `OPTIONS` y ver un 200. Y un
 solo error de TypeScript oculto por un filtro de grep dejo el banco mudo tres
 pruebas seguidas — se cuentan **todos** los errores, sin filtrar. Al final, lo
 subido se compara linea a linea con lo probado (`/body` recorta la linea 1).
+
+---
+
+## 189. Los precios, dichos completos y con su familia (31-ago-2026)
+
+`delay-reply` v387 → v390. Todo salio de la misma pregunta de Sergio —que Paco
+diga bien lo que cuesta un plato— y todo termino en el mismo sitio: **quien
+sabe lo que hay es la carta, no la memoria del modelo**.
+
+### 1 · Paco saluda antes de presentarse (v388)
+
+Entraba con "Soy Paco, el asistente virtual de El Parche Food" y de una a
+"¿para donde va tu pedido?". El saludo sale de la HORA DEL RESTAURANTE
+(`TZ_OFFSET_H`), no del reloj del servidor, que vive en UTC.
+
+Si el modelo ya venia saludando, su saludo se sube arriba en vez de quedar
+debajo de la presentacion. Y la bienvenida que Sergio tiene escrita —que ya
+saluda y ya se presenta— no se toca.
+
+### 2 · Los seis precios de la Premium, no dos (v389)
+
+A "¿cuanto vale la premium?" contestaba "$29.000 pollo y $30.000 carne".
+Ninguno de los dos era el de esa fila: la Premium son 2 tamaños × 3 tipos.
+
+`precioPuntual` —que contesta precios LEYENDO EL CATALOGO— devolvia `null`
+cuando el precio vive en la variante y el cliente no dijo cual. Con razon: sin
+saber el tipo no hay UN precio, y nunca se inventa uno. **Pero devolver null
+deja la respuesta en manos del modelo, que contesta de memoria.**
+
+La regla que queda: *si no se puede decir un precio, se dicen todos.* La tabla
+sale del catalogo, agrupada por tamaño. Y si el cliente ya acoto —"la premium
+personal"— se dicen solo los tres de ese tamaño.
+
+Se mantiene la regla de siempre: o estan TODOS los precios o no se manda la
+tabla; media tabla se lee como que lo que falta no existe.
+
+### 3 · La familia manda (v390)
+
+Sergio pidio que Paco diga la categoria: *"la hamburguesa sencilla cuesta
+$16.000"*, no *"la sencilla"*. Al ir a hacerlo aparecio por que hacia falta.
+
+En El Parche hay nombres repetidos en varias secciones de la carta:
+
+| nombre | esta en |
+|---|---|
+| ESPECIAL | hamburguesas · perros · sandwich |
+| POLLO · CARNE · SUPER QUESO | tres o cuatro secciones cada uno |
+
+Y **pedir "una SALCHIPAPA sencilla" abria un pedido de HAMBURGUESA sencilla**.
+`matchCatalogo` y `resolverCategoria` miraban la categoria SOLO PARA
+DESEMPATAR: como "sencilla" existe una sola vez en la carta no habia empate, y
+nadie comprobaba que la unica candidata fuera de la familia pedida.
+
+Se arreglo en tres sitios, y el orden importa:
+
+**El lector**, que es quien resuelve el nombre contra la carta y lo hace antes
+que el codigo. Para cuando `matchCatalogo` recibe "SENCILLA", la palabra
+"salchipapa" ya no existe. Se le enseño que el menu viene en SECCIONES y que el
+plato tiene que estar en la que el cliente nombro — y, en la otra direccion,
+que el plato no se llama igual que lo que el cliente escribe: "salchipapa de
+pollo" es el plato "Pollo" de esa seccion, no un plato que falte. La primera
+version de la regla se paso de estricta y empezo a negar platos que si existen;
+se vio en el rastro, no adivinando.
+
+**Los dos resolvedores**, con la misma regla, para los caminos que no pasan por
+el lector. `resolverCategoria` mira EL MENSAJE del cliente y no el nombre que
+le llega, porque le llega "sencilla" a secas.
+
+**Y que lo diga.** "Salchipapa sencilla" no avisaba nada porque las palabras
+sueltas SI estan en la carta —"sencilla" es una hamburguesa— y la comprobacion
+lo daba por bueno. Ahora, si el lector nombra lo que se pidio y ademas no
+reconocio ningun plato, se le cree: *"No manejamos un producto con ese nombre
+🙈 Esta es nuestra carta"*.
+
+### Lo que NO habia que escribir
+
+Antes de esto ya existian `categoriaEnSingular` ("PERROS CALIENTES" → "Perro
+caliente") y la rama de ambiguedad con su frase configurable
+(`frases.elegir_categoria`). La primera version traia un singularizador propio
+—que devolvia "perro CALIENT"— y un texto propio para la ambiguedad. Los dos
+sobraban. Buscar antes de escribir habria ahorrado las dos.
+
+### El metodo, otra vez
+
+Las guardas del codigo no disparaban y no se veia por que. Lo destapo el
+**rastro de `pos_diag`**, que guarda lo que devolvio el lector en cada mensaje:
+ahi se vio que el lector ya resolvia el nombre y tiraba la familia. Sin ese
+rastro habrian sido tres parches mas en el sitio equivocado.
+
+Y las pruebas del banco miran **que producto se capturo**, no solo el texto que
+Paco contesta: los tres primeros intentos "se veian bien" en pantalla mientras
+por dentro el pedido llevaba una hamburguesa.
