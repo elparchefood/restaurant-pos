@@ -3617,9 +3617,7 @@ INTENCION, no las palabras exactas.` },
              dando vueltas. */
           const filas = DYN_PROD_MAP.filter(e => amb.cats.includes(e.cat)
             && e.key === normalizarTexto(amb.nombre));
-          const ops = [...new Set(filas.map(f => f.cat))]
-            .map(cq => capFirst(categoriaEnSingular(String(cq)).toLowerCase())).join(", ")
-            .replace(/, ([^,]+)$/, " o $1");
+          const ops = opcionesDeCategorias([...new Set(filas.map(f => String(f.cat)))]);
           const reFrase = (getFraseTexto(frasesCfg.elegir_categoria) ||
             "Tenemos {{producto}} en varias categorías 😋 ¿De cuál lo deseas? {{opciones_categoria}}")
             .replace(/\{\{?\s*producto\s*\}?\}/g, capFirst(String(amb.nombre).toLowerCase()))
@@ -3674,8 +3672,7 @@ INTENCION, no las palabras exactas.` },
            cliente. La regla del idioma: si antes de la "es" hay consonante se
            va la "es" (adicionES -> adicion, tradicionalES -> tradicional); si
            hay vocal, solo la "s" (calientES -> caliente, bebidAS -> bebida). */
-        const singular = categoriaEnSingular;
-        const opciones = cats.map(cq => capFirst(singular(cq).toLowerCase())).join(", ").replace(/, ([^,]+)$/, " o $1");
+        const opciones = opcionesDeCategorias(cats.map(String));
         const fraseAmb = (getFraseTexto(frasesCfg.elegir_categoria) ||
           "Tenemos {{producto}} en varias categorías 😋 ¿De cuál lo deseas? {{opciones_categoria}}")
           .replace(/\{\{?\s*producto\s*\}?\}/g, capFirst(primero.name.toLowerCase()))
@@ -10409,9 +10406,61 @@ function ubicacionPedido(state: PacoState): string {
 
     Si el producto YA lleva la palabra de la categoria ("Adición Chorizo" en
     "Adiciones") no se repite.                                               */
+/*  COMO SE LLAMA LA FAMILIA AL HABLAR CON EL CLIENTE — con las dos
+    excepciones que puso Sergio el 31-ago-2026 leyendo las respuestas reales.
+
+    · LAS BEBIDAS NO LLEVAN FAMILIA. Se llaman por su marca —Coca Cola,
+      Postobón, Quatro— y una marca ya es un nombre completo: *"suena raro
+      decir la palabra bebida antes de las bebidas"*. No es cosa de El Parche:
+      en cualquier carta las bebidas son marcas, mientras que los platos se
+      llaman por un adjetivo ("sencilla", "especial") que sin la familia
+      delante no dice nada. La categoría se reconoce con los sinónimos que ya
+      existen para entender "¿qué tienes de tomar?".
+
+    · LAS SUBDIVISIONES SE QUEDAN EN LA FAMILIA. "Salchipapas Especiales" y
+      "Salchipapas Tradicionales" son dos estanterías de la carta, no dos
+      comidas: *"salchipapa suena bien, pero ya decirle especial o tradicional
+      suena raro"*. Si DOS categorías empiezan por la misma palabra, esa
+      palabra es la familia y lo que sigue es la división interna.
+      ⚠️ Por eso no se recorta siempre: "Perros calientes" es una sola
+      categoría y ahí "caliente" SÍ es parte del nombre de la comida.       */
+function etiquetaDeCategoria(categoria: string): string {
+  const cat = String(categoria || "").trim();
+  if (!cat) return "";
+  const enSingular = categoriaEnSingular(cat);
+  const palabras = normalizarTexto(enSingular).split(/\s+/).filter(Boolean);
+  if (palabras.some(w => (CAT_SINONIMOS.bebida || []).includes(w))) return "";
+  const prim = normalizarTexto(cat).split(/\s+/)[0] || "";
+  if (prim.length >= 4) {
+    const hermanas = DYN_CATEGORY_NAMES.filter(c =>
+      (String(c || "").split(/\s+/)[0] || "") === prim);
+    if (hermanas.length > 1) return categoriaEnSingular(cat.split(/\s+/)[0]);
+  }
+  return enSingular;
+}
+
+/*  LA LISTA DE FAMILIAS PARA PREGUNTAR "¿DE CUÁL LO DESEAS?".
+
+    Usa el nombre corto —el mismo que se dice al cotizar, sin "especiales" ni
+    "tradicionales"—, salvo que al acortarlo dos familias queden llamándose
+    igual: ahí no habría nada que escoger y se dicen enteras. Las bebidas no
+    tienen nombre corto (no llevan familia), así que también van enteras.
+
+    La arman TRES sitios —la primera pregunta, la repregunta y la del precio— y
+    cada uno la escribía por su cuenta; ya paso una vez que la repregunta
+    saliera en plural y la primera en singular.                             */
+function opcionesDeCategorias(cats: string[]): string {
+  const limpias = cats.map(c => String(c || "").trim()).filter(Boolean);
+  if (!limpias.length) return "";
+  const cortas = limpias.map(c => etiquetaDeCategoria(c) || categoriaEnSingular(c));
+  const distinguen = new Set(cortas.map(c => normalizarTexto(c))).size === limpias.length;
+  const usar = distinguen ? cortas : limpias.map(c => categoriaEnSingular(c));
+  return usar.map(c => capFirst(c.toLowerCase())).join(", ").replace(/, ([^,]+)$/, " o $1");
+}
+
 function nombrarConCategoria(categoria: string, producto: string): string {
   const prod = String(producto || "").trim();
-  const cat = categoriaEnSingular(String(categoria || "")).trim();
+  const cat = etiquetaDeCategoria(categoria).trim();
   if (!cat || !prod) return capFirst(prod.toLowerCase());
   const nCat = normalizarTexto(cat).split(/\s+/)[0] || "";
   const nProd = normalizarTexto(prod);
@@ -10463,9 +10512,13 @@ async function precioPuntual(texto: string, branchId: string,
       /*  De que categoria es. Con nombres repetidos en varias categorias esto
           no es un adorno: es la diferencia entre acertar y no.             */
       categoria: string;
-      /*  Cuantas letras del nombre encajaron. Gana el mas largo: "doble carne"
+      /*  Cuantas letras ENCAJARON de verdad. Gana el mas largo: "doble carne"
           le gana a "carne" a secas.                                        */
       largo: number;
+      /*  Si encajo el nombre entero o solo su primera palabra. Entre dos que
+          empatan gana el entero: quien escribio "hawaiano" pidio el hawaiano,
+          no el "hawaiano con pollo".                                       */
+      entero: boolean;
       name: string; price: number; pres: Array<{ name: string; price: number }>;
       /*  LA TABLA COMPLETA, para cuando NO se puede decir un solo precio.
           Una fila por tamaño, y dentro cada tipo con el suyo.             */
@@ -10486,9 +10539,17 @@ async function precioPuntual(texto: string, branchId: string,
       const n = normalizarTexto(String(p.name || "")).trim();
       if (!n) continue;
       const primera = n.split(/\s+/)[0];
-      const pega = (n.length >= 4 && t.includes(n)) || (primera.length >= 3 && palabra(primera));
+      /*  Dos formas de encajar: el nombre COMPLETO dentro del mensaje, o solo
+          su primera palabra. Se guardan por separado porque para desempatar
+          hay que medir LO QUE ENCAJO, no el largo del nombre del producto: con
+          el largo del nombre, "HAWAIANO CON POLLO" le ganaba a "HAWAIANO" a un
+          cliente que solo escribio "sandwich hawaiano".                     */
+      const pegaEntero = n.length >= 4 && t.includes(n);
+      const pegaPrimera = primera.length >= 3 && palabra(primera);
+      const pega = pegaEntero || pegaPrimera;
+      const encajo = pegaEntero ? n.length : primera.length;
       if (pega) {
-        if (n.length > mejorLargo) mejorLargo = n.length;
+        if (encajo > mejorLargo) mejorLargo = encajo;
         /* EL PRECIO DE VERDAD DE CADA TAMAÑO.
            Si la presentacion trae precio, ese manda. Si viene en 0, el precio
            vive en la variante: cada opcion guarda un `prices` con un valor por
@@ -10558,7 +10619,8 @@ async function precioPuntual(texto: string, branchId: string,
         }
         candidatos.push({
           categoria: String(p.cat?.name || "").trim(),
-          largo: n.length,
+          largo: encajo,
+          entero: pegaEntero,
           name: String(p.name).trim(),
           price: conEmpP(Number(p.price) || 0, null),
           pres: listaPres
@@ -10575,7 +10637,9 @@ async function precioPuntual(texto: string, branchId: string,
         Primero los que encajaron con el nombre mas largo. Si el cliente ademas
         nombro la familia —"la SALCHIPAPA sencilla"— esa manda sobre todo: lo
         dijo el, no hay nada que deducir.                                    */
-    const finalistas0 = candidatos.filter(c => c.largo === mejorLargo);
+    const empatados = candidatos.filter(c => c.largo === mejorLargo);
+    const enteros = empatados.filter(c => c.entero);
+    const finalistas0 = enteros.length ? enteros : empatados;
     const porCategoria = finalistas0.filter(c => !!categoriaMencionada(t, [c.categoria]));
 
     /*  SI NOMBRO UNA FAMILIA Y AHI NO ESTA, NO SE CONTESTA CON OTRA.
@@ -10602,10 +10666,12 @@ async function precioPuntual(texto: string, branchId: string,
         ambiguedad aparece tomando el pedido, para que el cliente no reciba dos
         redacciones distintas de la misma pregunta.                         */
     if (finalistas.length > 1) {
-      const ops = [...new Set(finalistas.map(c => c.categoria).filter(Boolean))]
-        .map(c => capFirst(categoriaEnSingular(c).toLowerCase())).join(", ")
-        .replace(/, ([^,]+)$/, " o $1");
-      if (ops) {
+      const cats = [...new Set(finalistas.map(c => c.categoria).filter(Boolean))];
+      const ops = opcionesDeCategorias(cats);
+      /*  Solo tiene sentido preguntar si son de familias DISTINTAS. Si todas
+          son de la misma, preguntar "¿de cuál? Sandwich" no le da a elegir
+          nada; ahi decide el desempate de arriba.                          */
+      if (cats.length > 1 && ops) {
         return (getFraseTexto(((frasesCfg || {}) as Record<string, unknown>).elegir_categoria as never) ||
           "Tenemos {{producto}} en varias categorías 😋 ¿De cuál lo deseas? {{opciones_categoria}}")
           .replace(/\{\{?\s*producto\s*\}?\}/g, capFirst(finalistas[0].name.toLowerCase()))

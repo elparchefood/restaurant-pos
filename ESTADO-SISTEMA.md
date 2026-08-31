@@ -15822,3 +15822,43 @@ rastro habrian sido tres parches mas en el sitio equivocado.
 Y las pruebas del banco miran **que producto se capturo**, no solo el texto que
 Paco contesta: los tres primeros intentos "se veian bien" en pantalla mientras
 por dentro el pedido llevaba una hamburguesa.
+
+---
+
+## 190. Las dos excepciones al nombre de la familia (31-ago-2026)
+
+`delay-reply` v391. Sergio, leyendo las respuestas reales del punto 189:
+*"bebida Coca Cola suena raro... tambien suena raro decir salchipapa especial o
+salchipapa tradicional; simplemente salchipapa suena bien"*.
+
+Las dos salen de los datos. **Ningun restaurante tiene que configurar nada.**
+
+**Las bebidas no llevan familia.** Se llaman por su marca —Coca Cola, Postobon,
+Quatro— y una marca ya es un nombre completo. No es cosa de El Parche: en
+cualquier carta las bebidas son marcas, mientras que los platos se llaman por un
+adjetivo ("sencilla", "especial") que sin la familia delante no dice nada. La
+categoria se reconoce con los sinonimos que ya existian para entender "¿que
+tienes de tomar?".
+
+**Las subdivisiones se quedan en la familia.** "Salchipapas Especiales" y
+"Salchipapas Tradicionales" son dos estanterias de la carta, no dos comidas. Si
+DOS categorias empiezan por la misma palabra, esa palabra es la familia y lo que
+sigue es la division interna. ⚠️ Por eso no se recorta siempre: "Perros
+calientes" es una sola categoria y ahi "caliente" SI es parte del nombre.
+
+### Y dos cosas que salieron probando
+
+**Ganaba el nombre mas largo, no el que mas encajo.** A "¿cuanto vale el
+sandwich hawaiano?" contestaba el precio del "HAWAIANO CON POLLO": el desempate
+media la longitud del nombre del PRODUCTO (18 letras) en vez de la de lo que de
+verdad encajo del mensaje (8). Ahora se mide lo que encajo, y entre dos que
+empatan gana el que encajo entero.
+
+**Tres sitios escribian la lista de "¿de cual lo deseas?".** La primera
+pregunta, la repregunta y la del precio, cada una por su cuenta — el propio
+codigo ya contaba que una vez salio en plural y otra en singular. Ahora sale de
+`opcionesDeCategorias`, que usa el nombre corto salvo que al acortarlo dos
+familias queden llamandose igual: ahi no habria nada que escoger y se dicen
+enteras.
+
+Banco 13/13.
