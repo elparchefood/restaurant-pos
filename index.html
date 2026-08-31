@@ -473,6 +473,100 @@ a{color:inherit;text-decoration:none}
 .precios-p2{background:#F1F5F9;padding:64px 0 72px;position:relative;z-index:2}
 .precios-p2 .p2-root{min-height:0;padding:0}
 @media (max-width:760px){.precios-p2{padding:40px 0 48px}}
+
+/* ═══ portada con carrusel (30-ago-2026) ═══════════════════════════════
+   Sergio: la portada anterior estaba "muy cargada". Se quitaron el titulo
+   gigante de fondo, el recorte de la cajera, los dos sellos, la tarjeta de
+   WhatsApp y el texto vertical. Queda foto + titular + fila de tarjetas. */
+.hero{transition:transform .5s cubic-bezier(.65,0,.25,1)}
+.hero.saltando{transform:scale(.972)}
+.fondo .hf{position:absolute;inset:0;opacity:0;transition:opacity .5s ease}
+.fondo .hf.on{opacity:1}
+.fondo .hf .ph{width:100%;height:100%;filter:grayscale(.55) contrast(1.12)}
+
+.hero-txt{position:relative}
+.hero-cuando{display:block;margin-bottom:14px;font-family:'DM Mono',ui-monospace,monospace;
+  font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--claro)}
+.hero-cuando::before{content:'';display:inline-block;width:22px;height:1px;
+  background:var(--claro);vertical-align:middle;margin-right:10px;opacity:.7}
+/*  El texto se cambia con la tarjeta: se desvanece hacia abajo y vuelve. Sin
+    esto el titular parpadea de golpe y parece un error de carga. */
+.hero-txt.mudando{opacity:0;transform:translateY(14px)}
+.hero-txt{transition:opacity .22s ease,transform .22s ease}
+
+/*  El titular se queda en su mitad: con las tarjetas a la derecha, un titular
+    a 142px se les metia por debajo y "SE CONTESTA" quedaba tapado. Los
+    titulares nuevos ademas son mas largos que "Tu restaurante trabajando
+    solo", asi que ademas de estrecharlo hay que bajarle un punto el tamaño. */
+.hero .hero-txt{max-width:min(600px,48%)}
+/*  58px no es capricho: es el tamaño mas grande en el que los SEIS
+    titulares caben en DOS renglones. A 70px unos quedaban en dos, otros
+    en tres y uno en cuatro — y el parrafo de abajo pegaba un brinco en
+    cada cambio de tarjeta. Un titular que salta cada 4 segundos se lee
+    como una pagina que se esta cargando mal.  */
+.hero .h1{font-size:clamp(32px,4vw,58px);max-width:none;min-height:2.1em}
+.hero-baja{margin-top:26px}
+.hero-baja p{max-width:44ch}
+
+/*  Dentro de las tarjetas NO se enseña la etiqueta del hueco: la tarjeta ya
+    lleva su nombre escrito y las dos se pisaban. En los fondos si se deja,
+    que es donde sirve para saber cual falta. */
+.tj .ph::after{display:none}
+
+/*  La flecha de bajar se corre para que no le caiga encima a la fila. */
+.hero .circ{top:auto;bottom:34px;right:-30px}
+
+/* ── la fila de tarjetas ── */
+.carr{position:absolute;z-index:8;right:clamp(16px,3vw,46px);bottom:clamp(96px,13vh,150px);
+  width:min(620px,52vw);pointer-events:none}
+.carr>*{pointer-events:auto}
+.carr-marco{overflow:hidden;padding:6px 0}
+.carr-via{display:flex;gap:12px;will-change:transform}
+.tj{position:relative;flex:0 0 clamp(110px,10vw,144px);aspect-ratio:500/680;
+  border-radius:14px;overflow:hidden;padding:0;border:1px solid rgba(255,255,255,.14);
+  background:var(--caja);cursor:pointer;text-align:left;
+  box-shadow:0 18px 40px -18px rgba(0,0,0,.8);
+  transition:transform .22s ease,border-color .22s ease}
+.tj:hover{transform:translateY(-5px);border-color:var(--claro)}
+.tj .ph{position:absolute;inset:0;filter:grayscale(.25) contrast(1.06)}
+.tj::after{content:'';position:absolute;inset:0;
+  background:linear-gradient(0deg,rgba(6,7,11,.94) 4%,rgba(6,7,11,.25) 46%,transparent 72%)}
+.tj-txt{position:absolute;z-index:2;left:11px;right:11px;bottom:11px;display:block}
+.tj-cuando{display:block;font-family:'DM Mono',ui-monospace,monospace;font-size:8.5px;
+  letter-spacing:.07em;color:var(--t3);margin-bottom:3px}
+.tj-nom{display:block;font-family:'Archivo',system-ui,sans-serif;font-weight:800;
+  font-size:clamp(10px,1vw,12.5px);line-height:1.08;letter-spacing:-.01em;
+  text-transform:uppercase;color:#fff}
+
+/*  La tarjeta que va volando a ser fondo. Va en `position:fixed` porque tiene
+    que poder salirse de la fila, que esta recortada. */
+.carr-vuelo{position:fixed;z-index:60;border-radius:14px;overflow:hidden;
+  background-size:cover;background-position:center;pointer-events:none;
+  box-shadow:0 30px 80px -30px rgba(0,0,0,.9);
+  transition:transform .52s cubic-bezier(.62,0,.2,1),border-radius .52s ease,opacity .12s ease .4s}
+
+/* ── el pie: flechas, la linea del reloj y el contador ── */
+.carr-pie{display:flex;align-items:center;gap:10px;margin-top:16px}
+.carr-fl{width:30px;height:30px;border-radius:50%;flex-shrink:0;
+  border:1px solid var(--linea);background:rgba(255,255,255,.06);color:var(--t2);
+  display:grid;place-items:center;cursor:pointer;transition:all .16s}
+.carr-fl svg{width:14px;height:14px}
+.carr-fl:hover{background:var(--acid);border-color:var(--acid);color:#fff}
+.carr-linea{flex:1;height:2px;background:var(--linea);border-radius:2px;overflow:hidden}
+.carr-linea i{display:block;height:100%;width:0;background:var(--acid);border-radius:2px}
+.carr-linea i.corriendo{width:100%;transition:width 4s linear}
+.carr-num{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:var(--t3);flex-shrink:0}
+.carr-num b{color:#fff;font-weight:500;font-size:15px}
+
+@media (max-width:900px){
+  /*  En telefono la fila se va abajo del todo y se deja arrastrar con el
+      dedo: cuatro tarjetas de 118px no caben al lado del titular. */
+  .carr{position:relative;right:auto;bottom:auto;width:100%;
+    margin:30px 0 0;padding:0 24px}
+  .carr-marco{overflow:auto;scrollbar-width:none}
+  .carr-marco::-webkit-scrollbar{display:none}
+  .tj{flex:0 0 132px}
+}
 </style>
 </head>
 <body>
@@ -495,42 +589,68 @@ a{color:inherit;text-decoration:none}
 <!-- ══════ HERO ══════ -->
 <header class="hero" id="top">
   <span class="bandera"></span>
-  <div class="fondo"><div class="ph" data-et="foto de fondo · local de noche, luces cálidas" style="background-image:url(img/landing/fondo-local-noche.jpg)"></div></div>
+
+  <!--  UN FONDO POR TARJETA, apilados. El que manda lleva `.on`. Se dejan
+        todos en el HTML y no se cambia el `src` de uno solo, porque cambiar
+        el src descarga la foto en ese momento y se ve el parpadeo justo
+        cuando el efecto tiene que ser limpio.  -->
+  <div class="fondo" id="hero-fondos">
+      <div class="hf on" data-i="0"><div class="ph" data-et="fondo · Chat automático"></div></div>
+      <div class="hf" data-i="1"><div class="ph" data-et="fondo · Toma de pedidos"></div></div>
+      <div class="hf" data-i="2"><div class="ph" data-et="fondo · Pantalla de cocina"></div></div>
+      <div class="hf" data-i="3"><div class="ph" data-et="fondo · Comprobantes"></div></div>
+      <div class="hf" data-i="4"><div class="ph" data-et="fondo · Rentabilidad"></div></div>
+      <div class="hf" data-i="5"><div class="ph" data-et="fondo · Puntos y premios"></div></div>
+  </div>
   <div class="velo"></div><div class="rejilla"></div>
-  <div class="tit-gig disp">COBRA</div>
-  <div class="recorte"><div class="ph claro" data-et="foto recortada · la cajera con la tablet, fondo quitado" style="background-image:url(img/landing/cajera-recorte.webp)"></div></div>
-  <span class="lat">HECHO EN UN RESTAURANTE · POPAYÁN · COLOMBIA</span>
-  <span class="stk" style="left:6%;top:20%">Sin permanencia</span>
-  <span class="stk" style="right:34%;top:12%;transform:rotate(6deg);background:var(--vio);color:#fff">Desde $149.000</span>
+
   <div class="env hero-in">
     <div class="metas">
       <span class="ch">Hecho en un restaurante</span>
       <span>Colombia</span><span class="sep">/</span><span>1 a 3 sedes</span><span class="sep">/</span>
       <span>Listo en una tarde</span><span class="sep">/</span><span>Sin permanencia</span>
     </div>
-    <div style="position:relative">
-      <!--  EL TITULAR. Decia "contestando solo" y Sergio lo cambio el 30-ago:
-      reducia Cobra a un contestador de WhatsApp cuando es un POS completo.
-      "Trabajando" abarca todo el producto y mantiene el mismo ritmo.
-      Se cambio SOLO la palabra: el estilo es el que el ya aprobo.       -->
-        <h1 class="h1">Tu restaurante<br><span class="l2">trabajando <span class="mark" style="color:#fff;-webkit-text-stroke:0">solo</span></span></h1>
-      <span class="slash"></span>
-    </div>
-    <div class="hero-baja">
-      <p>Los pedidos llegan por WhatsApp y se contestan solos. La cocina los ve sin papel.
-         El domiciliario sale con la ruta hecha.</p>
-      <div class="hero-cta"><a class="btn" href="#precios">Empezar ahora</a><a class="btn o" href="#">WhatsApp</a></div>
+
+    <!--  El titular CAMBIA con cada tarjeta. El estilo es el mismo de
+          siempre: `.h1`, `.l2` con el contorno y `.mark` para la palabra
+          rellena. Lo unico que se mueve es el texto.  -->
+    <div class="hero-txt" id="hero-txt">
+      <span class="hero-cuando" id="hero-cuando">Sábado, 8:40 p. m.</span>
+      <h1 class="h1" id="hero-tit">El WhatsApp<br><span class="l2">se contesta <span class="mark" style="color:#fff;-webkit-text-stroke:0">solo</span></span></h1>
+      <div class="hero-baja">
+        <p id="hero-sub">Toma el pedido completo, con presentaciones y adiciones, cobra y lo manda a la cocina.</p>
+        <div class="hero-cta"><a class="btn" href="#precios">Empezar ahora</a><a class="btn o" href="#">WhatsApp</a></div>
+      </div>
     </div>
   </div>
-  <div class="tarj-flot vidrio">
-    <div class="cab"><i></i> WhatsApp del restaurante · 11:47 p. m.</div>
-    <div class="bb e">¿Todavía tienen churrasco?</div>
-    <div class="bb a">¡Claro! Personal $32.000 o para dos $58.000</div>
-    <div class="bb e">El de dos, conjunto Las Palmas</div>
-    <div class="bb a">Listo 🙌 Pedido #418 a cocina</div>
+
+  <!--  LA FILA. `carr-via` es la que se mueve; las tarjetas se reordenan
+        despues de cada paso para que el circulo no tenga final.  -->
+  <div class="carr" id="carr">
+    <div class="carr-marco">
+      <div class="carr-via" id="carr-via">
+        <div class="tj" role="button" tabindex="0" data-id="pedidos"><div class="ph claro" data-et="tarjeta · Toma de pedidos"></div><span class="tj-txt"><span class="tj-cuando">En la mesa 4</span><span class="tj-nom">Toma de pedidos</span></span></div>
+        <div class="tj" role="button" tabindex="0" data-id="cocina"><div class="ph claro" data-et="tarjeta · Pantalla de cocina"></div><span class="tj-txt"><span class="tj-cuando">En la plancha</span><span class="tj-nom">Pantalla de cocina</span></span></div>
+        <div class="tj" role="button" tabindex="0" data-id="comprobantes"><div class="ph claro" data-et="tarjeta · Comprobantes"></div><span class="tj-txt"><span class="tj-cuando">Un Nequi a las 11 p. m.</span><span class="tj-nom">Comprobantes</span></span></div>
+        <div class="tj" role="button" tabindex="0" data-id="rentabilidad"><div class="ph claro" data-et="tarjeta · Rentabilidad"></div><span class="tj-txt"><span class="tj-cuando">Al cerrar el mes</span><span class="tj-nom">Rentabilidad</span></span></div>
+        <div class="tj" role="button" tabindex="0" data-id="puntos"><div class="ph claro" data-et="tarjeta · Puntos y premios"></div><span class="tj-txt"><span class="tj-cuando">Cuando vuelve</span><span class="tj-nom">Puntos y premios</span></span></div>
+        <div class="tj" role="button" tabindex="0" data-id="chat"><div class="ph claro" data-et="tarjeta · Chat automático"></div><span class="tj-txt"><span class="tj-cuando">Sábado, 8:40 p. m.</span><span class="tj-nom">Chat automático</span></span></div>
+      </div>
+    </div>
+    <div class="carr-pie">
+      <button class="carr-fl" type="button" id="carr-atras" aria-label="Anterior">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <button class="carr-fl" type="button" id="carr-siguiente" aria-label="Siguiente">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+      <span class="carr-linea"><i id="carr-avance"></i></span>
+      <span class="carr-num"><b id="carr-n">01</b><span>/ 06</span></span>
+    </div>
   </div>
+
   <span class="barra-h"><span class="bar"></span></span>
-  <a class="circ" href="#quien"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+  <a class="circ" href="#quien"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg></a>
 </header>
 
 <!-- ══════ QUIÉN ══════ -->
@@ -1014,6 +1134,224 @@ window.CobraPlan.iniciar({
                     '&sedes=' + e.branches + '&billing=' + e.billing;
   }
 });
+</script>
+<script>
+/*  ══ EL CARRUSEL DE LA PORTADA ═══════════════════════════════════════════
+
+    Lo importante y lo que no es obvio: el cambio de tarjeta NO es un
+    desvanecido. La primera tarjeta de la fila **crece desde donde esta hasta
+    volverse el fondo**. Para eso se clona la tarjeta, se le pone la foto
+    APAISADA (la del fondo, no la de la tarjeta) y se anima ese clon desde el
+    cuadrito hasta la pantalla entera. Al terminar, el clon se quita y debajo
+    ya esta el fondo de verdad.
+
+    Se clona en vez de mover la tarjeta original porque la fila esta recortada
+    (`overflow:hidden`): la original no puede salirse de ahi.                */
+(function () {
+  var DATOS = [
+  {
+    "id": "chat",
+    "nombre": "Chat automático",
+    "cuando": "Sábado, 8:40 p. m.",
+    "t1": "El WhatsApp",
+    "t2": "se contesta",
+    "t3": "solo",
+    "sub": "Toma el pedido completo, con presentaciones y adiciones, cobra y lo manda a la cocina."
+  },
+  {
+    "id": "pedidos",
+    "nombre": "Toma de pedidos",
+    "cuando": "En la mesa 4",
+    "t1": "El pedido entra",
+    "t2": "una sola",
+    "t3": "vez",
+    "sub": "Del salón, para llevar o a domicilio. Se toma una vez y ya está en cocina, en la caja y en el informe."
+  },
+  {
+    "id": "cocina",
+    "nombre": "Pantalla de cocina",
+    "cuando": "En la plancha",
+    "t1": "La cocina lo ve",
+    "t2": "sin",
+    "t3": "papel",
+    "sub": "Cada comanda con su reloj. Cuando el plato sale se marca listo, y la mesa se entera sola."
+  },
+  {
+    "id": "comprobantes",
+    "nombre": "Comprobantes",
+    "cuando": "Un Nequi a las 11 p. m.",
+    "t1": "El pago",
+    "t2": "se confirma",
+    "t3": "solo",
+    "sub": "Llega el comprobante, Cobra lo lee y confirma que el dinero entró. Nadie se queda mirando la app del banco."
+  },
+  {
+    "id": "rentabilidad",
+    "nombre": "Rentabilidad",
+    "cuando": "Al cerrar el mes",
+    "t1": "Sabes cuál plato",
+    "t2": "te deja",
+    "t3": "plata",
+    "sub": "Costo real de cada plato, margen por producto y el semáforo que avisa cuál dejó de ser rentable."
+  },
+  {
+    "id": "puntos",
+    "nombre": "Puntos y premios",
+    "cuando": "Cuando vuelve",
+    "t1": "El cliente",
+    "t2": "vuelve",
+    "t3": "solo",
+    "sub": "Puntos por cada compra, premios que tú decides, y un mensaje que le recuerda que los tiene."
+  }
+];
+  var PAUSA = 4000;          // lo que dura cada tarjeta, medido del video
+  var VUELO = 520;           // lo que dura el crecimiento
+
+  var via    = document.getElementById('carr-via');
+  var fondos = document.getElementById('hero-fondos');
+  var hero   = document.getElementById('top');
+  var txt    = document.getElementById('hero-txt');
+  var avance = document.getElementById('carr-avance');
+  if (!via || !fondos) return;
+
+  var actual = 0, ocupado = false, reloj = null;
+
+  function porId(id) {
+    for (var i = 0; i < DATOS.length; i++) if (DATOS[i].id === id) return i;
+    return 0;
+  }
+
+  function arrancarReloj() {
+    clearTimeout(reloj);
+    if (!avance) return;
+    avance.classList.remove('corriendo');
+    avance.style.width = '0';
+    //  Un cuadro de espera: sin esto el navegador junta el "ancho 0" y el
+    //  "ancho 100%" en un solo repintado y la barra salta llena de una.
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { avance.classList.add('corriendo'); });
+    });
+    reloj = setTimeout(function () { ir(1); }, PAUSA);
+  }
+
+  function pintarTexto(i) {
+    var d = DATOS[i];
+    txt.classList.add('mudando');
+    setTimeout(function () {
+      document.getElementById('hero-cuando').textContent = d.cuando;
+      document.getElementById('hero-tit').innerHTML =
+        d.t1 + '<br><span class="l2">' + d.t2 +
+        ' <span class="mark" style="color:#fff;-webkit-text-stroke:0">' + d.t3 + '</span></span>';
+      document.getElementById('hero-sub').textContent = d.sub;
+      var n = document.getElementById('carr-n');
+      if (n) n.textContent = (i + 1 < 10 ? '0' : '') + (i + 1);
+      txt.classList.remove('mudando');
+    }, 220);
+  }
+
+  /*  `pasos` es cuantas tarjetas avanza. 1 es lo normal; si alguien toca la
+      tercera tarjeta de la fila, son 3.                                    */
+  function ir(pasos) {
+    if (ocupado || !pasos) return;
+    ocupado = true;
+    clearTimeout(reloj);
+
+    var atras = pasos < 0;
+    if (atras) {
+      //  Hacia atras: se mete al principio la ultima tarjeta y se corre la
+      //  fila sin animacion, para que despues pueda volver a su sitio.
+      via.insertBefore(via.lastElementChild, via.firstElementChild);
+      var anchoT = via.firstElementChild.getBoundingClientRect().width + 12;
+      via.style.transition = 'none';
+      via.style.transform = 'translateX(-' + anchoT + 'px)';
+      via.getBoundingClientRect();          // obliga a repintar antes de animar
+      pasos = 1;
+    }
+
+    var tj = via.children[pasos - 1];
+    if (!tj) { ocupado = false; arrancarReloj(); return; }
+    var nuevo = porId(tj.dataset.id);
+
+    // ── el clon que vuela ──
+    var r = tj.getBoundingClientRect();
+    var rh = hero.getBoundingClientRect();
+    var vuelo = document.createElement('div');
+    vuelo.className = 'carr-vuelo';
+    vuelo.style.cssText += ';left:' + r.left + 'px;top:' + r.top + 'px;' +
+                           'width:' + r.width + 'px;height:' + r.height + 'px;';
+    var fondoNuevo = fondos.children[nuevo].querySelector('.ph');
+    var img = fondoNuevo && getComputedStyle(fondoNuevo).backgroundImage;
+    if (img && img !== 'none') vuelo.style.backgroundImage = img;
+    else {
+      //  Todavia sin foto: vuela el rayado, para poder ver el efecto igual.
+      vuelo.style.background = 'repeating-linear-gradient(128deg,#1B2130 0 10px,#12161F 10px 20px)';
+    }
+    document.body.appendChild(vuelo);
+    tj.style.visibility = 'hidden';
+
+    hero.classList.add('saltando');
+    pintarTexto(nuevo);
+
+    requestAnimationFrame(function () {
+      vuelo.style.transform = 'translate(' + (rh.left - r.left) + 'px,' + (rh.top - r.top) + 'px) ' +
+                              'scale(' + (rh.width / r.width) + ',' + (rh.height / r.height) + ')';
+      vuelo.style.transformOrigin = 'top left';
+      vuelo.style.borderRadius = '0';
+
+      // el fondo de verdad se enciende debajo mientras el clon todavia tapa
+      for (var k = 0; k < fondos.children.length; k++)
+        fondos.children[k].classList.toggle('on', k === nuevo);
+
+      if (!atras) {
+        var ancho = r.width + 12;
+        via.style.transition = 'transform .52s cubic-bezier(.62,0,.2,1)';
+        via.style.transform = 'translateX(-' + (ancho * pasos) + 'px)';
+      } else {
+        via.style.transition = 'transform .52s cubic-bezier(.62,0,.2,1)';
+        via.style.transform = 'translateX(0)';
+      }
+    });
+
+    setTimeout(function () {
+      vuelo.style.opacity = '0';
+      setTimeout(function () { vuelo.remove(); }, 140);
+
+      //  La fila vuelve a su sitio SIN animacion y las tarjetas que ya pasaron
+      //  se van al final. Asi el circulo no tiene principio ni fin.
+      via.style.transition = 'none';
+      via.style.transform = 'translateX(0)';
+      if (!atras) for (var i = 0; i < pasos; i++) via.appendChild(via.firstElementChild);
+      tj.style.visibility = '';
+      via.getBoundingClientRect();
+      via.style.transition = '';
+
+      hero.classList.remove('saltando');
+      actual = nuevo;
+      ocupado = false;
+      arrancarReloj();
+    }, VUELO);
+  }
+
+  document.getElementById('carr-siguiente').addEventListener('click', function () { ir(1); });
+  document.getElementById('carr-atras').addEventListener('click', function () { ir(-1); });
+
+  //  Tocar una tarjeta salta directo a ella: avanza tantos pasos como su
+  //  posicion en la fila.
+  via.addEventListener('click', function (e) {
+    var tj = e.target.closest ? e.target.closest('.tj') : null;
+    if (!tj) return;
+    var i = [].indexOf.call(via.children, tj);
+    if (i >= 0) ir(i + 1);
+  });
+
+  //  Con la pestaña escondida no se anima nada: el navegador no llama a
+  //  requestAnimationFrame y la portada se quedaria congelada a medias.
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) clearTimeout(reloj); else arrancarReloj();
+  });
+
+  arrancarReloj();
+})();
 </script>
 </body>
 </html>
