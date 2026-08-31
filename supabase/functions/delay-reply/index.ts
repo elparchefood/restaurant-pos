@@ -2045,7 +2045,16 @@ INTENCION, no las palabras exactas.` },
     dia: colDayStr,
     fecha: fechaStr,
     saludo_hora: saludoHora,
-    restaurante: perfilCfg.nombre || botCfgV.nombre || String(pagosCfg?.titular || "") || String(branchInfo?.name || ""),
+    /*  ⚠️ EL NOMBRE DEL RESTAURANTE, NO EL DEL ASISTENTE (31-ago-2026).
+
+        Esto empezaba por `perfilCfg.nombre`, que es el nombre del BOT.
+        Mientras ese campo estuvo vacio nadie lo noto: caia al nombre de la
+        sede y salia bien. El dia que Sergio escribio "Paco" en el perfil
+        del asistente, `{restaurante}` paso a valer "Paco" y Paco se
+        presentaba como *"el asistente virtual de Paco"*.
+
+        Son dos cosas distintas y ninguna sirve de repuesto de la otra.  */
+    restaurante: String(branchInfo?.name || "") || String(pagosCfg?.titular || ""),
     direccion_local: String(branchInfo?.address || ""),
     ciudad: String(branchInfo?.city || ""),
     telefono_local: String(branchInfo?.phone || ""),
@@ -8518,6 +8527,12 @@ async function buildConversationResponse(
     nextStepLine,
     "",
     "REGLAS:",
+    /*  LA REGLA QUE NO SE PUEDE ROMPER, y por eso va aqui arriba y no
+        abajo con las preguntas frecuentes. Puesta abajo, el modelo la
+        ignoro: a "¿tienen parqueadero?" contesto que no tenia la
+        informacion pero no paso la conversacion a nadie, y el cliente
+        quedaba sin respuesta.  */
+    "- NUNCA TE INVENTES UNA RESPUESTA. Si el cliente pregunta algo y la respuesta NO esta en el contexto que te dieron (preguntas frecuentes, menu, horarios, formas de pago, zonas de domicilio), NO adivines, NO supongas y NO contestes \"por logica\": dile en UNA frase corta que se lo confirmas en un momento y termina tu mensaje con [[HUMANO]]. Escribe [[HUMANO]] tal cual, una sola vez y al final; no lo expliques ni lo menciones. El cliente NO lo ve: sirve para que le responda una persona del restaurante. Ejemplo -- cliente: \"tienen parqueadero?\" (eso no esta en el contexto) -> tu: \"Dejame confirmarte eso y te cuento en un momentico [[HUMANO]]\". Si el dato SI esta en el contexto, respondelo tu y NO pongas la marca.",
     "- Máximo 2 oraciones. Sé cálido, natural y humano, JAMÁS robótico.",
     "- Si preguntan si abren un DÍA específico (¿abren el martes?, ¿el lunes sí atienden?), NO respondas con el horario de HOY. Revisa las listas 'DÍAS CON SERVICIO' y 'DÍAS CERRADOS' del contexto y responde EXACTO para ESE día: si ese día está en DÍAS CERRADOS, dile CLARO que ese día NO hay servicio (jamás digas que sí abren ni 'nos vemos ese día'). Si está abierto, dile el horario de ese día.",
     "- NO repitas una frase que ya hayas enviado antes en esta conversación (mira el historial): varía SIEMPRE el mensaje.",
@@ -8544,6 +8559,12 @@ async function buildConversationResponse(
     nextStepLine,
     "",
     "REGLAS:",
+    /*  LA REGLA QUE NO SE PUEDE ROMPER, y por eso va aqui arriba y no
+        abajo con las preguntas frecuentes. Puesta abajo, el modelo la
+        ignoro: a "¿tienen parqueadero?" contesto que no tenia la
+        informacion pero no paso la conversacion a nadie, y el cliente
+        quedaba sin respuesta.  */
+    "- NUNCA TE INVENTES UNA RESPUESTA. Si el cliente pregunta algo y la respuesta NO esta en el contexto que te dieron (preguntas frecuentes, menu, horarios, formas de pago, zonas de domicilio), NO adivines, NO supongas y NO contestes \"por logica\": dile en UNA frase corta que se lo confirmas en un momento y termina tu mensaje con [[HUMANO]]. Escribe [[HUMANO]] tal cual, una sola vez y al final; no lo expliques ni lo menciones. El cliente NO lo ve: sirve para que le responda una persona del restaurante. Ejemplo -- cliente: \"tienen parqueadero?\" (eso no esta en el contexto) -> tu: \"Dejame confirmarte eso y te cuento en un momentico [[HUMANO]]\". Si el dato SI esta en el contexto, respondelo tu y NO pongas la marca.",
     /* Caso real: el cliente escribio "una hamburguesa", el bot le mando la
        lista de las cuatro, el cliente volvio a escribir "una hamburguesa" y el
        bot mando LA MISMA LISTA. Repetir lo mismo no es responder: si no
@@ -8656,7 +8677,17 @@ async function buildConversationResponse(
       + "tamaño: que un plato se llame \"personal\" NO significa que sea para una "
       + "persona, y que se llame \"familiar\" no dice para cuantas. Si la respuesta "
       + "no esta arriba, NO la adivines: dile que se la confirmas en un momento. "
-      + "Una porcion mal dicha es un cliente molesto en la puerta.");
+      + "Una porcion mal dicha es un cliente molesto en la puerta.",
+      /*  Y la regla general, que es la que de verdad cierra el hueco: la de
+          arriba solo cubre las porciones, esta cubre CUALQUIER pregunta.   */
+      "⚠️ NUNCA TE INVENTES UNA RESPUESTA. Si el cliente pregunta algo cuya "
+      + "respuesta no esta en las preguntas frecuentes, el menu, los horarios, "
+      + "las formas de pago o las zonas de domicilio de aqui arriba, NO adivines "
+      + "ni supongas ni contestes 'por logica'. Dile en una frase corta y amable "
+      + "que se lo confirmas en un momento, y termina tu mensaje con la marca "
+      + "[[HUMANO]] — el cliente NO la ve; sirve para que le responda una persona "
+      + "del restaurante. Usala SOLO cuando de verdad no puedas responder con lo "
+      + "de arriba: si el dato esta, respondelo tu y no pases nada.");
     const sitLines = Object.entries(situacionesObj)
       .filter(([, v]) => v)
       .map(([k, v]) => `- ${k.replace(/_/g, " ")}: ${v}`);
@@ -9900,6 +9931,30 @@ async function sendWaAndSave(
     } catch (_e) { /* si no se puede comprobar, se manda igual: mejor responder */ }
   }
 
+  /*  ══ LA MARCA [[HUMANO]] — «NO SE INVENTA, SE PASA» ═════════════════
+
+      Regla de Sergio, 31-ago-2026: *"si una pregunta no se encuentra en las
+      preguntas frecuentes, Paco no debe inventarsela; debe pasar el chat al
+      humano. Cuando el no sepa la pregunta nunca se debe inventar una
+      respuesta"*. Nace de Valentina: pregunto si la premium personal era para
+      dos y Paco dijo que no — se lo invento, teniendo la respuesta escrita.
+
+      El modelo termina su mensaje con la marca cuando no puede responder con
+      lo que tiene. Aqui se le quita —el cliente NUNCA la ve— y se pasa la
+      conversacion. El mensaje que queda es el que el modelo escribio
+      ("dejame confirmarte eso"), asi que nadie se queda esperando en
+      silencio: `pasarAHumano` solo manda frase si esta configurada, y en El
+      Parche no lo esta.                                                    */
+  const MARCA_HUM = "[[HUMANO]]";
+  let pasarHum = false;
+  if (msg.includes(MARCA_HUM)) {
+    pasarHum = true;
+    msg = msg.split(MARCA_HUM).join("").trim();
+    /*  Por si el modelo mando SOLO la marca: algo hay que decirle al cliente
+        antes de que le conteste una persona.  */
+    if (!msg) msg = "Dame un momentico y te confirmo eso ☺️";
+  }
+
   const MARCA_APP = "[[APP]]";
   let mandarApp = false;
   if (msg.includes(MARCA_APP)) {
@@ -9969,6 +10024,20 @@ async function sendWaAndSave(
      proposito: primero Paco le contesta lo que pregunto, y luego llega el
      boton — que es el orden en que lo hizo Sergio a mano el 23-ago. */
   if (mandarApp) await mandarRespuestaApp(convId, tenantId, fromPhone, phoneId, accessToken);
+  /*  Y el traspaso, DESPUES de mandar el mensaje: primero el cliente lee que
+      se lo confirmamos, y solo entonces la conversacion queda esperando a una
+      persona. Al reves, el humano abriria un chat sin saber que se le dijo. */
+  if (pasarHum) {
+    try {
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+        human_takeover: true,
+        handoff_motivo: "no supo la respuesta y no se la invento",
+        handoff_at: new Date().toISOString(),
+        ai_typing: false,
+      });
+      console.log("[humano] Paco no supo responder y paso la conversacion");
+    } catch (err) { console.error("[humano] no pude pasar la conversacion:", err); }
+  }
 }
 
 // ── Dirección: clasificación y lookup ────────────────────────────────────────
