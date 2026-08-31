@@ -10370,7 +10370,17 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
                  variables?: Array<{ name?: string; options?: Array<{ name?: string; price?: number; prices?: number[] }> }> }> | null;
 
     // Producto: gana el nombre MÁS LARGO que aparezca (completo o su primera palabra)
-    let mejor: { name: string; price: number; pres: Array<{ name: string; price: number }> } | null = null;
+    let mejor: {
+      name: string; price: number; pres: Array<{ name: string; price: number }>;
+      /*  LA TABLA COMPLETA, para cuando NO se puede decir un solo precio.
+          Una fila por tamaño, y dentro cada tipo con el suyo.             */
+      matriz: Array<{ pres: string; opciones: Array<{ name: string; price: number }> }> | null;
+      /*  EL TIPO QUE NOMBRO EL CLIENTE, para repetirselo en la respuesta.
+          Sin esto, a "la premium mixta personal" se contestaba "Premium
+          personal cuesta $35.000", que se lee como que TODAS las personales
+          valen eso — y la de pollo vale $29.000.                          */
+      variante: string | null;
+    } | null = null;
     let mejorLargo = 0;
     for (const p of (prods || [])) {
       const n = normalizarTexto(String(p.name || "")).trim();
@@ -10391,6 +10401,11 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
                solo se dice cuando se sabe la variante Y el tamaño. */
         const listaPres = ((p.presentations || []) as Array<{ name?: string; price?: number }>);
         const listaVars = ((p.variables || []) as Array<{ name?: string; options?: Array<{ name?: string; price?: number; prices?: number[] }> }>);
+        /*  Se apunta el tipo que nombro el cliente. `precioDeIdx` ya lo
+            buscaba para dar el precio bueno, pero no lo decia: la respuesta
+            salia "Premium personal cuesta $35.000" y la de pollo vale otra
+            cosa. Repetirselo es lo que hace la respuesta inequivoca.      */
+        let varDicha: string | null = null;
         const precioDeIdx = (idx: number, base: number): number => {
           if (base > 0) return base;
           const valores: number[] = [];
@@ -10402,7 +10417,7 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
                 : Number(o?.price) || 0;
               if (v <= 0) continue;
               // La variante que el cliente nombro gana sobre todas.
-              if (nOp && palabra(nOp)) return v;
+              if (nOp && palabra(nOp)) { varDicha = String(o?.name || "").trim() || varDicha; return v; }
               valores.push(v);
             }
           }
@@ -10414,6 +10429,33 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
            carta y el que va a pagar. Misma funcion que la carta y la caja. */
         const conEmpP = (v: number, presId: unknown) =>
           precioParaElCliente(v, opEmpP, p.id, p.category_id, presId);
+        /*  LA TABLA COMPLETA (31-ago-2026). Se arma siempre que el precio
+            viva en las variantes, y sirve para cuando no hay UN precio que
+            decir. Se guarda el indice original de cada tamaño porque los
+            `prices` de cada variante van en ESE orden, y el filtro de
+            "unico" corre despues.                                        */
+        const presLista = listaPres
+          .map((x, i) => ({ i, name: String(x?.name || "").trim(), id: (x as { id?: string })?.id }))
+          .filter(x => x.name && x.name.toLowerCase() !== "unico" && x.name.toLowerCase() !== "único");
+        const grupoPrecio = listaVars.find(g => (g.options || []).some(o => Array.isArray(o?.prices)));
+        let matriz: Array<{ pres: string; opciones: Array<{ name: string; price: number }> }> | null = null;
+        if (grupoPrecio && presLista.length) {
+          const filas = presLista.map(pr => ({
+            pres: pr.name,
+            opciones: (grupoPrecio.options || []).map(o => ({
+              name: String(o?.name || "").trim(),
+              price: conEmpP(
+                Array.isArray(o?.prices) && pr.i < (o!.prices as number[]).length
+                  ? Number((o!.prices as number[])[pr.i]) || 0
+                  : Number(o?.price) || 0,
+                pr.id),
+            })).filter(o => o.name),
+          }));
+          /*  O estan TODOS o no hay tabla: media tabla se lee como que lo que
+              falta no existe. Misma regla que ya habia para los tamaños.   */
+          matriz = filas.length && filas.every(f => f.opciones.length && f.opciones.every(o => o.price > 0))
+            ? filas : null;
+        }
         mejor = {
           name: String(p.name).trim(),
           price: conEmpP(Number(p.price) || 0, null),
@@ -10421,6 +10463,8 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
             .map((x, i) => ({ name: String(x?.name || "").trim(),
                               price: conEmpP(precioDeIdx(i, Number(x?.price) || 0), (x as {id?: string})?.id) }))
             .filter(x => x.name && x.name.toLowerCase() !== "unico" && x.name.toLowerCase() !== "único"),
+          matriz,
+          variante: varDicha,
         };
       }
     }
@@ -10437,16 +10481,43 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
          FALSO. Si no se puede saber el precio, no se contesta el precio: se
          devuelve null y el flujo normal sigue y pregunta el tamaño, que es
          justo lo que hace falta para poder decirlo. */
+      /*  SI NO SE PUEDE DECIR UN PRECIO, SE DICEN TODOS (31-ago-2026).
+          Antes aqui se devolvia null y contestaba el modelo de memoria: a
+          "¿y la premium?" respondio "$29.000 pollo y $30.000 carne" — dos de
+          seis, y ninguno de la fila que decia. La tabla sale del catalogo. */
+      const listaOpc = (ops: Array<{ name: string; price: number }>) =>
+        ops.map(o => `• ${capFirst(o.name.toLowerCase())} ${fmtCOP(o.price)}`).join("\n");
+      //  El tipo que dijo el cliente vuelve en la respuesta: "premium MIXTA
+      //  personal cuesta X", no "premium personal cuesta X" —que sonaria a
+      //  que todas las personales valen lo mismo, y no.
+      const tipoDicho = mejor.variante ? ` ${mejor.variante.toLowerCase()}` : "";
+
+      if (cerca && cerca.price <= 0 && mejor.matriz) {
+        //  Dijo el tamaño pero no el tipo: los de ESE tamaño.
+        const fila = mejor.matriz.find(f => normalizarTexto(f.pres) === normalizarTexto(cerca.name));
+        if (fila) return `${nom} ${fila.pres.toLowerCase()} 😊\n${listaOpc(fila.opciones)}`;
+      }
       if (cerca) {
-        return cerca.price > 0 ? `${nom} ${cerca.name.toLowerCase()} cuesta ${fmtCOP(cerca.price)} 😊` : null;
+        return cerca.price > 0 ? `${nom}${tipoDicho} ${cerca.name.toLowerCase()} cuesta ${fmtCOP(cerca.price)} 😊` : null;
       }
       const conPrecio = mejor.pres.filter(x => x.price > 0);
       /* Se exigen TODOS con precio, no "los que tengan": decir solo dos de tres
          tamaños se lee como que el que falta no existe. */
       if (mejor.pres.length > 1) {
-        return conPrecio.length === mejor.pres.length
-          ? `${nom} cuesta: ${mejor.pres.map(x => `${x.name.toLowerCase()} ${fmtCOP(x.price)}`).join(" y ")} 😊`
-          : null;
+        if (conPrecio.length === mejor.pres.length) {
+          return `${nom}${tipoDicho} cuesta: ${mejor.pres.map(x => `${x.name.toLowerCase()} ${fmtCOP(x.price)}`).join(" y ")} 😊`;
+        }
+        //  No dijo ni tamaño ni tipo: la tabla entera, agrupada por tamaño.
+        if (mejor.matriz) {
+          return `${nom} 😊\n\n` + mejor.matriz
+            .map(f => `*${capFirst(f.pres.toLowerCase())}*\n${listaOpc(f.opciones)}`)
+            .join("\n\n");
+        }
+        return null;
+      }
+      //  Un solo tamaño, pero el precio vive en el tipo: los tipos.
+      if (mejor.matriz && mejor.matriz.length === 1 && (mejor.pres[0]?.price || 0) <= 0) {
+        return `${nom} 😊\n${listaOpc(mejor.matriz[0].opciones)}`;
       }
       const unico = mejor.pres[0]?.price || mejor.price;
       return unico > 0 ? `${nom} cuesta ${fmtCOP(unico)} 😊` : null;
