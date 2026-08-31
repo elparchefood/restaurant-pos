@@ -1969,11 +1969,37 @@
         Cobra sabe que el domicilio quedó a deber — hoy, un pedido que YA
         estaba pagado y al que se le añadió el domicilio al pasarlo a
         domicilio. Ese es exactamente el caso que Sergio describió.          */
+    /*  ⚠️ TERCERA VERSIÓN, 30-ago-2026 por la noche. Dos cosas que hacían
+        que este aviso no saliera JAMÁS en los pedidos de la app:
+
+        1. DOS NOMBRES PARA LA MISMA MARCA. Aquí se buscaba
+           `[domi_por_cobrar]`, que es como la escribe el camino de WhatsApp
+           (`verify-transfer`) y el de pasar una venta a domicilio. Pero la
+           app escribe `[DOMICILIO POR COBRAR]` (`web-pedido`), con espacios
+           y en mayúsculas. Nunca coincidían. Ahora se aceptan las dos.
+
+        2. SE EXIGÍA SABER CUÁNTO. `if (fee <= 0) return 0` dejaba fuera
+           justo el caso que importa: cuando el barrio es desconocido, la app
+           no sabe cuánto cobrar y deja el domicilio en cero. Ese es el
+           pedido que hay que avisar, y era el único que se callaba.
+
+        Ahora devuelve tres cosas: 0 = no hay nada que cobrar; un número = hay
+        que cobrar esa plata; -1 = hay que cobrarlo pero nadie sabe cuánto.  */
     if (!d) return 0;
+    if (!/\[\s*domi(?:cilio)?[\s_]*por[\s_]*cobrar\s*\]/i.test(String(d.notas || d.notes || ''))) return 0;
     var fee = Number(d.domiFee) || 0;
-    if (fee <= 0) return 0;
-    if (!/\[domi_por_cobrar\]/i.test(String(d.notas || d.notes || ''))) return 0;
-    return fee;
+    return fee > 0 ? fee : -1;
+  }
+
+  /*  El letrero, ya listo para pintar. Sin cifra cuando no se sabe cuánto:
+      decir "$0" seria peor que no decir nada — se lee como que no se cobra. */
+  function vsDomiPorCobrarHTML(d) {
+    var f = vsDomiPorCobrar(d);
+    if (!f) return '';
+    return '<span class="vs-domi-cobrar" title="El cliente pagó solo el pedido. '
+         + 'Dile al domiciliario que cobre el domicilio.">' + SVG_MOTO(10)
+         + ' Falta cobrar el domicilio'
+         + (f > 0 ? ': ' + fmtCurrency(f) : '') + '</span>';
   }
 
   function renderDomicilioCard(d) {
@@ -1985,11 +2011,26 @@
     const timeStr = d.estado === 'entregado' ? _dur : `${_dur} aqui`;
     const isPagado  = d.payStatus === 'pagado';
     const isParcial = d.payStatus === 'parcial';
-    const payColor = isPagado ? '#16A34A' : isParcial ? '#C2410C' : '#D97706';
-    const payBg    = isPagado ? '#DCFCE7' : isParcial ? '#FFEDD5' : '#FEF3C7';
-    const payLabel = isPagado ? 'Pagado'
+    let payColor = isPagado ? '#16A34A' : isParcial ? '#C2410C' : '#D97706';
+    const payBg   = isPagado ? '#DCFCE7' : isParcial ? '#FFEDD5' : '#FEF3C7';
+    let payLabel = isPagado ? 'Pagado'
                    : isParcial ? ('Faltan ' + fmtCurrency(Math.max(0, (d.total||0) - (d.paidAmount||0))))
                    : 'Por pagar';
+
+    /*  ══ EL AVISO TAMBIÉN EN LA TARJETA DE LA LISTA ══════════════════════
+
+        Antes solo salía al ABRIR el pedido, y por eso Sergio no se enteró: en
+        la lista el pedido decía «Pagado» en verde, que es la palabra que uno
+        mira para saber que ya no hay que hacer nada. Se dio cuenta sacando la
+        cuenta a mano.
+
+        Un aviso que hay que ir a buscar no es un aviso. Aquí la etiqueta pasa
+        a decir la verdad completa —está pagado el pedido, falta el
+        domicilio— y en ámbar, que es el color de "esto todavía pide algo".  */
+    if (vsDomiPorCobrar(d)) {
+      payLabel = isPagado ? 'Pagado · falta el domi' : payLabel + ' · falta el domi';
+      payColor = '#D97706';
+    }
     const hasNext  = !!DELIVERY_NEXT[d.estado];
 
     return `
@@ -2524,7 +2565,7 @@
             <div class="vs-rail-title-main">
               <h2 class="vs-rail-title" title="${_esc(d.cliente)}" data-nombre-largo="${_esc(d.cliente)}">${d.cliente}</h2>
               ${vsPuntosChip(d, isPagado)}
-              ${vsDomiPorCobrar(d) ? `<span class="vs-domi-cobrar" title="El cliente pagó solo el pedido. Dile al domiciliario que cobre el domicilio.">${SVG_MOTO(10)} Falta cobrar el domicilio: ${fmtCurrency(vsDomiPorCobrar(d))}</span>` : ''}
+              ${vsDomiPorCobrarHTML(d)}
             </div>
             <span class="vs-state-pill" style="color:${meta.color};background:${meta.tint}">
               <span class="vs-state-dot" style="background:${meta.color}"></span>${meta.label}
