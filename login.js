@@ -3,12 +3,21 @@
    pos-core.js ya define: sb, $, COPF, COP
    ===================================================== */
 
-// ── Estado de registro ──────────────────────────────
-const REG = {
-  nombre: '', negocio: '', email: '', pass: '',
-  refCode: '', plan: 'pro', branches: 1,
-  billing: 'mensual', totalMes: 0, totalCiclo: 0
-};
+/*  ── Estado de registro ─────────────────────────────────────────────────
+
+    `REG` NO es un objeto nuevo: es el MISMO que lleva planes.js. Los campos
+    del plan (plan, branches, billing, totalMes, totalCiclo) los mantiene
+    aquel; aqui solo se le cuelgan encima el nombre, el negocio y la clave.
+
+    Se hace asi para que no existan dos verdades: si esta pantalla se copiara
+    los valores del plan, bastaria con que alguien tocara un descuento para
+    que la pantalla dijera un precio y el registro guardara otro. Es
+    exactamente el error que se acaba de corregir entre esta pantalla y la
+    pagina de venta.                                                       */
+const REG = Object.assign(window.CobraPlan.ESTADO, {
+  nombre: '', negocio: '', email: '', pass: '', refCode: ''
+});
+const PERIODOS = window.CobraPlan.PERIODOS;
 
 // ── Navegación entre vistas ─────────────────────────
 function goStep(step) {
@@ -129,232 +138,27 @@ function handleDatos() {
 /* ═══════════════════════════════════════════════════════════════════════════
    PASO 2 — EL PLAN
    ---------------------------------------------------------------------------
-   Diseño entregado por Sergio el 28-ago-2026. Tres cosas de esta parte, que es
-   la que decide cuánto se le cobra a cada restaurante:
+   Se mudo entero a `planes.js` el 30-ago-2026, porque la pagina de venta de
+   cobrapos.app enseña esta misma pantalla y tenia SUS PROPIAS cuentas: cotizaba
+   trimestral −7%% y anual −15%% cuando aqui se cobra −10%% y −20%%, y no aplicaba
+   el descuento por sucursales. El cliente veia un precio y pagaba otro.
 
-   1. LOS PRECIOS SALEN DE LA BASE (`pos_planes`), no del código. Estaban
-      escritos aquí, y por eso la pantalla podía mostrar un precio mientras la
-      consola cobraba otro: cambiar un precio obligaba a acordarse de cambiarlo
-      en dos sitios, y nadie se acuerda. Los números de abajo son sólo el
-      salvavidas por si la consulta falla, y hoy son los correctos.
-
-   2. LOS DOS DESCUENTOS SE APLICAN EN ORDEN, y el orden lo decidió Sergio:
-      *"primero se calcula el precio con descuento por sucursales, y al total ya
-      descontado se le hace el descuento si paga trimestral o anual"*. Está así
-      en los términos y en la pantalla de cuenta suspendida. Los tres sitios
-      tienen que dar el mismo número o alguien va a reclamar con razón.
-
-   3. LOS TRAMOS SON 8+ / 4–7 / 2–3. Aquí decían 10+ y 4–9, que es la versión
-      vieja: un restaurante con 8 sucursales veía 20% cuando le toca 30%. En la
-      consola ya estaba corregido; esta pantalla —la que ve el cliente— no.
+   Aqui solo queda lo que es del registro: que hacer al continuar.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-// Precios base (COP/mes/sucursal). Se sobrescriben con los de `pos_planes`.
-const PRECIOS_BASE = { starter: 149000, pro: 249000 };
-
-const PERIODOS = {
-  mensual:    { meses: 1,  off: 0,    ciclo: '/ mes',       largo: 'mensual'    },
-  trimestral: { meses: 3,  off: 0.10, ciclo: '/ trimestre', largo: 'trimestral' },
-  anual:      { meses: 12, off: 0.20, ciclo: '/ año',       largo: 'anual'      },
-};
-
-// Descuento por volumen
-function volDiscount(n) {
-  if (n >= 8) return .30;
-  if (n >= 4) return .20;
-  if (n >= 2) return .10;
-  return 0;
-}
-
-/* Lo que cuesta UNA sucursal al mes con los dos descuentos puestos. Es la cifra
-   grande de la tarjeta: la gente compara planes por sucursal, no por factura. */
-function unitMensual(plan, branches, billing) {
-  const base = PRECIOS_BASE[plan] || 0;
-  const per  = PERIODOS[billing] || PERIODOS.mensual;
-  return base * (1 - volDiscount(branches)) * (1 - per.off);
-}
-// Lo que transfiere HOY: el mes, el trimestre o el año completo.
-function montoAhora(plan, branches, billing) {
-  const per = PERIODOS[billing] || PERIODOS.mensual;
-  return unitMensual(plan, branches, billing) * per.meses * branches;
-}
-// Y a cuánto le sale el mes, para poder compararlo con el precio mensual.
-function mensualEfectivo(plan, branches, billing) {
-  return unitMensual(plan, branches, billing) * branches;
-}
-
-/* Los precios de verdad. Si la consulta falla quedan los de arriba: lo que no
-   puede pasar es una pantalla en blanco o en $0 mientras carga. */
-async function cargarPrecios() {
-  try {
-    const r = await sb.from('pos_planes').select('plan,precio').eq('a_la_venta', true);
-    if (r.error || !r.data || !r.data.length) return;
-    r.data.forEach(p => { if (p.precio != null) PRECIOS_BASE[p.plan] = Number(p.precio); });
-    pintarPlan();
-  } catch (e) {
-    console.warn('[registro] no se pudieron leer los precios:', e && e.message);
-  }
-}
-
-// ── Los controles ────────────────────────────────────
+//  Los nombres viejos siguen funcionando: los llaman `handleDatos`, el
+//  arranque y `abrirSegunEnlace`.
 function engancharPlan() {
-  const raiz = $('plan-root');
-  if (!raiz) return;
-
-  raiz.querySelectorAll('[data-branches]').forEach(b => {
-    b.addEventListener('click', () => setChip(parseInt(b.dataset.branches, 10)));
+  window.CobraPlan.enganchar({
+    alVolver: function () { goStep('datos'); },
+    alContinuar: handlePlanContinue,
+    sb: sb
   });
-  const menos = $('branch-minus'), mas = $('branch-plus');
-  if (menos) menos.addEventListener('click', () => stepBranch(-1));
-  if (mas)   mas.addEventListener('click',   () => stepBranch(1));
-
-  raiz.querySelectorAll('[data-billing]').forEach(b => {
-    b.addEventListener('click', () => setBilling(b.dataset.billing));
-  });
-
-  /* La tarjeta entera selecciona, pero el botón de dentro NO puede propagar el
-     clic: contaría dos veces y la selección parpadearía. */
-  raiz.querySelectorAll('.p2-card').forEach(card => {
-    card.addEventListener('click', () => selectPlan(card.dataset.plan));
-    card.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectPlan(card.dataset.plan); }
-    });
-  });
-  ['starter', 'pro'].forEach(id => {
-    const b = $('choose-' + id);
-    if (b) b.addEventListener('click', e => { e.stopPropagation(); selectPlan(id); });
-  });
-
-  const verPro = $('ver-pro');
-  if (verPro) verPro.addEventListener('click', e => { e.stopPropagation(); selectPlan('pro'); });
-
-  const atras = $('btn-back');
-  if (atras) atras.addEventListener('click', () => goStep('datos'));
-  const seguir = $('btn-continue');
-  if (seguir) seguir.addEventListener('click', handlePlanContinue);
 }
-
-function selectPlan(plan) {
-  if (plan !== 'starter' && plan !== 'pro') return;
-  REG.plan = plan;
-  pintarPlan();
-}
-function setChip(n) {
-  REG.branches = Math.max(1, Math.min(99, parseInt(n, 10) || 1));
-  pintarPlan();
-}
-function stepBranch(delta) {
-  setChip(REG.branches + delta);
-}
-function setBilling(mode) {
-  if (!PERIODOS[mode]) return;
-  REG.billing = mode;
-  pintarPlan();
-}
-
-/* ── La animación de las cifras ────────────────────────────────────────
-   260 ms contando desde el valor anterior hasta el nuevo. Es lo que hace que se
-   ENTIENDA que el precio bajó al añadir sucursales o al pasar a anual: un
-   número que cambia de golpe se lee como si siempre hubiera dicho eso. */
-const _cifras = {};
-function animarCifra(el, hasta, colaHtml) {
-  if (!el) return;
-  const id = el.id || (el.id = 'c' + Math.random().toString(36).slice(2));
-  const desde = _cifras[id];
-  _cifras[id] = hasta;
-  const pinta = v => { el.innerHTML = COPF(v) + (colaHtml || ''); };
-  const DUR = 260;
-  /*  Y si no puede animar, PINTA EL NUMERO Y YA. `document.hidden` es el caso
-      que casi se cuela: en una pestaña que no se esta viendo el navegador no
-      llama a requestAnimationFrame ni una sola vez, asi que la animacion no es
-      que se vea fea — es que **el precio se queda en el anterior**. Un total
-      viejo en la pantalla de cobro no es un detalle visual. */
-  if (desde == null || desde === hasta || !window.requestAnimationFrame ||
-      document.hidden ||
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    pinta(hasta);
-    return;
-  }
-  /*  Y por si el navegador deja la animacion a medias (cambio de pestaña
-      mientras corre), un ultimo repaso al final: si nadie pidio otra cifra
-      despues, la buena es esta. */
-  setTimeout(function () { if (_cifras[id] === hasta) pinta(hasta); }, DUR + 150);
-  let t0 = null;
-  const paso = t => {
-    if (t0 === null) t0 = t;
-    const p = Math.min(1, (t - t0) / DUR);
-    pinta(desde + (hasta - desde) * (1 - Math.pow(1 - p, 3)));   // easeOutCubic
-    if (p < 1) requestAnimationFrame(paso);
-  };
-  requestAnimationFrame(paso);
-}
-
-function _ver(id, mostrar) { const e = $(id); if (e) e.hidden = !mostrar; }
-function _txt(id, val)     { const e = $(id); if (e) e.textContent = val; }
-
-// ── Pintar ───────────────────────────────────────────
-function pintarPlan() {
-  if (!$('plan-root')) return;
-  const off = volDiscount(REG.branches);
-  const per = PERIODOS[REG.billing] || PERIODOS.mensual;
-
-  document.querySelectorAll('[data-branches]').forEach(b => {
-    b.classList.toggle('on', parseInt(b.dataset.branches, 10) === REG.branches);
-  });
-  _txt('branch-count', REG.branches);
-
-  document.querySelectorAll('[data-billing]').forEach(b => {
-    b.classList.toggle('on', b.dataset.billing === REG.billing);
-  });
-
-  _ver('volume-off', off > 0);
-  _txt('volume-off-pct', '−' + Math.round(off * 100) + '%');
-
-  ['starter', 'pro'].forEach(id => {
-    const base = PRECIOS_BASE[id] || 0;
-    const unit = unitMensual(id, REG.branches, REG.billing);
-    const card = $('card-' + id);
-    if (card) card.classList.toggle('on', id === REG.plan);
-
-    animarCifra($('price-' + id), unit, '<span class="p2-per">/ mes</span>');
-    _txt('perday-' + id, COPF(unit / 30));
-
-    _ver('strike-' + id, unit < base - 0.5);
-    _txt('strike-' + id, COPF(base));
-
-    const pct = Math.round((1 - unit / (base || 1)) * 100);
-    _ver('savepill-' + id, pct > 0);
-    _txt('savepill-' + id, 'Ahorra ' + pct + '%');
-
-    /* El botón de la tarjeta elegida dice "Seleccionado" con su check; el de la
-       otra vuelve a invitar. Sin esto las dos se ven iguales y no hay manera de
-       saber cuál se está comprando. */
-    const btn = $('choose-' + id);
-    if (btn) {
-      btn.innerHTML = (id === REG.plan)
-        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Seleccionado'
-        : 'Elegir ' + (id === 'pro' ? 'Pro' : 'Starter');
-    }
-  });
-
-  REG.totalMes   = mensualEfectivo(REG.plan, REG.branches, REG.billing);
-  REG.totalCiclo = montoAhora(REG.plan, REG.branches, REG.billing);
-
-  const nombrePlan = REG.plan === 'pro' ? 'Pro' : 'Starter';
-  _txt('foot-plan', nombrePlan);
-  _txt('foot-branches', REG.branches === 1 ? '1 sucursal' : REG.branches + ' sucursales');
-  _txt('foot-billing', per.largo);
-  _ver('foot-off', off > 0);
-  _txt('foot-off', '−' + Math.round(off * 100) + '%');
-  animarCifra($('foot-amount'), REG.totalCiclo, '');
-  _txt('foot-cycle', per.ciclo);
-  _ver('foot-eq', REG.billing !== 'mensual');
-  _txt('foot-eq', '≈ ' + COPF(REG.totalMes) + '/mes');
-  _txt('btn-continue-label', 'Continuar con ' + nombrePlan);
-}
-
-/* Se conserva el nombre viejo: lo llaman `handleDatos` y el arranque. */
-function calcPrices() { pintarPlan(); }
+function pintarPlan()      { window.CobraPlan.pintar(); }
+function calcPrices()      { window.CobraPlan.pintar(); }
+function selectPlan(plan)  { window.CobraPlan.seleccionar(plan); }
+function cargarPrecios()   { return window.CobraPlan.cargarPrecios(sb); }
 
 // Continuar desde plan → pago
 function handlePlanContinue() {
@@ -793,13 +597,24 @@ function abrirSegunEnlace() {
   var q;
   try { q = new URLSearchParams(location.search); } catch (e) { return; }
 
+  //  Sucursales y periodo tambien viajan: si alguien ya movio los controles
+  //  en la pagina de precios, llegar aqui y encontrarlos en 1 y mensual es
+  //  hacerle repetir el trabajo.
+  var sedes = parseInt(q.get('sedes'), 10);
+  if (sedes >= 1) REG.branches = Math.min(99, sedes);
+  var periodo = (q.get('billing') || '').toLowerCase();
+  if (PERIODOS[periodo]) REG.billing = periodo;
+
   var plan = (q.get('plan') || '').toLowerCase();
   if (plan === 'starter' || plan === 'pro') {
-    selectPlan(plan);          // solo apunta cual es; la pantalla del plan
-    goStep('datos');           // se pinta cuando se llegue a ella
+    selectPlan(plan);          // pinta de paso, con lo de arriba ya puesto
+    goStep('datos');
     return;
   }
-  if (q.has('registro')) goStep('datos');
+  if (q.has('registro') || sedes >= 1 || PERIODOS[periodo]) {
+    pintarPlan();
+    goStep('datos');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
