@@ -489,10 +489,26 @@ a{color:inherit;text-decoration:none}
   font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--claro)}
 .hero-cuando::before{content:'';display:inline-block;width:22px;height:1px;
   background:var(--claro);vertical-align:middle;margin-right:10px;opacity:.7}
-/*  El texto se cambia con la tarjeta: se desvanece hacia abajo y vuelve. Sin
-    esto el titular parpadea de golpe y parece un error de carga. */
-.hero-txt.mudando{opacity:0;transform:translateY(14px)}
-.hero-txt{transition:opacity .22s ease,transform .22s ease}
+/*  ── LA ENTRADA DEL TEXTO ──────────────────────────────────────────────
+    Cada vez que cambia la tarjeta, el texto no aparece de golpe: sale primero
+    (rapido, .18s) y entra por renglones, uno detras de otro. El orden es el
+    orden en que se lee: cuando, primer renglon, segundo renglon, parrafo.
+
+    Los botones NO se animan a proposito: son los mismos en las seis tarjetas
+    y verlos brincar cada 4 segundos cansa.                                */
+.hero-txt{transition:opacity .18s ease,transform .18s ease}
+.hero-txt.mudando{opacity:0;transform:translateY(12px)}
+
+@keyframes heroSube{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+.hero-txt .l1,.hero-txt .l2{display:block}
+.hero-txt.entra .hero-cuando{animation:heroSube .5s cubic-bezier(.16,.84,.25,1) both}
+.hero-txt.entra .l1{animation:heroSube .58s cubic-bezier(.16,.84,.25,1) .07s both}
+.hero-txt.entra .l2{animation:heroSube .58s cubic-bezier(.16,.84,.25,1) .15s both}
+.hero-txt.entra .hero-sub{animation:heroSube .5s cubic-bezier(.16,.84,.25,1) .24s both}
+@media (prefers-reduced-motion:reduce){
+  .hero-txt.entra .hero-cuando,.hero-txt.entra .l1,
+  .hero-txt.entra .l2,.hero-txt.entra .hero-sub{animation:none}
+}
 
 /*  El titular se queda en su mitad: con las tarjetas a la derecha, un titular
     a 142px se les metia por debajo y "SE CONTESTA" quedaba tapado. Los
@@ -540,7 +556,18 @@ a{color:inherit;text-decoration:none}
 
 /*  La tarjeta que va volando a ser fondo. Va en `position:fixed` porque tiene
     que poder salirse de la fila, que esta recortada. */
-.carr-vuelo{position:fixed;z-index:60;border-radius:14px;overflow:hidden;
+/*  ⚠️ EL CLON VA POR DEBAJO DE LAS TARJETAS (z-index 7 contra 8 de `.carr`).
+
+    Sergio: *"cuando se extiende la imagen esta cubriendo las tarjetas, no
+    debe cubrirlas"*. Y ademas vive DENTRO de `.hero`, no colgado del body:
+    la portada se encoge con un `transform` mientras dura el efecto, y un
+    `transform` encierra a sus hijos en su propia caja de apilamiento — desde
+    fuera, cualquier z-index del clon le ganaba a las tarjetas pasara lo que
+    pasara. Metiendolo dentro, los dos juegan en la misma caja.
+
+    Y no puede ir dentro de `.carr`, que esta recortado: ahi no podria
+    crecer mas alla del cuadrito.                                          */
+.carr-vuelo{position:absolute;z-index:7;border-radius:14px;overflow:hidden;
   background-size:cover;background-position:center;pointer-events:none;
   box-shadow:0 30px 80px -30px rgba(0,0,0,.9);
   transition:transform .52s cubic-bezier(.62,0,.2,1),border-radius .52s ease,opacity .12s ease .4s}
@@ -616,9 +643,9 @@ a{color:inherit;text-decoration:none}
           rellena. Lo unico que se mueve es el texto.  -->
     <div class="hero-txt" id="hero-txt">
       <span class="hero-cuando" id="hero-cuando">Sábado, 8:40 p. m.</span>
-      <h1 class="h1" id="hero-tit">El WhatsApp<br><span class="l2">se contesta <span class="mark" style="color:#fff;-webkit-text-stroke:0">solo</span></span></h1>
+      <h1 class="h1" id="hero-tit"><span class="l1">El WhatsApp</span><span class="l2">se contesta <span class="mark" style="color:#fff;-webkit-text-stroke:0">solo</span></span></h1>
       <div class="hero-baja">
-        <p id="hero-sub">Toma el pedido completo, con presentaciones y adiciones, cobra y lo manda a la cocina.</p>
+        <p class="hero-sub" id="hero-sub">Toma el pedido completo, con presentaciones y adiciones, cobra y lo manda a la cocina.</p>
         <div class="hero-cta"><a class="btn" href="#precios">Empezar ahora</a><a class="btn o" href="#">WhatsApp</a></div>
       </div>
     </div>
@@ -1237,16 +1264,21 @@ window.CobraPlan.iniciar({
   function pintarTexto(i) {
     var d = DATOS[i];
     txt.classList.add('mudando');
+    txt.classList.remove('entra');
     setTimeout(function () {
       document.getElementById('hero-cuando').textContent = d.cuando;
       document.getElementById('hero-tit').innerHTML =
-        d.t1 + '<br><span class="l2">' + d.t2 +
+        '<span class="l1">' + d.t1 + '</span><span class="l2">' + d.t2 +
         ' <span class="mark" style="color:#fff;-webkit-text-stroke:0">' + d.t3 + '</span></span>';
       document.getElementById('hero-sub').textContent = d.sub;
       var n = document.getElementById('carr-n');
       if (n) n.textContent = (i + 1 < 10 ? '0' : '') + (i + 1);
       txt.classList.remove('mudando');
-    }, 220);
+      /*  Un cuadro de espera antes de encender la animacion: si se quita y se
+          pone la clase en el mismo repintado, el navegador no ve ningun
+          cambio y la animacion sencillamente no vuelve a correr.          */
+      requestAnimationFrame(function () { txt.classList.add('entra'); });
+    }, 180);
   }
 
   /*  `pasos` es cuantas tarjetas avanza. 1 es lo normal; si alguien toca la
@@ -1277,7 +1309,8 @@ window.CobraPlan.iniciar({
     var rh = hero.getBoundingClientRect();
     var vuelo = document.createElement('div');
     vuelo.className = 'carr-vuelo';
-    vuelo.style.cssText += ';left:' + r.left + 'px;top:' + r.top + 'px;' +
+    //  Coordenadas RELATIVAS a la portada, porque el clon se cuelga de ella.
+    vuelo.style.cssText += ';left:' + (r.left - rh.left) + 'px;top:' + (r.top - rh.top) + 'px;' +
                            'width:' + r.width + 'px;height:' + r.height + 'px;';
     var fondoNuevo = fondos.children[nuevo].querySelector('.ph');
     var img = fondoNuevo && getComputedStyle(fondoNuevo).backgroundImage;
@@ -1286,7 +1319,7 @@ window.CobraPlan.iniciar({
       //  Todavia sin foto: vuela el rayado, para poder ver el efecto igual.
       vuelo.style.background = 'repeating-linear-gradient(128deg,#1B2130 0 10px,#12161F 10px 20px)';
     }
-    document.body.appendChild(vuelo);
+    hero.appendChild(vuelo);
     tj.style.visibility = 'hidden';
 
     hero.classList.add('saltando');
@@ -1295,6 +1328,7 @@ window.CobraPlan.iniciar({
     requestAnimationFrame(function () {
       vuelo.style.transform = 'translate(' + (rh.left - r.left) + 'px,' + (rh.top - r.top) + 'px) ' +
                               'scale(' + (rh.width / r.width) + ',' + (rh.height / r.height) + ')';
+      vuelo.style.transformOrigin = 'top left';
       vuelo.style.transformOrigin = 'top left';
       vuelo.style.borderRadius = '0';
 
