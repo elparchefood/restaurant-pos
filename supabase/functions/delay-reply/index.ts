@@ -240,6 +240,10 @@ let DYN_PROD_MAP: Array<{ key: string; name: string; cat: string; opciones: stri
     como esta escrito. Es donde viven las adiciones de verdad — separado
     del catalogo de platos a proposito.                                   */
 let DYN_MOD_MAP: Array<{ key: string; name: string }> = [];
+/*  Como se presenta Paco. Se arma al cargar la configuracion del
+    restaurante y la usa `sendWaAndSave` para que la PRIMERA cosa que
+    diga en una conversacion lo identifique como asistente virtual.   */
+let PRESENTACION = "";
 
 /*  ¿ESTA CATEGORIA ES DE ACOMPAÑAR, NO DE COMER?
 
@@ -2179,6 +2183,34 @@ INTENCION, no las palabras exactas.` },
   }
 
   (cfg as Record<string, unknown>)._varData = varDataObj;
+
+  /*  COMO SE PRESENTA PACO. Se arma aqui, y no mas arriba, por dos razones
+      que costaron una prueba en el banco:
+
+        · el nombre del restaurante vive en `_varData`, que se acaba de llenar
+          en la linea de encima; y
+        · `perfil.nombre` esta VACIO en El Parche — el nombre "Paco" vive
+          dentro del texto de bienvenida, no en un campo propio.
+
+      Por eso el nombre es OPCIONAL. Lo que no puede faltar es la palabra
+      "asistente virtual", que es lo que Sergio pidio que siempre se diga. Sin
+      nombre queda "Soy el asistente virtual de El Parche Food", que cumple
+      igual y sirve para cualquier restaurante que compre Cobra.            */
+  try {
+    const _fr  = (cfg.frases as Record<string, unknown>) || {};
+    const _pro = getFraseTexto(_fr.presentacion as never);
+    if (_pro) {
+      PRESENTACION = _pro;
+    } else {
+      const _bot = (cfg.bot as Record<string, string>) || {};
+      const _per = (cfg.perfil as Record<string, string>) || {};
+      const _nom = String(_bot.nombre || _per.nombre || "").trim();
+      const _res = String(varDataObj.restaurante || "").trim();
+      PRESENTACION = _nom
+        ? `Soy *${_nom}*, el asistente virtual${_res ? ` de ${_res}` : ""} 🤖`
+        : `Soy el asistente virtual${_res ? ` de ${_res}` : ""} 🤖`;
+    }
+  } catch (e) { console.error("presentacion:", e); }
 
   /* La imagen se reconoce por su TIPO, no por el texto del cuerpo. Antes solo
      se miraba si el body empezaba por "[imagen]", asi que una foto CON pie de
@@ -8606,7 +8638,25 @@ async function buildConversationResponse(
       .map(f => `- ${f.pregunta} → ${String(f.respuesta)
         .replace(/\{hora_apertura\}/g, horaAperturaHoy || "")
         .replace(/\{hora_cierre\}/g, horaCierreHoy || "")}`);
-    if (usarFaq && faqLines.length) sysLines.push("PREGUNTAS FRECUENTES (responde con estas respuestas):", ...faqLines);
+    if (usarFaq && faqLines.length) sysLines.push(
+      "PREGUNTAS FRECUENTES (responde con estas respuestas):", ...faqLines,
+      /*  EMPAREJAR POR SIGNIFICADO, NO POR PALABRAS (31-ago-2026).
+          Valentina pregunto por "la salchipapa premium personal" y la
+          pregunta guardada dice "la premium MIXTA personal". El modelo no
+          las junto y se invento la respuesta — dijo que la personal era
+          para una persona cuando es para dos. Hora y media antes, a otra
+          persona que pregunto con las palabras exactas, le contesto bien:
+          las preguntas frecuentes SI llegan, lo que fallo fue juntarlas. */
+      "⚠️ Estas preguntas se emparejan por lo que SIGNIFICAN, no por las palabras. "
+      + "Si el cliente pregunta lo mismo con otras palabras, o nombra el plato "
+      + "de forma incompleta, igual le respondes con la respuesta de arriba.",
+      "⚠️ REGLA DURA — PARA CUANTAS PERSONAS ALCANZA UN PLATO. Si te preguntan "
+      + "eso, o que trae adentro, o que tan grande es, la UNICA fuente valida son "
+      + "las preguntas frecuentes de arriba. JAMAS lo deduzcas del nombre del "
+      + "tamaño: que un plato se llame \"personal\" NO significa que sea para una "
+      + "persona, y que se llame \"familiar\" no dice para cuantas. Si la respuesta "
+      + "no esta arriba, NO la adivines: dile que se la confirmas en un momento. "
+      + "Una porcion mal dicha es un cliente molesto en la puerta.");
     const sitLines = Object.entries(situacionesObj)
       .filter(([, v]) => v)
       .map(([k, v]) => `- ${k.replace(/_/g, " ")}: ${v}`);
@@ -9825,6 +9875,31 @@ async function sendWaAndSave(
      mas arriba: en el banco, "¿que puedo pedir con lo que tengo acumulado?" no
      encajaba en ninguna de esas palabras y Paco contesto "¿que se te antoja?".
      El regex se queda como atajo rapido; quien de verdad decide es el modelo. */
+  /*  ══ PACO SIEMPRE DICE QUE ES UN ASISTENTE VIRTUAL ══════════════════
+
+      Sergio, 31-ago-2026: *"cuando una persona escribe el saludo junto con
+      otras frases, Paco no lo dice y se va directamente a lo que necesita
+      responder"*. Valentina escribio "Hola buenas noches, quiero realizar un
+      pedido pero tengo una duda..." y Paco contesto la duda sin presentarse.
+
+      Por que aqui y no en la rama del saludo: la bienvenida completa vive en
+      una rama que solo corre cuando el mensaje es SOLO un saludo. Hay ocho
+      sitios que arman respuestas y todos terminan pasando por esta funcion —
+      poner la regla en uno y olvidarla en siete es como nacio el problema.
+
+      Se presenta UNA sola vez por conversacion: si ya hay algo suyo dicho
+      antes, no se repite. Y nunca en los avisos del sistema (`sinEtiqueta`),
+      que no los dice Paco.                                                 */
+  if (!sinEtiqueta && PRESENTACION && !/asistente\s+virtual/i.test(msg)) {
+    try {
+      const yaHablo = await sbGet(
+        `/rest/v1/chat_messages?conversation_id=eq.${convId}&direction=eq.out` +
+        `&origen=eq.bot&select=id&limit=1`
+      ) as Array<unknown> | null;
+      if (!yaHablo || !yaHablo.length) msg = `${PRESENTACION}\n${msg}`;
+    } catch (_e) { /* si no se puede comprobar, se manda igual: mejor responder */ }
+  }
+
   const MARCA_APP = "[[APP]]";
   let mandarApp = false;
   if (msg.includes(MARCA_APP)) {
