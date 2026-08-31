@@ -15636,3 +15636,97 @@ con el texto libre (que únicamente sale dentro de las 24 horas). Mismo caso que
 Nota operativa: un nombre de plantilla borrado no se puede reutilizar de
 inmediato (`error_subcode 2388025`). Por eso el nombre final es
 `por_comprar_cierre_caja` y no `insumos_por_comprar`.
+
+---
+
+## 188. Dos dias de Paco: siete arreglos, todos por el lector (30 y 31-ago-2026)
+
+`delay-reply` paso de **v380 a v387**. Todo lo de aqui salio de conversaciones
+reales en las que Sergio tuvo que quitarle el chat a Paco y terminar el pedido
+a mano. Van juntos porque comparten la misma leccion.
+
+### La regla que ordena todo
+
+> *"Cualquier correccion de Paco siempre se hace con el lector del pedido. Para
+> que Paco realmente sepa identificar intenciones, para que no vuelvas a poner
+> parches de texto comparativo, porque eso nunca va a funcionar."* — Sergio
+
+Comparar texto exacto **siempre** se equivoca: nadie escribe el nombre exacto.
+Cuando hace falta que Paco entienda algo nuevo, se le añade un campo al lector
+(`PedidoLeido`) y una regla en palabras; el codigo solo lee lo que el lector ya
+decidio. Dos veces en estos dos dias volvi a caer en el parche de texto —queda
+escrito en los comentarios de cada sitio para que se vea el patron.
+
+### Los siete
+
+**1 · Las adiciones se cobraban al precio del plato equivocado (v381).**
+Juan Camilo pidio una familiar con adiciones y le sumaron $70.000 en vez de
+$84.000. `resolverAdicionCatalogo` buscaba el nombre en el **catalogo de
+productos**, donde "chorizo" existe como plato con su propio precio. Ahora
+busca **primero en los grupos de modificadores** (`DYN_MOD_MAP`), que es donde
+la adicion tiene el precio que corresponde al tamaño del plato.
+
+**2 · El conjunto de Alejandra (v382-v383).** Paco no sabia si era casa o
+conjunto y siguio preguntando la direccion. Cuatro reglas nuevas del lector:
+una direccion con "apartamento" ES conjunto aunque diga calle o carrera; solo
+direccion + barrio NO es conjunto; si el cliente dice que es un conjunto, lo
+es; y **lo que marque Sergio en el banner anula todo lo demas** — se guarda en
+`chat_conversations.domi_tipo_humano` (`confirm-domi` v25) y se aplica sobre el
+estado antes de cualquier decision de direccion. Es lo unico que puede ir por
+encima del lector: no es otra deduccion, es una persona diciendo un hecho.
+
+**3 · La porteria (v383).** Un conjunto sin casa ni apartamento esta
+incompleto, *salvo* que pidan dejarlo en porteria. Primero lo busque como
+palabra dentro de la direccion y nunca aparecia: «dejalo en porteria» es una
+instruccion de **entrega** y el lector la guarda en la nota. Es un campo del
+lector (`porteria`).
+
+**4 · "No manejamos ese producto" por la palabra *tomar* (v384).** Julian
+escribio "Buenas noches" y "Para tomar pedido". Habia un escaneo palabra por
+palabra contra una lista de 40 a ignorar; "tomar" no estaba. La lista ya habia
+crecido antes por "porfavor" y por "informacion" — una lista de palabras del
+castellano no se termina nunca. Se borro (`STOP_14F`) y ahora solo el lector
+puede decir que algo no existe (`producto_desconocido`).
+
+**5 · Paco siempre se presenta (v385).** La bienvenida vivia en una rama que
+solo corre cuando el mensaje es **solo** un saludo; con "hola + pregunta" se
+iba por otra rama y no se presentaba. El arreglo va en `sendWaAndSave`, el
+unico sitio por donde salen los mensajes: si es Paco quien habla y todavia no
+ha dicho nada en la conversacion, se presenta. Da igual por que rama venga.
+
+**6 · Paco no se inventa las respuestas (v386).** Valentina pregunto si la
+premium personal era para dos y Paco dijo que no — la respuesta estaba escrita
+en las preguntas frecuentes. Dos cosas: las FAQ se emparejan **por lo que
+significan**, no por las palabras ("premium personal" vs "premium mixta
+personal"); y si la respuesta no esta en ninguna fuente del restaurante (FAQ,
+carta, horarios, pagos, zonas), Paco termina su mensaje con `[[HUMANO]]`.
+La marca se le quita antes de enviar —el cliente nunca la ve— y la conversacion
+pasa a una persona **despues** de mandar el mensaje, para que el humano abra un
+chat sabiendo que se dijo. Mismo patron que la marca `[[APP]]` de los puntos, y
+por la misma razon: ocho sitios piden texto al modelo y todos pasan por
+`sendWaAndSave`.
+
+La regla vive en `REGLAS:`, arriba. Puesta abajo junto a las FAQ el modelo la
+ignoraba: contestaba "no tengo esa informacion" y no pasaba nada.
+
+**7 · Paco dice que es un bot (v387).** En el prompt habia *"Nunca menciones
+que eres IA o un bot"*. **Nadie del restaurante la pidio** — la escribi yo, y
+va justo al reves de lo que Sergio quiere: *"es importante que el cliente sepa
+que le esta contestando un bot para que hagan su pedido lo mas claro posible"*.
+Cambiada por la contraria en los dos prompts. De paso: "estoy hablando con una
+persona o con un robot?" se clasificaba como `quiere_humano` y pasaba el chat —
+preguntar quien contesta no es pedir que lo atienda alguien.
+
+### Dos cosas del metodo que costaron caro
+
+**El banco de pruebas es obligatorio.** `delay-reply-banco` es el motor de
+produccion pasado por `blindar_banco.py`: finge horario abierto, contesta
+siempre, y **no puede crear pedidos**. Cada arreglo se probo repitiendo las
+palabras exactas del cliente real antes de tocar produccion. Las conversaciones
+`*** PRUEBA ***` se borran al terminar y se cuenta `pos_orders` antes y despues.
+
+**Desplegar no es haber probado.** La API responde `ACTIVE` aunque la funcion
+tenga un error de arranque: hay que llamarla con `OPTIONS` y ver un 200. Y un
+solo error de TypeScript oculto por un filtro de grep dejo el banco mudo tres
+pruebas seguidas — se cuentan **todos** los errores, sin filtrar. Al final, lo
+subido se compara linea a linea con lo probado (`/body` recorta la linea 1).
