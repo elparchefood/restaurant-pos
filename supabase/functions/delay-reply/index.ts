@@ -609,6 +609,42 @@ function fmtMoney(n: number): string {
 // Saludo: detecta "hola", "holaa", "hey", "buenas", y combinaciones ("hola buenas", "buenas, hola").
 const _SAL = "(buen[oa]s?\\s+d[íi]as?|buen[oa]s?\\s+tardes?|buen[oa]s?\\s+noches?|buen\\s+d[íi]a|qu[eé]\\s+tal|qu[eé]\\s+m[aá]s|qu[eé]\\s+hubo|qu[eé]\\s+hay|hol+a+|hol[ai]s|holi+|hey+|saludos?|buen[oa]s?)";
 const SALUDO_REGEX = new RegExp(`^\\s*${_SAL}([\\s,.]+${_SAL})*[\\s,.!?¡¿]*$`, "i");
+/*  ¿EL MENSAJE EMPIEZA CON UN SALUDO? El de arriba comprueba que el mensaje sea
+    SOLO un saludo; este solo mira como ARRANCA. Se usa sobre lo que Paco va a
+    mandar, para no saludar dos veces en la misma frase.                     */
+const SALUDO_INICIO_REGEX = new RegExp(`^\\s*[¡!]*\\s*${_SAL}`, "i");
+
+/*  EL SALUDO QUE TOCA A ESTA HORA (31-ago-2026, pedido de Sergio: *"Paco
+    deberia decir hola o buenas noches antes de presentarse"*).
+
+    La hora sale de `TZ_OFFSET_H` —la zona horaria que cada restaurante pone en
+    su configuracion— y NO de la del servidor, que vive en UTC. Cobra se vende
+    en varios paises: dar las buenas noches a las tres de la tarde por usar el
+    reloj del servidor seria el mismo error que buscar un servidor "cerca".   */
+function saludoDeLaHora(): string {
+  const h = new Date(Date.now() + TZ_OFFSET_H * 3600000).getUTCHours();
+  if (h < 12) return "¡Buenos días!";
+  if (h < 19) return "¡Buenas tardes!";
+  return "¡Buenas noches!";
+}
+
+/*  QUITA EL SALUDO CON EL QUE YA ARRANCABA EL MENSAJE, para poder ponerlo
+    arriba del todo. Sin esto, cuando el modelo saludaba por su cuenta el
+    saludo quedaba DEBAJO de la presentacion y se leia al reves:
+
+        Soy Paco, el asistente virtual de El Parche Food 🤖
+        Buenas noches 🍟😊 Claro que si, la premium mixta es para 2...
+
+    Se lleva tambien la decoracion que venga pegada al saludo —comas, signos y
+    emojis— porque dejarla suelta abre la frase con "🍟😊 Claro que si".
+    Devuelve "" si el mensaje NO empezaba con un saludo, o si al quitarlo no
+    quedaba nada: en los dos casos el mensaje se deja como estaba.          */
+const _DECORACION_INICIAL = /^(?:[\s,.;:!?¡¿…—-]|\p{Extended_Pictographic}|\uFE0F|\u200D)+/u;
+function quitarSaludoInicial(t: string): string {
+  const sinSaludo = t.replace(SALUDO_INICIO_REGEX, "");
+  if (sinSaludo === t) return "";
+  return sinSaludo.replace(_DECORACION_INICIAL, "").trim();
+}
 
 // ── PAGO MIXTO (parte digital + parte efectivo) — mecánica general ────────────
 // "te paso 30 mil por nequi y el resto en efectivo" / "mitad y mitad" /
@@ -9951,13 +9987,33 @@ async function sendWaAndSave(
       Se presenta UNA sola vez por conversacion: si ya hay algo suyo dicho
       antes, no se repite. Y nunca en los avisos del sistema (`sinEtiqueta`),
       que no los dice Paco.                                                 */
-  if (!sinEtiqueta && PRESENTACION && !/asistente\s+virtual/i.test(msg)) {
+  /*  Y SALUDA ANTES DE PRESENTARSE (31-ago-2026). Se presentaba de una
+      —"Soy Paco, el asistente virtual de El Parche Food. ¿Para donde va tu
+      pedido?"— sin devolver el saludo. Correcto pero seco.
+
+      El saludo y la presentacion se deciden por separado, porque el modelo a
+      veces ya trae uno de los dos. Si NO falta ninguno de los dos —el caso de
+      la bienvenida que Sergio tiene escrita, que ya saluda y ya se presenta—
+      no se toca nada: su texto sale tal cual lo escribio.                   */
+  if (!sinEtiqueta) {
     try {
-      const yaHablo = await sbGet(
-        `/rest/v1/chat_messages?conversation_id=eq.${convId}&direction=eq.out` +
-        `&origen=eq.bot&select=id&limit=1`
-      ) as Array<unknown> | null;
-      if (!yaHablo || !yaHablo.length) msg = `${PRESENTACION}\n${msg}`;
+      const faltaSaludo = !SALUDO_INICIO_REGEX.test(msg);
+      const faltaPresentacion = !!PRESENTACION && !/asistente\s+virtual/i.test(msg);
+      if (faltaSaludo || faltaPresentacion) {
+        const yaHablo = await sbGet(
+          `/rest/v1/chat_messages?conversation_id=eq.${convId}&direction=eq.out` +
+          `&origen=eq.bot&select=id&limit=1`
+        ) as Array<unknown> | null;
+        if (!yaHablo || !yaHablo.length) {
+          /*  Si el modelo ya venia saludando, ese saludo se sube arriba en vez
+              de dejarlo debajo de la presentacion. El saludo que se pone es
+              siempre el de la HORA, que es el que no se puede equivocar.    */
+          const cuerpo = quitarSaludoInicial(msg) || msg;
+          const cabeza: string[] = [saludoDeLaHora()];
+          if (faltaPresentacion) cabeza.push(PRESENTACION);
+          msg = `${cabeza.join(" ")}\n${cuerpo}`;
+        }
+      }
     } catch (_e) { /* si no se puede comprobar, se manda igual: mejor responder */ }
   }
 
@@ -9979,7 +10035,10 @@ async function sendWaAndSave(
   let pasarHum = false;
   if (msg.includes(MARCA_HUM)) {
     pasarHum = true;
-    msg = msg.split(MARCA_HUM).join("").trim();
+    msg = msg.split(MARCA_HUM).join("")
+             .replace(/[ \t]{2,}/g, " ")           //  dos espacios -> uno
+             .replace(/\s+([.,;:!?…])/g, "$1")     //  " ." -> "."
+             .trim();
     /*  Por si el modelo mando SOLO la marca: algo hay que decirle al cliente
         antes de que le conteste una persona.  */
     if (!msg) msg = "Dame un momentico y te confirmo eso ☺️";
