@@ -56,6 +56,9 @@ interface PacoState {
   lugar_conjunto?:    string | null;
   /* Sabemos que vive en un conjunto pero todavia no cual. */
   es_conjunto?:       boolean;
+  /* El cliente pidio que se lo dejen en la porteria. Cuenta como destino:
+     un conjunto con esto NO necesita casa ni apartamento. */
+  entrega_porteria?:  boolean;
   pago:               string | null;
   nombre:             string | null;
   /* EL TELEFONO, SOLO EN INSTAGRAM Y MESSENGER (22-ago-2026). En WhatsApp el
@@ -233,6 +236,10 @@ let DYN_CATEGORY_NAMES: string[] = [];     // nombres de categorías (una catego
 /* Cada fila lleva TAMBIEN sus presentaciones y variantes: son lo que permite
    distinguir dos productos que se llaman igual en categorias distintas. */
 let DYN_PROD_MAP: Array<{ key: string; name: string; cat: string; opciones: string[] }> = [];
+/*  Las opciones REALES de los grupos de modificadores, con su nombre tal
+    como esta escrito. Es donde viven las adiciones de verdad — separado
+    del catalogo de platos a proposito.                                   */
+let DYN_MOD_MAP: Array<{ key: string; name: string }> = [];
 
 /*  ¿ESTA CATEGORIA ES DE ACOMPAÑAR, NO DE COMER?
 
@@ -3187,7 +3194,7 @@ INTENCION, no las palabras exactas.` },
            restaurantes que ya conocen a sus clientes y no quieren hacerlos
            esperar. Antes esto no se podia cambiar desde ninguna pantalla. */
         if (!cPago.pago_previo) {
-          const clasifPP = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2);
+          const clasifPP = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2, { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria });
           const domiPP = clasifPP.tipo === "para_llevar" ? 0 : lookupDomiPrice(ubicacionPedido(state), domiciliosCfg);
           try {
           await createWhatsappOrder(buildOrderArgs(state, domiPP ?? 0), branchId, tenantId, fromPhone, cfg._operacion as Record<string, unknown> | null, convId);
@@ -3237,7 +3244,7 @@ INTENCION, no las palabras exactas.` },
         // PARA LLEVAR + pago no digital: el pedido NO se prepara hasta recibir el pago.
         // (Regla configurable: domicilios.llevar_prepago, default activada. La frase es
         // frases.llevar_efectivo — personalizable por restaurante en Mensajes.)
-        const esLlevarConf = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) || clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2).tipo === "para_llevar" : false;
+        const esLlevarConf = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) || clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2, { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria }).tipo === "para_llevar" : false;
         const exigePrepago = domiciliosCfg?.llevar_prepago !== false;
         if (esLlevarConf && exigePrepago) {
           if (await frenarBucle(convId, "llevar_efectivo")) return;
@@ -3252,7 +3259,7 @@ INTENCION, no las palabras exactas.` },
           return;
         }
 
-        const clasif = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2);
+        const clasif = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2, { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria });
         if (clasif.tipo === "rechazado") {
           const msg = getFraseTexto(frasesCfg.lugar_rechazado) || "Lo sentimos, no podemos hacer domicilios a ese lugar 😊 Si querés podés pasar a recoger (para llevar).";
           state.direccion = null; state.resumen_enviado = false;
@@ -3960,7 +3967,7 @@ INTENCION, no las palabras exactas.` },
   const dijoRecogerIntencion = intenciones.entrega === "recoger" && !CALLE_REGEX.test(clienteTexto);
   if (dijoRecogerLista || dijoRecogerIntencion) {
     const clasifYa = state.direccion
-      ? clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2)
+      ? clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2, { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria })
       : null;
     if (!clasifYa || clasifYa.tipo !== "para_llevar") {
       /* Si vino por la lista se guarda el texto del cliente (siempre fue asi y
@@ -4046,7 +4053,7 @@ INTENCION, no las palabras exactas.` },
        direccion aun nula esto era toLowerCase(null): el crash silencioso de
        Sandra. Con "" clasifica residencial y el flujo sigue normal — el paso
        de la direccion la pide despues, como siempre. */
-    const clasifBis = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2);
+    const clasifBis = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2, { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria });
     if (clasifBis.tipo === "rechazado") {
       state.direccion = null;
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -4533,7 +4540,7 @@ INTENCION, no las palabras exactas.` },
   // 14h. Todos los slots completos → validar y mostrar resumen
   if (!nextStep) {
     if (state.direccion) {
-      const clasifDir = clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2);
+      const clasifDir = clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2, { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria });
       if (clasifDir.tipo === "rechazado") {
         state.direccion = null;
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -5443,6 +5450,24 @@ function mencionesClasificadas(
 function resolverAdicionCatalogo(nombre: string): string | null {
   const n = normalizarTexto(nombre);
   if (n.length < 3) return null;
+
+  /*  ⚠️ PRIMERO DONDE VIVEN LAS ADICIONES: los grupos de modificadores.
+
+      Hasta el 30-ago-2026 esto empezaba por el catalogo de PLATOS, y ahi
+      estaba el error que le cobro $14.000 de menos a Juan Camilo. El lector
+      devolvia "Chorizo" —el nombre real de la opcion— y aqui se buscaba por
+      parecido en los productos: "Adicion Chorizo" CONTIENE "chorizo", asi que
+      lo daba por bueno y reescribia el nombre. Desde ese momento el buscador
+      de adiciones, que mira el grupo donde la opcion se llama "Chorizo", ya no
+      la encontraba nunca: la adicion terminaba como producto suelto sin
+      tamaño, o sea al precio PERSONAL sobre un plato FAMILIAR.
+
+      Una adicion es una opcion de un grupo. Se busca ahi. El catalogo de
+      platos queda de respaldo, para el caso raro de una adicion que exista
+      solo como producto suelto.                                            */
+  const enGrupo = DYN_MOD_MAP.find(e => e.key === n);
+  if (enGrupo) return enGrupo.name;
+
   /* Exacto primero. */
   const exacto = DYN_PROD_MAP.find(e => normalizarTexto(e.name) === n);
   if (exacto) return exacto.name;
@@ -5902,6 +5927,31 @@ function buildProductPasos(productData: ProductData, frasesCfg: Record<string, u
   return pasos;
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   EL RASTRO — que entendio el lector y que se hizo con eso.
+
+   30-ago-2026. El pedido de Juan Camilo se cobro $70.000 cuando eran $84.000
+   y al ir a ver por que, los registros de esa hora ya no existian: Supabase
+   solo devuelve las ultimas lineas. Sin rastro, el proximo error se discute
+   a ciegas — que fue exactamente lo que paso.
+
+   Se escribe en `pos_diag`, que no se borra sola. No cambia ninguna decision:
+   solo deja escrito lo que ya pasaba. Si falla, se traga el error: un rastro
+   no puede tumbar un pedido.
+   ══════════════════════════════════════════════════════════════════════ */
+async function rastro(donde: string, mensaje: string, extra: Record<string, unknown>): Promise<void> {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/pos_diag`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json", "Prefer": "return=minimal",
+      },
+      body: JSON.stringify({ donde, mensaje, extra }),
+    });
+  } catch (_e) { /* el rastro nunca puede tumbar un pedido */ }
+}
+
 // ── Extractor de producto (GPT) ───────────────────────────────────────────────
 
 async function extractProducto(
@@ -5980,6 +6030,14 @@ type PedidoLeido = {
      no es una adicion de ese plato — es un producto suelto de la categoria
      Adiciones, que existe justo para eso. */
   adicion_otro_tamano?: { nombre?: string; tamano?: string } | null;
+  /*  EL PEDIDO SE DEJA EN LA PORTERIA (30-ago-2026, regla de Sergio).
+      Un conjunto sin casa ni apartamento esta incompleto — salvo que el
+      cliente diga que se lo dejen en la porteria: ahi ya dijo a donde va
+      y preguntarle la casa es hacerle repetir.
+      Es un campo del lector y no una busqueda de la palabra en la
+      direccion, porque «dejalo en porteria» es una instruccion de
+      entrega: el lector la guarda en la nota, no en la calle.        */
+  porteria?: boolean;
 };
 
 async function leerPedido(
@@ -6059,6 +6117,7 @@ Devuelve SOLO este JSON con lo que ESTE mensaje aporta (omite lo que no diga):
  "barrio":string|null,"nombre":string|null,"pago":string|null,"quitar":[string],
  "conjunto":string|null,"es_conjunto":bool,
  "adicion_otro_tamano":{"nombre":string,"tamano":string}|null,
+ "porteria":bool,
  "nota":string|null}
 
 REGLAS:
@@ -6073,20 +6132,34 @@ REGLAS:
 - "nombre" SOLO si de verdad está diciendo a nombre de quién va el pedido.
 - "direccion" es calle/carrera con números. Un barrio SOLO ("Bellavista") va en
   "barrio", NO en "direccion".
-- "conjunto": si la ubicación es un lugar residencial CON NOMBRE y con unidad
-  (casa, manzana, torre, apto, bloque) y SIN calle ni carrera, pon SOLO el
-  nombre del lugar. "condóminio camino viejo casa 9 manzana g" ->
-  {"conjunto":"camino viejo","direccion":"casa 9 manzana g"}. Da igual qué
-  palabra use o cómo la escriba (condominio, unidad, torres, mal escrito, o
-  sin decir ninguna): lo que importa es la INTENCIÓN de nombrar su vivienda.
-  Si hay calle o carrera con números, NO es conjunto y esto va null.
-- "es_conjunto": true si la persona está describiendo su vivienda por UNIDAD
-  —casa, apartamento, torre, bloque, manzana, interior con su número— aunque
-  NO diga el nombre del lugar. "casa 21", "apartamento 28 torre 5", "torre B
-  apto 402" -> true (y "conjunto" va null porque no dijo cuál). Nadie describe
-  así una casa de barrio: quien dice "casa 21" vive en un conjunto.
-  Si da calle o carrera con números, es nomenclatura normal -> false.
-  Si dice el nombre Y la unidad, es true y además llenas "conjunto".
+- "conjunto": el NOMBRE del lugar residencial donde vive, cuando lo hay.
+  Da igual qué palabra use o cómo la escriba (conjunto, condominio, unidad,
+  torres, club house, mal escrito, o sin decir ninguna): lo que importa es la
+  INTENCIÓN de nombrar su vivienda.
+  "condóminio camino viejo casa 9 manzana g" ->
+  {"conjunto":"camino viejo","direccion":"casa 9 manzana g"}.
+
+  ⚠️ TENER CALLE O CARRERA **NO** LO DESCARTA. Un conjunto con dirección de
+  carrera es lo más normal del mundo: "Conjunto residencial Milán Club House,
+  Carrera 17 55 NORTE-383" ES un conjunto llamado "Milán Club House", y su
+  dirección es la carrera. Los dos datos conviven.
+
+  Solo va null cuando el cliente NO nombra ningún lugar residencial.
+- "es_conjunto": true en CUALQUIERA de estos dos casos:
+    (a) el cliente lo dice —"es un conjunto", "conjunto residencial X",
+        "condominio", "unidad residencial", "club house"—, o
+    (b) describe su vivienda por UNIDAD: casa, apartamento, torre, bloque,
+        manzana o interior CON SU NÚMERO. "casa 21", "apartamento 28 torre 5",
+        "torre B apto 402" -> true.
+
+  ⚠️ LA UNIDAD MANDA AUNQUE HAYA CALLE O CARRERA. Regla de Sergio, con sus
+  palabras: *"si junto con la calle y carrera la persona coloca casa número X
+  o apartamento número tal, así tenga la dirección, es conjunto — no existe
+  ninguna casa fuera de un conjunto que diga apartamento 808"*.
+  "Carrera 17 55-383, apto 802" -> es_conjunto true.
+
+  false SOLO cuando da dirección (y opcionalmente barrio) SIN unidad y SIN
+  nombrar ningún lugar residencial: "Calle 5 #12-30, barrio Bellavista".
 - Si el mensaje trae dirección Y barrio juntos, sepáralos en sus dos campos.
 - "adiciones": lo que quiere que le PONGAN al plato. Un plato aparte va en "producto".
   SOLO es adición si el cliente la nombró como palabra propia. JAMÁS saques una
@@ -6106,6 +6179,12 @@ REGLAS:
   en "adiciones": se cobra aparte porque dentro de un plato familiar solo
   caben adiciones familiares. Si el tamaño que dice es el MISMO del plato, o
   no dice ninguno, va en "adiciones" como siempre y esto queda null.
+- "porteria": true si el cliente dice que le dejen el pedido en la PORTERÍA,
+  la recepción, con el vigilante o el portero, o que él baja a recogerlo a la
+  entrada. Da igual cómo lo diga: "déjalo en portería", "se lo dejas al
+  vigilante", "yo bajo por él", "en la recepción del conjunto". Es lo que
+  reemplaza a la casa o el apartamento: quien dice esto YA dijo a dónde va.
+  false o ausente si no lo dice.
 - "nota": instrucciones REALES de preparación o entrega, dichas con CUALQUIER
   palabra: "sin salsas", "las salsas aparte porque hay niños" -> "salsas aparte",
   "las papas bien doraditas" -> "papas bien doradas", "que no pique nada",
@@ -6149,6 +6228,15 @@ ${historial}`;
     const raw = ((d.choices as Array<Record<string, unknown>>)?.[0]?.message as Record<string, string> | undefined)?.content;
     const leido = JSON.parse(raw || "{}") as PedidoLeido;
     console.log("[lector]", JSON.stringify(leido));
+    /*  Y guardado, no solo en consola: los logs de la funcion se pierden en
+        horas y este es el dato con el que se diagnostica todo lo de Paco. */
+    rastro("lector", texto.slice(0, 300), {
+      leido,
+      opciones_adiciones: [...adis],
+      tamanos: pres,
+      producto_en_estado: state.producto || null,
+      tamano_en_estado: state.tamano || null,
+    });
     return leido;
   } catch (e) {
     console.error("[lector] fallo, se usan los comparadores:", e);
@@ -6293,6 +6381,10 @@ function validarLeido(
       out.tipo = productData.variables.map(g => yaTipos[g.id]).filter(Boolean).join(", ");
     }
   }
+
+  /*  LA PORTERIA. Va directo: es un si o un no del cliente, no hay nada
+      que validar contra el catalogo. */
+  if (leido.porteria === true) out.entrega_porteria = true;
 
   /* ADICIONES: tienen que existir en los grupos de modificadores. */
   if (Array.isArray(leido.adiciones) && leido.adiciones.length && state.adiciones === null) {
@@ -7743,6 +7835,16 @@ async function cargarModificadores(branchId: string): Promise<GrupoMod[]> {
     if (n.length >= 3) nombres.add(n);
   }
   DYN_MOD_NAMES = [...nombres];
+  /*  Y con su nombre ORIGINAL, no solo el normalizado: cuando el lector dice
+      "Chorizo" hay que poder devolver "Chorizo" tal como se llama en el grupo.
+      Sin esto la adicion se terminaba resolviendo contra el catalogo de
+      PLATOS, que es lo que rompio el pedido de Juan Camilo. */
+  const mapa: Array<{ key: string; name: string }> = [];
+  for (const g of grupos) for (const o of g.options) {
+    const n = normalizarTexto(o.name);
+    if (n.length >= 3 && !mapa.some(x => x.key === n)) mapa.push({ key: n, name: o.name });
+  }
+  DYN_MOD_MAP = mapa;
   return grupos;
 }
 
@@ -7787,6 +7889,13 @@ function resolverAdiciones(
     if (hallado) {
       out.push({ nombre: hallado.o.name, precio: hallado.o.price, grupo: hallado.g.id, op: hallado.o.id, sinPrecio: false });
     } else {
+      /*  NO SE ENCONTRO, y esto es lo que hay que poder ver despues. La
+          comparacion es por nombre EXACTO: "Adicion Chorizo" nunca va a ser
+          igual a "Chorizo". Cuando pasa, la adicion sale con precio 0 y el
+          pedido termina cobrado de menos — o promovida a producto suelto, que
+          es como se cobro personal una adicion familiar el 30-ago.          */
+      console.warn(`[adiciones] "${trozo}" no coincide con ninguna opcion. Habia: ` +
+        aplican.map(g => g.options.map(o => o.name).join(",")).join(" | "));
       out.push({ nombre: trozo, precio: 0, grupo: "", op: "", sinPrecio: true });
     }
   }
@@ -8665,6 +8774,12 @@ async function buildSummaryFromState(
         : undefined;
       const adiRes = resolverAdiciones(item.adiciones, matchedProd, presItem ? String(presItem.id || "") : null, gruposMod);
       const adiCobradas = adiRes.filter(a => !a.sinPrecio);
+      if (adiRes.some(a => a.sinPrecio)) {
+        rastro("adiciones_sin_precio", String(item.producto || ""), {
+          pedidas: item.adiciones, tamano: item.tamano || null,
+          resueltas: adiRes.map(a => ({ nombre: a.nombre, precio: a.precio, sinPrecio: a.sinPrecio })),
+        });
+      }
       /* Se MUESTRA lo mismo que se COBRA. Antes el texto salía de todas las
          adiciones y el precio solo de las válidas: por eso el resumen decía
          "+ Tocineta" sin sumar sus $20.000. */
@@ -9835,6 +9950,13 @@ function clasificarDireccion(
   direccion: string,
   domicilios: Record<string, unknown> | null | undefined,
   sinNomenclaturaCliente: boolean,
+  /*  LO QUE EL LECTOR YA ENTENDIO sobre la vivienda. Sin esto, el clasificador
+      solo ve la calle — y desde que el nombre del conjunto vive en su propio
+      campo, una direccion de conjunto se ve igual que una casa de barrio:
+      "Carrera 17 55 NORTE-383" parece completa y no lo esta.
+
+      No se compara mas texto: se usa lo que el lector ya decidio.          */
+  vivienda?: { conjunto?: string | null; esConjunto?: boolean; porteria?: boolean } | null,
 ): { tipo: TipoDireccion; requierePagoAdelantado: boolean } {
   const dir = direccion.toLowerCase().trim();
   /* Las palabras clave se comparan como PALABRAS, no como pedazos: "ara "
@@ -9877,9 +9999,29 @@ function clasificarDireccion(
     /* CONJUNTO CERRADO: no se le exige calle ni numero. Solo hace falta la
        UNIDAD (torre, apto, casa, bloque): el nombre solo deja al domiciliario
        en la porteria sin saber a donde subir. */
-    if (esConjunto(dir, domicilios)) {
+    /*  ¿Vive en un conjunto? Tres formas de saberlo, y basta una:
+          · esta registrado en las zonas (`esConjunto`),
+          · el lector le entendio el nombre (`lugar_conjunto`), o
+          · el lector entendio que vive en uno aunque no diga cual.
+        Antes solo se miraba la primera, y por eso el caso de Alejandra pasaba
+        de largo: su conjunto no estaba registrado todavia.                  */
+    const enConjunto = esConjunto(dir, domicilios)
+      || !!(vivienda && vivienda.conjunto)
+      || !!(vivienda && vivienda.esConjunto);
+    if (enConjunto) {
       const daUnidad = /\b(torre|bloque|bl|interior|int|apto|apartamento|apart|casa|piso)\b\s*\.?\s*[a-z0-9]/i.test(dir);
-      return daUnidad
+      /*  LA PORTERIA TAMBIEN ES UN DESTINO (regla de Sergio, 30-ago-2026):
+          *"a menos de que el cliente diga que en porteria — tambien cuenta
+          como direccion completa"*. Quien dice "dejalo en porteria" ya dijo a
+          donde va; pedirle la casa despues de eso es hacerle repetir.
+
+          ⚠️ LO DECIDE EL LECTOR, no una busqueda de la palabra en la calle.
+          La primera version la buscaba en `dir` y nunca la encontraba: «dejalo
+          en porteria» es una instruccion de ENTREGA y el lector la guarda en la
+          nota, no en la direccion. Buscar la palabra donde no esta es el
+          parche de texto de siempre.                                        */
+      const enPorteria = !!(vivienda && vivienda.porteria);
+      return (daUnidad || enPorteria)
         ? { tipo: "residencial", requierePagoAdelantado: false }
         : { tipo: "incompleta",  requierePagoAdelantado: false };
     }
