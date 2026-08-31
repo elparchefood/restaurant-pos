@@ -380,6 +380,18 @@ serve(async (req) => {
       human_takeover:        false,
       handoff_motivo:        null,
       handoff_at:            null,
+      /*  LO QUE DIJO LA PERSONA, guardado (31-ago-2026, regla de Sergio).
+
+          Hasta hoy `esConjunto` solo servia para archivar el lugar en la lista
+          correcta: servia para la PROXIMA vez, no para esta conversacion. Paco
+          volvia a leer el mensaje del cliente y volvia a deducir lo mismo — a
+          Alejandra le pidio el barrio despues de que Sergio ya hubiera marcado
+          "conjunto" en el banner, y le toco preguntar la casa a mano.
+
+          Sergio: *"eso anula todo, porque se lo estoy diciendo directamente"*.
+          Es lo unico que va por encima del lector: no es otra deduccion, es
+          alguien que conoce el barrio diciendo un hecho.                    */
+      domi_tipo_humano:      esConjunto ? "conjunto" : "barrio",
     });
 
     let retomo = false;

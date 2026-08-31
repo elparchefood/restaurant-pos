@@ -1971,7 +1971,7 @@ INTENCION, no las palabras exactas.` },
   const menuText = await buildMenuText(branchId);
 
   // 8. Cargar fila de conversación
-  const convRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=contact_name,human_takeover,pago_pendiente,sin_nomenclatura,pending_order_data&limit=1`);
+  const convRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=contact_name,human_takeover,pago_pendiente,sin_nomenclatura,domi_tipo_humano,pending_order_data&limit=1`);
   const convRow = convRes?.[0] as Record<string, unknown> | undefined;
   const senderName = (convRow?.contact_name as string) || fromPhone;
   const nombreWa = detectarNombreWa(senderName);       // null si nombre raro/emojis/números
@@ -1997,6 +1997,23 @@ INTENCION, no las palabras exactas.` },
   const nombreConfirmar = nombreKnown || nombreWa;     // DB verificado > WhatsApp > null
   const nombreParaBot   = nombreConfirmar || "";        // solo decirle a GPT si hay nombre válido
   const sinNomenclaturaCliente2 = !!(convRow?.sin_nomenclatura);
+
+  /*  ══ LO QUE MARCO SERGIO EN EL BANNER MANDA SOBRE TODO ═══════════════
+
+      Regla suya, 30-ago-2026: *"se anula cualquier cosa que Paco haya
+      identificado. Si desde el banner le digo que es conjunto o direccion
+      normal, eso anula todo, porque se lo estoy diciendo directamente"*.
+
+      Es lo UNICO que puede ir por encima del lector, y por una razon: no es
+      otra deduccion compitiendo con la suya, es una persona que conoce el
+      barrio diciendo un hecho. El lector entiende lo que el cliente dijo;
+      Sergio sabe lo que el cliente ES.
+
+      Hasta hoy el banner solo aprendia el lugar en la lista de conjuntos:
+      servia para la proxima vez, no para la conversacion en curso. Paco
+      volvia a leer el mensaje y volvia a deducir lo mismo — que fue lo que
+      paso con Alejandra.                                                   */
+  const tipoHumano = String(convRow?.domi_tipo_humano || "").toLowerCase();
 
   if (convRow?.human_takeover) {
     await setTyping(convId, false);
@@ -2340,6 +2357,21 @@ INTENCION, no las palabras exactas.` },
     } else {
       state = rawState;
     }
+  }
+
+  /*  Y AQUI SE APLICA lo que marco la persona en el banner. Va en cuanto el
+      estado existe y antes de cualquier decision sobre la direccion, para que
+      no haya un solo sitio que decida sin saberlo.
+
+      La lectura de la columna vive 350 lineas mas arriba, junto al resto de
+      la conversacion; aplicarla alli era imposible: `state` todavia no habia
+      nacido. La primera version lo intento y la funcion se caia sin contestar
+      — comprobado en el banco, la conversacion marcada se quedaba muda.    */
+  if (tipoHumano === "conjunto") {
+    state.es_conjunto = true;
+  } else if (tipoHumano === "barrio") {
+    state.es_conjunto = false;
+    state.lugar_conjunto = null;
   }
 
   /* POR DONDE LLEGO ESTA CONVERSACION. Se pone en el estado para que los
@@ -4346,31 +4378,43 @@ INTENCION, no las palabras exactas.` },
       // ¿Pidió un producto ESPECÍFICO que NO existe? ("una chorizada") → decírselo
       // claramente antes de la carta (frase configurable frases.producto_no_existe).
       // Si solo nombró la categoría ("una salchipapa") → frase normal de siempre.
-      const STOP_14F = new Set(["quiero","quisiera","dame","hazme","deseo","pedir","pedido","ordenar","enviame","dejame","regalas","haces","porfa","porfis","favor","gracias","hola","buenas","buenos","dias","tardes","noches","para","comer","antoja","antojo","tambien","ahora","luego","grande","pequena","personal","familiar","unico","unica","litro","litros","media","medio","doble"]);
+      /*  Aqui vivia STOP_14F, una lista de 40 palabras a ignorar. Se quito
+          el 31-ago-2026: ya no hay escaneo de palabras que la use.  */
       /* Si el cliente nombro algo que la carta SI conoce —una categoria, por
          ejemplo "una salchipapa"— no se le puede decir que no lo manejamos.
          Pasaba: la frase de "no existe" se disparaba por la palabra
          "porfavor" escrita junta, que no esta en la carta y ninguna lista de
          palabras a ignorar iba a cubrir. Se mira lo que el cliente SI nombro,
          no lo que no. */
-      let productoInexistente: string | null = null;
-      const nombroAlgoDeLaCarta = mencionaProductoCatalogo(clienteTexto);
-      /* FASE A5 (15-ago): "no manejamos un producto con ese nombre" SOLO se
-         puede decir si el clasificador vio intencion de PEDIR. Antes, la
-         palabra desconocida bastaba: "Quiero mas informacion.cuanto vale"
-         disparaba la frase por "informacion". Si una persona pregunta,
-         agradece o charla, no se le contesta con la rama de producto.
-         Si el clasificador fallo (objeto vacio), se comporta como antes. */
-      const clasificoAlgo = Object.keys(intenciones).length > 0;
-      const buscarInexistente = !nombroAlgoDeLaCarta
-        && (!clasificoAlgo || (intenciones.pedir === true && intenciones.pregunta !== true));
-      for (const w of (buscarInexistente ? normalizarTexto(clienteTexto).split(/\s+/) : [])) {
-        const stem = w.replace(/s$/, "");
-        if (w.length < 4 || STOP_14F.has(w) || STOP_14F.has(stem)) continue;
-        if (DYN_PROD_NAMES.includes(w) || DYN_PROD_NAMES.includes(stem)) continue;
-        if (getAdicionKeywords().some(k => k === w || k === stem)) continue;
-        productoInexistente = w; break;
-      }
+      /*  ══ SOLO EL LECTOR PUEDE DECIR QUE ALGO NO EXISTE ══════════════
+
+          31-ago-2026. Aqui vivia un escaneo palabra por palabra: se partia el
+          mensaje y la primera palabra que no estuviera en una lista de 40
+          se tomaba como "producto inexistente". A Julian le contestamos
+          «No manejamos un producto con ese nombre» porque escribio "Para
+          TOMAR pedido" y "tomar" no estaba en la lista.
+
+          El propio comentario que habia aqui contaba que ya habia pasado con
+          "porfavor" y con "informacion", y cada vez se agrandaba la lista. Una
+          lista de palabras del castellano nunca se termina.
+
+          Ahora lo dice el lector, que es quien entiende: solo hay producto
+          inexistente si el lector vio que el cliente nombro un plato Y ese
+          plato no esta en la carta. Si no nombro ninguno, se enseña la carta
+          con la frase de siempre.
+
+          Se miran los DOS campos del lector: el que nombra un plato que no
+          reconocio, y el `producto` normal — porque cuando alguien pide "una
+          chorizada" el lector la devuelve como producto, que es lo correcto:
+          el cliente SI esta pidiendo algo. Quien dice si eso existe es el
+          catalogo, no el modelo. Esa es la division de siempre: el modelo
+          dice que entendio, el catalogo dice si eso existe.                */
+      const _pedido = String((leidoPedido as PedidoLeido).producto_desconocido
+                          || (leidoPedido as PedidoLeido).producto || "").trim();
+      const productoInexistente: string | null =
+        (_pedido && !mencionaProductoCatalogo(_pedido) && !resolverAdicionCatalogo(_pedido))
+          ? _pedido : null;
+
       const fraseNoExisteRaw = productoInexistente
         ? (getFraseTexto(frasesCfg.producto_no_existe) ||
            "No manejamos un producto con ese nombre 🙈 Esta es nuestra carta ☺️ ¿Cuál se te antoja?")
@@ -6038,6 +6082,12 @@ type PedidoLeido = {
       direccion, porque «dejalo en porteria» es una instruccion de
       entrega: el lector la guarda en la nota, no en la calle.        */
   porteria?: boolean;
+  /*  EL CLIENTE PIDIO ALGO POR SU NOMBRE Y NO ESTA EN LA CARTA.
+      31-ago-2026. Antes esto se deducia partiendo el mensaje en palabras
+      y descartando las que estuvieran en una lista de 40. A Julian le
+      contestamos "no manejamos ese producto" por la palabra **tomar**,
+      de "Para tomar pedido". La lista nunca va a estar completa.       */
+  producto_desconocido?: string | null;
 };
 
 async function leerPedido(
@@ -6118,6 +6168,7 @@ Devuelve SOLO este JSON con lo que ESTE mensaje aporta (omite lo que no diga):
  "conjunto":string|null,"es_conjunto":bool,
  "adicion_otro_tamano":{"nombre":string,"tamano":string}|null,
  "porteria":bool,
+ "producto_desconocido":string|null,
  "nota":string|null}
 
 REGLAS:
@@ -6179,6 +6230,14 @@ REGLAS:
   en "adiciones": se cobra aparte porque dentro de un plato familiar solo
   caben adiciones familiares. Si el tamaño que dice es el MISMO del plato, o
   no dice ninguno, va en "adiciones" como siempre y esto queda null.
+- "producto_desconocido": el nombre de un plato que el cliente pidió POR SU
+  NOMBRE y que NO aparece en el menú de arriba. "una chorizada", "un
+  ceviche" -> ese nombre. Es para poder decirle que no lo manejamos.
+  ⚠️ SOLO cuando de verdad nombró un plato. Un saludo, una cortesía o una
+  frase para empezar —"buenas noches", "para tomar pedido", "quiero
+  información", "por favor"— NO son platos: ahí va null. Ante la duda,
+  null: decirle a alguien que no manejamos algo que nunca pidió es peor
+  que no decirle nada.
 - "porteria": true si el cliente dice que le dejen el pedido en la PORTERÍA,
   la recepción, con el vigilante o el portero, o que él baja a recogerlo a la
   entrada. Da igual cómo lo diga: "déjalo en portería", "se lo dejas al
