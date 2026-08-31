@@ -541,6 +541,16 @@ function matchCatalogo(
     const noAdic = pool.filter(p => !/adicion|extra|salsa/i.test(normalizarTexto(catDe(p))));
     if (noAdic.length) pool = noAdic;
   }
+  /*  ══ LA FAMILIA QUE PIDIO EL CLIENTE TIENE QUE EXISTIR ═══════════════
+      31-ago-2026. "Una salchipapa sencilla" abria un pedido de HAMBURGUESA
+      sencilla: sencilla existe una sola vez en la carta, no habia empate, y
+      el filtro de categoria de arriba solo corre cuando hay mas de una.   */
+  {
+    const todasCats = [...new Set(rows.map(catDe).filter(Boolean))];
+    const nombroFamilia = todasCats.some(cn => !!categoriaMencionada(norm, [cn]));
+    const algunaEsDeEsa = candidatas.some(p => !!categoriaMencionada(norm, [catDe(p)]));
+    if (nombroFamilia && !algunaEsDeEsa) return undefined;
+  }
   const exacta = pool.find(p => normalizarTexto(String(p.name || "")) === norm);
   return exacta || pool[0];
 }
@@ -3482,6 +3492,24 @@ INTENCION, no las palabras exactas.` },
     let mismos = DYN_PROD_MAP.filter(e => e.key === normN);
     if (!mismos.length) mismos = DYN_PROD_MAP.filter(e => e.key.includes(normN) || normN.includes(e.key));
     if (!mismos.length) return null;
+    /*  LA FAMILIA TIENE QUE EXISTIR — el otro camino (31-ago-2026).
+
+        Este resuelve por `DYN_PROD_MAP` y tenia el mismo agujero que
+        `matchCatalogo`: con una sola candidata no comprobaba la familia, y
+        "salchipapa sencilla" se convertia en la hamburguesa.
+
+        ⚠️ Se mira EL MENSAJE DEL CLIENTE, no el nombre que llega aqui. Este
+        camino recibe el nombre que encontro rebuscando en el texto —"sencilla"
+        a secas—, asi que para cuando llega, la palabra "salchipapa" ya se
+        quedo por el camino. Comprobado con el rastro: el lector devolvia bien
+        `producto: null`, y el pedido igual arrancaba con la hamburguesa
+        porque quien lo capturaba era esto.                                */
+    {
+      const txtCli = normalizarTexto(clienteTexto || "");
+      const cats = [...new Set(DYN_PROD_MAP.map(e => String(e.cat || "")).filter(Boolean))];
+      if (cats.some(c => !!categoriaMencionada(txtCli, [c]))
+          && !mismos.some(m => !!categoriaMencionada(txtCli, [String(m.cat || "")]))) return null;
+    }
     const nombresDist = new Set(mismos.map(m => m.key));
     if (nombresDist.size > 1) {
       // matches de productos distintos (fuzzy) — tomar el de nombre más parecido
@@ -4315,7 +4343,7 @@ INTENCION, no las palabras exactas.` },
     const pidePrecio = intenciones.precio === true
       || /(cuanto|cuánto)\s+(vale|cuesta|sale)|qu[eé]\s+precio|de\s+a\s+c[oó]mo/i.test(clienteTexto);
     if (pidePrecio && !relectura && !state.resumen_enviado) {
-      const puntual = await precioPuntual(clienteTexto, branchId);
+      const puntual = await precioPuntual(clienteTexto, branchId, frasesCfg);
       if (puntual) {
         let msgP = puntual;
         const stepPrecio = state.producto ? findNextStep(state, pasos, false, domiciliosCfg) : null;
@@ -4492,10 +4520,24 @@ INTENCION, no las palabras exactas.` },
           el cliente SI esta pidiendo algo. Quien dice si eso existe es el
           catalogo, no el modelo. Esa es la division de siempre: el modelo
           dice que entendio, el catalogo dice si eso existe.                */
-      const _pedido = String((leidoPedido as PedidoLeido).producto_desconocido
-                          || (leidoPedido as PedidoLeido).producto || "").trim();
+      const _desc = String((leidoPedido as PedidoLeido).producto_desconocido || "").trim();
+      const _prod = String((leidoPedido as PedidoLeido).producto || "").trim();
+      const _pedido = _desc || _prod;
+      /*  CUANDO EL LECTOR LO NIEGA, SE LE CREE (31-ago-2026).
+
+          Si el lector nombra lo que el cliente pidio Y ademas no reconocio
+          ningun plato (`producto` en null), es que lo busco en la carta y no
+          esta. Ahi no hay nada que comprobar: el sabe mas que una busqueda de
+          palabras sueltas.
+
+          Sin esto, "una salchipapa sencilla" no avisaba nada: las palabras
+          por separado SI estan en la carta —"sencilla" es una hamburguesa— y
+          la comprobacion la daba por buena. El cliente recibia "¿que se te
+          antoja?" y volvia a pedir lo mismo.                               */
+      const _lectorLoNiega = !!_desc && !_prod;
       const productoInexistente: string | null =
-        (_pedido && !mencionaProductoCatalogo(_pedido) && !resolverAdicionCatalogo(_pedido))
+        (_pedido && (_lectorLoNiega
+                     || (!mencionaProductoCatalogo(_pedido) && !resolverAdicionCatalogo(_pedido))))
           ? _pedido : null;
 
       const fraseNoExisteRaw = productoInexistente
@@ -6313,6 +6355,27 @@ REGLAS:
   en "adiciones": se cobra aparte porque dentro de un plato familiar solo
   caben adiciones familiares. Si el tamaño que dice es el MISMO del plato, o
   no dice ninguno, va en "adiciones" como siempre y esto queda null.
+- ⚠️ LA FAMILIA QUE DICE EL CLIENTE TIENE QUE CUADRAR. El menú viene en
+  SECCIONES —[HAMBURGUESAS], [PERROS CALIENTES], [SALCHIPAPAS TRADICIONALES],
+  [SANDWICH]...— y dentro de cada una los platos llevan nombre corto:
+  "Sencilla", "Pollo", "Especial". El mismo nombre corto se repite en varias
+  secciones: hay un "Pollo" de hamburguesa, uno de perro y uno de salchipapa.
+
+  Cuando el cliente nombra la familia, busca el plato DENTRO de esa sección:
+    · "una hamburguesa de pollo" -> "POLLO", el de [HAMBURGUESAS] ✔
+    · "una salchipapa de pollo"  -> "Pollo", el de las salchipapas ✔
+    · "una salchipapa premium"   -> "Premium", el de las salchipapas ✔
+
+  ⚠️ El plato NO se llama igual que lo que escribió el cliente, y está bien:
+  "salchipapa de pollo" es el plato "Pollo" de la sección de salchipapas. La
+  palabra "salchipapa" es la SECCIÓN, no parte del nombre, y NO la pongas en
+  "producto_desconocido": el cliente pidió algo que sí existe.
+
+  Solo cuando en esa sección NO hay ningún plato que encaje:
+    · "una salchipapa sencilla" -> en las salchipapas no hay ninguna sencilla
+      -> "producto": null y "producto_desconocido": "salchipapa sencilla".
+      JAMÁS devuelvas la hamburguesa sencilla: el cliente pidió otra cosa, y
+      que le llegue sin que nadie le avise es peor que decirle que no hay.
 - "producto_desconocido": el nombre de un plato que el cliente pidió POR SU
   NOMBRE y que NO aparece en el menú de arriba. "una chorizada", "un
   ceviche" -> ese nombre. Es para poder decirle que no lo manejamos.
@@ -10332,13 +10395,38 @@ function ubicacionPedido(state: PacoState): string {
   return [state.barrio, state.direccion].filter(Boolean).join(" ").trim();
 }
 
+/*  COMO SE NOMBRA UN PRODUCTO AL CLIENTE: con su categoria delante.
+
+    Sergio, 31-ago-2026. "Sencilla cuesta $16.000" no le dice a nadie de que
+    estamos hablando —hay una sencilla de hamburguesa y un sencillo de perro—,
+    y el cliente se entera del malentendido cuando llega el pedido. Con la
+    categoria delante, si se equivoco lo ve en la misma frase y lo corrige ahi.
+
+    El singular sale de `categoriaEnSingular`, que ya existia para la rama de
+    ambiguedad: "HAMBURGUESAS" -> hamburguesa, "PERROS CALIENTES" -> perro
+    caliente. Sale del nombre que el restaurante le puso a su categoria, sin
+    pedirle que configure nada aparte.
+
+    Si el producto YA lleva la palabra de la categoria ("Adición Chorizo" en
+    "Adiciones") no se repite.                                               */
+function nombrarConCategoria(categoria: string, producto: string): string {
+  const prod = String(producto || "").trim();
+  const cat = categoriaEnSingular(String(categoria || "")).trim();
+  if (!cat || !prod) return capFirst(prod.toLowerCase());
+  const nCat = normalizarTexto(cat).split(/\s+/)[0] || "";
+  const nProd = normalizarTexto(prod);
+  if (nCat && nProd.includes(nCat)) return capFirst(prod.toLowerCase());
+  return capFirst(`${cat} ${prod}`.toLowerCase());
+}
+
 /* PRECIO PUNTUAL (pedido de Sergio, 15-ago — cierra el D2 del plan): "¿cuánto
    cuesta la coca cola 1.5?" se responde con EL PRECIO DE ESO, leído del
    catálogo — no con la cuenta del pedido, no desde una FAQ escrita a mano y
    no de la memoria del modelo. Cubre productos (con sus presentaciones) y
    adiciones (con su precio por tamaño). Devuelve null si el texto no nombra
    nada del catálogo: en ese caso "cuánto es" sigue siendo la cuenta. */
-async function precioPuntual(texto: string, branchId: string): Promise<string | null> {
+async function precioPuntual(texto: string, branchId: string,
+                             frasesCfg?: Record<string, unknown> | null): Promise<string | null> {
   // El punto NO se limpia: "1.5" tiene que sobrevivir para acertar la presentación.
   const t = " " + normalizarTexto(texto).replace(/[¿?¡!,;]/g, " ").replace(/\s+/g, " ").trim() + " ";
   const palabra = (n: string) => t.includes(" " + n + " ");
@@ -10364,13 +10452,20 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
       } catch (_e) { return null; }
     })();
     const prods = preguntaAdicion ? [] : await sbGet(
-      `/rest/v1/pos_products?branch_id=eq.${branchId}&select=id,name,price,presentations,variables,category_id&limit=200`,
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&select=id,name,price,presentations,variables,category_id,cat:category_id(name)&limit=200`,
     ) as Array<{ id?: string; name?: string; price?: number | string; category_id?: unknown;
+                 cat?: { name?: string } | null;
                  presentations?: Array<{ id?: string; name?: string; price?: number }>;
                  variables?: Array<{ name?: string; options?: Array<{ name?: string; price?: number; prices?: number[] }> }> }> | null;
 
     // Producto: gana el nombre MÁS LARGO que aparezca (completo o su primera palabra)
-    let mejor: {
+    type Candidato = {
+      /*  De que categoria es. Con nombres repetidos en varias categorias esto
+          no es un adorno: es la diferencia entre acertar y no.             */
+      categoria: string;
+      /*  Cuantas letras del nombre encajaron. Gana el mas largo: "doble carne"
+          le gana a "carne" a secas.                                        */
+      largo: number;
       name: string; price: number; pres: Array<{ name: string; price: number }>;
       /*  LA TABLA COMPLETA, para cuando NO se puede decir un solo precio.
           Una fila por tamaño, y dentro cada tipo con el suyo.             */
@@ -10380,15 +10475,20 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
           personal cuesta $35.000", que se lee como que TODAS las personales
           valen eso — y la de pollo vale $29.000.                          */
       variante: string | null;
-    } | null = null;
+    };
+    /*  TODOS los que encajan, no solo el primero (31-ago-2026). Antes esto era
+        un unico `mejor` que se iba pisando, y entre "ESPECIAL" de hamburguesas,
+        de perros y de sandwich se quedaba con la que devolviera antes la base
+        de datos — y daba ese precio como si fuera el unico que hay.        */
+    const candidatos: Candidato[] = [];
     let mejorLargo = 0;
     for (const p of (prods || [])) {
       const n = normalizarTexto(String(p.name || "")).trim();
       if (!n) continue;
       const primera = n.split(/\s+/)[0];
       const pega = (n.length >= 4 && t.includes(n)) || (primera.length >= 3 && palabra(primera));
-      if (pega && n.length > mejorLargo) {
-        mejorLargo = n.length;
+      if (pega) {
+        if (n.length > mejorLargo) mejorLargo = n.length;
         /* EL PRECIO DE VERDAD DE CADA TAMAÑO.
            Si la presentacion trae precio, ese manda. Si viene en 0, el precio
            vive en la variante: cada opcion guarda un `prices` con un valor por
@@ -10456,7 +10556,9 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
           matriz = filas.length && filas.every(f => f.opciones.length && f.opciones.every(o => o.price > 0))
             ? filas : null;
         }
-        mejor = {
+        candidatos.push({
+          categoria: String(p.cat?.name || "").trim(),
+          largo: n.length,
           name: String(p.name).trim(),
           price: conEmpP(Number(p.price) || 0, null),
           pres: listaPres
@@ -10465,9 +10567,53 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
             .filter(x => x.name && x.name.toLowerCase() !== "unico" && x.name.toLowerCase() !== "único"),
           matriz,
           variante: varDicha,
-        };
+        });
       }
     }
+
+    /*  ══ CUAL DE TODOS ═══════════════════════════════════════════════════
+        Primero los que encajaron con el nombre mas largo. Si el cliente ademas
+        nombro la familia —"la SALCHIPAPA sencilla"— esa manda sobre todo: lo
+        dijo el, no hay nada que deducir.                                    */
+    const finalistas0 = candidatos.filter(c => c.largo === mejorLargo);
+    const porCategoria = finalistas0.filter(c => !!categoriaMencionada(t, [c.categoria]));
+
+    /*  SI NOMBRO UNA FAMILIA Y AHI NO ESTA, NO SE CONTESTA CON OTRA.
+        Caso de Sergio: *"si el cliente dice 'no me refiero a la salchipapa
+        sencilla'..."*. Sencilla solo existe en hamburguesas; darle ese precio
+        seria darle por bueno un plato que no pidio. Se devuelve null y sigue
+        el camino que sabe decir que eso no se maneja y ofrecer lo que si hay.
+
+        Se pregunta al reves de lo que parece: no "que familia dijo"
+        —"salchipapa" esta en el nombre de DOS categorias y escoger una seria
+        adivinar— sino si ALGUNA candidata es de una familia que el nombro. */
+    if (!porCategoria.length) {
+      const catsTodas = [...new Set((prods || [])
+        .map(p => String(p.cat?.name || "").trim()).filter(Boolean))];
+      if (catsTodas.some(c => !!categoriaMencionada(t, [c]))) return null;
+    }
+
+    const finalistas = porCategoria.length ? porCategoria : finalistas0;
+
+    /*  ══ SI HAY VARIOS CON EL MISMO NOMBRE, SE PREGUNTA ══════════════════
+        Nunca se escoge uno a dedo: "¿cuanto vale la especial?" tiene tres
+        respuestas ciertas en El Parche y dar una sola es acertar por
+        casualidad. Se usa LA MISMA frase configurable que el flujo cuando la
+        ambiguedad aparece tomando el pedido, para que el cliente no reciba dos
+        redacciones distintas de la misma pregunta.                         */
+    if (finalistas.length > 1) {
+      const ops = [...new Set(finalistas.map(c => c.categoria).filter(Boolean))]
+        .map(c => capFirst(categoriaEnSingular(c).toLowerCase())).join(", ")
+        .replace(/, ([^,]+)$/, " o $1");
+      if (ops) {
+        return (getFraseTexto(((frasesCfg || {}) as Record<string, unknown>).elegir_categoria as never) ||
+          "Tenemos {{producto}} en varias categorías 😋 ¿De cuál lo deseas? {{opciones_categoria}}")
+          .replace(/\{\{?\s*producto\s*\}?\}/g, capFirst(finalistas[0].name.toLowerCase()))
+          .replace(/\{\{?\s*opciones_categoria\s*\}?\}/g, ops);
+      }
+    }
+
+    const mejor = finalistas[0] || null;
     if (mejor) {
       const cerca = mejor.pres.find(x => {
         const pn = normalizarTexto(x.name);
@@ -10475,7 +10621,8 @@ async function precioPuntual(texto: string, branchId: string): Promise<string | 
         return pn && (t.includes(pn) || pn.split(/\s+/).some(w =>
           (w.length >= 3 || /\d/.test(w)) && palabra(w)));
       });
-      const nom = capFirst(mejor.name.toLowerCase());
+      //  Con la categoria delante: "Hamburguesa sencilla", no "Sencilla".
+      const nom = nombrarConCategoria(mejor.categoria, mejor.name);
       /* NUNCA UN $0. Un precio en cero no es un precio: es un dato interno de
          como esta armada la carta, y al cliente no le dice nada — le dice algo
          FALSO. Si no se puede saber el precio, no se contesta el precio: se
