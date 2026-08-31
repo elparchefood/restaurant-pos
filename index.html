@@ -556,20 +556,30 @@ a{color:inherit;text-decoration:none}
 
 /*  La tarjeta que va volando a ser fondo. Va en `position:fixed` porque tiene
     que poder salirse de la fila, que esta recortada. */
-/*  ⚠️ EL CLON VA POR DEBAJO DE LAS TARJETAS (z-index 7 contra 8 de `.carr`).
+/*  ⚠️ EL CLON VUELA DENTRO DEL CONTENEDOR DEL FONDO.
 
-    Sergio: *"cuando se extiende la imagen esta cubriendo las tarjetas, no
-    debe cubrirlas"*. Y ademas vive DENTRO de `.hero`, no colgado del body:
-    la portada se encoge con un `transform` mientras dura el efecto, y un
-    `transform` encierra a sus hijos en su propia caja de apilamiento — desde
-    fuera, cualquier z-index del clon le ganaba a las tarjetas pasara lo que
-    pasara. Metiendolo dentro, los dos juegan en la misma caja.
+    Sergio, dos veces: primero *"esta cubriendo las tarjetas"*, y despues
+    *"lo mismo con los botones y los textos, todo eso debe ir por encima"*.
 
-    Y no puede ir dentro de `.carr`, que esta recortado: ahi no podria
-    crecer mas alla del cuadrito.                                          */
-.carr-vuelo{position:absolute;z-index:7;border-radius:14px;overflow:hidden;
+    Subir o bajar el z-index no era la solucion. Mientras dura el efecto la
+    portada se encoge con un `transform`, y un `transform` encierra a sus
+    hijos en su propia caja de apilamiento: un clon colgado del body le ganaba
+    a todo pasara lo que pasara, y uno con z-index 7 le ganaba al texto, que
+    esta en 6.
+
+    La solucion de verdad es que el clon sea PARTE DEL FONDO: se cuelga de
+    `.fondo`, que vive en z-index 1. Todo lo demas —el velo, la rejilla, el
+    titular, los botones y las tarjetas— esta por encima de esa capa y lo
+    seguira estando sin que haya que ajustar ningun numero nunca mas.
+
+    Y arregla de paso algo que no se habia notado: el velo oscurece el fondo,
+    asi que un clon POR ENCIMA del velo volaba claro y se oscurecia de golpe
+    al aterrizar. Ahora vuela ya oscurecido, igual que va a quedar.
+
+    No puede ir dentro de `.carr`, que esta recortado: ahi no podria crecer. */
+.carr-vuelo{position:absolute;z-index:2;border-radius:14px;overflow:hidden;
   background-size:cover;background-position:center;pointer-events:none;
-  box-shadow:0 30px 80px -30px rgba(0,0,0,.9);
+  filter:grayscale(.55) contrast(1.12);
   transition:transform .52s cubic-bezier(.62,0,.2,1),border-radius .52s ease,opacity .12s ease .4s}
 
 /* ── el pie: flechas, la linea del reloj y el contador ── */
@@ -1309,7 +1319,8 @@ window.CobraPlan.iniciar({
     var rh = hero.getBoundingClientRect();
     var vuelo = document.createElement('div');
     vuelo.className = 'carr-vuelo';
-    //  Coordenadas RELATIVAS a la portada, porque el clon se cuelga de ella.
+    //  Coordenadas relativas al contenedor del fondo, que mide exactamente
+    //  lo mismo que la portada (`inset:0`).
     vuelo.style.cssText += ';left:' + (r.left - rh.left) + 'px;top:' + (r.top - rh.top) + 'px;' +
                            'width:' + r.width + 'px;height:' + r.height + 'px;';
     var fondoNuevo = fondos.children[nuevo].querySelector('.ph');
@@ -1319,7 +1330,7 @@ window.CobraPlan.iniciar({
       //  Todavia sin foto: vuela el rayado, para poder ver el efecto igual.
       vuelo.style.background = 'repeating-linear-gradient(128deg,#1B2130 0 10px,#12161F 10px 20px)';
     }
-    hero.appendChild(vuelo);
+    fondos.appendChild(vuelo);   //  parte del fondo, no una capa encima
     tj.style.visibility = 'hidden';
 
     hero.classList.add('saltando');
