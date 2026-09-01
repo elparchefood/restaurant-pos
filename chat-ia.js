@@ -2177,11 +2177,18 @@ async function crearNuevoChat() {
       });
       S.clientesPorTel[tel] = { nombre: nombre, barrio: '' };
     } else if (dir && !fila.direccion) {
+      /*  Antes esto AGREGABA siempre, sin mirar si esa puerta ya estaba en la
+          lista. Ahora lo decide `pos-direcciones.js`: si ya existe no se
+          agrega otra ni se cambia la que hay — decision de Sergio, *"que se
+          quede la que ya estaba"*.                                        */
       const dirId = 'd' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
-      const lista = Array.isArray(fila.direcciones) ? fila.direcciones : [];
-      lista.push({ id: dirId, dir: dir, barrio: '' });
+      const previas = Array.isArray(fila.direcciones) ? fila.direcciones : [];
+      const nueva = { id: dirId, dir: dir, barrio: '' };
+      const r = window.posDireccion
+        ? window.posDireccion.agregar(previas, nueva)
+        : { lista: previas.concat([nueva]) };
       await sb.from('pos_clientes').update({
-        direccion: dir, direcciones: lista, updated_at: new Date().toISOString(),
+        direccion: dir, direcciones: r.lista, updated_at: new Date().toISOString(),
       }).eq('id', fila.id);
     }
     document.getElementById('nc-ov')?.remove();

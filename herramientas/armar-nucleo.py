@@ -16,6 +16,7 @@ import io, os, hashlib
 
 ORDEN = [
     'pos-sync.js', 'pos-cache.js', 'pos-datos.js', 'pos-core.js',
+    'pos-direcciones.js',
     'pos-solo-app.js', 'pos-carta.js', 'pos-plan.js', 'pos-perms.js',
     'pos-brand.js', 'pos-events.js', 'pos-impuestos.js', 'pos-print.js',
     'pos-print-listener.js', 'pos-caja-guard.js', 'pos-metodos.js',

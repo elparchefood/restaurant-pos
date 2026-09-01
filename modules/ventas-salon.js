@@ -4610,35 +4610,16 @@
 
       Si no hay ningun numero —"Hospital del norte"— se compara el texto, que
       para ese caso es lo unico que hay.                                     */
+  /*  ¿ES LA MISMA PUERTA? La regla vive en `pos-direcciones.js`, que es la
+      unica que responde esta pregunta en todo el sistema. Aqui solo se
+      delega: tener la comparacion escrita en cada pantalla fue lo que dejo
+      10 de 12 clientes con la direccion repetida (1-sep-2026).           */
   function vsDirLlave(d) {
-    var junto = [d.conjunto, d.unidad, d.dir].filter(Boolean).join(' ');
-    var plano = String(junto || '')
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-    var barrio = String(d.barrio || '')
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-    var nums = (plano.match(/\d+/g) || []);
-    if (nums.length) {
-      /*  Ordenados y sin repetir: "torre b apto 605" y "apto 605 torre B"
-          tienen que dar la misma llave.
-
-          ⚠️ Y SIN EL BARRIO cuando hay numeros, a proposito. El barrio es
-          justamente lo que se escribe distinto cada vez: unas veces va el
-          nombre del conjunto, otras el del barrio, y otras se queda vacio.
-          Veronica Vasquez tenia "Urbanizacion Asturias casa d 10" con el
-          barrio en blanco y "Casa D10" con barrio Asturias: la misma casa,
-          separada por un campo vacio.
-
-          El precio que se paga: si un cliente tuviera de verdad dos sitios
-          distintos con el mismo numero —casa 10 en dos barrios— se guardaria
-          uno solo. Es raro, y se arregla escribiendolo; lo otro pasaba en 10
-          de cada 12 clientes.                                              */
-      var unicos = nums.filter(function (n, i) { return nums.indexOf(n) === i; }).sort();
-      return '#' + unicos.join('-');
-    }
-    return barrio + '#' + plano;
+    if (window.posDireccion) return window.posDireccion.llave(d);
+    //  Respaldo por si el nucleo no cargo: el de antes, que compara texto.
+    return [d.conjunto, d.unidad, d.dir].filter(Boolean).join('|').toLowerCase().replace(/\s+/g, ' ');
   }
+
 
   function vsDirsDe(cli) {
     const out = [];

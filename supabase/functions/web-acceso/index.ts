@@ -74,6 +74,50 @@ const tel10 = (t: unknown) => String(t ?? "").replace(/\D/g, "").slice(-10);
 const normDir = (s: unknown) =>
   String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
 
+/*  ══ ¿SON LA MISMA PUERTA? ════════════════════════════════════════════════
+    ⚠️ COPIA de `pos-direcciones.js`, que es la FUENTE DE VERDAD. Aqui no se
+    puede importar (esto corre en el servidor y aquello en el navegador), asi
+    que si alguna vez se cambia la regla, hay que cambiarla en los dos.
+
+    Lo que identifica una puerta es el NUMERO: casa 41, apto 605, torre 2B. El
+    texto alrededor cambia mil veces; el numero no. Si no hay numeros, se
+    compara la esencia del texto sin las palabras de relleno.
+
+    Comparar texto —como se hacia aqui— dejo 10 de 12 clientes con la misma
+    direccion guardada dos y tres veces (medido el 1-sep-2026).            */
+const _TIL: Record<string, string> = { "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u", "ü": "u", "ñ": "n" };
+const _plano = (t: unknown) => String(t ?? "").toLowerCase().split("").map((ch) => {
+  const c = _TIL[ch] || ch;
+  return c === "z" ? "s" : c === "v" ? "b" : c;
+}).join("");
+const _limpio = (t: unknown) => _plano(t).replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+const _RELLENO = ["ciudadela", "conjunto", "condominio", "unidad", "residencial",
+  "urbanisacion", "torres", "torre", "blokue", "bloque", "apto", "apartamento", "apt",
+  "casa", "interior", "int", "mansana", "manzana", "barrio", "edificio", "edif",
+  "el", "la", "los", "las", "de", "del", "y"];
+type _Puerta = { dir?: string; barrio?: string; conjunto?: string; unidad?: string };
+function _esencia(d: _Puerta): string {
+  let txt = _limpio([d.conjunto, d.unidad, d.dir].filter(Boolean).join(" "));
+  for (const w of _limpio(d.barrio).split(" ")) if (w.length >= 4) txt = txt.split(w).join(" ");
+  return txt.split(" ").filter((w) => w && w.length > 2 && !_RELLENO.includes(w)).join(" ");
+}
+function _numeros(d: _Puerta): string[] {
+  const n = _limpio([d.conjunto, d.unidad, d.dir].filter(Boolean).join(" ")).match(/\d+/g) || [];
+  return [...new Set(n)].sort();
+}
+function mismaPuerta(a: _Puerta, b: _Puerta): boolean {
+  if (!a || !b) return false;
+  const na = _numeros(a), nb = _numeros(b);
+  if (na.length && nb.length) return na.join("-") === nb.join("-");
+  const ea = _esencia(a), eb = _esencia(b);
+  if (!ea || !eb) return false;
+  if (ea === eb || ea.includes(eb) || eb.includes(ea)) return true;
+  const pa = ea.split(" "), pb = eb.split(" ");
+  const comunes = pa.filter((w) => pb.includes(w)).length;
+  return comunes / Math.max(pa.length, pb.length) >= 0.6;
+}
+
+
 /* Las direcciones guardadas antes de esto no tienen `id` (se guardaban como
    {dir, barrio}). Se les pone uno estable derivado de su contenido, y así el
    resto del sistema puede tratarlas a todas igual sin migrar la tabla. */

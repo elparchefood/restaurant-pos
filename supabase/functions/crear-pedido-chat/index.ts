@@ -1,6 +1,50 @@
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+/*  ══ ¿SON LA MISMA PUERTA? ════════════════════════════════════════════════
+    ⚠️ COPIA de `pos-direcciones.js`, que es la FUENTE DE VERDAD. Aqui no se
+    puede importar (esto corre en el servidor y aquello en el navegador), asi
+    que si alguna vez se cambia la regla, hay que cambiarla en los dos.
+
+    Lo que identifica una puerta es el NUMERO: casa 41, apto 605, torre 2B. El
+    texto alrededor cambia mil veces; el numero no. Si no hay numeros, se
+    compara la esencia del texto sin las palabras de relleno.
+
+    Comparar texto —como se hacia aqui— dejo 10 de 12 clientes con la misma
+    direccion guardada dos y tres veces (medido el 1-sep-2026).            */
+const _TIL: Record<string, string> = { "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u", "ü": "u", "ñ": "n" };
+const _plano = (t: unknown) => String(t ?? "").toLowerCase().split("").map((ch) => {
+  const c = _TIL[ch] || ch;
+  return c === "z" ? "s" : c === "v" ? "b" : c;
+}).join("");
+const _limpio = (t: unknown) => _plano(t).replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+const _RELLENO = ["ciudadela", "conjunto", "condominio", "unidad", "residencial",
+  "urbanisacion", "torres", "torre", "blokue", "bloque", "apto", "apartamento", "apt",
+  "casa", "interior", "int", "mansana", "manzana", "barrio", "edificio", "edif",
+  "el", "la", "los", "las", "de", "del", "y"];
+type _Puerta = { dir?: string; barrio?: string; conjunto?: string; unidad?: string };
+function _esencia(d: _Puerta): string {
+  let txt = _limpio([d.conjunto, d.unidad, d.dir].filter(Boolean).join(" "));
+  for (const w of _limpio(d.barrio).split(" ")) if (w.length >= 4) txt = txt.split(w).join(" ");
+  return txt.split(" ").filter((w) => w && w.length > 2 && !_RELLENO.includes(w)).join(" ");
+}
+function _numeros(d: _Puerta): string[] {
+  const n = _limpio([d.conjunto, d.unidad, d.dir].filter(Boolean).join(" ")).match(/\d+/g) || [];
+  return [...new Set(n)].sort();
+}
+function mismaPuerta(a: _Puerta, b: _Puerta): boolean {
+  if (!a || !b) return false;
+  const na = _numeros(a), nb = _numeros(b);
+  if (na.length && nb.length) return na.join("-") === nb.join("-");
+  const ea = _esencia(a), eb = _esencia(b);
+  if (!ea || !eb) return false;
+  if (ea === eb || ea.includes(eb) || eb.includes(ea)) return true;
+  const pa = ea.split(" "), pb = eb.split(" ");
+  const comunes = pa.filter((w) => pb.includes(w)).length;
+  return comunes / Math.max(pa.length, pb.length) >= 0.6;
+}
+
+
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -106,8 +150,13 @@ Deno.serve(async (req) => {
             if (existente.direccion && !todas.some((d) => nn(d.dir) === nn(existente.direccion))) {
               todas.push({ dir: String(existente.direccion), barrio: String(existente.barrio || "") });
             }
-            const ya = todas.find((d) => nn(d.dir) === nn(direccion));
-            if (ya) { if (barrio) ya.barrio = barrio; }   // ya la conociamos: solo se refresca el barrio
+            /*  ¿Ya conociamos esta puerta? Antes se comparaba el texto con
+                `nn()` y por eso "torre b apto 605" y "Ciudadela llanos de
+                calibio, apto 605 torre B" entraban como dos direcciones.  */
+            const ya = todas.find((d) => mismaPuerta(d, { dir: direccion, barrio }));
+            /*  Si ya estaba, NO se toca — salvo rellenar el barrio si estaba
+                vacio: completar no es cambiar. Antes lo sobreescribia.    */
+            if (ya) { if (barrio && !String(ya.barrio || "").trim()) ya.barrio = barrio; }
             else todas.push({ dir: direccion, barrio });
             patch.direcciones = todas;
             patch.direccion = direccion;
