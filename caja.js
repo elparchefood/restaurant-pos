@@ -613,11 +613,20 @@ function resolverMetodo(valor) {
   return null;
 }
 
-async function loadPagosPorMetodo(branchId, sinceISO, orders) {
+/*  `hastaISO` es opcional y solo lo manda quien reimprime un turno YA
+    CERRADO. Sin el, se cuenta hasta ahora — que es lo correcto mientras el
+    turno sigue abierto.
+
+    ⚠️ SIN ESE TOPE, reimprimir un cierre viejo sumaba todo lo vendido desde
+    entonces hasta hoy. Medido el 2-sep-2026 con los turnos reales: el del
+    29-ago imprimia $3.077.500 donde debia decir $757.000. Y ese papel es el
+    que se archiva para cuadrar la caja.                                    */
+async function loadPagosPorMetodo(branchId, sinceISO, orders, hastaISO) {
   const map = {};
   const conDesglose = new Set();
   try {
     const q = sb.from('pos_payments').select('order_id, method, amount, created_at').gte('created_at', sinceISO);
+    if (hastaISO) q.lte('created_at', hastaISO);
     /* SIN SEDE NO SE MUESTRA PLATA. Antes, si no se sabia la sucursal, se
        traia el restaurante ENTERO: con dos marcas eso son totales revueltos
        que se ven perfectamente normales. Mejor no dar un numero que darlo mal. */
@@ -2135,6 +2144,22 @@ async function imprimirPorComprar() {
 }
 window.imprimirPorComprar = imprimirPorComprar;
 
+/*  Como se llama el negocio en el encabezado del ticket. Se cachea porque
+    no cambia, y la marca manda sobre el nombre de la sede.                */
+async function cjNombreNegocio() {
+  if (S.negocioNombre) return S.negocioNombre;
+  try {
+    const { data: br } = await sb.from('branches').select('name, brand_id').eq('id', S.branchId).maybeSingle();
+    let nom = (br && br.name) || '';
+    if (br && br.brand_id) {
+      const { data: bd } = await sb.from('brands').select('name').eq('id', br.brand_id).maybeSingle();
+      if (bd && bd.name) nom = bd.name;
+    }
+    S.negocioNombre = nom || 'CAJA';
+  } catch (e) { S.negocioNombre = 'CAJA'; }
+  return S.negocioNombre;
+}
+
 async function buildCierreData() {
   const moves    = await getMoves();
   const ventasEf = (S.pagosMetodo && S.pagosMetodo['efectivo']) || 0;
@@ -2150,18 +2175,7 @@ async function buildCierreData() {
     const key = k.toLowerCase();
     metodos[key] = (metodos[key] || 0) + (S.pagosMetodo[k] || 0);
   });
-  // Nombre del negocio para el encabezado del ticket (cacheado en S)
-  if (!S.negocioNombre) {
-    try {
-      const { data: br } = await sb.from('branches').select('name, brand_id').eq('id', S.branchId).maybeSingle();
-      let nom = (br && br.name) || '';
-      if (br && br.brand_id) {
-        const { data: bd } = await sb.from('brands').select('name').eq('id', br.brand_id).maybeSingle();
-        if (bd && bd.name) nom = bd.name;
-      }
-      S.negocioNombre = nom || 'CAJA';
-    } catch (e) { S.negocioNombre = 'CAJA'; }
-  }
+  await cjNombreNegocio();     // encabezado del ticket
   const bajos = await cjInsumosBajos();
   S.insumosBajos = bajos;   // la pantalla lo usa sin volver a consultar
   cjPintarBajos(bajos);
@@ -2213,7 +2227,8 @@ async function reimprimirCierre(sessionId) {
     if (!ses) { showToast('No se encontró ese cierre'); return; }
     const until = ses.closed_at || new Date().toISOString();
     const orders = await loadOrders(S.branchId, ses.opened_at, until);
-    const pagos  = await loadPagosPorMetodo(S.branchId, ses.opened_at, orders);
+    //  Hasta que se cerro ESE turno, no hasta hoy.
+    const pagos  = await loadPagosPorMetodo(S.branchId, ses.opened_at, orders, until);
     const { data: mvs } = await sb.from('pos_cash_moves').select('*').eq('session_id', ses.id);
     const moves    = mvs || [];
     const ingresos = moves.filter(m => m.type === 'ingreso').reduce((s, m) => s + (m.amount || 0), 0);
@@ -2226,9 +2241,8 @@ async function reimprimirCierre(sessionId) {
     const ventasEf = metodos['efectivo'] || 0;
     const base     = ses.opening_cash || 0;
     const activos  = (orders || []).filter(o => o.status !== 'cancelled');
-    if (!S.negocioNombre) await buildCierreData();   // cachea el nombre del negocio
     const c = {
-      negocio:  S.negocioNombre || 'CAJA',
+      negocio:  await cjNombreNegocio(),
       session:  ses,
       base:     base,
       ventas:   activos.reduce((s, o) => s + (parseFloat(o.total_final ?? o.total) || 0), 0),
