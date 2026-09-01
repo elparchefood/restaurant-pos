@@ -851,6 +851,9 @@ BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corre
     let domiPrecio = 0;
     let domiBarrio = "";
     let domiConfirmar = false;
+    /*  El barrio DE VERDAD cuando el sitio es un conjunto. Puede quedar vacio:
+        hay conjuntos que no estan en ningun barrio con nombre.            */
+    let barrioSuelto = "";
     /*  ⚠️ DE QUE LISTA SALIO EL NOMBRE. Hasta el 1-sep-2026 esta busqueda
         recorria SOLO `z.barrios`: un sitio guardado como conjunto —que es como
         hay que guardarlo para que el asistente pida el apartamento— se quedaba
@@ -917,6 +920,28 @@ BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corre
                 domiEsConjunto = esConj;
               }
             }
+          }
+        }
+      }
+
+      /*  ══ EL BARRIO, APARTE DEL CONJUNTO ═══════════════════════════════
+          Si la zona que encajo fue un CONJUNTO, todavia puede haber un barrio
+          nombrado en el mismo mensaje: "Altos del Tulcan Pomona" son las dos
+          cosas, no una. Se busca solo entre los barrios, sin tocar el conjunto
+          ya encontrado.
+
+          Si no aparece ninguno, queda VACIO — y esta bien: hay conjuntos que
+          no estan en ningun barrio con nombre. Antes se rellenaba con el
+          nombre del conjunto solo porque el campo no podia ir vacio.       */
+      if (domiEsConjunto) {
+        let mejorB = 0;
+        for (const z of zonas) {
+          for (const b of ((z.barrios || []) as string[])) {
+            const bn = norm(String(b || ""));
+            if (bn.length < 4) continue;
+            const bnSinEsp = bn.replace(/\s+/g, "");
+            const hay = donde.includes(bn) || (bnSinEsp.length >= 6 && dondeSinEsp.includes(bnSinEsp));
+            if (hay && bn.length > mejorB) { mejorB = bn.length; barrioSuelto = String(b); }
           }
         }
       }
@@ -1012,7 +1037,16 @@ BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corre
           return u.replace(/[\s,.-]+/g, " ").trim();
         })() : "",
         direccion: domiEsConjunto ? "" : direccionTxt,
-        barrio: domiBarrio || barrioTxt || barrioGuardado,
+        /*  ⚠️ EL CONJUNTO NO ES EL BARRIO (correccion de Sergio, 1-sep-2026).
+            Antes, con un conjunto, aqui se devolvia el nombre del conjunto
+            como barrio — que es el apaño que el hacia a mano cuando el campo
+            era obligatorio. Ahora el barrio va aparte y puede quedar VACIO:
+            hay conjuntos que no estan en ningun barrio con nombre.
+
+            Y si el cliente nombro los dos —"Altos del Tulcan Pomona"— se
+            devuelven los dos: el conjunto arriba y el barrio aqui. Se busca
+            el barrio en su propia lista, aparte del conjunto ya encontrado. */
+        barrio: domiEsConjunto ? barrioSuelto : (domiBarrio || barrioTxt || barrioGuardado),
         tipo: extracted.tipo ? String(extracted.tipo) : "domicilio",
         pago: extracted.pago ? String(extracted.pago) : "",
         notas: extracted.notas ? String(extracted.notas) : "",

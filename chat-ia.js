@@ -3287,7 +3287,10 @@ async function aprenderBarrio(o){
          llega ya marcado a Configuracion y a la campana, y entra en la lista
          de conjuntos — que es la unica que el asistente mira para saber que
          tiene que pedir la casa o el apartamento. */
-      barrio = String(o.barrio||'').trim(); tipo = o.es_conjunto ? 'conjunto' : 'nuevo';
+      /*  Lo que se aprende es la ZONA: en un conjunto, el conjunto — que es
+          el que lleva el precio del domicilio. El barrio puede venir vacio y
+          no pasa nada.                                                     */
+      barrio = String(o.zona || o.barrio || '').trim(); tipo = o.es_conjunto ? 'conjunto' : 'nuevo';
       if(!barrio || barrio.length<3) return;
     }
     const prev = await sb.from('pos_domi_aprendidos').select('id,veces')
@@ -3353,28 +3356,44 @@ function cpUsarDir(sel){
   cpRerender();
 }
 // ¿La tarifa que trae el pedido corresponde al barrio que esta puesto ahora?
-/*  LOS CUATRO CAMPOS, CONVERTIDOS EN LOS DOS QUE GUARDA EL PEDIDO.
+/*  LOS CAMPOS DEL CONJUNTO, CONVERTIDOS EN LOS DOS QUE GUARDA EL PEDIDO.
 
-    El pedido solo tiene `direccion` y `barrio`. Con un conjunto hay cuatro
-    datos, asi que se juntan:
+    ⚠️ EL CONJUNTO NO ES EL BARRIO. Son tres cosas distintas:
 
-      direccion = casa/apto · calle · barrio   ← lo que lee el domiciliario
-      barrio    = el CONJUNTO                  ← el que tiene el precio
+      conjunto  →  el nombre del sitio. Es lo que tiene precio de domicilio.
+      unidad    →  la casa o el apartamento. Sin eso no se sabe donde tocar.
+      barrio    →  el barrio de verdad, y PUEDE QUEDAR VACIO: hay conjuntos
+                   que no estan en ningun barrio con nombre.
 
-    El conjunto va en `barrio` a proposito: es el nombre que la tabla de zonas
-    conoce y el que aprende `aprenderBarrio`. Si ahi fuera el barrio libre, el
-    domicilio se cobraria por el sitio equivocado.
+    Sergio (1-sep-2026): *"yo antes colocaba la misma palabra como barrio
+    porque no habia donde mas colocarla, tenia que rellenar ese campo"*. Eso
+    era un apaño nacido de un campo obligatorio, no de como funciona la
+    realidad — y la primera version de esta funcion lo copiaba tal cual,
+    metiendo el conjunto en la casilla del barrio. Petrificaba justo el
+    problema que veniamos a quitar.
+
+    Si el cliente dice "Altos del Tulcan Pomona", el conjunto es Altos del
+    Tulcan y el barrio es Pomona. Son dos datos, no uno repetido.
+
+    El pedido solo tiene `direccion` y `barrio`, asi que se juntan:
+
+      direccion = conjunto · casa/apto · calle   ← lo que lee el domiciliario
+      barrio    = el barrio de verdad, o vacio
+
+    Y en `zona` va lo que hay que aprender y cobrar: el conjunto.
 
     Devuelve una COPIA. El objeto del formulario no se toca: si el envio falla
     y el operador vuelve a editar, sus campos siguen como los escribio.      */
 function cpComponer(o){
   if(!o || !o.es_conjunto) return o;
-  var partes = [o.unidad, o.direccion, o.barrio]
-    .map(function(x){ return String(x||'').trim(); })
-    .filter(Boolean);
+  var conj = String(o.conjunto||'').trim();
+  var uni  = String(o.unidad||'').trim();
+  var dir  = String(o.direccion||'').trim();
+  var bar  = String(o.barrio||'').trim();
   return Object.assign({}, o, {
-    direccion: partes.join(' · '),
-    barrio: String(o.conjunto||'').trim() || String(o.barrio||'').trim(),
+    direccion: [conj, uni, dir].filter(Boolean).join(' · '),
+    barrio: bar,
+    zona: conj || bar,
   });
 }
 
