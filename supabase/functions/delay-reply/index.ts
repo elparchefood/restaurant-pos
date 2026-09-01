@@ -1411,6 +1411,12 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
   para seguir vendiendo. PERO un SALUDO ("hola", "buenas", "buenas noches")
   JAMAS es despedida: el cliente esta LLEGANDO, aunque la conversacion
   anterior haya quedado cerrada hace dias.
+  ⚠️ Y UN "SI" CON "GRACIAS" NO ES UNA DESPEDIDA, ES UNA CONFIRMACION.
+  Si le acabas de mostrar la cuenta y contesta "si gracias", "listo gracias",
+  "dale gracias", "correcto gracias", "asi esta bien gracias" -> eso es
+  "confirma": true y despedida: false. El "gracias" es cortesia, el "si" es
+  la respuesta. Confundirlos deja al cliente esperando una comida que nadie
+  esta haciendo, porque el pedido no se llega a crear.
 - "queja": true SOLO si esta molesto por un problema del SERVICIO o del
   pedido YA OCURRIDO: demora, algo llego mal o frio, le cobraron mal, mala
   atencion. NO es queja opinar del precio ("esta caro") ni dudar de pedir.
@@ -1632,10 +1638,28 @@ INTENCION, no las palabras exactas.` },
        una consulta extra en el caso raro, cero en el resto. */
     let pedidoEnCurso = false;
     try {
-      const pRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=pending_order_data&limit=1`);
+      const pRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=pending_order_data,order_id&limit=1`);
       const p0 = (pRes?.[0]?.pending_order_data || {}) as Record<string, unknown>;
+      const yaExiste = !!pRes?.[0]?.order_id;
+      /*  ⚠️ ANTES ESTO PEDIA `p0.resumen_enviado !== true`, y ahi se perdio un
+          pedido entero (Linda Isabela, 1-sep-2026 02:18).
+
+          Paco le mostro la cuenta —$21.500, todo bien— y ella contesto "Si
+          gracias". El clasificador vio el "gracias" y lo llamo despedida; la
+          proteccion ya estaba apagada porque el resumen se habia mandado, asi
+          que Paco se despidio y el pedido nunca se creo ni se imprimio. La
+          clienta quedo esperando comida que nadie estaba haciendo.
+
+          El resumen enviado significa "ya le mostre la cuenta", NO "ya cree
+          el pedido". Entre esas dos cosas esta justo la palabra con la que el
+          cliente dice que si — el momento mas delicado de la conversacion era
+          el unico que se quedaba sin red.
+
+          La pregunta correcta es si el pedido YA EXISTE, y eso se sabe seguro:
+          `order_id` se llena al crearlo. Mientras no exista, ningun "gracias"
+          lo puede cerrar — se equivoque quien se equivoque.                */
       pedidoEnCurso = !!(p0.producto || (Array.isArray(p0.items) && (p0.items as unknown[]).length > 0))
-        && p0.resumen_enviado !== true;
+        && !yaExiste;
     } catch { /* sin estado legible, se asume conversacion sin pedido */ }
     if (!pedidoEnCurso) {
       const chao = getFraseTexto(frasesCfg.despedida)
@@ -2451,8 +2475,12 @@ INTENCION, no las palabras exactas.` },
   const rawStateRaw = pagoPendienteViejo ? null : (convRow?.pending_order_data as Record<string, unknown> | null | undefined);
 
   let state: PacoState;
+  /*  ¿ESTA CONVERSACION EMPIEZA UN PEDIDO NUEVO? Si empieza, el `order_id`
+      que quedo del pedido anterior ya no vale — ver el bloque de abajo.   */
+  let sesionNueva = false;
   if (!rawStateRaw || (rawStateRaw._v as number || 0) < 119) {
     state = newPacoState();
+    sesionNueva = true;
     if (rawStateRaw?.direccion && rawStateRaw?.resumen_enviado) {
       state.direccion = rawStateRaw.direccion as string;
       state.direccion_heredada = true;
@@ -2464,6 +2492,7 @@ INTENCION, no las palabras exactas.` },
     if (isTimedOut) {
       const savedDir = rawState.resumen_enviado ? rawState.direccion : null;
       state = newPacoState();
+      sesionNueva = true;
       if (savedDir) { state.direccion = savedDir; state.direccion_heredada = true; }
     } else {
       state = rawState;
@@ -2483,6 +2512,32 @@ INTENCION, no las palabras exactas.` },
   } else if (tipoHumano === "barrio") {
     state.es_conjunto = false;
     state.lugar_conjunto = null;
+  }
+
+  /*  ══ EL PEDIDO VIEJO SE SUELTA AL EMPEZAR UNO NUEVO ══════════════════
+
+      `chat_conversations.order_id` se escribe al crear un pedido y no se
+      limpiaba nunca: se quedaba apuntando al ultimo pedido de ese chat para
+      siempre. Varios sitios preguntan "¿este chat ya tiene pedido?" mirando
+      ese campo —el que evita mandarlo dos veces a cocina, el que manda a una
+      persona si cambian la direccion con el pedido ya salido, y el que impide
+      que un "gracias" cierre un pedido a medias— y todos leian que si, por
+      uno de hace semanas.
+
+      A Linda Isabela (1-sep-2026) le costo el pedido entero: Paco se lo tomo
+      completo, ella dijo "Si gracias" y nunca se creo, porque el chat "ya
+      tenia pedido" — uno del 14 de agosto, entregado hacia tres semanas.
+
+      Solo le pasaba a los clientes que YA habian pedido antes, que es
+      justamente por lo que aparecio ahora y no al principio.
+
+      ⚠️ Se suelta SOLO cuando la sesion empieza de cero. A mitad de un pedido
+      ese `order_id` es el bueno: es el que manda la conversacion a una
+      persona cuando el cliente cambia la direccion con el pedido ya salido. */
+  if (sesionNueva) {
+    try {
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { order_id: null });
+    } catch (e) { console.error("[pedido viejo] no se pudo soltar:", e); }
   }
 
   /* POR DONDE LLEGO ESTA CONVERSACION. Se pone en el estado para que los
@@ -2856,7 +2911,9 @@ INTENCION, no las palabras exactas.` },
     const prevDir = (!state.resumen_enviado && state.direccion) ? state.direccion : null;
     state = newPacoState();
     if (prevDir) { state.direccion = prevDir; state.direccion_heredada = true; }
-    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state, pago_pendiente: false, recordar_at: null });
+    /*  `order_id: null` por lo mismo de arriba: el cliente esta empezando de
+        nuevo, el pedido anterior ya no es el de esta conversacion.        */
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state, pago_pendiente: false, recordar_at: null, order_id: null });
 
     if (puedeTomarPedidos) {
       // Bienvenida — SIEMPRE desde canvas/configuración, nunca hardcoded:
