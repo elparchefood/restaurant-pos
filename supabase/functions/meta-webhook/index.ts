@@ -97,6 +97,19 @@ Deno.serve(async (req) => {
             const externalId = msg.id as string;
             /*  `let` y no `const`: una nota de voz del gerente se transcribe
                 y pasa a comportarse como texto desde ese momento. */
+            /*  LO QUE CUENTA COMO QUE EL GERENTE DIJO ALGO.
+
+                Escribir es "text". Pero TOCAR UN BOTON de una plantilla es
+                "button", y tocarlo dentro de un mensaje interactivo es
+                "interactive" — y los dos son igual de deliberados que
+                escribir. Antes las puertas del inventario solo aceptaban
+                "text", asi que el sistema mandaba una plantilla con botones y
+                despues no sabia recibir la respuesta a sus propios botones:
+                caia el aviso de "solo entiendo texto", que estaba pensado para
+                un audio o un sticker. Le pasaba a Sergio cada noche al cerrar
+                caja (1-sep-2026).                                          */
+            const MSG_HABLA = ["text", "interactive", "button"];
+
             let msgType      = msg.type as string;
 
             let bodyText = "";
@@ -139,6 +152,11 @@ Deno.serve(async (req) => {
               // Botones de plantilla (quick reply): el texto viene en button.text
               const btn = (msg.button as Record<string, unknown>) || {};
               bodyText = String(btn.text || btn.payload || "").trim() || "[button]";
+              /*  Y su id, igual que en los interactivos. Faltaba aqui: el
+                  texto de un boton cabe en 20 caracteres y dos lineas de una
+                  factura pueden quedar casi iguales; el `payload` lo
+                  escribimos nosotros y no se confunde nunca.               */
+              accionId = String(btn.payload || "").trim();
 
             } else if (msgType === "location") {
               /* LA UBICACION DEL CLIENTE SE PERDIA (21-ago-2026). Este tipo
@@ -280,7 +298,7 @@ Deno.serve(async (req) => {
                   botones = fd.botones || null;
                   ruta = "factura-foto";
                 } catch (e) { console.error("factura-inventario:", e); reply = "Hubo un error leyendo la factura."; }
-              } else if (msgType === "text" && bodyText) {
+              } else if (MSG_HABLA.includes(msgType) && bodyText) {
                 // Si hay una factura esperando confirmación, el texto es para ella
                 // (un "sí" o un "la manguera es salchicha"), no para el inventario
                 // por texto. La función avisa con sin_factura si no hay ninguna.
@@ -300,7 +318,7 @@ Deno.serve(async (req) => {
                   }
                 } catch (_e) { /* si falla, sigue el flujo normal de texto */ }
               }
-              if (!reply && msgType === "text" && bodyText) {
+              if (!reply && MSG_HABLA.includes(msgType) && bodyText) {
                 try {
                   const gr = await fetch(`${SUPABASE_URL}/functions/v1/gerente-inventario`, {
                     method: "POST",
