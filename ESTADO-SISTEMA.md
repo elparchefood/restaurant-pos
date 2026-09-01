@@ -15973,3 +15973,64 @@ antes de retomarlo.
 **No hace falta.** Con las dos mitades de arriba, el 29 y el 31 de agosto de
 2026 —dos de los días de más pedidos— el sistema corrió rápido todo el
 servicio. Eso es la prueba de que la regla funciona.
+
+---
+
+## 191. Las copias de seguridad: de cero a diarias (1-sep-2026)
+
+Hasta hoy **no habia ninguna**. Comprobado contra la API de Supabase:
+
+    copias existentes ......... 0
+    recuperacion por horas .... apagada
+
+Y debajo, sin red: 522 pedidos, 271 clientes, 7.170 mensajes de WhatsApp, 492
+pagos. Toda la base pesa 51 MB — cabe en un correo.
+
+### Lo que hay ahora
+
+`C:\Users\USUARIO\Documents\Cobra-Respaldos\respaldo.py`, con una tarea del
+Programador de Windows llamada **"Cobra POS - Respaldo diario"** que corre a
+las 3 de la manana. Si el equipo estaba apagado, se ejecuta al encenderlo
+(`StartWhenAvailable`).
+
+Cada noche deja un `cobra-AAAA-MM-DD.json.gz` en esa carpeta: **109 tablas,
+21.644 filas, 2,6 MB comprimidos**. Se guardan los ultimos 21 dias y los mas
+viejos se borran solos.
+
+Guarda todo el esquema `public` —pedidos, clientes, productos, chats,
+inventario, configuracion, puntos, pagos— y las cuentas de `auth.users`. NO
+guarda la fontaneria de Supabase (historial de cron, mensajes de realtime,
+respuestas http): se regenera sola y pesa mas que todo lo demas junto.
+
+⚠️ **El script vive FUERA del repositorio a proposito**: lleva el token del
+proyecto y este repo es publico.
+
+### Como se comprobo (y por que importa)
+
+Un respaldo que no se ha abierto nunca no es un respaldo. Se verifico:
+
+1. Que el archivo **se abre** y trae el esquema (1.344 columnas descritas).
+2. Que **cada tabla cuadra fila por fila** con la base en vivo: pos_orders
+   522/522, pos_clientes 271/271, chat_messages 7.170/7.170, pos_payments
+   492/492, y seis mas.
+3. Que se puede **sacar un dato de verdad**: el ultimo pedido y un cliente con
+   su telefono y direccion.
+4. Y —esto es lo que casi se me escapa— que **la tarea lo hace sola**, no solo
+   yo a mano. La primera version quedaba en estado "Queued" y no reescribia el
+   archivo: faltaba declarar el principal (`LogonType Interactive`). Se
+   comprobo mirando la HORA del archivo despues de dispararla, no el codigo de
+   salida, que decia 0 igual.
+
+### Hasta donde protege, dicho claro
+
+Salva del caso realista: alguien borro filas, una migracion salio mal, se
+perdio un cliente. Se recupera abriendo el archivo y volviendo a meter esas
+filas.
+
+NO es un clon del servidor: no trae indices, permisos ni funciones de la base.
+Para eso esta la recuperacion por horas que vende Supabase, que es de pago y
+sigue apagada. Los DATOS —lo unico que no se puede volver a escribir— si estan
+enteros.
+
+⚠️ Y una copia que vive en el mismo computador no es una copia si el
+computador se daña. **Falta llevarse la carpeta a un disco aparte o a Drive.**
