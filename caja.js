@@ -1270,98 +1270,14 @@ function renderMovimientosSummary(moves) {
 }
 
 // ── Cierres ────────────────────────────────────────────────────
-function renderCierres(sessions) {
-  const cont = document.getElementById('cierres-grid');
-  if (!cont) return;
+/*  ⚠️ AQUI HABIA UN `renderCierres` QUE NUNCA SE EJECUTABA. Mas abajo (busca
+    "cards clicables") hay otro con el mismo nombre que lo pisaba al cargar el
+    archivo, asi que esta version —con su boton de "Reimprimir cierre"— jamas
+    se dibujo en pantalla. Se borro el 2-sep-2026 despues de arreglar por error
+    su boton en vez del de verdad.
 
-  let html = '';
-
-  // Sesión EN CURSO (si hay caja abierta)
-  if (S.session) {
-    const dAp   = new Date(S.session.opened_at);
-    const fAp   = dAp.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'});
-    const hAp   = dAp.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
-    const cajero= S.session.cashier_name || (S.user?.user_metadata?.nombre) || '—';
-    const initials = cajero.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    html += `
-      <div class="cj-card cj-cierre">
-        <div class="cj-cierre-head">
-          <div class="cj-cierre-user">
-            <div class="cj-cierre-av">${initials}</div>
-            <div>
-              <div class="cj-cierre-name">${cajero}</div>
-              <div class="cj-cierre-caja"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="9" width="18" height="12" rx="2"/><path d="M3 9l2-5h14l2 5"/></svg> Caja 01 · Turno ${S.session.shift_type||'—'}</div>
-            </div>
-          </div>
-          <span class="cj-tag live"><span style="width:6px;height:6px;border-radius:999px;background:#16A34A"></span> En curso</span>
-        </div>
-        <div class="cj-cierre-rows">
-          <div class="cj-cierre-line">
-            <span class="lbl"><span class="cj-dot" style="background:#16A34A"></span> Apertura <span class="when">${fAp} · ${hAp}</span></span>
-            <span class="cj-amt-open">${COPF(S.session.opening_cash||0)}</span>
-          </div>
-          <div class="cj-cierre-line">
-            <span class="lbl"><span class="cj-dot" style="background:#CBD5E1"></span> Cierre <span class="when">—</span></span>
-            <span class="cj-amt-na">—</span>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  if (!sessions.length && !S.session) {
-    cont.innerHTML = '<div class="cj-empty"><div class="cj-empty-inner"><div class="cj-empty-ic"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg></div><div style="font-size:14px;font-weight:700;color:#0F172A">Sin cierres aún</div><div style="font-size:12px;color:#94A3B8;margin-top:4px">Cuando cierres la caja aparecerá aquí.</div></div></div>';
-    return;
-  }
-
-  html += sessions.map(s => {
-    const dAp  = new Date(s.opened_at);
-    const dCi  = new Date(s.closed_at);
-    const fAp  = dAp.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'});
-    const hAp  = dAp.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
-    const fCi  = dCi.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'});
-    const hCi  = dCi.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
-    const cajero   = s.cashier_name || '—';
-    const initials = cajero.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    const shift    = s.shift_type || '—';
-    // diferencia de arqueo
-    const diff  = s.arqueo_diff || 0;
-    let tagHtml = '<span class="cj-tag ok">Cuadrado</span>';
-    if (diff > 0) tagHtml = `<span class="cj-tag sobra">Sobrante ${COPF(diff)}</span>`;
-    if (diff < 0) tagHtml = `<span class="cj-tag falta">Faltante ${COPF(Math.abs(diff))}</span>`;
-    return `
-      <div class="cj-card cj-cierre">
-        <div class="cj-cierre-head">
-          <div class="cj-cierre-user">
-            <div class="cj-cierre-av">${initials}</div>
-            <div>
-              <div class="cj-cierre-name">${cajero}</div>
-              <div class="cj-cierre-caja"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="9" width="18" height="12" rx="2"/><path d="M3 9l2-5h14l2 5"/></svg> Caja 01 · Turno ${shift}</div>
-            </div>
-          </div>
-          ${tagHtml}
-        </div>
-        <div class="cj-cierre-rows">
-          <div class="cj-cierre-line">
-            <span class="lbl"><span class="cj-dot" style="background:#16A34A"></span> Apertura <span class="when">${fAp} · ${hAp}</span></span>
-            <span class="cj-amt-open">${COPF(s.opening_cash||0)}</span>
-          </div>
-          <div class="cj-cierre-line">
-            <span class="lbl"><span class="cj-dot" style="background:#5B6BFF"></span> Cierre <span class="when">${fCi} · ${hCi}</span></span>
-            <span class="cj-amt-close">${COPF(s.closing_cash||0)}</span>
-          </div>
-        </div>
-        <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px">
-          <button class="cj-btn-ghost" style="font-size:11.5px;padding:5px 10px" onclick="reimprimirCierre('${s.id}')">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            Reimprimir cierre
-          </button>
-        </div>
-      </div>`;
-  }).join('');
-
-  cont.innerHTML = html;
-}
-
+    El que manda es el de abajo, y ese es el unico. No vuelvas a declarar dos
+    funciones con el mismo nombre en este archivo.                          */
 // ── Historial de ventas ────────────────────────────────────────
 function renderHistorial(orders, items) {
   const cont = document.getElementById('hist-lista');
@@ -2260,9 +2176,11 @@ async function reimprimirCierre(sessionId) {
 
 window.imprimirPaloteo  = imprimirPaloteo;
 window.imprimirCierre   = imprimirCierre;
-// Reimprimir/reabrir un cierre: permiso pedidos.reabrir; sin permiso pide PIN.
+// Reimprimir un cierre: permiso pedidos.reabrir; sin permiso pide PIN.
 window.reimprimirCierre = function (sessionId) {
-  if (window.posGuard) window.posGuard('pedidos.reabrir', function(){ reimprimirCierre(sessionId); }, 'Reimprimir o reabrir una cuenta requiere permiso de administrador.');
+  //  El mensaje hablaba de "reabrir una cuenta", que aqui no pasa: lo unico
+  //  que hace este boton es volver a sacar el papel de un cierre pasado.
+  if (window.posGuard) window.posGuard('pedidos.reabrir', function(){ reimprimirCierre(sessionId); }, 'Volver a imprimir un cierre de caja requiere permiso de administrador.');
   else reimprimirCierre(sessionId);
 };
 
@@ -2654,6 +2572,19 @@ async function openResumen(sessionId) {
 }
 window.openResumen = openResumen;
 
+/*  El boton "Imprimir" del resumen. Antes era `window.print()`: el dialogo
+    del navegador con la pagina web entera en hojas carta. Ahora saca el MISMO
+    tiquete que se imprime al cerrar la caja, por la termica y sin preguntar.
+
+    Siempre el del turno que se abrio, aunque en pantalla se este mirando la
+    semana o el mes: un cierre de caja de una semana no existe. El boton lo
+    dice, para que nadie se lleve una sorpresa al recoger el papel.        */
+function imprimirCierreDelResumen() {
+  if (!_rSession) { showToast('Abre un cierre primero'); return; }
+  window.reimprimirCierre(_rSession.id);
+}
+window.imprimirCierreDelResumen = imprimirCierreDelResumen;
+
 function backToCierres() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
   document.getElementById('screen-cierres').classList.add('on');
@@ -2889,6 +2820,8 @@ async function renderResumen() {
   const body = document.getElementById('resumen-body');
   body.innerHTML = '<div style="padding:40px;text-align:center;color:#94A3B8;font-size:13px">Cargando resumen…</div>';
   let R;
+  const _btnTxt = document.getElementById('rs-imprimir-txt');
+  if (_btnTxt) _btnTxt.textContent = (_rPid === 'turno') ? 'Imprimir cierre' : 'Imprimir cierre del turno';
   try { R = await loadResumenData(_rPid); }
   catch(e) {
     body.innerHTML = `<div style="padding:40px;text-align:center;color:#DC2626">Error al cargar datos: ${e.message}</div>`;
@@ -3145,8 +3078,8 @@ async function renderResumen() {
   `;
 }
 
-// ── Reemplazar renderCierres para cards clicables ─────────────────────────
-renderCierres = function(sessions) {
+// ── Cierres de caja: una tarjeta por turno, clicable para ver el resumen ──
+function renderCierres(sessions) {
   const cont = document.getElementById('cierres-grid');
   if (!cont) return;
   let html = '';
@@ -3206,7 +3139,7 @@ renderCierres = function(sessions) {
   }).join('');
 
   cont.innerHTML = html;
-};
+}
 
 // ══════════════ CRÉDITOS EN CAJA ══════════════
 // Aquí se ve quién debe y se registran los abonos. Va en Caja y no en
