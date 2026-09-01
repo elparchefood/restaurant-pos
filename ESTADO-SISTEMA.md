@@ -15862,3 +15862,114 @@ familias queden llamandose igual: ahi no habria nada que escoger y se dicen
 enteras.
 
 Banco 13/13.
+
+---
+
+# 🏎️ POR QUÉ COBRA ES RÁPIDO — la regla, dicha para no perderla
+
+> *"No es memoria, ni rapidez de la base de datos, ni el sistema. Es construir la
+> mayoría de cosas de manera local, y lo que sea en tiempo real hacerlo en
+> segundo plano. Lo local hace que cargue súper rápido, y en segundo plano
+> carga lo que se demore."*
+> — Sergio, 1-sep-2026, después de dos días seguidos de servicio pesado sin una
+> sola queja de lentitud.
+
+Esto va aquí arriba, con nombre propio y en primera persona, porque **es lo
+primero que se olvida**. Cuando dentro de seis meses alguien diga "el sistema
+está lento", la respuesta no es comprar un servidor más grande: es volver a
+leer esto y preguntarse cuál de las dos mitades se rompió.
+
+## Lo que NO es
+
+Cada una de estas se probó y se descartó **con mediciones**, no con opiniones:
+
+| Se creía que era | Qué pasó de verdad |
+|---|---|
+| El servidor está lejos | Cobra se vende en varios países. No hay una región "cerca" de todos. **Descartado por Sergio el 28-ago-2026** (ver `feedback_region_no_se_mueve`) |
+| La base de datos es lenta | La primera consulta del núcleo pasó de 1.745 ms a 168 ms **sin tocar la base**: se juntaron 18 archivos en uno |
+| Faltan recursos en el equipo | El mismo local, con peor internet, corría `restaurant.pe` instantáneo |
+| Es la conexión del restaurante | La misma respuesta: la conexión no es excusa (ver `feedback_conexion_no_es_excusa`) |
+| Son las fotos | Era el `.exe`, que forzaba `no-store` y borraba su propia caché al arrancar. **Esa era la causa grande** |
+
+**El presupuesto sigue en pie: un botón responde en menos de 50 ms; una pantalla
+se pinta en menos de 100 ms.** Si algo pasa de ahí, está roto — no "va lentico".
+
+## Lo que SÍ es — las dos mitades
+
+### Mitad 1 · Lo que ya sabemos, se pinta desde el equipo
+
+La pantalla se dibuja **primero** con lo que ya está guardado en el computador.
+Eso no toca internet, así que es instantáneo. Después, sin que nadie espere, se
+le pregunta a la base si algo cambió y se repinta si hace falta.
+
+Vive en **`pos-cache.js`**, y lo usan Catálogo, Ventas, Dashboard, Inventario,
+Configuración, Domicilios, Cocina, Chat y Pagos.
+
+**Qué SÍ va aquí:** catálogo, categorías, modificadores, configuración, marca,
+permisos del rol, plan y métodos de pago. Todo lo que cambia dos o tres veces
+al mes.
+
+**Qué NUNCA va aquí:** pedidos, caja, turnos y stock. Eso se pide siempre
+fresco. Mostrar un pedido viejo es peor que mostrarlo un segundo más tarde.
+
+### Mitad 2 · Lo que tarda, se hace por detrás
+
+El usuario no espera a que el servidor conteste algo que él no tiene por qué
+mirar. Se encola, se le devuelve el control **ya**, y la subida ocurre sola.
+
+Vive en **`posSync.enqueueWrite`** y **`posSync.enqueueOrderBatch`**
+(`pos-nucleo.js`). Cerrar el pedido, liberar la mesa, marcar estados: todo eso
+sale por ahí y el botón responde en milisegundos.
+
+**⚠️ El dinero NO va por aquí.** `pos_payments` se espera siempre. Un pago que
+"seguro se guardó" y no se guardó es un problema distinto y peor que una
+pantalla lenta. La función que espera es `posSync.writeOrderBatch`; la
+instantánea es `enqueueOrderBatch`. **No se confunden.**
+
+### Y una tercera, que es la misma idea: que te avisen en vez de preguntar
+
+El chat no pregunta cada pocos segundos si hay mensajes nuevos: la base **le
+avisa** por un canal privado (`chat-b:<tenant>`, disparador
+`trg_chat_broadcast`). La pantalla de cocina pinta desde ese mismo aviso, con
+**cero consultas**. Preguntar en bucle es la forma más cara de estar al día.
+
+## Si mañana algo se siente lento — el orden de las preguntas
+
+1. **¿Se está pintando desde el equipo, o esperando a la base?** Abre la
+   pantalla dos veces seguidas. Si la segunda tarda igual que la primera, no
+   está usando `pos-cache`.
+2. **¿El botón espera algo que no debería?** Si al pulsarlo se queda pensando,
+   mira si esa escritura puede irse por `enqueueWrite`. Salvo que sea plata.
+3. **¿Cuántos viajes hace la pantalla al abrirse?** Las consultas en fila india
+   fueron el otro gran robo: Inventario 9→2, Caja 7→3. Se juntan.
+4. **¿Está preguntando en bucle algo que le pueden avisar?** Ver el chat.
+5. **¿Se tocó un módulo del núcleo?** Entonces hay que correr
+   `herramientas/armar-nucleo.py` y subir el resultado, o el navegador vuelve a
+   bajar 18 archivos.
+6. **¿Es el `.exe`?** Comprobar que no volvió el `no-store` en `main.js`, y que
+   el ejecutable instalado es el nuevo (vive en `dist-foco\`, no en `dist\`).
+
+## Las trampas en las que ya caímos
+
+**Pintar desde lo guardado sin comprobar que lo guardado exista.** Di por hecho
+que el plano del salón estaba en el equipo; solo está si el dueño guardó en
+ESE computador. Resultado: dos cargas en vez de una, y Sergio diciendo *"quedó
+peor"*. **Antes de pintar desde lo local, verificar que lo local existe.**
+
+**Guardar sin el id del restaurante en la llave.** Un equipo donde entren dos
+negocios distintos no puede mezclar datos nunca. Todas las llaves lo llevan.
+
+**Creer que publicar es suficiente.** Una pestaña abierta sigue con el código
+viejo. Después de subir, `Ctrl+Shift+R` (ver `feedback_recargar_tras_publicar`).
+
+## El Nivel 2 sigue aplazado, y a propósito
+
+Meter la app dentro del `.exe` con actualizador propio daría otro salto. Está
+**aplazado por decisión de Sergio** hasta que la plataforma esté consolidada:
+mientras haya cambios diarios, un actualizador nuevo es más riesgo que
+beneficio. El plan completo está en `PLAN-NIVEL-2-APP-LOCAL.md` — leerlo entero
+antes de retomarlo.
+
+**No hace falta.** Con las dos mitades de arriba, el 29 y el 31 de agosto de
+2026 —dos de los días de más pedidos— el sistema corrió rápido todo el
+servicio. Eso es la prueba de que la regla funciona.
