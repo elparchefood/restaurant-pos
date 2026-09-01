@@ -16135,3 +16135,74 @@ Nequi ni Daviplata; Salón $897.000 + Venta rápida $437.000 + Domicilio
 $660.000 = $1.994.000, el mismo total de arriba). Se interceptó la impresora
 para leer el tiquete sin gastar papel y decía lo mismo. El turno de prueba se
 borró al terminar.
+
+---
+
+## La cola ya no borra una venta (1-sep-2026)
+
+`pos-sync.js` guarda en el equipo todo lo que no logra escribir en el servidor
+y lo reintenta. Al **quinto intento fallido lo BORRABA**:
+
+```js
+if (retries >= MAX_RETRIES) {
+  // Descartar operaciones que fallan repetidamente para no bloquear la cola
+  console.error('[posSync] Descartando entrada', entry.qid, ...);
+  await _idbDelete('queue', entry.qid);      // ← la venta desaparecía aquí
+}
+```
+
+El motivo era bueno: una entrada rota se reintenta en cada pasada y atasca a
+las que vienen detrás. Pero de todas las salidas posibles se eligió **la única
+que no se puede deshacer**, y el único aviso era un `console.error` que en la
+caja no lee nadie. Cinco cortes de internet seguidos mientras se cobra y esa
+plata se iba sin dejar rastro.
+
+### Qué se hizo
+
+Un tercer estado. Al quinto fallo la entrada pasa de `pending` a **`atascado`**:
+
+- **Deja de bloquear la cola** igual que antes — la cola solo recoge las
+  `pending`—, que era todo el motivo del borrado.
+- **Sigue guardada** en IndexedDB, con su último error y la hora.
+- **Sale un aviso rojo que NO se va solo.** Los demás avisos de esta barra son
+  informativos y se ocultan a los pocos segundos; este se queda, late, y se
+  puede tocar. Reaparece en **cada pantalla que se abra** mientras quede algo:
+  un aviso que se pierde al cambiar de pantalla no es un aviso.
+- **Al volver el internet se rearman solas** (`_reintentarAtascados` en el
+  evento `online`): la causa normal de atascarse es el corte que acaba de
+  terminar.
+- Tocar el aviso abre **la lista de lo que no subió**, con lo justo para volver
+  a escribirlo a mano si no hay más remedio, y un botón de reintentar.
+
+### La lista habla de plata, no de tablas
+
+Quien la lee es un cajero a las once de la noche. `_describir()` traduce:
+
+| Lo que es | Lo que dice |
+|---|---|
+| `pos_payments` | **Un cobro de $32.000** · efectivo · no quedó registrado en la caja |
+| `pos_cash_moves` | **Un gasto de $15.000** · Gas de la cocina |
+| `order_batch` | **Pedido de $45.000** · 2 productos · Mesa 4 |
+
+El dinero va primero y con su cifra: es lo que hace falta para cuadrar.
+
+### API nueva
+
+`posSync.stuckCount()` · `posSync.stuckList()` · `posSync.retryStuck()` ·
+`posSync.showStuck()`.
+
+### Cómo se comprobó
+
+Con un Supabase de mentira que siempre falla, en el navegador, sin tocar la
+base real:
+
+1. Se encola una venta de $45.000 con el internet caído → 1 `pending`.
+2. Seis pasadas fallidas: en la quinta pasa a `atascado` y **ahí se queda**;
+   la sexta ya no la toca. **Cero borrados.**
+3. Vuelve el internet → `retryStuck()` → sube y la cola queda vacía.
+4. Visto en pantalla: el aviso rojo *"3 ventas no subieron — toca aquí"*, el
+   panel con las tres descritas en plata, y el botón dejándolas en cero.
+
+⚠️ **Lo que esto NO es.** Sigue sin haber modo offline de verdad: la caja no
+opera un turno entero sin internet. Esto solo garantiza que **nada de lo que ya
+se escribió se pierda en silencio**.

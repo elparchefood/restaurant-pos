@@ -105,6 +105,38 @@
         opacity: 0; transition: opacity .35s; pointer-events: none;
         white-space: nowrap; max-width: calc(100vw - 32px); text-align: center;
       }
+      /*  Cuando hay algo ATASCADO el aviso se puede tocar: abre la lista de
+          lo que no subio. Y late, porque es lo unico de esta barra que exige
+          que alguien haga algo.                                            */
+      #pos-sync-pill.tocable { pointer-events: auto; cursor: pointer; animation: posSyncLatido 2s ease-in-out infinite; }
+      @keyframes posSyncLatido { 0%,100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.04); } }
+      @media (prefers-reduced-motion: reduce) { #pos-sync-pill.tocable { animation: none; } }
+
+      #pos-sync-fondo {
+        position: fixed; inset: 0; z-index: 100000; background: rgba(15,23,42,.42);
+        display: flex; align-items: center; justify-content: center; padding: 20px;
+        font: 400 13px/1.5 system-ui, sans-serif;
+      }
+      #pos-sync-panel {
+        background: #fff; color: #0F172A; border-radius: 16px; width: 560px;
+        max-width: 100%; max-height: 82vh; display: flex; flex-direction: column;
+        overflow: hidden; box-shadow: 0 30px 70px -20px rgba(15,23,42,.45);
+      }
+      #pos-sync-panel h3 { margin: 0 0 4px; font-size: 16px; font-weight: 800; }
+      #pos-sync-panel .sub { color: #64748B; font-size: 12.5px; }
+      #pos-sync-panel .cab { padding: 18px 20px 14px; border-bottom: 1px solid #ECEEF2; }
+      #pos-sync-panel .lista { overflow-y: auto; padding: 8px 20px; }
+      #pos-sync-panel .fila { padding: 11px 0; border-bottom: 1px solid #F1F5F9; }
+      #pos-sync-panel .fila b { font-size: 13.5px; }
+      #pos-sync-panel .fila .det { color: #64748B; font-size: 11.5px; margin-top: 2px; }
+      #pos-sync-panel .fila .err { color: #B91C1C; font-size: 11px; margin-top: 3px; word-break: break-word; }
+      #pos-sync-panel .pie { padding: 14px 20px; border-top: 1px solid #ECEEF2; display: flex; gap: 8px; justify-content: flex-end; }
+      #pos-sync-panel button {
+        font: 700 12.5px/1 system-ui, sans-serif; padding: 10px 15px;
+        border-radius: 9px; border: 1px solid #ECEEF2; background: #fff;
+        color: #475569; cursor: pointer;
+      }
+      #pos-sync-panel button.pri { background: #5B6BFF; border-color: #5B6BFF; color: #fff; }
     `;
     document.head.appendChild(style);
     const bar  = document.createElement('div'); bar.id  = 'pos-sync-bar';
@@ -145,12 +177,16 @@
     const pill = document.getElementById('pos-sync-pill');
     if (!bar || !pill) return;
 
-    const colors = { offline: '#F59E0B', syncing: '#5B6BFF', online: '#22C55E', error: '#EF4444' };
+    const colors = { offline: '#F59E0B', syncing: '#5B6BFF', online: '#22C55E', error: '#EF4444', atascado: '#DC2626' };
     const msgs   = {
       offline: '● Sin conexión — los pedidos se guardan localmente',
       syncing: `↑ Sincronizando ${count || ''} operacion${count === 1 ? '' : 'es'}…`,
       online:  '✓ Conexión restablecida',
-      error:   `⚠ ${count || 1} operacion${count === 1 ? '' : 'es'} no se pudieron sincronizar`
+      error:   `⚠ ${count || 1} operacion${count === 1 ? '' : 'es'} no se pudieron sincronizar`,
+      /*  ATASCADO es distinto de ERROR: error = fallo pero se sigue
+          intentando; atascado = se rindió y ahí está, guardada, esperando a
+          que alguien la mire. Por eso este aviso no desaparece solo.      */
+      atascado: `⚠ ${count || 1} ${count === 1 ? 'venta no subió' : 'ventas no subieron'} — toca aquí`
     };
 
     bar.style.background   = colors[mode];
@@ -159,12 +195,132 @@
     pill.textContent       = msgs[mode];
     pill.style.opacity     = '1';
 
+    /*  Solo el aviso de atascado se puede tocar, y es el unico que se queda
+        puesto. Los demas son informativos y se van solos.                 */
+    pill.classList.toggle('tocable', mode === 'atascado');
+    pill.onclick = (mode === 'atascado') ? _verAtascados : null;
+
     if (mode === 'online') {
       setTimeout(() => { pill.style.opacity = '0'; }, 2500);
     }
     if (mode === 'error') {
       setTimeout(() => { pill.style.opacity = '0'; }, 5000);
     }
+    //  'atascado' NO lleva setTimeout: se queda hasta que se resuelva.
+  }
+
+  /* ══════════════════════════════════════════
+     Lo que no subió — la lista y el reintento
+  ══════════════════════════════════════════ */
+
+  /*  Con lo suficiente para volver a escribirlo A MANO si no hay forma de
+      subirlo: qué era, cuánto, cuántos productos y a qué hora.            */
+  function _describir(e) {
+    if (e.type === 'order_batch') {
+      const o = e.orderData || {};
+      const n = (e.itemsData || []).length;
+      const total = Number(o.total_final != null ? o.total_final : o.total) || 0;
+      const plata = '$' + total.toLocaleString('es-CO', { maximumFractionDigits: 0 });
+      return { que: 'Pedido de ' + plata, det: n + (n === 1 ? ' producto' : ' productos') +
+               (o.customer_name ? ' · ' + o.customer_name : '') };
+    }
+    const plata = (v) => '$' + (Number(v) || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 });
+    const d = e.data || {};
+
+    /*  LA PLATA VA PRIMERO Y CON SU CIFRA. Un cobro que no subió es lo más
+        grave de esta lista, y el cajero necesita saber CUÁNTO para poder
+        cuadrar: "Alta en pos_payments" no le sirve de nada.                */
+    if (e.table === 'pos_payments') {
+      return { que: 'Un cobro de ' + plata(d.amount),
+               det: (d.method ? String(d.method) + ' · ' : '') + 'no quedó registrado en la caja' };
+    }
+    if (e.table === 'pos_cash_moves') {
+      return { que: (d.type === 'egreso' ? 'Un gasto de ' : 'Un ingreso de ') + plata(d.amount),
+               det: d.concepto || d.nota || 'movimiento de caja' };
+    }
+    if (e.table === 'pos_orders') {
+      const t = d.total_final != null ? d.total_final : d.total;
+      return { que: t != null ? 'Un pedido de ' + plata(t) : 'Un cambio en un pedido',
+               det: d.customer_name || d.status || 'pedido' };
+    }
+
+    const acciones = { insert: 'Se creó', update: 'Se cambió', upsert: 'Se guardó', delete: 'Se borró' };
+    const tablas = {
+      pos_order_items: 'los productos de un pedido', pos_tables: 'una mesa',
+      pos_clientes: 'un cliente', pos_sessions: 'un turno de caja',
+      pos_puntos_movimientos: 'unos puntos de un cliente',
+    };
+    return {
+      que: (acciones[e.op] || e.op) + ' ' + (tablas[e.table] || e.table),
+      det: 'no llegó al servidor',
+    };
+  }
+
+  function _cuando(ts) {
+    try {
+      return new Date(ts).toLocaleString('es-CO',
+        { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return ''; }
+  }
+
+  function _cerrarPanel() {
+    const f = document.getElementById('pos-sync-fondo');
+    if (f) f.remove();
+  }
+
+  async function _verAtascados() {
+    _cerrarPanel();
+    const filas = await _idbGetAll('queue', 'status', 'atascado');
+    _ensureUI();
+
+    const fondo = document.createElement('div');
+    fondo.id = 'pos-sync-fondo';
+    const cuerpo = filas.sort((a, b) => a.qid - b.qid).map(function (e) {
+      const d = _describir(e);
+      return '<div class="fila"><b>' + d.que + '</b>'
+           + '<div class="det">' + d.det + ' · ' + _cuando(e.timestamp) + '</div>'
+           + (e.ultimoError ? '<div class="err">' + String(e.ultimoError).slice(0, 160) + '</div>' : '')
+           + '</div>';
+    }).join('');
+
+    fondo.innerHTML =
+      '<div id="pos-sync-panel">'
+      + '<div class="cab"><h3>Esto no se pudo guardar en el servidor</h3>'
+      + '<div class="sub">Está a salvo en este equipo. No se ha perdido nada, pero '
+      + 'todavía no está en el sistema: no aparece en ventas ni en la caja.</div></div>'
+      + '<div class="lista">' + (cuerpo || '<div class="fila">Ya no queda nada atascado.</div>') + '</div>'
+      + '<div class="pie">'
+      + '<button id="pos-sync-cerrar">Cerrar</button>'
+      + (filas.length ? '<button class="pri" id="pos-sync-reintentar">Intentar de nuevo</button>' : '')
+      + '</div></div>';
+
+    document.body.appendChild(fondo);
+    fondo.addEventListener('click', function (ev) { if (ev.target === fondo) _cerrarPanel(); });
+    const bC = document.getElementById('pos-sync-cerrar');
+    if (bC) bC.onclick = _cerrarPanel;
+    const bR = document.getElementById('pos-sync-reintentar');
+    if (bR) bR.onclick = async function () {
+      bR.disabled = true; bR.textContent = 'Intentando…';
+      await _reintentarAtascados();
+      _cerrarPanel();
+    };
+  }
+
+  /*  Vuelven a la cola. El contador de fallos se pone a cero: si se reintenta
+      es porque algo cambió (volvió el internet, se arregló el dato).       */
+  async function _reintentarAtascados() {
+    const filas = await _idbGetAll('queue', 'status', 'atascado');
+    for (const e of filas) {
+      await _idbPut('queue', { ...e, status: 'pending', failCount: 0 });
+    }
+    if (filas.length) await _syncNow();
+    return filas.length;
+  }
+
+  async function _avisarSiHayAtascados() {
+    const filas = await _idbGetAll('queue', 'status', 'atascado');
+    if (filas.length) _ui('atascado', filas.length);
+    return filas.length;
   }
 
   /* ══════════════════════════════════════════
@@ -318,7 +474,7 @@
       pending.sort((a, b) => a.qid - b.qid);
 
       const MAX_RETRIES = 5;
-      let failed = 0;
+      let failed = 0, atascadas = 0;
       for (const entry of pending) {
         try {
           if (entry.type === 'order_batch') {
@@ -333,9 +489,26 @@
           const retries = (entry.failCount || 0) + 1;
           console.warn('[posSync] Error al sincronizar entrada', entry.qid, `(intento ${retries}/${MAX_RETRIES})`, e.message);
           if (retries >= MAX_RETRIES) {
-            // Descartar operaciones que fallan repetidamente para no bloquear la cola
-            console.error('[posSync] Descartando entrada', entry.qid, '— demasiados fallos:', e.message);
-            await _idbDelete('queue', entry.qid);
+            /*  ⚠️ AQUI SE BORRABA LA VENTA. Textualmente: «descartar
+                operaciones que fallan repetidamente para no bloquear la cola»
+                + `_idbDelete`. El motivo era bueno —una entrada rota atasca a
+                las de atras— pero borrar es lo unico que no se puede
+                deshacer, y el unico aviso era un `console.error` que en una
+                caja no lee nadie.
+
+                Ahora pasa a `atascado`: deja de bloquear la cola igual que
+                antes (la cola solo recoge las `pending`), pero SIGUE GUARDADA
+                en el equipo, con su error y su hora, y sale un aviso rojo que
+                no se va hasta que alguien lo mire.                        */
+            await _idbPut('queue', {
+              ...entry,
+              status: 'atascado',
+              failCount: retries,
+              ultimoError: e && e.message ? e.message : String(e),
+              atascadoAt: Date.now(),
+            });
+            console.error('[posSync] Entrada', entry.qid, 'ATASCADA (guardada, no perdida):', e.message);
+            atascadas++;
           } else {
             await _idbPut('queue', { ...entry, failCount: retries });
             failed++;
@@ -343,8 +516,12 @@
         }
       }
 
-      if (failed === 0) _ui('online');
-      else              _ui('error', failed);
+      /*  El aviso de atascado manda sobre los demas: es el unico que pide que
+          alguien haga algo. Y se cuentan TODAS las atascadas, no solo las de
+          esta pasada, porque las de antes tampoco se han resuelto.        */
+      if (atascadas > 0)      await _avisarSiHayAtascados();
+      else if (failed === 0)  { if (!(await _avisarSiHayAtascados())) _ui('online'); }
+      else                    _ui('error', failed);
     } finally {
       _syncing = false;
     }
@@ -365,6 +542,9 @@
   window.addEventListener('online', async () => {
     _online = true;
     _cbs.forEach(cb => cb(true));
+    /*  Lo que se atasco durante el corte se vuelve a intentar solo: la causa
+        normal de atascarse es justo el corte que acaba de terminar.       */
+    await _reintentarAtascados();
     await _syncNow();
   });
 
@@ -384,6 +564,10 @@
       const pending = await _idbGetAll('queue', 'status', 'pending');
       if (pending.length > 0) await _syncNow();
     }
+    /*  Lo atascado se avisa SIEMPRE, en cada pantalla que se abra, aunque no
+        haya nada pendiente. Un aviso que se ve una sola vez y se pierde al
+        cambiar de pantalla no sirve de aviso.                             */
+    await _avisarSiHayAtascados();
   });
 
   /* ══════════════════════════════════════════
@@ -527,6 +711,32 @@
       const rows = await _idbGetAll('queue', 'status', 'pending');
       return rows.length;
     },
+
+    /*  ── Lo que se rindió ────────────────────────────────────────────────
+        `atascado` = falló 5 veces y dejó de intentarlo. NO está perdido:
+        sigue guardado en el equipo. Estas tres son para que cualquier
+        pantalla pueda enseñarlo o reintentarlo.                          */
+
+    /** Cuántas ventas no lograron subir */
+    async stuckCount() {
+      const rows = await _idbGetAll('queue', 'status', 'atascado');
+      return rows.length;
+    },
+
+    /** Qué no logró subir, ya descrito en palabras */
+    async stuckList() {
+      const rows = await _idbGetAll('queue', 'status', 'atascado');
+      return rows.sort((a, b) => a.qid - b.qid).map(function (e) {
+        const d = _describir(e);
+        return { qid: e.qid, que: d.que, detalle: d.det, cuando: e.timestamp, error: e.ultimoError };
+      });
+    },
+
+    /** Devolverlas a la cola y volver a intentarlo */
+    retryStuck: _reintentarAtascados,
+
+    /** Abrir la lista de lo que no subió */
+    showStuck: _verAtascados,
 
     /** Forzar sincronización manual */
     syncNow: _syncNow
