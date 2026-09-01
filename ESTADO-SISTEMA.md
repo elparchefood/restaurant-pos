@@ -16206,3 +16206,76 @@ base real:
 ⚠️ **Lo que esto NO es.** Sigue sin haber modo offline de verdad: la caja no
 opera un turno entero sin internet. Esto solo garantiza que **nada de lo que ya
 se escribió se pierda en silencio**.
+
+---
+
+## El rastro del gerente llevaba desde su creación sin grabar (1-sep-2026)
+
+`pos_gerente_procesados` es la libreta donde queda por dónde pasó cada mensaje
+del gerente: qué escribió, qué se le contestó y por qué camino se fue
+(`ruta`: gerente · factura-texto · saludo · gerente-sin-respuesta). Es la
+herramienta para saber en qué paso se cayó algo.
+
+Estaba así: **300 filas, y `respuesta` y `ruta` en NULL en las 300.** Las únicas
+10 con datos son de agosto y salieron de un relleno manual del 28-ago, no del
+sistema.
+
+### La causa
+
+El código estaba bien. Lo que faltaba era un permiso:
+
+```
+GRANT UPDATE ON public.pos_gerente_procesados TO service_role;
+```
+
+La tabla se creó sin ese permiso. La fila se insertaba (INSERT sí estaba
+concedido) pero el PATCH que la completa devolvía **403 permission denied**.
+
+### Por qué nadie lo vio en semanas
+
+```js
+try {
+  await fetch(`.../pos_gerente_procesados?...`, { method: "PATCH", ... });
+} catch (e) { console.error("rastro gerente:", e); }
+```
+
+**`fetch` no lanza excepción con un 403.** Devuelve una respuesta con
+`ok:false`. Como nadie miraba `res.ok`, ni siquiera el `catch` se enteraba:
+fallo en silencio absoluto. El comentario decía «best-effort: si esto falla, el
+gerente igual recibe su respuesta» — la intención era correcta, pero
+best-effort acabó significando **mudo**, y mudo es lo que lo escondió.
+
+> **REGLA: toda llamada con `fetch` a la base comprueba `res.ok`.** El
+> `try/catch` solo atrapa la red caída, no un «no puedes». Es la misma lección
+> que la impresora silenciosa del 29-ago: una función que falla y termina bien
+> es peor que una que falla y avisa.
+
+### Lo que se hizo
+
+1. `GRANT UPDATE, DELETE ... TO service_role`, para que la tabla deje de ser la
+   rara: las otras 82 ya lo tenían.
+2. El PATCH comprueba `res.ok` y grita en el registro si no grabó
+   (`meta-webhook` v82).
+
+Comprobado: el mismo PATCH que hace la función pasó de **403** a **200** con la
+fila actualizada de verdad; y la función desplegada se verificó línea por línea
+contra la local.
+
+### El hallazgo de fondo — 26 tablas con permisos incompletos
+
+Al revisar las 108 tablas, **26 no tienen el juego completo de permisos para el
+servidor**. Se revisó una por una si alguna función del servidor las escribe:
+
+| Tabla | Le falta | ¿Rompe algo hoy? |
+|---|---|---|
+| `pos_gerente_procesados` | UPDATE | **Sí — era este bug.** Arreglado |
+| `pos_planes` | INSERT/UPDATE/DELETE | No: el servidor solo la lee |
+| `meta_oauth_pendiente` | UPDATE | No: el servidor solo lee, inserta y borra |
+| Las otras 23 | casi todas DELETE | No: ninguna función del servidor las toca |
+
+Es decir: **hoy solo estaba rota una.** Las demás son minas para el futuro — el
+día que se escriba código de servidor contra `pos_facturas` o
+`pos_domi_entregas` (a las que les faltan los cuatro permisos) va a fallar
+exactamente igual de callado. No se tocaron: cambiar permisos en producción sin
+que haga falta es meter riesgo a cambio de nada, y ahora la regla del `res.ok`
+haría que se notara enseguida.

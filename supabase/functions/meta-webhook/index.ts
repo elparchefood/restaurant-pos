@@ -349,9 +349,21 @@ Deno.serve(async (req) => {
 
               /*  El rastro. Best-effort: si esto falla, el gerente igual
                   recibe su respuesta — no se le rompe el inventario por no
-                  poder anotar. */
+                  poder anotar.
+
+                  ⚠️ PERO BEST-EFFORT NO ES MUDO. Esto llevaba desde que se
+                  creó sin grabar NADA y no había forma de verlo: a la tabla le
+                  faltaba el permiso de UPDATE para el servidor, PostgREST
+                  devolvía 403, y `fetch` **no lanza excepción con un 403** —
+                  devuelve una respuesta con `ok:false`. Al no mirar `res.ok`,
+                  ni el `catch` se enteraba. Semanas de mensajes del gerente sin
+                  rastro, descubierto el 1-sep-2026 solo porque alguien fue a
+                  mirar la tabla.
+
+                  Regla: toda llamada con `fetch` a la base comprueba `res.ok`.
+                  El `try/catch` solo atrapa la red caída, no un "no puedes". */
               try {
-                await fetch(`${SUPABASE_URL}/rest/v1/pos_gerente_procesados?external_id=eq.${encodeURIComponent(externalId)}`, {
+                const rastroRes = await fetch(`${SUPABASE_URL}/rest/v1/pos_gerente_procesados?external_id=eq.${encodeURIComponent(externalId)}`, {
                   method: "PATCH",
                   headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
                              "Content-Type": "application/json", Prefer: "return=minimal" },
@@ -359,6 +371,9 @@ Deno.serve(async (req) => {
                     mensaje: String(bodyText || "").slice(0, 2000),
                     respuesta: String(reply || "").slice(0, 4000), ruta }),
                 });
+                if (!rastroRes.ok) {
+                  console.error("rastro gerente NO se grabó:", rastroRes.status, await rastroRes.text());
+                }
               } catch (e) { console.error("rastro gerente:", e); }
               if (phoneId && accessToken) {
                 /*  LOS LIMITES SON DE WHATSAPP, NO NUESTROS: hasta 3 botones de
