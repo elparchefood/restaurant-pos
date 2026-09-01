@@ -3023,7 +3023,7 @@ async function renderResumen() {
       </div>
     </div>
 
-    ${rsSectionHead('bike','#10B981','Por dónde vendiste','Canales','Salón, domicilio y mostrador.')}
+    ${rsSectionHead('bike','#10B981','Por dónde vendiste','Canales','Por cuál canal entró cada venta.')}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:4px">
       <div class="cj-card" style="padding:18px 20px">
         <div class="cj-card-title">${rsvg('bag',15)} De dónde salió cada venta</div>

@@ -16034,3 +16034,104 @@ enteros.
 
 ⚠️ Y una copia que vive en el mismo computador no es una copia si el
 computador se daña. **Falta llevarse la carpeta a un disco aparte o a Drive.**
+
+---
+
+## Los cierres de caja del historial (2-sep-2026)
+
+Sergio abrió un cierre pasado y encontró tres cosas mal. Las tres eran el
+mismo error de fondo: **pantallas que se escribieron con listas fijas cuando
+el sistema todavía era de un solo restaurante.**
+
+### 1 · El botón de imprimir abría el diálogo del navegador
+
+`caja.html` tenía, en el encabezado del resumen:
+
+```html
+<button onclick="window.print()">Imprimir</button>
+```
+
+Eso saca la PÁGINA WEB —menú lateral, tarjetas, gráficas— en hojas carta por
+el diálogo del sistema. Nada que ver con el tiquete del cierre.
+
+Ahora llama a `imprimirCierreDelResumen()` → `reimprimirCierre(id)`, que arma
+**el mismo tiquete que sale todos los días al cerrar** (`posBuildCierre`) y lo
+manda por `posPrintTicket`, en silencio y a la térmica.
+
+⚠️ **Es la segunda vez que aparece este bug exacto.** El 21-jul pasó igual con
+"Imprimir paloteo" (entrada 30 de la tabla). Regla: **en este sistema ningún
+botón de imprimir usa `window.print()`.** Todos arman su HTML de 72 mm y lo
+mandan por `posPrintTicket`.
+
+### 2 · Reimprimir un cierre viejo sumaba todo lo vendido desde entonces
+
+`loadPagosPorMetodo` filtraba `.gte('created_at', desde)` **y nada más**. Para
+el cierre del día está bien —el turno es el actual—, pero al reimprimir uno ya
+cerrado contaba hasta hoy. Medido con los turnos reales:
+
+| turno | debía decir | imprimía |
+|---|---|---|
+| 31-ago | $973.000 | $1.489.500 |
+| 30-ago | $831.000 | $2.320.500 |
+| 29-ago | $757.000 | $3.077.500 |
+| 28-ago | $589.500 | $3.667.000 |
+
+Cuanto más viejo, peor; solo el último salía bien, y por eso parecía que "a
+veces sirve". La función acepta ahora un tope opcional (`hastaISO`) que solo
+manda quien reimprime. `loadOrders` **sí** tenía tope: por eso el número de
+pedidos salía bien y la plata no.
+
+### 3 · El resumen mostraba métodos inventados, todos en cero
+
+*"aparece el desglose y todo en cero… nombra tarjeta, nombra X, y no nombra
+billetera"*. Había dos listas escritas a mano:
+
+```js
+const RS_METHODS  = [efectivo, tarjeta, transferencia, nequi, daviplata]
+const RS_CHANNELS = { salon, mostrador, domicilio }
+```
+
+y la suma descartaba en silencio lo que no estuviera en ellas:
+
+```js
+if (byMethod[k] !== undefined) byMethod[k] += ...
+```
+
+Hoy cada restaurante configura sus métodos y **el cobro guarda el ID del
+método (`pm_x719c1pqb`), no su nombre**. En El Parche eso son 296 cobros y
+$13,7 millones que no aparecían por ningún lado. Los cobros de antes del 7-ago
+sí entraban (aún se guardaba el nombre), y de ahí que un cierre de julio
+mostrara algo y uno de esta semana ceros.
+
+Lo mismo con los canales: la venta de mostrador de este POS se llama
+**`rapido`**, que no estaba — 103 pedidos fuera de toda barra, y un
+"Mostrador $0" que parecía una falla.
+
+**Ahora:** los métodos salen de los CONFIGURADOS (`S.payMethods`) y la plata la
+suma `loadPagosPorMetodo`, la misma del cierre del día y del tiquete — las
+tres pantallas ya no pueden decir cosas distintas. Lo que no se reconozca cae
+en **"Otros"** en vez de desaparecer: un peso que no se sabe de dónde vino
+tiene que verse. De los canales solo se pintan aquellos por los que el negocio
+de verdad vende.
+
+También se igualó la cifra: las barras de canal usaban `o.total` y el total de
+arriba `total_final`, así que no sumaban lo mismo ($535.500 contra $516.500 el
+1-sep). Ahora las dos usan `total_final`.
+
+### Y una trampa del archivo
+
+`caja.js` tenía **dos `renderCierres`**. El segundo pisaba al primero al
+cargar, así que la tarjeta con el botón "Reimprimir cierre" del primero nunca
+se dibujó: era código muerto —y yo arreglé ese botón antes de darme cuenta de
+que Sergio pulsaba otro. El muerto se borró. **No declarar dos funciones con
+el mismo nombre en este archivo.**
+
+### Cómo se comprobó
+
+En el **Restaurante de Prueba**, nunca en El Parche: se creó un turno cerrado
+de juguete, se abrió el resumen en el navegador y se leyó en pantalla
+(Efectivo $899.000 · Transferencia $401.000 · Billetera $0, sin Tarjeta ni
+Nequi ni Daviplata; Salón $897.000 + Venta rápida $437.000 + Domicilio
+$660.000 = $1.994.000, el mismo total de arriba). Se interceptó la impresora
+para leer el tiquete sin gastar papel y decía lo mismo. El turno de prueba se
+borró al terminar.
