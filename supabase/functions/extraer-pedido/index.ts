@@ -851,6 +851,11 @@ BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corre
     let domiPrecio = 0;
     let domiBarrio = "";
     let domiConfirmar = false;
+    /*  ⚠️ DE QUE LISTA SALIO EL NOMBRE. Hasta el 1-sep-2026 esta busqueda
+        recorria SOLO `z.barrios`: un sitio guardado como conjunto —que es como
+        hay que guardarlo para que el asistente pida el apartamento— se quedaba
+        sin precio de domicilio al crear el pedido a mano.                  */
+    let domiEsConjunto = false;
     try {
       const zonas = zonasCfg;
       const donde = norm([barrioTxt, barrioGuardado, direccionTxt, clienteTexto].filter(Boolean).join(" | "));
@@ -859,13 +864,21 @@ BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corre
       const dondeSinEsp = donde.replace(/\s+/g, "");
       let mejor = 0;
       for (const z of zonas) {
-        for (const b of (z.barrios || [])) {
-          const bn = norm(String(b || ""));
+        /*  Las DOS listas. Un conjunto es una zona con precio igual que un
+            barrio; lo unico que cambia es que al cliente se le pide la casa o
+            el apartamento en vez de la calle.                              */
+        const lugares: Array<[string, boolean]> = [
+          ...((z.barrios   || []) as string[]).map(b => [String(b || ""), false] as [string, boolean]),
+          ...((z.conjuntos || []) as string[]).map(c => [String(c || ""), true]  as [string, boolean]),
+        ];
+        for (const [b, esConj] of lugares) {
+          const bn = norm(b);
           if (bn.length < 4) continue;
           const bnSinEsp = bn.replace(/\s+/g, "");
           const hay = donde.includes(bn) || (bnSinEsp.length >= 6 && dondeSinEsp.includes(bnSinEsp));
           if (hay && bn.length > mejor) {
-            mejor = bn.length; domiPrecio = Number(z.precio) || 0; domiBarrio = String(b);
+            mejor = bn.length; domiPrecio = Number(z.precio) || 0; domiBarrio = b;
+            domiEsConjunto = esConj;
           }
         }
       }
@@ -889,14 +902,19 @@ BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corre
         const palabras = donde.split(/[^a-z0-9]+/).filter(w => w.length >= 5);
         let mejorD = 99;
         for (const z of zonas) {
-          for (const b of (z.barrios || [])) {
-            const bn = norm(String(b || "")); if (bn.length < 6) continue;
+          const lugares2: Array<[string, boolean]> = [
+            ...((z.barrios   || []) as string[]).map(b => [String(b || ""), false] as [string, boolean]),
+            ...((z.conjuntos || []) as string[]).map(c => [String(c || ""), true]  as [string, boolean]),
+          ];
+          for (const [b, esConj] of lugares2) {
+            const bn = norm(b); if (bn.length < 6) continue;
             const bnj = bn.replace(/\s+/g, "");
             for (const w of palabras) {
               const d = dist(w, bnj);
               const tope = bnj.length >= 9 ? 2 : 1;
               if (d <= tope && d < mejorD) {
-                mejorD = d; domiPrecio = Number(z.precio) || 0; domiBarrio = String(b);
+                mejorD = d; domiPrecio = Number(z.precio) || 0; domiBarrio = b;
+                domiEsConjunto = esConj;
               }
             }
           }
@@ -949,7 +967,51 @@ BARRIOS CONOCIDOS (escribe el barrio EXACTAMENTE como aparece aquí cuando corre
         cliente_conocido: clienteConocido ? true : false,
         cliente_id: clienteConocido ? clienteConocido.id : null,
         direcciones_guardadas: clienteConocido ? clienteConocido.direcciones : [],
-        direccion: direccionTxt,
+        /*  CON UN CONJUNTO, LO QUE EL CLIENTE DIO ES LA UNIDAD, NO LA CALLE.
+            "apto 505C" no es una direccion de calle: es a que puerta tocar.
+            Se manda en `unidad` para que el modal la ponga en su casilla y
+            deje libre la de direccion, que ahi es opcional.               */
+        es_conjunto: domiEsConjunto,
+        conjunto: domiEsConjunto ? domiBarrio : "",
+        /*  Y sin repetir el nombre del conjunto dentro de la unidad: el
+            cliente escribe "conjunto hojarasca apto 505C" y en la casilla de
+            al lado ya dice Hojarazca. Se quita el nombre —tal cual y sin
+            espacios, porque lo escriben de las dos formas— y las palabras de
+            relleno que quedan sueltas.                                     */
+        unidad: domiEsConjunto ? (() => {
+          /*  Se quita el nombre A MANO, sin construir una expresion regular
+              con el nombre del conjunto dentro: ese nombre lo escribe el
+              restaurante y puede traer parentesis, puntos o guiones, que
+              dentro de una expresion regular significan otra cosa.
+
+              Y con tolerancia, porque comparar letra por letra falla igual
+              que comparar texto en cualquier otro sitio: la tabla dice
+              "Hojarazca" y la clienta escribio "hojarasca". El aplanado NO
+              cambia el largo del texto —cada letra se cambia por una sola—
+              para que los indices sigan sirviendo para cortar.             */
+          const TIL: Record<string, string> = { "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u", "ü": "u", "ñ": "n" };
+          const plano = (x: string) => x.toLowerCase().split("").map(ch => {
+            const c = TIL[ch] || ch;
+            return c === "z" ? "s" : c === "v" ? "b" : c;      // suenan igual al escribir
+          }).join("");
+          const sacar = (txt: string, trozo: string): string => {
+            if (!trozo || trozo.length < 4) return txt;
+            const t = plano(trozo);
+            let k = plano(txt).indexOf(t);
+            while (k >= 0) {
+              txt = txt.slice(0, k) + " " + txt.slice(k + trozo.length);
+              k = plano(txt).indexOf(t);
+            }
+            return txt;
+          };
+          let u = direccionTxt;
+          //  el nombre del conjunto, tal cual y sin espacios: se escribe de las dos formas
+          for (const v of [domiBarrio.trim(), domiBarrio.replace(/\s+/g, "")]) u = sacar(u, v);
+          //  y las palabras de relleno que quedan sueltas
+          for (const w of ["conjunto", "condominio", "residencial", "urbanizacion"]) u = sacar(u, w);
+          return u.replace(/[\s,.-]+/g, " ").trim();
+        })() : "",
+        direccion: domiEsConjunto ? "" : direccionTxt,
         barrio: domiBarrio || barrioTxt || barrioGuardado,
         tipo: extracted.tipo ? String(extracted.tipo) : "domicilio",
         pago: extracted.pago ? String(extracted.pago) : "",
