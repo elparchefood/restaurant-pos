@@ -2583,17 +2583,61 @@ function rsvg(name, sz) {
   }
 }
 
-const RS_METHODS = [
-  {id:'efectivo',      name:'Efectivo',      icon:'cash',     color:'#16A34A', tint:'#DCFCE7'},
-  {id:'tarjeta',       name:'Tarjeta',        icon:'card',     color:'#5B6BFF', tint:'#EEF2FF'},
-  {id:'transferencia', name:'Transferencia',  icon:'transfer', color:'#0EA5E9', tint:'#F0F9FF'},
-  {id:'nequi',         name:'Nequi',          icon:'phone',    color:'#8B5CF6', tint:'#F5F3FF'},
-  {id:'daviplata',     name:'Daviplata',      icon:'phone',    color:'#E11D48', tint:'#FFF1F2'},
-];
+/*  ⚠️ AQUI HABIA DOS LISTAS ESCRITAS A MANO — efectivo/tarjeta/transferencia/
+    nequi/daviplata, y salon/mostrador/domicilio— y por eso este resumen
+    mostraba metodos que el negocio no tiene, todos en $0, mientras la plata de
+    verdad no aparecia por ningun lado (2-sep-2026).
+
+    Cada restaurante configura sus propios metodos, y el cobro guarda el ID del
+    metodo (`pm_x719c1pqb`), no su nombre. Lo que no estuviera en la lista se
+    descartaba en silencio: en El Parche, 296 cobros y $13,7 millones.
+
+    La fuente de verdad son los metodos CONFIGURADOS y `loadPagosPorMetodo`,
+    que ya traduce el id y ya cubre los cobros viejos. Nada fijo.           */
+const RS_COLOR = { efectivo:'#16A34A', tarjeta:'#5B6BFF', transferencia:'#0EA5E9',
+  banco:'#0EA5E9', saldo:'#8B5CF6', billetera:'#8B5CF6', puntos:'#F0A83C', otro:'#94A3B8' };
+const RS_TINT  = { efectivo:'#DCFCE7', tarjeta:'#EEF2FF', transferencia:'#F0F9FF',
+  banco:'#F0F9FF', saldo:'#F5F3FF', billetera:'#F5F3FF', puntos:'#FEF3C7', otro:'#F1F5F9' };
+const RS_ICON  = { efectivo:'cash', tarjeta:'card', transferencia:'transfer',
+  banco:'transfer', saldo:'phone', billetera:'phone', puntos:'star', otro:'cash' };
+
+/*  Las filas del desglose: una por metodo configurado, mas "Otros" con lo que
+    no se reconozca. Un peso que no se sabe de donde vino tiene que verse.
+
+    Los PUNTOS no llevan plata nunca —la parte en dinero de un canje viaja en
+    su metodo real—, asi que su $0 no informa nada y no se pinta.           */
+/*  Cuanto entro en efectivo, sea cual sea el nombre que le haya puesto el
+    restaurante a ese metodo. Se busca por TIPO, que es lo que no cambia.  */
+function rsEfectivo(byMethod) {
+  const ef = (S.payMethods || []).filter(m => String(m.tipo || '').toLowerCase() === 'efectivo');
+  if (ef.length) return ef.reduce((a, m) => a + (byMethod[m.key] || 0), 0);
+  return byMethod.efectivo || 0;
+}
+
+function rsFilasMetodo(byMethod) {
+  const usados = {};
+  const filas = (S.payMethods || [])
+    .filter(m => String(m.tipo || '').toLowerCase() !== 'puntos')
+    .map(m => {
+      usados[m.key] = true;
+      const t = String(m.tipo || 'otro').toLowerCase();
+      return { name: m.nombre, amt: byMethod[m.key] || 0,
+               color: RS_COLOR[t] || RS_COLOR.otro, icon: RS_ICON[t] || RS_ICON.otro };
+    });
+  (S.payMethods || []).forEach(m => { usados[m.key] = true; });   // puntos tampoco es "Otros"
+  let otros = 0;
+  Object.keys(byMethod || {}).forEach(k => { if (!usados[k]) otros += byMethod[k] || 0; });
+  if (otros > 0) filas.push({ name:'Otros', amt:otros, color:RS_COLOR.otro, icon:RS_ICON.otro });
+  return filas;
+}
+
+/*  Los cuatro canales del sistema. `rapido` es la venta de mostrador de este
+    POS y faltaba: sus 103 pedidos no entraban en ninguna barra.            */
 const RS_CHANNELS = {
-  salon:     {name:'Salón',     color:'#5B6BFF', tint:'#EEF2FF'},
-  mostrador: {name:'Mostrador', color:'#06B6D4', tint:'#CFFAFE'},
-  domicilio: {name:'Domicilio', color:'#10B981', tint:'#D1FAE5'},
+  salon:     {name:'Salón',        color:'#5B6BFF', tint:'#EEF2FF'},
+  rapido:    {name:'Venta rápida', color:'#F59E0B', tint:'#FEF3C7'},
+  mostrador: {name:'Mostrador',    color:'#06B6D4', tint:'#CFFAFE'},
+  domicilio: {name:'Domicilio',    color:'#10B981', tint:'#D1FAE5'},
 };
 
 async function openResumen(sessionId) {
@@ -2708,37 +2752,23 @@ async function loadResumenData(pid) {
   const txns   = active.length;
   const ticket = txns ? Math.round(totalV/txns) : 0;
 
-  // Desglose por método desde pos_payments (reparte bien los pagos mixtos);
-  // fallback a payment_method para pedidos pagados sin desglose (históricos)
-  const byMethod = {};
-  RS_METHODS.forEach(m => byMethod[m.id] = 0);
-  try {
-    const payStart = pid === 'turno' ? s.opened_at : startISO;
-    const payEnd   = pid === 'turno' ? (s.closed_at || new Date().toISOString()) : endISO;
-    const qPay = sb.from('pos_payments').select('order_id, method, amount').gte('created_at', payStart).lte('created_at', payEnd);
-    /* Sin sede, este filtro no casa con nada: cero filas en vez de las
-       ventas de todas las marcas juntas. */
-    qPay.eq('branch_id', S.branchId || '00000000-0000-0000-0000-000000000000');
-    const { data: pays } = await qPay;
-    const conDesglose = new Set();
-    (pays||[]).forEach(p => {
-      const k = (p.method||'efectivo').toLowerCase();
-      if (byMethod[k] !== undefined) byMethod[k] += (parseFloat(p.amount)||0);
-      conDesglose.add(p.order_id);
-    });
-    active.forEach(o => {
-      if (conDesglose.has(o.id)) return;
-      const pagado = parseFloat(o.paid_amount)||0;
-      if (pagado <= 0) return;
-      const k = (o.payment_method||'efectivo').toLowerCase();
-      if (k !== 'multiple' && byMethod[k] !== undefined) byMethod[k] += pagado;
-    });
-  } catch(e) { console.warn('rsPagos:', e); }
+  /*  La MISMA suma que el cierre del dia y el ticket: `loadPagosPorMetodo`
+      reparte los pagos mixtos, traduce el id del metodo a su nombre y cubre
+      con `payment_method` los pedidos viejos que no dejaron desglose.
 
-  const byChannel = {salon:0,mostrador:0,domicilio:0};
+      Antes esto tenia su propia consulta y su propia suma, y descartaba todo
+      metodo que no estuviera en una lista fija — que era casi todo.        */
+  const payStart = pid === 'turno' ? s.opened_at : startISO;
+  const payEnd   = pid === 'turno' ? (s.closed_at || new Date().toISOString()) : endISO;
+  const byMethod = await loadPagosPorMetodo(S.branchId, payStart, active, payEnd);
+
+  const byChannel = {salon:0,rapido:0,mostrador:0,domicilio:0};
   active.forEach(o => {
     const k = (o.channel||'salon').toLowerCase();
-    if (byChannel[k] !== undefined) byChannel[k] += (o.total||0);
+    /*  La MISMA cifra que el total de ventas: `total_final`. Con `total` a
+        secas, las barras sumaban mas que el total de arriba —en el turno del
+        1-sep, $535.500 contra $516.500— y no habia forma de que cuadraran. */
+    if (byChannel[k] !== undefined) byChannel[k] += (parseFloat(o.total_final ?? o.total)||0);
   });
 
   const ingresos = moves.filter(m=>m.type==='ingreso').reduce((a,m)=>a+(parseFloat(m.amount)||0),0);
@@ -2747,7 +2777,9 @@ async function loadResumenData(pid) {
   let cuadre;
   if (cuadreKind === 'session') {
     const base     = parseFloat(s.opening_cash)||0;
-    const efV      = byMethod.efectivo||0;
+    /*  La clave del efectivo es el NOMBRE que le puso el restaurante, no la
+        palabra "efectivo": puede llamarse "Caja" o "Contado".              */
+    const efV      = rsEfectivo(byMethod);
     const efIn     = moves.filter(m=>m.type==='ingreso'&&(m.medio||'').toLowerCase()==='efectivo').reduce((a,m)=>a+(parseFloat(m.amount)||0),0);
     const efOut    = moves.filter(m=>m.type==='egreso' &&(m.medio||'').toLowerCase()==='efectivo').reduce((a,m)=>a+(parseFloat(m.amount)||0),0);
     const contado  = parseFloat(s.arqueo_contado ?? s.closing_cash)||0;
@@ -2781,7 +2813,7 @@ async function loadResumenData(pid) {
   });
   const meseros = Object.values(mMap).sort((a,b)=>b.total-a.total);
 
-  const hourMap = {salon:{},mostrador:{},domicilio:{}};
+  const hourMap = {salon:{},rapido:{},mostrador:{},domicilio:{}};
   active.forEach(o => {
     const ch = (o.channel||'salon').toLowerCase();
     if (hourMap[ch]) {
@@ -2867,6 +2899,9 @@ async function renderResumen() {
 
   const maxMethod = Math.max(1, ...Object.values(R.byMethod));
   const totalChan = Math.max(1, Object.values(R.byChannel).reduce((a,b)=>a+b,0));
+  /*  Solo los canales por los que este negocio vende. Listarlos todos dejaba
+      dos barras en $0 que parecian un error del sistema.                   */
+  const canalesConVenta = Object.entries(RS_CHANNELS).filter(([k]) => (R.byChannel[k]||0) > 0);
   const maxSpark  = Math.max(...R.spark, 1);
   const growthPct = R.comp.prev ? ((R.comp.this - R.comp.prev) / R.comp.prev * 100) : 0;
   const growthUp  = growthPct >= 0;
@@ -3001,7 +3036,7 @@ async function renderResumen() {
       <div class="cj-card" style="padding:18px 20px">
         <div class="cj-card-title">${rsvg('cash',15)} Desglose por método de pago</div>
         <div style="display:flex;flex-direction:column;gap:13px;margin-top:15px">
-          ${RS_METHODS.map(m => rsBarRow(m.name, R.byMethod[m.id]||0, ((R.byMethod[m.id]||0)/maxMethod)*100, m.color, R.totalVentas?Math.round(((R.byMethod[m.id]||0)/R.totalVentas)*100)+'%':'0%', m.icon)).join('')}
+          ${rsFilasMetodo(R.byMethod).map(m => rsBarRow(m.name, m.amt, (m.amt/maxMethod)*100, m.color, R.totalVentas?Math.round((m.amt/R.totalVentas)*100)+'%':'0%', m.icon)).join('') || '<div style="color:#94A3B8;font-size:12px">No se cobró nada en este periodo.</div>'}
         </div>
       </div>
       <div class="cj-card" style="padding:18px 20px;display:flex;flex-direction:column">
@@ -3058,12 +3093,12 @@ async function renderResumen() {
     ${rsSectionHead('bike','#10B981','Por dónde vendiste','Canales','Salón, domicilio y mostrador.')}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:4px">
       <div class="cj-card" style="padding:18px 20px">
-        <div class="cj-card-title">${rsvg('bag',15)} Salón vs domicilio vs mostrador</div>
+        <div class="cj-card-title">${rsvg('bag',15)} De dónde salió cada venta</div>
         <div style="display:flex;height:12px;border-radius:999px;overflow:hidden;margin-top:16px;gap:2px;background:#F1F5F9">
-          ${Object.entries(RS_CHANNELS).map(([k,c])=>`<div style="width:${Math.max(0,((R.byChannel[k]||0)/totalChan)*100).toFixed(1)}%;background:${c.color}"></div>`).join('')}
+          ${canalesConVenta.map(([k,c])=>`<div style="width:${Math.max(0,((R.byChannel[k]||0)/totalChan)*100).toFixed(1)}%;background:${c.color}"></div>`).join('')}
         </div>
         <div style="display:flex;flex-direction:column;gap:11px;margin-top:16px">
-          ${Object.entries(RS_CHANNELS).map(([k,c])=>{
+          ${canalesConVenta.map(([k,c])=>{
             const v=R.byChannel[k]||0; const pct=totalChan>0?Math.round((v/totalChan)*100):0;
             return `<div style="display:flex;align-items:center;justify-content:space-between">
               <span style="display:inline-flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:#0F172A">
