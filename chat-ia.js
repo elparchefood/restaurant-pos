@@ -3124,6 +3124,14 @@ function cpSyncTop(){ if(!S.cpOrder) return; const g=id=>document.getElementById
   if(g('cpDomi')) o.domi_precio=+g('cpDomi').value||0; }
 function cpSyncProdInputs(){ if(!S.cpOrder) return; document.querySelectorAll('#cpProds .cp-prod').forEach(row=>{ const i=+row.dataset.i; const p=S.cpOrder.productos[i]; if(!p) return; const q=row.querySelector('.cp-qty'); if(q) p.cantidad=+q.value||1; const n=row.querySelector('.cp-pnota'); if(n) p.notas=n.value; }); }
 function cpRerender(){ cpSyncTop(); cpSyncProdInputs(); cpRenderForm(S.cpOrder); }
+/* Barrio o conjunto. Repinta porque cambian los nombres de los dos campos:
+   con conjunto, la direccion es la casa o el apartamento, no la calle. */
+function cpSetLugar(esConj){
+  if(!S.cpOrder) return;
+  cpSyncTop(); cpSyncProdInputs();
+  S.cpOrder.es_conjunto = !!esConj;
+  cpRenderForm(S.cpOrder);
+}
 function cpUpdTotal(){ cpSyncTop(); cpSyncProdInputs(); const t=document.getElementById('cpTotal'); if(t) t.textContent=cpCOP(cpOrderTotal()); }
 function cpNoteInput(i,v){ if(S.cpOrder&&S.cpOrder.productos[i]) S.cpOrder.productos[i].notas=v; }
 
@@ -3196,7 +3204,24 @@ function cpRenderForm(o){
     +'<div class="cp-f"><label>Tipo</label><select id="cpTipo" onchange="cpRerender()">'+tipos.map(t=>'<option value="'+t+'"'+(o.tipo===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
     +'<div class="cp-f"><label>Método de pago</label><input id="cpPago" value="'+cpEsc(o.pago||'')+'"></div>'
     +'</div>'
-    +(o.tipo!=='mesa'?'<div class="cp-grid"><div class="cp-f"><label>Dirección</label><input id="cpDireccion" value="'+cpEsc(o.direccion||'')+'"></div><div class="cp-f"><label>Barrio</label><input id="cpBarrio" value="'+cpEsc(o.barrio||'')+'"></div></div>':'')
+    /* BARRIO O CONJUNTO (1-sep-2026, pedido de Sergio). Sin esto los dos
+       campos se llenaban con el nombre del conjunto y no concordaba; y peor:
+       el sitio se aprendia como "nuevo" y terminaba en la lista de barrios,
+       donde el asistente nunca le pide el apartamento al cliente. */
+    +(o.tipo!=='mesa'
+      ? '<div class="cp-f"><label>¿A dónde va?</label>'
+        + '<div class="cp-lugar">'
+          + '<button type="button" class="cp-lugar-b'+(o.es_conjunto?'':' on')+'" onclick="cpSetLugar(false)">Barrio</button>'
+          + '<button type="button" class="cp-lugar-b'+(o.es_conjunto?' on':'')+'" onclick="cpSetLugar(true)">Conjunto</button>'
+        + '</div></div>'
+        + '<div class="cp-grid">'
+          + '<div class="cp-f"><label>'+(o.es_conjunto?'Casa / apto / torre':'Dirección')+'</label>'
+            + '<input id="cpDireccion" value="'+cpEsc(o.direccion||'')+'"'
+            + (o.es_conjunto?' placeholder="apto 505C"':'')+'></div>'
+          + '<div class="cp-f"><label>'+(o.es_conjunto?'Conjunto':'Barrio')+'</label>'
+            + '<input id="cpBarrio" value="'+cpEsc(o.barrio||'')+'"></div>'
+        + '</div>'
+      : '')
     // Direcciones que este cliente ya ha usado (casa, oficina...). Un toque las pone.
     +cpDirsSelect(o)
     // Lo que vio el AGENTE SUPERVISOR. Va aqui, arriba del pedido y una sola
@@ -3242,7 +3267,11 @@ async function aprenderBarrio(o){
       barrio = String(o.domi_barrio); tipo = 'cambio'; precioTabla = auto;
     } else {
       // Barrio que la tabla no conoce.
-      barrio = String(o.barrio||'').trim(); tipo = 'nuevo';
+      /* Si el que tomo el pedido marco "Conjunto", se aprende como tal: asi
+         llega ya marcado a Configuracion y a la campana, y entra en la lista
+         de conjuntos — que es la unica que el asistente mira para saber que
+         tiene que pedir la casa o el apartamento. */
+      barrio = String(o.barrio||'').trim(); tipo = o.es_conjunto ? 'conjunto' : 'nuevo';
       if(!barrio || barrio.length<3) return;
     }
     const prev = await sb.from('pos_domi_aprendidos').select('id,veces')

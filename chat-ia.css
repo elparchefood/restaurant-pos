@@ -2167,3 +2167,20 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 
 /*  El pie de una plantilla: gris y chiquito, como en el telefono. */
 .ci-wa-pie { margin-top: 6px; font-size: 12px; opacity: .65; }
+
+
+/* Barrio o conjunto en el modal de crear pedido (1-sep-2026).
+   El modal es OSCURO —letras blancas sobre superficies translucidas— asi que
+   el interruptor usa su misma paleta y el violeta del propio modal. Estilarlo
+   en claro lo dejaba como un parche brillante en medio. */
+.cp-lugar {
+  display: inline-flex; gap: 2px; padding: 3px; border-radius: 9px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+}
+.cp-lugar-b {
+  border: none; background: transparent; font-family: var(--font);
+  font-size: 12px; font-weight: 600; color: rgba(255,255,255,.55);
+  padding: 6px 16px; border-radius: 7px; cursor: pointer;
+}
+.cp-lugar-b:hover { color: #fff; }
+.cp-lugar-b.on { background: #8B5CF6; color: #fff; font-weight: 700; }
