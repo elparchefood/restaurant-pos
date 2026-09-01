@@ -2184,3 +2184,5 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 }
 .cp-lugar-b:hover { color: #fff; }
 .cp-lugar-b.on { background: #8B5CF6; color: #fff; font-weight: 700; }
+
+.cp-opc { font-weight: 500; color: rgba(255,255,255,.35); text-transform: none; letter-spacing: 0; }

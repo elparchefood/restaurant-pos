@@ -3121,6 +3121,7 @@ function cpSyncTop(){ if(!S.cpOrder) return; const g=id=>document.getElementById
   if(g('cpNombre')) o.cliente=g('cpNombre').value; if(g('cpTelefono')) o.telefono=g('cpTelefono').value;
   if(g('cpTipo')) o.tipo=g('cpTipo').value; if(g('cpPago')) o.pago=g('cpPago').value;
   if(g('cpDireccion')) o.direccion=g('cpDireccion').value; if(g('cpBarrio')) o.barrio=g('cpBarrio').value; if(g('cpNotas')) o.notas=g('cpNotas').value;
+  if(g('cpUnidad')) o.unidad=g('cpUnidad').value; if(g('cpConjunto')) o.conjunto=g('cpConjunto').value;
   if(g('cpDomi')) o.domi_precio=+g('cpDomi').value||0; }
 function cpSyncProdInputs(){ if(!S.cpOrder) return; document.querySelectorAll('#cpProds .cp-prod').forEach(row=>{ const i=+row.dataset.i; const p=S.cpOrder.productos[i]; if(!p) return; const q=row.querySelector('.cp-qty'); if(q) p.cantidad=+q.value||1; const n=row.querySelector('.cp-pnota'); if(n) p.notas=n.value; }); }
 function cpRerender(){ cpSyncTop(); cpSyncProdInputs(); cpRenderForm(S.cpOrder); }
@@ -3214,13 +3215,28 @@ function cpRenderForm(o){
           + '<button type="button" class="cp-lugar-b'+(o.es_conjunto?'':' on')+'" onclick="cpSetLugar(false)">Barrio</button>'
           + '<button type="button" class="cp-lugar-b'+(o.es_conjunto?' on':'')+'" onclick="cpSetLugar(true)">Conjunto</button>'
         + '</div></div>'
-        + '<div class="cp-grid">'
-          + '<div class="cp-f"><label>'+(o.es_conjunto?'Casa / apto / torre':'Dirección')+'</label>'
-            + '<input id="cpDireccion" value="'+cpEsc(o.direccion||'')+'"'
-            + (o.es_conjunto?' placeholder="apto 505C"':'')+'></div>'
-          + '<div class="cp-f"><label>'+(o.es_conjunto?'Conjunto':'Barrio')+'</label>'
-            + '<input id="cpBarrio" value="'+cpEsc(o.barrio||'')+'"></div>'
-        + '</div>'
+        /*  Con conjunto son CUATRO campos, no dos renombrados: hay gente
+            que da tambien la calle del conjunto, y antes no tenia donde
+            escribirla (Sergio, 1-sep-2026).                              */
+        + (o.es_conjunto
+          ? '<div class="cp-grid">'
+              + '<div class="cp-f"><label>Casa / apto / torre</label>'
+                + '<input id="cpUnidad" value="'+cpEsc(o.unidad||'')+'" placeholder="apto 505C"></div>'
+              + '<div class="cp-f"><label>Conjunto</label>'
+                + '<input id="cpConjunto" value="'+cpEsc(o.conjunto||'')+'" placeholder="Hojarazca"></div>'
+            + '</div>'
+            + '<div class="cp-grid">'
+              + '<div class="cp-f"><label>Dirección <span class="cp-opc">opcional</span></label>'
+                + '<input id="cpDireccion" value="'+cpEsc(o.direccion||'')+'" placeholder="Calle 25N # 2E-415"></div>'
+              + '<div class="cp-f"><label>Barrio <span class="cp-opc">opcional</span></label>'
+                + '<input id="cpBarrio" value="'+cpEsc(o.barrio||'')+'"></div>'
+            + '</div>'
+          : '<div class="cp-grid">'
+              + '<div class="cp-f"><label>Dirección</label>'
+                + '<input id="cpDireccion" value="'+cpEsc(o.direccion||'')+'"></div>'
+              + '<div class="cp-f"><label>Barrio</label>'
+                + '<input id="cpBarrio" value="'+cpEsc(o.barrio||'')+'"></div>'
+            + '</div>')
       : '')
     // Direcciones que este cliente ya ha usado (casa, oficina...). Un toque las pone.
     +cpDirsSelect(o)
@@ -3337,6 +3353,31 @@ function cpUsarDir(sel){
   cpRerender();
 }
 // ¿La tarifa que trae el pedido corresponde al barrio que esta puesto ahora?
+/*  LOS CUATRO CAMPOS, CONVERTIDOS EN LOS DOS QUE GUARDA EL PEDIDO.
+
+    El pedido solo tiene `direccion` y `barrio`. Con un conjunto hay cuatro
+    datos, asi que se juntan:
+
+      direccion = casa/apto · calle · barrio   ← lo que lee el domiciliario
+      barrio    = el CONJUNTO                  ← el que tiene el precio
+
+    El conjunto va en `barrio` a proposito: es el nombre que la tabla de zonas
+    conoce y el que aprende `aprenderBarrio`. Si ahi fuera el barrio libre, el
+    domicilio se cobraria por el sitio equivocado.
+
+    Devuelve una COPIA. El objeto del formulario no se toca: si el envio falla
+    y el operador vuelve a editar, sus campos siguen como los escribio.      */
+function cpComponer(o){
+  if(!o || !o.es_conjunto) return o;
+  var partes = [o.unidad, o.direccion, o.barrio]
+    .map(function(x){ return String(x||'').trim(); })
+    .filter(Boolean);
+  return Object.assign({}, o, {
+    direccion: partes.join(' · '),
+    barrio: String(o.conjunto||'').trim() || String(o.barrio||'').trim(),
+  });
+}
+
 function cpBarrioCuadra(o){
   const a = String(o.domi_barrio||'').trim().toLowerCase();
   const b = String(o.barrio||'').trim().toLowerCase();
@@ -3703,7 +3744,7 @@ async function cpEnviarCocina(){
   }
   // ── LISTA NEGRA: si el cliente del pedido está bloqueado (teléfono o dirección), avisar y confirmar ──
   try{
-    const _tel=o.telefono||'', _dir=o.direccion||'';
+    const _tel=o.telefono||'', _dir=(cpComponer(o).direccion)||'';
     if(_tel || _dir){
       const { data:casc }=await sb.rpc('lista_negra_cascada', { p_tenant:S.tenantId, p_tel:_tel||null, p_dir:_dir||null, p_dir_norm:_dir?normDir(_dir):null });
       if(casc && casc.bloqueado){
@@ -3718,7 +3759,8 @@ async function cpEnviarCocina(){
       }
     }
   }catch(_e){}
-  const payload={ conversation_id:convId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:o.direccion||'', barrio:o.barrio||'', tipo:o.tipo, pago:o.pago, notas:o.notas, etiqueta:o.etiqueta||'', domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0), empaque:Number(o.empaque)||0,
+  const _oc = cpComponer(o);   // los cuatro campos del conjunto, ya juntos
+  const payload={ conversation_id:convId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:_oc.direccion||'', barrio:_oc.barrio||'', tipo:o.tipo, pago:o.pago, notas:o.notas, etiqueta:o.etiqueta||'', domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0), empaque:Number(o.empaque)||0,
     productos:(o.productos||[]).map(p=>({ product_id:p.product_id, product_name:p.product_name, unit_price:p.unit_price, cantidad:p.cantidad, tamano:p.tamano, variantes:p.variantes||{}, adiciones:p.adiciones||[], notas:p.notas })) };
   const btn=document.getElementById('cpDraftSend'); if(btn){ btn.disabled=true; btn.textContent='Enviando…'; }
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
@@ -3732,7 +3774,9 @@ async function cpEnviarCocina(){
     // APRENDER: si el barrio no estaba en la tabla de zonas y se cobró el
     // domicilio a mano, se guarda para poder agregarlo después con un clic
     // (Configuración → Chat IA → Domicilios). Así el sistema mejora solo.
-    aprenderBarrio(o);
+    /*  Con la direccion ya compuesta: lo que se aprende es el CONJUNTO, que
+        es el que lleva el precio del domicilio.                          */
+    aprenderBarrio(_oc);
     /* El nombre del cliente sale del cruce por teléfono con pos_clientes, y ese
        mapa solo se carga al abrir la pantalla. Si el pedido acaba de crear al
        cliente, la conversación seguía diciendo el número pelado hasta recargar.
