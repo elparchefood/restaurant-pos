@@ -4592,8 +4592,52 @@
   function vsDirEtiqueta(d) {
     return [d.conjunto, d.unidad, d.dir].filter(Boolean).join(' · ') || d.barrio || 'Sin direcci\u00f3n';
   }
+  /*  LA MISMA PUERTA, ESCRITA DE OTRA FORMA, ES LA MISMA DIRECCION.
+
+      Esto comparaba TEXTO —join + minusculas— y por eso Camerón Ruiz termino
+      con el mismo apartamento guardado tres veces:
+
+          torre b apto 605
+          Ciudadela llanos de calibio, apto 605 torre B
+          Ciudadela llanos de calibio, torre b apto 605
+
+      Basta una coma o el orden cambiado. En la revision del 1-sep-2026, 10 de
+      los 12 clientes con varias direcciones tenian la misma repetida.
+
+      Lo que identifica una puerta es el NUMERO: casa 41, apto 605, torre 2B.
+      El texto alrededor cambia; el numero no. Asi que la llave son los numeros
+      que contiene, mas el barrio.
+
+      Si no hay ningun numero —"Hospital del norte"— se compara el texto, que
+      para ese caso es lo unico que hay.                                     */
   function vsDirLlave(d) {
-    return [d.conjunto, d.unidad, d.dir].filter(Boolean).join('|').toLowerCase().replace(/\s+/g, ' ');
+    var junto = [d.conjunto, d.unidad, d.dir].filter(Boolean).join(' ');
+    var plano = String(junto || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+    var barrio = String(d.barrio || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+    var nums = (plano.match(/\d+/g) || []);
+    if (nums.length) {
+      /*  Ordenados y sin repetir: "torre b apto 605" y "apto 605 torre B"
+          tienen que dar la misma llave.
+
+          ⚠️ Y SIN EL BARRIO cuando hay numeros, a proposito. El barrio es
+          justamente lo que se escribe distinto cada vez: unas veces va el
+          nombre del conjunto, otras el del barrio, y otras se queda vacio.
+          Veronica Vasquez tenia "Urbanizacion Asturias casa d 10" con el
+          barrio en blanco y "Casa D10" con barrio Asturias: la misma casa,
+          separada por un campo vacio.
+
+          El precio que se paga: si un cliente tuviera de verdad dos sitios
+          distintos con el mismo numero —casa 10 en dos barrios— se guardaria
+          uno solo. Es raro, y se arregla escribiendolo; lo otro pasaba en 10
+          de cada 12 clientes.                                              */
+      var unicos = nums.filter(function (n, i) { return nums.indexOf(n) === i; }).sort();
+      return '#' + unicos.join('-');
+    }
+    return barrio + '#' + plano;
   }
 
   function vsDirsDe(cli) {
