@@ -294,6 +294,17 @@
 .ntf-modal-money input.malo { color: #DC2626; }
 .ntf-modal-sug { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
 .ntf-modal-sug > span { font-size: 11.5px; color: #94A3B8; }
+.ntf-modal-tipo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.ntf-tipo {
+  text-align: left; padding: 10px 12px; border-radius: 10px; cursor: pointer;
+  border: 1.5px solid #ECEEF2; background: #fff; font-family: inherit;
+}
+.ntf-tipo b { display: block; font-size: 13px; font-weight: 700; color: #0F172A; margin-bottom: 2px; }
+.ntf-tipo span { display: block; font-size: 10.5px; line-height: 1.35; color: #64748B; }
+.ntf-tipo:hover { border-color: #DCE0E8; background: #F8FAFC; }
+.ntf-tipo.on { border-color: #5B6BFF; background: #EEF2FF; }
+.ntf-tipo.on b { color: #4453d6; }
+
 .ntf-chip {
   border: 1px solid #CBD5E1; background: #fff; color: #334155; border-radius: 999px;
   padding: 4px 11px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;

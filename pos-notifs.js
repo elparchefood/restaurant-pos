@@ -284,6 +284,21 @@
           ? '<div class="ntf-modal-dir"><span>Dirección que escribió</span><b>' + esc(f.direccion) + '</b></div>'
           : '') +
 
+        /*  QUE ES ESTE SITIO. Antes no se preguntaba: se decidia solo con el
+            `tipo` que traia la fila, y una fila aprendida al crear un pedido
+            viene como "nuevo", que caia en barrios. Un conjunto metido entre
+            los barrios cobra bien el domicilio pero el asistente nunca pide
+            el numero del apartamento.                                      */
+        '<label class="ntf-modal-lb">¿Qué es este sitio?</label>' +
+        '<div class="ntf-modal-tipo">' +
+          '<button type="button" class="ntf-tipo' + (f.tipo === 'conjunto' ? '' : ' on') + '" data-tipo="barrio">' +
+            '<b>Barrio</b><span>Muchas casas. Se le pide la dirección completa.</span>' +
+          '</button>' +
+          '<button type="button" class="ntf-tipo' + (f.tipo === 'conjunto' ? ' on' : '') + '" data-tipo="conjunto">' +
+            '<b>Conjunto</b><span>Un solo lugar cerrado. Se le pide la casa o el apartamento.</span>' +
+          '</button>' +
+        '</div>' +
+
         '<label class="ntf-modal-lb" for="ntf-precio">¿Cuánto cobras el domicilio hasta ahí?</label>' +
         '<div class="ntf-modal-money">' +
           '<span>$</span>' +
@@ -300,6 +315,17 @@
         '<div class="ntf-modal-nota">Queda guardado en tu tabla de zonas: lo van a usar la página y el asistente.</div>' +
       '</div>';
     document.body.appendChild(cap);
+
+    /*  Se guarda aparte y no se lee del boton al final, para que quede claro
+        cual esta escogido aunque se cierre y se vuelva a abrir el modal.  */
+    var tipoElegido = (f.tipo === 'conjunto') ? 'conjunto' : 'barrio';
+    cap.querySelectorAll('.ntf-tipo').forEach(function (b) {
+      b.onclick = function () {
+        tipoElegido = b.dataset.tipo;
+        cap.querySelectorAll('.ntf-tipo').forEach(function (o) { o.classList.remove('on'); });
+        b.classList.add('on');
+      };
+    });
 
     var input = cap.querySelector('#ntf-precio');
     setTimeout(function () { if (input) input.focus(); }, 40);
@@ -344,7 +370,7 @@
       }
       var btn = this;
       btn.disabled = true; btn.textContent = 'Guardando…';
-      var ok = await guardarBarrio(f, p);
+      var ok = await guardarBarrio(f, p, tipoElegido);
       if (!ok) { btn.disabled = false; btn.textContent = 'Guardar'; return; }
       fuera();
       cargar();
@@ -365,8 +391,16 @@
      pendiente. Se guarda TODO el objeto `domicilios` de vuelta porque es una
      sola columna jsonb: escribir solo las zonas borraría el resto (el tiempo
      estimado, las copias del recibo, si está activo). */
-  async function guardarBarrio(f, precio) {
-    var s = sb(); if (!s || !st().branchId) return false;
+  async function guardarBarrio(f, precio, tipoElegido) {
+    var s = sb();
+    /*  ANTES ESTO ERA `if (!s || !st().branchId) return false;` — se iba en
+        silencio y el boton volvia a decir "Guardar" como si nada. El usuario
+        quedaba convencido de que habia guardado, y no. Cualquier salida por
+        aqui tiene que decirlo.                                            */
+    if (!s || !st().branchId) {
+      alert('No se pudo guardar: la sede no está cargada. Recarga la página (Ctrl+Shift+R) e intenta de nuevo.');
+      return false;
+    }
     try {
       var r = await s.from('ia_config').select('domicilios').eq('branch_id', st().branchId).maybeSingle();
       var dom = (r.data && r.data.domicilios) || {};
@@ -395,7 +429,9 @@
 
       /* Un conjunto va en su lista, no entre los barrios: el asistente los
          trata distinto (a un conjunto no le pide calle, le pide la casa). */
-      var campo = (f.tipo === 'conjunto') ? 'conjuntos' : 'barrios';
+      /*  Manda lo que escogio el usuario en el modal; el `tipo` de la fila
+          solo sirve para marcar la opcion de arranque.                    */
+      var campo = ((tipoElegido || f.tipo) === 'conjunto') ? 'conjuntos' : 'barrios';
 
       /* Si ya estaba en otra zona con otro precio, se saca: dos precios para el
          mismo barrio es cobrar distinto según quién mire. */

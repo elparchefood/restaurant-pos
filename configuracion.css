@@ -1890,3 +1890,16 @@ div.master[data-tab].cia-active { display: flex !important; }
     sin estilo dentro de una ventana con estilo se ve peor que no tenerla. */
 .cfg-dlg .cf-input{width:100%; margin-bottom:16px;}
 .cfg-dlg-pie{display:flex; gap:9px; justify-content:flex-end;}
+
+
+/* Barrio o conjunto, y el aviso de que falta guardar (1-sep-2026) */
+.domi-apr-tipo {
+  padding: 5px 8px; border: 1px solid #ECEEF2; border-radius: 8px; background: #fff;
+  font-family: inherit; font-size: 11.5px; font-weight: 600; color: #475569; cursor: pointer;
+}
+.domi-apr-tipo:focus { outline: none; border-color: #5B6BFF; }
+.domi-apr-pend {
+  background: #FFFBEB; border: 1px solid #FDE68A; border-left: 3px solid #F59E0B;
+  color: #92400E; border-radius: 8px; padding: 9px 12px; margin-bottom: 10px;
+  font-size: 12px; font-weight: 700;
+}

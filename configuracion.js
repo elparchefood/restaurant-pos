@@ -5775,6 +5775,15 @@ var _storedZonas = [];
       return '<div class="domi-apr-row' + (sinPrecio ? ' sin-precio' : '') + '" data-aprendido="' + x.id + '">' +
         '<span class="domi-apr-nm">' + cfgQrEsc(x.barrio) + dirTxt + '</span>' +
         celdaPrecio +
+        /*  BARRIO O CONJUNTO. Antes no se preguntaba y todo entraba como
+            barrio; un conjunto ahi cobra bien el domicilio pero el asistente
+            nunca pide el apartamento (`esConjunto` solo lee la lista de
+            conjuntos). Le paso a Laura con "conjunto hojarasca apto 505C". */
+        (esCambio ? '' :
+          '<select class="domi-apr-tipo" data-i="' + i + '" title="Un conjunto se trata distinto: al cliente se le pide la casa o el apartamento, no la calle">' +
+            '<option value="barrio"' + (x.tipo === 'conjunto' ? '' : ' selected') + '>Barrio</option>' +
+            '<option value="conjunto"' + (x.tipo === 'conjunto' ? ' selected' : '') + '>Conjunto</option>' +
+          '</select>') +
         '<span class="domi-apr-n">' + (x.veces > 1 ? x.veces + ' veces' : '') + '</span>' +
         '<button type="button" class="cfg-qr-btn primary domi-apr-add" data-i="' + i + '">' +
           (esCambio ? 'Actualizar precio' : (sinPrecio ? 'Guardar precio' : 'Agregar a la tabla')) + '</button>' +
@@ -5813,6 +5822,8 @@ var _storedZonas = [];
           }
           x = Object.assign({}, x, { precio: v });
         }
+        var selTipo = host.querySelector('.domi-apr-tipo[data-i="' + b.dataset.i + '"]');
+        if (selTipo) x = Object.assign({}, x, { tipo: selTipo.value });
         agregarAprendido(x);
       });
     });
@@ -5849,11 +5860,19 @@ var _storedZonas = [];
         }
       });
     }
+    /*  DONDE VA: el cuadro de barrios o el de conjuntos. Antes era siempre
+        el de barrios, y por eso un conjunto aprobado desde aqui nunca se
+        comportaba como conjunto.                                          */
+    var esConj = (x.tipo === 'conjunto');
+    var cajaDe = function (r) {
+      return r.querySelector(esConj ? '.zone-conjuntos' : '.zone-barrios')
+          || r.querySelector('.zone-barrios');
+    };
     document.querySelectorAll('.zone-row').forEach(function (r) {
       if (puesto) return;
       var pr = parseInt(r.querySelector('.zone-precio').value) || 0;
       if (pr === precio) {
-        var ta = r.querySelector('.zone-barrios');
+        var ta = cajaDe(r);
         var actuales = ta.value.split('\n').map(function (t) { return t.trim(); }).filter(Boolean);
         if (!actuales.some(function (t) { return t.toLowerCase() === String(x.barrio).toLowerCase(); })) {
           actuales.push(String(x.barrio));
@@ -5863,7 +5882,12 @@ var _storedZonas = [];
         puesto = true;
       }
     });
-    if (!puesto) { addZoneRow(precio, [String(x.barrio)]); markDirty(); }
+    if (!puesto) {
+      /*  No habia zona con ese precio: se crea con el nombre ya en el cuadro
+          que toca. `addZoneRow` recibe barrios y conjuntos por separado.  */
+      addZoneRow(precio, esConj ? [] : [String(x.barrio)], esConj ? [String(x.barrio)] : []);
+      markDirty();
+    }
     // NO se borra de pendientes todavia. Antes se borraba aqui mismo: si el
     // usuario no le daba a Guardar cambios, el barrio desaparecia de los DOS
     // lados —ya no estaba en pendientes y nunca entro a la tabla— y se perdia
@@ -5873,10 +5897,35 @@ var _storedZonas = [];
     window._domiAprobadosPendientes.push(x);
     var fila = document.querySelector('[data-aprendido="' + x.id + '"]');
     if (fila) fila.style.display = 'none';   // se oculta, no se borra
-    showToast((x.tipo === 'cambio' ? 'Precio actualizado a $' : 'Barrio agregado a la zona de $') + precio.toLocaleString('es-CO') + '. Dale Guardar cambios para que quede.');
+    showToast((x.tipo === 'cambio' ? 'Precio actualizado a $'
+               : (esConj ? 'Conjunto agregado a la zona de $' : 'Barrio agregado a la zona de $'))
+              + precio.toLocaleString('es-CO') + '. Dale Guardar cambios para que quede.');
+    /*  El mensajito se va solo a los pocos segundos y uno se puede ir de la
+        pantalla creyendo que ya guardo. Esta franja no se va hasta que se
+        guarde de verdad: es el error que hizo que Hojarasca no quedara.   */
+    try { pintarPendientesSinGuardar(); } catch (e) {}
   }
   // Se llama despues de un guardado exitoso: recien ahi se pueden borrar de
   // pendientes, porque recien ahi el barrio quedo de verdad en la tabla.
+  /*  Mientras haya sitios aprobados que todavia no se han guardado, se ve
+      una franja fija encima de la lista. El toast dura segundos; esto dura
+      hasta que se le da a Guardar cambios.                                */
+  function pintarPendientesSinGuardar() {
+    var host = document.getElementById('domiAprendidos');
+    if (!host) return;
+    var n = (window._domiAprobadosPendientes || []).length;
+    var vieja = host.querySelector('.domi-apr-pend');
+    if (vieja) vieja.remove();
+    if (!n) return;
+    var d = document.createElement('div');
+    d.className = 'domi-apr-pend';
+    d.textContent = '⚠ ' + n + (n === 1 ? ' sitio agregado que TODAVÍA NO se ha guardado'
+                                        : ' sitios agregados que TODAVÍA NO se han guardado')
+                  + ' — dale «Guardar cambios» abajo o se pierde.';
+    host.insertBefore(d, host.firstChild);
+  }
+  window.pintarPendientesSinGuardar = pintarPendientesSinGuardar;
+
   window.domiConfirmarAprobados = async function () {
     var lista = window._domiAprobadosPendientes || [];
     if (!lista.length) return;
@@ -5884,6 +5933,7 @@ var _storedZonas = [];
       try { await sb.from('pos_domi_aprendidos').delete().eq('id', lista[i].id); } catch (e) {}
     }
     window._domiAprobadosPendientes = [];
+    try { pintarPendientesSinGuardar(); } catch (e) {}
     try { cargarAprendidos(); } catch (e) {}
   };
 
