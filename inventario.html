@@ -481,7 +481,7 @@
             <option>g</option><option>ml</option><option>unidad</option><option>libra</option><option>kg</option><option>litro</option><option>loncha</option><option>porción</option>
           </select>
         </div>
-        <div class="iv-field"><div class="iv-field-label">Conversión (u.receta / u.compra)</div><input class="iv-input" type="number" id="ins-conversion" min="0.001" step="any" placeholder="Ej. 453" oninput="updateCostHint()"><div class="iv-field-hint">Ej. 1 libra = 453 g</div></div>
+        <div class="iv-field"><div class="iv-field-label" id="ins-conversion-lbl">¿Cuántas unidades trae cada compra?</div><input class="iv-input" type="number" id="ins-conversion" min="0.001" step="any" placeholder="Ej. 6" oninput="updateCostHint()"><div class="iv-field-hint" id="ins-conversion-hint"></div></div>
       </div>
       <div class="iv-porciones-wrap is-hidden" id="ins-porciones-wrap" style="margin:18px 0">
         <div class="iv-section-label">Porciones</div>

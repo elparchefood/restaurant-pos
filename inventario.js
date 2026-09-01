@@ -2136,7 +2136,65 @@ function stockUnitFor(field) {
   const use = (document.getElementById('ins-use-unit') || {}).value || 'u.uso';
   return _stockMode[field] === 'use' ? use : buy;
 }
+/*  ══ LA PREGUNTA SE ARMA SOLA ═══════════════════════════════════════════
+
+    Este campo decia «Conversion (u.receta / u.compra)» y ponia de ejemplo
+    libras y gramos. Sergio, que mando a hacer el sistema, tenia el pan de
+    hamburguesa en 10 por paquete cuando trae 6 — desde julio y sin notarlo
+    (1-sep-2026). Equivocarse aqui no da ningun error: deja el costo por unidad
+    y el consumo mal para siempre, callado.
+
+    Asi que la etiqueta usa las palabras que el propio usuario acaba de escoger
+    dos casillas mas arriba, y se contesta sola.                             */
+
+/* Sin tildes y en minusculas, para comparar. */
+function ivPlano(t) {
+  return String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
+/*  Los simbolos no se pluralizan: son «3 g», nunca «3 gs». */
+var IV_SIMBOLOS = ['g', 'ml', 'kg', 'l', 'lb', 'oz', 'cc', 'mg', 'gr'];
+
+function ivPlural(u) {
+  var s = String(u || '').trim();
+  if (!s) return s;
+  var n = ivPlano(s);
+  if (IV_SIMBOLOS.indexOf(n) >= 0) return s;
+  if (/[aeiou]$/i.test(s)) return s + 's';
+  if (/[oó]n$/i.test(s))   return s.replace(/[oó]n$/i, 'ones');   // porción → porciones
+  if (/z$/i.test(s))       return s.replace(/z$/i, 'ces');
+  return s + 'es';                                                // unidad → unidades
+}
+
+/*  ¿«cuántas» o «cuántos»? Lo decide el género de la unidad de uso. Las que
+    acaban en «a» son femeninas, y estas dos lo son sin acabar en «a». */
+var IV_FEMENINAS = ['unidad', 'porcion', 'racion', 'sal'];
+function ivCuantos(u) {
+  var n = ivPlano(u);
+  var f = /a$/.test(n) || IV_FEMENINAS.indexOf(n) >= 0;
+  return f ? '¿Cuántas' : '¿Cuántos';
+}
+
+function updateConversionLabel() {
+  var lbl  = document.getElementById('ins-conversion-lbl');
+  var hint = document.getElementById('ins-conversion-hint');
+  if (!lbl) return;
+  var buy = (document.getElementById('ins-buy-unit') || {}).value || '';
+  var use = (document.getElementById('ins-use-unit') || {}).value || '';
+
+  /*  Si compras y usas en la MISMA unidad no hay nada que convertir:
+      preguntar «¿cuántas unidades trae cada unidad?» seria absurdo. */
+  if (!buy || !use || ivPlano(buy) === ivPlano(use)) {
+    lbl.textContent = 'Equivalencia';
+    if (hint) hint.textContent = buy ? 'Compras y usas en ' + buy + ': déjalo en 1.' : '';
+    return;
+  }
+  lbl.textContent = ivCuantos(use) + ' ' + ivPlural(use) + ' trae cada ' + buy + '?';
+  if (hint) hint.textContent = '';
+}
+
 function updateStockLabel() {
+  updateConversionLabel();
   const sl = document.getElementById('ins-stock-lbl'); if (sl) sl.textContent = 'Stock actual (' + stockUnitFor('actual') + ')';
   const ml = document.getElementById('ins-min-lbl');   if (ml) ml.textContent = 'Stock mínimo (' + stockUnitFor('min') + ')';
   document.querySelectorAll('.ins-stockmode').forEach(seg => {
@@ -2928,6 +2986,7 @@ document.querySelectorAll('.ins-stockmode').forEach(function(seg){
   });
 });
 // Si cambian la unidad de compra o de receta, refrescar las etiquetas del stock.
+/*  updateStockLabel ya refresca tambien la pregunta de la conversion. */
 document.getElementById('ins-buy-unit')?.addEventListener('change', updateStockLabel);
 document.getElementById('ins-use-unit')?.addEventListener('change', updateStockLabel);
 document.getElementById('btn-registrar-compra')?.addEventListener('click',function(){
