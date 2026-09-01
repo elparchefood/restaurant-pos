@@ -290,3 +290,70 @@
     marcarMenu: marcarMenu,
   };
 })(window);
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EL CURSOR QUE NO APARECE (1-sep-2026)
+   ───────────────────────────────────────────────────────────────────────────
+   Sergio: *"no se deja colocar el cursor, pero minimizo o paso a otra ventana
+   y vuelvo, y ya. Y pasa en absolutamente todos los campos de texto del
+   ejecutable. No siempre, en ocasiones, pero es molesto"*.
+
+   Qué pasa: la ventana tiene el foco para Windows —se ve activa, está al
+   frente— pero Chromium lleva su propia cuenta de quién tiene el foco DENTRO
+   de la página, y las dos se desincronizan. Irse a otra aplicación y volver lo
+   cura porque obliga a Chromium a recalcularlo.
+
+   Ya se había intentado arreglar en el programa, colgado de los eventos
+   `focus` / `restore` / `show` de la ventana. No bastó, y por una razón que
+   ahora se ve clara: **si la ventana nunca pierde el foco de Windows, ninguno
+   de esos eventos se dispara.** Nadie se entera de que hay que arreglarlo.
+
+   Así que aquí no se espera ningún evento: se detecta el SÍNTOMA. El usuario
+   hace clic en un campo; si un instante después ese campo no quedó con el
+   cursor, se arregla. Da igual de dónde venga el desajuste.
+
+   Se apoya en `electronPOS.recuperarFoco()` cuando existe (es lo único que
+   arregla el caso en que Chromium cree que la página entera está sin foco),
+   pero funciona sin él: por eso llega por la web, sin esperar a reconstruir
+   el ejecutable.
+   ═══════════════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+  /* Solo dentro del programa. En el navegador esto no pasa nunca. */
+  if (typeof window === 'undefined' || !window.electronPOS) return;
+
+  var CAMPOS = 'input, textarea, select, [contenteditable=""], [contenteditable="true"]';
+  var curando = false;
+
+  function despertar(campo) {
+    if (curando) return;
+    curando = true;
+    /* Lo de verdad: pedirle al programa que reponga el foco de la página.
+       Solo existe si el .exe ya trae el puente nuevo. */
+    try { if (window.electronPOS.recuperarFoco) window.electronPOS.recuperarFoco(); } catch (e) {}
+    /* Y el plan B, que no necesita nada del programa. */
+    try { window.focus(); } catch (e) {}
+    setTimeout(function () {
+      curando = false;
+      if (campo && document.activeElement !== campo) {
+        try { campo.focus({ preventScroll: true }); } catch (e) { try { campo.focus(); } catch (e2) {} }
+      }
+    }, 0);
+  }
+
+  /* En captura, para llegar antes que cualquier manejador de la pantalla. */
+  document.addEventListener('pointerdown', function (ev) {
+    var campo = ev.target && ev.target.closest ? ev.target.closest(CAMPOS) : null;
+    if (!campo || campo.disabled || campo.readOnly) return;
+
+    /* Si la página entera se cree sin foco, ya se sabe que va a fallar. */
+    if (!document.hasFocus()) { despertar(campo); return; }
+
+    /* Si no, se comprueba el resultado: 40 ms es más que suficiente para que
+       el clic haya hecho su trabajo, y no se nota. */
+    setTimeout(function () {
+      if (document.activeElement !== campo) despertar(campo);
+    }, 40);
+  }, true);
+})();
