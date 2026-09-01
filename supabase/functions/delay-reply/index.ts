@@ -1592,6 +1592,9 @@ INTENCION, no las palabras exactas.` },
      historia vieja —que termino en "gracias"—, lo marco como despedida y Paco
      lo "despidio" al llegar ("estamos para servirte"). Si lo dicho es SOLO un
      saludo (quitando stickers), el cliente esta LLEGANDO, no yendose. */
+  /*  ⚠️ ESTO SE USA EN DOS SITIOS, no solo en la despedida de aqui abajo:
+      tambien bloquea la rama de la carta, porque un saludo suelto tampoco es
+      pedir el menu (1-sep-2026). Si algun dia se toca, hay que mirar los dos. */
   const soloSaludoLote = SALUDO_REGEX.test(
     batchMsgs.map(m => String(m.body || "")).join(" ").replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim());
 
@@ -1758,7 +1761,22 @@ INTENCION, no las palabras exactas.` },
     /* Tampoco es pedir la carta preguntar cuanto cuesta el ENVIO: un cliente
        pregunto "cuanto cuesta el envio a Villa del Viento" y se llevo el menu
        entero en vez del precio del domicilio. */
+    /*  UN SALUDO A SECAS NO ES PEDIR LA CARTA (1-sep-2026, caso de Laura).
+
+        A un "Hola" Paco le respondio con las dos imagenes del menu y un
+        "¿que se te antoja?", sin saludar ni presentarse. No lo decidio
+        ninguna palabra —ninguna de las de `menuKw` encaja con "hola"—: lo
+        decidio el clasificador, que entendio que un saludo suelto era querer
+        ver el menu.
+
+        La rama del saludo, que es la que debia contestar, vive 1.200 lineas
+        mas abajo y nunca se llego a evaluar.
+
+        `soloSaludoLote` ya existia 160 lineas arriba y solo es cierto cuando
+        el mensaje ENTERO es saludo, asi que "hola, me mandas la carta" sigue
+        llevando la carta como siempre.                                    */
     const wantsMenu = !extraRespondido && !cartaSuprimida   // la categoría en texto ya respondió: la carta sobra
+      && !soloSaludoLote
       && intenciones.precio !== true && intenciones.domicilio !== true
       && (intenciones.carta === true || isExact || palabraSuelta || pideCartaPregunta || menuKw.some(kw => {
       const k = kw.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
@@ -6303,8 +6321,19 @@ REGLAS:
 - Un saludo o una cortesía sueltos ("porfa", "gracias", "listo", "ok") NO son un
   nombre ni nada: devuelve todo null.
 - "nombre" SOLO si de verdad está diciendo a nombre de quién va el pedido.
-- "direccion" es calle/carrera con números. Un barrio SOLO ("Bellavista") va en
-  "barrio", NO en "direccion".
+- "direccion" es DÓNDE hay que entregar. Hay DOS formas y las dos valen:
+    · la calle o la carrera con sus números — "carrera 9 63 n 58"; o
+    · la UNIDAD dentro de un conjunto: casa, apartamento, torre, bloque,
+      manzana o interior CON SU NÚMERO — "apto 505C", "casa 9 manzana g",
+      "torre B apto 402", "interior 3 casa 12".
+  ⚠️ La unidad va en "direccion" AUNQUE en el mismo mensaje se nombre el
+  conjunto. Son dos datos distintos y hacen falta los dos:
+    "para conjunto hojarasca apto 505C"
+    -> {"conjunto":"hojarasca","es_conjunto":true,"direccion":"apto 505C"}
+  Sin el número de la casa o del apartamento el domiciliario llega a la
+  portería y no sabe a qué puerta tocar, y Paco vuelve a preguntar algo que
+  el cliente YA dijo. Eso paso de verdad y toco que entrara una persona.
+  Un barrio SOLO ("Bellavista") va en "barrio", NO en "direccion".
 - "conjunto": el NOMBRE del lugar residencial donde vive, cuando lo hay.
   Da igual qué palabra use o cómo la escriba (conjunto, condominio, unidad,
   torres, club house, mal escrito, o sin decir ninguna): lo que importa es la
