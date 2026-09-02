@@ -681,6 +681,48 @@ a{color:inherit;text-decoration:none}
   .cx-barra{width:74%;padding:18px 20px;gap:14px}
   .cx-m{gap:26px}
 }
+
+/* ══ RENTABILIDAD: las notificaciones salen y se van ══════════════════════
+
+   Misma idea que Comprobantes: la foto es fija y lo que se mueve va en una
+   capa aparte. Aqui no hay desfile sino POPS — cada aviso aparece, se queda
+   un momento y se desvanece, como las notificaciones de un telefono.
+
+   Cada pastilla lleva su propio `animation-delay`, asi que nunca coinciden
+   todas: el ciclo completo dura 16 s y en pantalla hay siempre dos o tres. */
+.rx{position:absolute;inset:0;overflow:hidden;z-index:2;pointer-events:none}
+.rx-p{position:absolute;display:flex;align-items:center;gap:10px;
+  padding:9px 13px;border-radius:15px;width:290px;opacity:0;
+  background:linear-gradient(150deg,rgba(255,255,255,.16),rgba(255,255,255,.07));
+  border:1px solid rgba(255,255,255,.19);
+  box-shadow:0 18px 40px -16px rgba(0,0,0,.9);
+  animation:rxPop 16s ease-in-out infinite}
+.rx-ic{width:36px;height:36px;border-radius:10px;flex:0 0 auto;object-fit:cover;display:block}
+.rx-t{flex:1;min-width:0}
+.rx-1{display:flex;align-items:baseline;gap:7px}
+.rx-1 b{font-size:12.5px;font-weight:800;color:#fff;letter-spacing:-.01em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rx-1 span{font-size:9.5px;color:rgba(255,255,255,.4);font-weight:600;margin-left:auto;flex:0 0 auto}
+.rx-2{font-size:11px;color:rgba(255,255,255,.62);font-weight:600;margin-top:1px}
+.rx-v{font-size:16px;font-weight:800;letter-spacing:-.025em;flex:0 0 auto}
+
+/*  Aparece con un pequeno rebote, se queda ~4 s y se va hacia arriba.  */
+@keyframes rxPop{
+  0%      {opacity:0;transform:translateY(14px) scale(.86)}
+  3%      {opacity:1;transform:translateY(0) scale(1.04)}
+  5%      {opacity:1;transform:translateY(0) scale(1)}
+  27%     {opacity:1;transform:translateY(0) scale(1)}
+  32%     {opacity:0;transform:translateY(-16px) scale(.96)}
+  100%    {opacity:0;transform:translateY(14px) scale(.86)}
+}
+@media (prefers-reduced-motion:reduce){
+  .rx-p{animation:none;opacity:1;transform:none}
+}
+@media (max-width:820px){
+  .rx-p{width:224px;padding:7px 10px;gap:8px;border-radius:13px}
+  .rx-ic{width:30px;height:30px}
+  .rx-v{font-size:14px}
+}
 .carr-vuelo{position:absolute;z-index:2;border-radius:0;overflow:hidden;
   background-size:cover;background-position:center;pointer-events:none;
   filter:grayscale(.55) contrast(1.12);
@@ -740,7 +782,7 @@ a{color:inherit;text-decoration:none}
       <div class="hf" data-i="1"><div class="ph" data-et="fondo · Toma de pedidos" style="background-image:url(img/landing/fondo-pedidos.jpg)"></div></div>
       <div class="hf" data-i="2"><div class="ph" data-et="fondo · Pantalla de cocina" style="background-image:url(img/landing/fondo-cocina.jpg)"></div></div>
       <div class="hf" data-i="3"><div class="ph" data-et="fondo · Comprobantes" style="background-image:url(img/landing/fondo-comprobantes.jpg)"></div><div class="cx" id="cx" aria-hidden="true"></div></div>
-      <div class="hf" data-i="4"><div class="ph" data-et="fondo · Rentabilidad"></div></div>
+      <div class="hf" data-i="4"><div class="ph" data-et="fondo · Rentabilidad" style="background-image:url(img/landing/fondo-rentabilidad.jpg)"></div><div class="rx" id="rx" aria-hidden="true"></div></div>
       <div class="hf" data-i="5"><div class="ph" data-et="fondo · Puntos y premios"></div></div>
   </div>
   <div class="velo"></div><div class="rejilla"></div>
@@ -773,7 +815,7 @@ a{color:inherit;text-decoration:none}
         <div class="tj" role="button" tabindex="0" data-id="pedidos"><div class="ph claro" data-et="tarjeta · Toma de pedidos" style="background-image:url(img/landing/tarjeta-pedidos.jpg)"></div><span class="tj-txt"><span class="tj-cuando">En la mesa 4</span><span class="tj-nom">Toma de pedidos</span></span></div>
         <div class="tj" role="button" tabindex="0" data-id="cocina"><div class="ph claro" data-et="tarjeta · Pantalla de cocina" style="background-image:url(img/landing/tarjeta-cocina.jpg)"></div><span class="tj-txt"><span class="tj-cuando">En la plancha</span><span class="tj-nom">Pantalla de cocina</span></span></div>
         <div class="tj" role="button" tabindex="0" data-id="comprobantes"><div class="ph claro" data-et="tarjeta · Comprobantes" style="background-image:url(img/landing/tarjeta-comprobantes.jpg)"></div><span class="tj-txt"><span class="tj-cuando">Un Nequi a las 11 p. m.</span><span class="tj-nom">Comprobantes</span></span></div>
-        <div class="tj" role="button" tabindex="0" data-id="rentabilidad"><div class="ph claro" data-et="tarjeta · Rentabilidad"></div><span class="tj-txt"><span class="tj-cuando">Al cerrar el mes</span><span class="tj-nom">Rentabilidad</span></span></div>
+        <div class="tj" role="button" tabindex="0" data-id="rentabilidad"><div class="ph claro" data-et="tarjeta · Rentabilidad" style="background-image:url(img/landing/tarjeta-rentabilidad.jpg)"></div><span class="tj-txt"><span class="tj-cuando">Al cerrar el mes</span><span class="tj-nom">Rentabilidad</span></span></div>
         <div class="tj" role="button" tabindex="0" data-id="puntos"><div class="ph claro" data-et="tarjeta · Puntos y premios"></div><span class="tj-txt"><span class="tj-cuando">Cuando vuelve</span><span class="tj-nom">Puntos y premios</span></span></div>
         <div class="tj" role="button" tabindex="0" data-id="chat"><div class="ph claro" data-et="tarjeta · Chat automático" style="background-image:url(img/landing/tarjeta-chat.jpg)"></div><span class="tj-txt"><span class="tj-cuando">Sábado, 8:40 p. m.</span><span class="tj-nom">Chat automático</span></span></div>
       </div>
@@ -1563,6 +1605,38 @@ window.CobraPlan.iniciar({
     +   '</div>'
     +   '<div class="cx-l"><i></i><b></b></div>'
     + '</div>';
+})();
+</script>
+
+<script>
+/*  ══ LAS NOTIFICACIONES DE RENTABILIDAD ══════════════════════════════════
+    Se dibujan desde aqui para poder repartir los retrasos: si estuvieran
+    escritas a mano en el HTML, cambiar el ritmo obligaria a tocar ocho
+    sitios. Los platos y las cifras son inventados.                       */
+(function () {
+  var caja = document.getElementById('rx');
+  if (!caja) return;
+
+  var VERDE = '#4ADE80', AZUL = '#818CF8', AMBAR = '#FBBF24', ROJO = '#F87171';
+  //  plato · nombre · metrica · valor · color · izquierda · arriba · retraso
+  var AVISOS = [
+    ['churrasco',   'Churrasco',         'Materia prima',          '28,4%',   VERDE, '4%',  '16%', '0s'],
+    ['hamburguesa', 'Hamburguesa doble', 'Margen de contribución', '$16.950', AZUL,  '30%', '8%',  '2s'],
+    ['limonada',    'Limonada de coco',  'Utilidad',               '74,6%',   VERDE, '58%', '14%', '4s'],
+    ['bandeja',     'Bandeja paisa',     'Materia prima',          '41,5%',   AMBAR, '6%',  '40%', '6s'],
+    ['sancocho',    'Sancocho',          'Utilidad',               '31,6%',   ROJO,  '34%', '30%', '8s'],
+    ['mojarra',     'Mojarra frita',     'Margen de contribución', '$19.800', AZUL,  '3%',  '62%', '10s'],
+    ['picada',      'Picada para dos',   'Utilidad',               '56,9%',   VERDE, '31%', '54%', '12s'],
+    ['churrasco',   'Churrasco',         'Margen de contribución', '$22.900', AZUL,  '57%', '38%', '14s']
+  ];
+
+  caja.innerHTML = AVISOS.map(function (a) {
+    return '<div class="rx-p" style="left:' + a[5] + ';top:' + a[6] + ';animation-delay:' + a[7] + '">'
+      + '<img class="rx-ic" src="img/landing/platos/' + a[0] + '.jpg" alt="">'
+      + '<div class="rx-t"><div class="rx-1"><b>' + a[1] + '</b><span>ahora</span></div>'
+      +   '<div class="rx-2">' + a[2] + '</div></div>'
+      + '<div class="rx-v" style="color:' + a[4] + '">' + a[3] + '</div></div>';
+  }).join('');
 })();
 </script>
 </body>
