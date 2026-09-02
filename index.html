@@ -605,9 +605,9 @@ a{color:inherit;text-decoration:none}
 /*  El desfile: la fila lleva las tarjetas DOS VECES seguidas y se desplaza la
     mitad justa. Al terminar vuelve al principio y el salto no se ve, porque
     la segunda mitad es identica a la primera.                              */
-.cx-via{position:absolute;top:20%;left:0;display:flex;gap:26px;width:max-content;
+.cx-via{position:absolute;top:11%;left:0;display:flex;gap:22px;width:max-content;
   animation:cxDesfile 46s linear infinite}
-.cx-t{flex:0 0 auto;width:206px;height:268px;border-radius:20px;padding:16px 15px;
+.cx-t{flex:0 0 auto;width:174px;height:228px;border-radius:18px;padding:14px 13px;
   display:flex;flex-direction:column;
   background:linear-gradient(118deg,rgba(255,255,255,.42) 0%,rgba(255,255,255,.17) 42%,rgba(255,255,255,.12) 100%);
   border:1px solid rgba(255,255,255,.4);
@@ -621,7 +621,7 @@ a{color:inherit;text-decoration:none}
 .cx-b i{width:16px;height:16px;border-radius:5px;display:flex;align-items:center;
   justify-content:center;font-size:9px;font-weight:800;color:#fff;font-style:normal}
 .cx-s{margin-top:11px;font-size:11.5px;font-weight:700;color:#6B4408}
-.cx-p{font-size:31px;font-weight:800;letter-spacing:-.035em;color:#241300;line-height:1;margin-top:3px}
+.cx-p{font-size:26px;font-weight:800;letter-spacing:-.035em;color:#241300;line-height:1;margin-top:3px}
 .cx-q{margin-top:9px;font-size:12.5px;font-weight:700;color:#3A2200}
 .cx-h{margin-top:2px;font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;color:#7A5210}
 .cx-r{margin-top:auto;font-family:'DM Mono',ui-monospace,monospace;font-size:9.5px;color:#8A5E14;letter-spacing:.04em}
@@ -637,13 +637,15 @@ a{color:inherit;text-decoration:none}
 .cx-chico{position:absolute;bottom:0;right:17%;height:93%;z-index:3;
   filter:drop-shadow(0 18px 30px rgba(80,45,0,.35))}
 
-/*  El reproductor, delante de todo.  */
-.cx-barra{position:absolute;z-index:4;left:50%;bottom:16%;transform:translateX(-50%);
-  width:min(52%,560px);border-radius:30px;padding:26px 30px;
+/*  El reproductor va SOBRE las piernas del chico, como en la foto original:
+    centrado en el, no en la pantalla. Puesto en medio quedaba detras de la
+    fila de tarjetas del carrusel y no se veia.                            */
+.cx-barra{position:absolute;z-index:4;right:2%;bottom:26%;
+  width:min(44%,500px);border-radius:26px;padding:20px 26px;
   background:linear-gradient(160deg,rgba(255,255,255,.46),rgba(255,255,255,.30));
   border:1px solid rgba(255,255,255,.5);
   box-shadow:0 20px 50px -22px rgba(70,40,0,.55);
-  display:flex;flex-direction:column;align-items:center;gap:20px}
+  display:flex;flex-direction:column;align-items:center;gap:16px}
 .cx-m{display:flex;align-items:center;gap:38px;color:#fff}
 .cx-m svg{filter:drop-shadow(0 2px 6px rgba(70,40,0,.45))}
 .cx-l{width:100%;height:5px;border-radius:999px;background:rgba(255,255,255,.42);position:relative}
@@ -1543,8 +1545,8 @@ window.CobraPlan.iniciar({
   var fila = PAGOS.map(tarjeta).join('') + PAGOS.map(tarjeta).join('');
 
   //  Los pesos y los vistos que van saliendo, repartidos por la escena.
-  var CHISPAS = [['$','12%','52%','0s'],['✓','23%','38%','1.3s'],['$','34%','60%','2.6s'],
-                 ['✓','8%','30%','3.6s'],['$','44%','44%','4.4s'],['✓','29%','66%','5s']];
+  var CHISPAS = [['$','14%','44%','0s'],['✓','27%','34%','1.3s'],['$','39%','50%','2.6s'],
+                 ['✓','9%','28%','3.6s'],['$','50%','38%','4.4s'],['✓','33%','56%','5s']];
   var chispas = CHISPAS.map(function (c) {
     return '<span class="cx-ch" style="left:' + c[1] + ';top:' + c[2] + ';animation-delay:' + c[3] + '">' + c[0] + '</span>';
   }).join('');
