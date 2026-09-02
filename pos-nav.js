@@ -35,6 +35,18 @@
       i: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/>' },
     { t: 'Chat IA', h: 'chat-ia.html',
       i: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>' },
+    /* MARKETING — hoy SOLO para el administrador de la plataforma. Nace
+       escondida por lo mismo que "Mi pagina web": si naciera visible, cada
+       restaurante la veria el instante que tarda la consulta y ya estaria
+       preguntando por una funcion que todavia no existe.
+
+       No es una funcion de plan todavia porque Meta aun no aprueba los
+       permisos de publicar y de leer estadisticas: hasta que lo haga, la
+       pantalla es una maqueta para probar el recorrido y para grabar los
+       videos que Meta pide. Cuando aprueben, esto pasa a ser un candado de
+       plan normal y entra en Pro. */
+    { t: 'Marketing', h: 'marketing.html', id: 'nav-marketing', soloPlataforma: true,
+      i: '<path d="M3 11 21 4l-7 17-2.5-7.5L3 11z"/>' },
     /* SOLO PARA EL ADMINISTRADOR DE LA PLATAFORMA. Nace oculto a propósito: si
        naciera visible, cada restaurante lo vería el instante que tarda la
        consulta, y ya estaría preguntando por una función que no vendemos. */
@@ -149,6 +161,8 @@
       if (r && r.data === true) {
         var a = document.getElementById('nav-pagina-web');
         if (a) a.style.display = '';
+        var mk = document.getElementById('nav-marketing');
+        if (mk) mk.style.display = '';
       }
     }).catch(function () { estado(false); });
   }

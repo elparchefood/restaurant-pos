@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Marketing — Cobra POS</title>
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/brand/favicon-192.png">
+  <link rel="apple-touch-icon" href="assets/brand/favicon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="marketing.css?v=1799200000">
+</head>
+<body>
+<div class="lm-app">
+  <aside class="lm-side">
+    <a class="lm-brand" href="dashboard.html" style="text-decoration:none;color:inherit"><div class="lm-brand-logo" style="background:transparent;box-shadow:none;padding:0;overflow:hidden"><img src="assets/brand/cobra-logo.png?v=2" alt="Cobra POS" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block"></div><div><div class="lm-brand-name">Cobra POS</div><div class="lm-brand-sub" id="mk-sede">Marketing</div></div></a>
+    <div class="lm-side-section">Operación</div>
+    <nav class="lm-navlist">
+      <a class="lm-nav" href="dashboard.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Escritorio</a>
+      <a class="lm-nav" href="ventas.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Ventas</a>
+      <a class="lm-nav" href="domicilios.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8 12 3 3 8v8l9 5 9-5Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg>Domicilios</a>
+      <a class="lm-nav" href="reservas.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Reservas</a>
+      <a class="lm-nav" href="caja.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Caja</a>
+    </nav>
+    <div class="lm-side-section">Crecimiento</div>
+    <nav class="lm-navlist">
+      <a class="lm-nav on" href="marketing.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11 21 4l-7 17-2.5-7.5L3 11Z"/></svg>Marketing</a>
+      <a class="lm-nav" href="chat-ia.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>Chat IA</a>
+    </nav>
+    <div class="lm-side-section">Sistema</div>
+    <nav class="lm-navlist">
+      <a class="lm-nav" href="informes.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m7 14 3-3 3 3 4-6"/></svg>Informes</a>
+      <a class="lm-nav" href="configuracion.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 9.4a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82-1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9H20a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>Configuración</a>
+    </nav>
+    <div class="lm-side-grow"></div>
+    <div class="lm-side-foot">
+      <button class="cc-btn-ai ghost js-open-ai" style="width:100%;justify-content:center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>Ideas de contenido con IA</button>
+    </div>
+  </aside>
+
+  <main class="lm-main">
+    <div class="lm-topbar">
+      <div class="lm-top-left">
+        <span class="lm-modebadge"><span class="lm-mode-dot"></span>3 cuentas conectadas</span>
+        <div class="lm-crumbs"><span class="lm-crumb-mut">Crecimiento</span><span>/</span><span class="lm-crumb-on" id="crumb">Marketing · Resumen</span></div>
+      </div>
+      <div class="lm-top-right">
+        <span class="lm-pill-success">● En línea</span>
+        <span class="lm-ram">Sede <strong>Centro</strong></span>
+        <div class="lm-user"><div class="lm-user-av">VM</div><div><div class="lm-user-name">Valentina M.</div><div class="lm-user-role">Administrador</div></div></div>
+      </div>
+    </div>
+
+    <div class="lm-pagehead">
+      <div><div class="lm-eyebrow">Crecimiento</div><h1 class="lm-pagetitle">Marketing</h1></div>
+      <div class="lm-head-actions">
+        <div class="cc-seg" id="range-seg">
+          <button data-range="7">7 días</button>
+          <button class="on" data-range="30">30 días</button>
+          <button data-range="90">90 días</button>
+        </div>
+        <button class="lm-btn-ghost js-toast" data-msg="Informe de marketing exportado"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M4 21h16"/></svg>Exportar</button>
+        <button class="lm-btn-primary js-open-drawer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Programar publicación</button>
+      </div>
+    </div>
+
+    <div class="lm-tabsrow">
+      <button class="cc-tab on" data-screen="resumen" data-crumb="Marketing · Resumen">Resumen</button>
+      <button class="cc-tab" data-screen="calendario" data-crumb="Marketing · Calendario">Calendario <span class="cc-tab-n">12</span></button>
+      <button class="cc-tab" data-screen="autos" data-crumb="Marketing · Automatizaciones">Automatizaciones <span class="cc-tab-n">5</span></button>
+      <button class="cc-tab" data-screen="cuentas" data-crumb="Marketing · Cuentas">Cuentas <span class="cc-tab-n">3</span></button>
+    </div>
+
+    <!-- ===================== RESUMEN ===================== -->
+    <section class="screen on" id="screen-resumen" data-screen-label="Resumen">
+      <div class="lm-body">
+        <div class="mkd">
+          <div class="mkd-row1">
+            <div class="mkd-card mkd-stats">
+              <div class="mkd-kpis">
+                <div class="mkd-kpi"><div class="mkd-lbl">Vistas del mes</div><div class="mkd-val">184.320</div></div>
+                <div class="mkd-kpi"><div class="mkd-lbl">Vistas convertidas en clientes</div><div class="mkd-val">1.462</div></div>
+                <div class="mkd-kpi"><div class="mkd-lbl">Tiempo medio de respuesta</div><div class="mkd-val">42 <small>s</small></div></div>
+              </div>
+              <div class="mkd-months">
+                <div class="mkd-month"><span>Jun</span><div class="mkd-track"><div class="mkd-fill" style="width:52%"></div></div></div>
+                <div class="mkd-month"><span>Jul</span><div class="mkd-track"><div class="mkd-fill" style="width:66%"></div></div></div>
+                <div class="mkd-month"><span>Ago</span><div class="mkd-track"><div class="mkd-fill" style="width:100%"></div></div></div>
+                <div class="mkd-month"><span>Sep</span><div class="mkd-track"><div class="mkd-fill soft" style="width:9%"></div></div></div>
+              </div>
+              <div class="mkd-clusters">
+                <div class="mkd-cluster"><div class="mkd-avs"><span class="mkd-av ig">IG</span><span class="mkd-av tt">TT</span><span class="mkd-av fb">FB</span><span class="mkd-av more">+4</span></div><div class="mkd-cluster-lbl">12 publicaciones</div></div>
+                <div class="mkd-cluster"><div class="mkd-avs"><span class="mkd-av ig">IG</span><span class="mkd-av tt">TT</span><span class="mkd-av more">+2</span></div><div class="mkd-cluster-lbl">9 publicaciones</div></div>
+                <div class="mkd-cluster"><div class="mkd-avs"><span class="mkd-av tt">TT</span><span class="mkd-av ig">IG</span></div><div class="mkd-cluster-lbl">2 programadas</div></div>
+              </div>
+            </div>
+
+            <div class="mkd-card mkd-payout">
+              <div class="mkd-payout-head"><div class="mkd-lbl">Ventas atribuidas al contenido</div><button class="mkd-arrow js-toast" data-msg="Abriendo informe de atribución"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M7 17 17 7M9 7h8v8"/></svg></button></div>
+              <div class="mkd-payout-row"><div class="mkd-val big">$ 214.390.000</div><button class="mkd-ghost-pill js-toast" data-msg="Proyección del trimestre">Proyección</button></div>
+              <div class="mkd-tiles">
+                <div class="mkd-tile"><div class="mkd-tile-n">9.420</div><div class="mkd-tile-s">Facebook</div></div>
+                <div class="mkd-tile on"><div class="mkd-tile-n">24.180</div><div class="mkd-tile-s">Instagram</div></div>
+                <div class="mkd-tile"><div class="mkd-tile-n">18.640</div><div class="mkd-tile-s">TikTok</div></div>
+                <button class="mkd-white-pill js-toast" data-msg="Programando publicación destacada">Programar ahora</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mkd-filters">
+            <span class="mkd-filters-lbl">Filtros activos <span class="mkd-info">i</span></span>
+            <select class="mkd-select"><option>Todas las cuentas</option><option>Instagram</option><option>TikTok</option><option>Facebook</option></select>
+            <select class="mkd-select"><option>Todos los formatos</option><option>Reel</option><option>Carrusel</option><option>Historia</option></select>
+            <div class="mkd-date"><span>1 ago 2026</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div>
+            <div class="mkd-date"><span>31 ago 2026</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div>
+            <div class="mkd-search"><input placeholder="Buscar publicación" /><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg></div>
+          </div>
+
+          <div class="mkd-row2">
+            <div class="mkd-card mkd-list">
+              <div class="mkd-list-head">
+                <div class="mkd-card-title">Publicaciones</div>
+                <div class="mkd-pills">
+                  <button class="mkd-pill">Todas</button>
+                  <button class="mkd-pill">Borradores</button>
+                  <button class="mkd-pill on">Publicadas <span>18</span></button>
+                </div>
+                <div class="mkd-icons">
+                  <button class="mkd-icon js-toast" data-msg="Vista en cuadrícula"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+                  <button class="mkd-icon js-toast" data-msg="Más opciones"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div>
+              </div>
+              <div id="post-list"></div>
+            </div>
+            <div class="mkd-card mkd-detail" id="post-detail"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== CALENDARIO ===================== -->
+    <section class="screen" id="screen-calendario" data-screen-label="Calendario">
+      <div class="lm-filterrow">
+        <button class="cc-fchip on">Todas <span>12</span></button>
+        <button class="cc-fchip">Instagram <span>6</span></button>
+        <button class="cc-fchip">TikTok <span>4</span></button>
+        <button class="cc-fchip">Facebook <span>2</span></button>
+        <button class="cc-fchip">Borradores <span>3</span></button>
+      </div>
+      <div class="lm-body" style="display:flex;flex-direction:column;padding-bottom:18px">
+        <div class="mk-calbar">
+          <div class="mk-week">
+            <button class="lm-btn-ghost sm">Esta semana</button>
+            <button class="lm-icon-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m15 18-6-6 6-6"/></svg></button>
+            <span class="mk-week-lbl">31 ago — 6 sep, 2026</span>
+            <button class="lm-icon-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m9 18 6-6-6-6"/></svg></button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="lm-btn-ghost sm js-toast" data-msg="Mejores horas resaltadas en el calendario"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Mejores horas</button>
+            <div class="cc-seg" id="cal-seg">
+              <button class="on">Semana</button>
+              <button>Mes</button>
+              <button>Lista</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="mk-cal" id="cal">
+          <div class="mk-cal-head" id="cal-head"></div>
+          <div class="mk-cal-scroll">
+            <div class="mk-cal-grid" id="cal-grid"></div>
+          </div>
+        </div>
+
+        <div class="mk-panel mk-queue">
+          <div class="mk-panel-head"><div class="mk-panel-title">Borradores sin fecha</div><span class="mk-sub">3 videos listos para arrastrar al calendario</span></div>
+          <div class="mk-queue-list">
+            <div class="mk-qcard js-open-drawer">
+              <div class="mk-thumb"></div>
+              <div class="mk-post-main"><div class="mk-post-title">Trend: ordenando con los ojos cerrados</div><div class="mk-post-meta"><span>Video 0:24</span><span>·</span><span>Sugerido: sáb 13:00</span></div></div>
+            </div>
+            <div class="mk-qcard js-open-drawer">
+              <div class="mk-thumb"></div>
+              <div class="mk-post-main"><div class="mk-post-title">Reserva para grupos — 10% de descuento</div><div class="mk-post-meta"><span>Carrusel 4 piezas</span><span>·</span><span>Sugerido: jue 11:00</span></div></div>
+            </div>
+            <div class="mk-qcard js-open-drawer">
+              <div class="mk-thumb"></div>
+              <div class="mk-post-main"><div class="mk-post-title">Testimonio: el cliente de los martes</div><div class="mk-post-meta"><span>Video 0:41</span><span>·</span><span>Sugerido: mar 19:00</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== AUTOMATIZACIONES ===================== -->
+    <section class="screen" id="screen-autos" data-screen-label="Automatizaciones">
+      <div class="lm-filterrow">
+        <button class="cc-fchip on">Todas <span>5</span></button>
+        <button class="cc-fchip">Activas <span>4</span></button>
+        <button class="cc-fchip">En pausa <span>1</span></button>
+        <button class="cc-fchip">Comentarios <span>3</span></button>
+        <button class="cc-fchip">Mensajes directos <span>2</span></button>
+      </div>
+      <div class="lm-body">
+        <div class="mk-kpis" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+          <div class="mk-kpi"><div class="mk-kpi-lbl">Comentarios respondidos</div><div class="mk-kpi-val">2.641</div><div class="mk-kpi-foot">85% del total · 30 días</div></div>
+          <div class="mk-kpi"><div class="mk-kpi-lbl">Tiempo medio de respuesta</div><div class="mk-kpi-val">42 s</div><div class="mk-kpi-foot"><span class="mk-delta up">▼ 6 h</span> antes: 6 h 20 min</div></div>
+          <div class="mk-kpi"><div class="mk-kpi-lbl">Escalados a un humano</div><div class="mk-kpi-val">184</div><div class="mk-kpi-foot">7% de las respuestas</div></div>
+          <div class="mk-kpi"><div class="mk-kpi-lbl">Pedidos desde comentarios</div><div class="mk-kpi-val">211</div><div class="mk-kpi-foot">$ 8.9M en ventas</div></div>
+        </div>
+
+        <div class="mk-secthead"><div class="mk-secttitle">Reglas</div><button class="lm-btn-ghost sm js-open-rule"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Nueva automatización</button></div>
+
+        <div class="mk-autogrid">
+          <div class="mk-auto">
+            <div class="mk-auto-top">
+              <div><div class="mk-auto-title">Preguntas de precio</div><div class="mk-auto-sub">Comentarios · Instagram, TikTok</div></div>
+              <button class="mk-switch cc-switch on js-switch"><span class="cc-switch-track"><span class="cc-switch-knob"></span></span><span class="mk-switch-lbl">Activa</span></button>
+            </div>
+            <div class="mk-rule">
+              <div class="mk-rule-line"><span class="mk-rule-k">Si</span><div class="mk-tags"><span class="mk-tag">precio</span><span class="mk-tag">cuánto</span><span class="mk-tag">vale</span><span class="mk-tag">$</span><span class="mk-tag">cuanto cuesta</span></div></div>
+              <div class="mk-rule-line"><span class="mk-rule-k">Responde</span><div class="mk-reply">¡Hola! La Burger Parche está en $ 28.900 y el combo en $ 36.500. Te dejamos el menú completo por mensaje directo.</div></div>
+              <div class="mk-rule-line"><span class="mk-rule-k">Luego</span><span class="mk-rule-v">Envía el menú por mensaje directo y etiqueta al cliente como <strong>interesado</strong>.</span></div>
+            </div>
+            <div class="mk-auto-foot">
+              <div class="mk-auto-stats"><div class="mk-auto-stat"><b>1.284</b><span>respuestas</span></div><div class="mk-auto-stat"><b>96</b><span>pedidos</span></div></div>
+              <button class="lm-btn-ghost sm js-open-rule">Editar</button>
+            </div>
+          </div>
+
+          <div class="mk-auto">
+            <div class="mk-auto-top">
+              <div><div class="mk-auto-title">Pedido por comentario</div><div class="mk-auto-sub">Comentarios · Instagram</div></div>
+              <button class="mk-switch cc-switch on js-switch"><span class="cc-switch-track"><span class="cc-switch-knob"></span></span><span class="mk-switch-lbl">Activa</span></button>
+            </div>
+            <div class="mk-rule">
+              <div class="mk-rule-line"><span class="mk-rule-k">Si</span><div class="mk-tags"><span class="mk-tag">quiero</span><span class="mk-tag">pedido</span><span class="mk-tag">domicilio</span><span class="mk-tag">PARCHE2</span></div></div>
+              <div class="mk-rule-line"><span class="mk-rule-k">Responde</span><div class="mk-reply">¡Listo! Te escribimos por mensaje directo con el link para pedir. El código PARCHE2 ya queda aplicado.</div></div>
+              <div class="mk-rule-line"><span class="mk-rule-k">Luego</span><span class="mk-rule-v">Crea el cliente en el POS y abre una conversación en la bandeja.</span></div>
+            </div>
+            <div class="mk-auto-foot">
+              <div class="mk-auto-stats"><div class="mk-auto-stat"><b>642</b><span>respuestas</span></div><div class="mk-auto-stat"><b>115</b><span>pedidos</span></div></div>
+              <button class="lm-btn-ghost sm js-open-rule">Editar</button>
+            </div>
+          </div>
+
+          <div class="mk-auto">
+            <div class="mk-auto-top">
+              <div><div class="mk-auto-title">Horario y ubicación</div><div class="mk-auto-sub">Comentarios y mensajes · las 3 cuentas</div></div>
+              <button class="mk-switch cc-switch on js-switch"><span class="cc-switch-track"><span class="cc-switch-knob"></span></span><span class="mk-switch-lbl">Activa</span></button>
+            </div>
+            <div class="mk-rule">
+              <div class="mk-rule-line"><span class="mk-rule-k">Si</span><div class="mk-tags"><span class="mk-tag">horario</span><span class="mk-tag">abren</span><span class="mk-tag">dónde</span><span class="mk-tag">dirección</span><span class="mk-tag">sede</span></div></div>
+              <div class="mk-rule-line"><span class="mk-rule-k">Responde</span><div class="mk-reply">Abrimos de martes a domingo, 11:00 a 22:00. Estamos en la Cra. 70 #C2-30, Laureles. ¡Te esperamos!</div></div>
+              <div class="mk-rule-line"><span class="mk-rule-k">Luego</span><span class="mk-rule-v">Marca el comentario como atendido.</span></div>
+            </div>
+            <div class="mk-auto-foot">
+              <div class="mk-auto-stats"><div class="mk-auto-stat"><b>489</b><span>respuestas</span></div><div class="mk-auto-stat"><b>—</b><span>pedidos</span></div></div>
+              <button class="lm-btn-ghost sm js-open-rule">Editar</button>
+            </div>
+          </div>
+
+          <div class="mk-auto">
+            <div class="mk-auto-top">
+              <div><div class="mk-auto-title">Quejas y reclamos</div><div class="mk-auto-sub">Comentarios · las 3 cuentas · escala a humano</div></div>
+              <button class="mk-switch cc-switch on js-switch"><span class="cc-switch-track"><span class="cc-switch-knob"></span></span><span class="mk-switch-lbl">Activa</span></button>
+            </div>
+            <div class="mk-rule">
+              <div class="mk-rule-line"><span class="mk-rule-k">Si</span><div class="mk-tags"><span class="mk-tag">frío</span><span class="mk-tag">demorado</span><span class="mk-tag">malo</span><span class="mk-tag">reclamo</span><span class="mk-tag">no llegó</span></div></div>
+              <div class="mk-rule-line"><span class="mk-rule-k">Responde</span><div class="mk-reply">Lamentamos lo que pasó. Ya pasamos tu caso a un encargado, te escribimos por mensaje directo en unos minutos.</div></div>
+              <div class="mk-rule-line"><span class="mk-rule-k">Luego</span><span class="mk-rule-v">No oculta el comentario. Notifica al administrador y abre un caso en la bandeja.</span></div>
+            </div>
+            <div class="mk-auto-foot">
+              <div class="mk-auto-stats"><div class="mk-auto-stat"><b>142</b><span>respuestas</span></div><div class="mk-auto-stat"><b>128</b><span>escalados</span></div></div>
+              <button class="lm-btn-ghost sm js-open-rule">Editar</button>
+            </div>
+          </div>
+
+          <div class="mk-auto">
+            <div class="mk-auto-top">
+              <div><div class="mk-auto-title">Filtro de spam y ofensas</div><div class="mk-auto-sub">Comentarios · las 3 cuentas</div></div>
+              <button class="mk-switch cc-switch js-switch"><span class="cc-switch-track"><span class="cc-switch-knob"></span></span><span class="mk-switch-lbl">En pausa</span></button>
+            </div>
+            <div class="mk-rule">
+              <div class="mk-rule-line"><span class="mk-rule-k">Si</span><div class="mk-tags"><span class="mk-tag">enlaces externos</span><span class="mk-tag">seguidores gratis</span><span class="mk-tag">lista de ofensas</span></div></div>
+              <div class="mk-rule-line"><span class="mk-rule-k">Acción</span><span class="mk-rule-v">Oculta el comentario sin responder y registra la cuenta emisora.</span></div>
+              <div class="mk-rule-line"><span class="mk-rule-k">Luego</span><span class="mk-rule-v">Informe semanal al administrador.</span></div>
+            </div>
+            <div class="mk-auto-foot">
+              <div class="mk-auto-stats"><div class="mk-auto-stat"><b>84</b><span>ocultados</span></div><div class="mk-auto-stat"><b>0</b><span>errores</span></div></div>
+              <button class="lm-btn-ghost sm js-open-rule">Editar</button>
+            </div>
+          </div>
+
+          <button class="cc-add-tile js-open-rule" style="min-height:200px;flex-direction:column;gap:8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            <span style="font-size:12.5px;font-weight:700;color:#64748B;">Nueva automatización</span>
+            <span style="font-size:11px;color:#94A3B8;">Palabras clave, respuesta y acción en el POS</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== CUENTAS ===================== -->
+    <section class="screen" id="screen-cuentas" data-screen-label="Cuentas">
+      <div class="lm-body">
+        <div class="mk-autogrid">
+          <div class="mk-auto">
+            <div class="mk-auto-top">
+              <div class="mk-net"><div class="mk-net-badge ig">IG</div><div><div class="mk-auto-title">Instagram</div><div class="mk-auto-sub">@elparchefood · cuenta de empresa</div></div></div>
+              <span class="lm-pill-success">● Conectada</span>
+            </div>
+            <div class="mk-health" style="justify-content:flex-start"><div class="mk-health-bar" style="width:100%"><div class="mk-health-fill" style="width:92%"></div></div><span class="mk-health-n">92</span></div>
+            <div>
+              <div class="mk-kv"><span class="mk-kv-k">Seguidores</span><span class="mk-kv-v">24.180 <span class="mk-delta up">▲ 1.240</span></span></div>
+              <div class="mk-kv"><span class="mk-kv-k">Alcance 30 días</span><span class="mk-kv-v">96.410</span></div>
+              <div class="mk-kv"><span class="mk-kv-k">Interacción</span><span class="mk-kv-v">15,2%</span></div>
+              <div class="mk-kv"><span class="mk-kv-k">Comentarios sin responder</span><span class="mk-kv-v">12</span></div>
+              <div class="mk-kv"><span class="mk-kv-k">Publicaciones programadas</span><span class="mk-kv-v">6</span></div>
+              <div class="mk-kv"><span class="mk-kv-k">Permiso vence</span><span class="mk-kv-v">14 nov 2026</span></div>
+            </div>
+            <div class="mk-auto-foot"><span class="mk-sub">Última sincronización: hace 4 min</span><button class="lm-btn-ghost sm js-toast" data-msg="Sincronizando Instagram…">Sincronizar</button></div>
+          </div>
+
+          <div class="mk-auto">
+            <div class="mk-auto-top">
+              <div class="mk-net"><div class="mk-net-badge tt">TT</div><div><div class="mk-auto-title">TikTok</div><div class="mk-auto-sub">@elparchefood · cuenta business</div></div></div>
+              <span style="font-size:11px;font-weight:700;color:var(--warn);background:var(--warn-tint);padding:5px 10px;border-radius:var(--pill);">● Requiere atención</span>
+            </div>
+            <div class="mk-health" style="justify-content:flex-start"><div class="mk-health-bar" style="width:100%"><div class="mk-health-fill warn" style="width:71%"></div></div><span class="mk-health-n">71</span></div>
+            <div>
+              <div class="mk-kv"><span class="mk-kv-k">Seguidores</span><span class="mk-kv-v">18.640 <span class="mk-delta up">▲ 2.910</span></span></div>
+              <div class="mk-kv"><span class="mk-kv-k">Alcance 30 días</span><span class="mk-kv-v">71.860</span></div>
+              <div class="mk-kv"><span class="mk-kv-k">Interacción</span><span class="mk-kv-v">14,1%</span></div>
+              <div class="mk-kv"><span class="mk-kv-k">Comentarios sin responder</span><span class="mk-kv-v" style="color:var(--warn)">148</span></div>
+              <div class="mk-kv"><span class="mk-kv-k">Publicaciones programadas</span><span class="mk-kv-v">4</span></div>
+              <div class="mk-kv"><span class="mk-kv-k">Permiso vence</span><span class="mk-kv-v">2 oct 2026</span></div>
+            </div>
+            <div class="mk-auto-foot"><span class="mk-sub">Última sincronización: hace 11 min</span><button class="lm-btn-ghost sm js-goto" data-screen="autos">Ver automatizaciones</button></div>
+          </div>
+
+          <div class="mk-auto">
+            <div class="mk-auto-top">
+              <div class="mk-net"><div class="mk-net-badge">FB</div><div><div class="mk-auto-title">Facebook</div><div class="mk-auto-sub">El Parche Food · página</div></div></div>
+              <span style="font-size:11px;font-weight:700;color:var(--danger);background:var(--danger-tint);border:1px solid var(--danger-border);padding:4px 9px;border-radius:var(--pill);">● Desconectada</span>
+            </div>
+            <div class="mk-health" style="justify-content:flex-start"><div class="mk-health-bar" style="width:100%"><div class="mk-health-fill danger" style="width:48%"></div></div><span class="mk-health-n">48</span></div>
+            <div>
+              <div class="mk-kv"><span class="mk-kv-k">Seguidores</span><span class="mk-kv-v">9.420 <span class="mk-delta flat">= 0</span></span></div>
+              <div class="mk-kv"><span class="mk-kv-k">Alcance 30 días</span><span class="mk-kv-v">16.050</span></div>
+              <div class="mk-kv"><span class="mk-kv-k">Interacción</span><span class="mk-kv-v">9,8%</span></div>
+              <div class="mk-kv"><span class="mk-kv-k">Comentarios sin responder</span><span class="mk-kv-v">31</span></div>
+              <div class="mk-kv"><span class="mk-kv-k">Publicaciones en pausa</span><span class="mk-kv-v" style="color:var(--danger)">2</span></div>
+              <div class="mk-kv"><span class="mk-kv-k">Permiso</span><span class="mk-kv-v" style="color:var(--danger)">Vencido el 28 ago</span></div>
+            </div>
+            <div class="mk-auto-foot"><span class="mk-sub">Sin sincronizar desde el 28 ago</span><button class="lm-btn-primary js-toast" data-msg="Abriendo el permiso de Facebook…" style="padding:6px 11px;font-size:11.5px;">Reconectar</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- DRAWER · programar publicación -->
+<div class="cc-overlay" id="drawer-post" hidden>
+  <aside class="cc-drawer">
+    <div class="mk-dw-head">
+      <div><div class="mk-dw-title">Programar publicación</div><div class="mk-dw-sub">Se publica automáticamente en las cuentas seleccionadas</div></div>
+      <button class="lm-icon-sm js-close" data-close="drawer-post"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="mk-dw-body">
+      <div class="mk-field">
+        <label class="mk-label">Cuentas</label>
+        <div class="mk-netpick">
+          <button class="mk-netopt on js-netopt"><span class="mk-net-badge ig">IG</span><span class="mk-netopt-n">Instagram</span></button>
+          <button class="mk-netopt on js-netopt"><span class="mk-net-badge tt">TT</span><span class="mk-netopt-n">TikTok</span></button>
+          <button class="mk-netopt js-netopt"><span class="mk-net-badge">FB</span><span class="mk-netopt-n">Facebook</span></button>
+        </div>
+        <span class="mk-hint">Facebook está desconectada: la publicación quedará en pausa hasta reconectar.</span>
+      </div>
+      <div class="mk-field">
+        <label class="mk-label">Video o imágenes</label>
+        <div class="mk-drop"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><span class="mk-drop-t">Arrastra el video aquí</span><span class="mk-drop-s">mp4 vertical 9:16 · máx 90 s</span></div>
+      </div>
+      <div class="mk-field">
+        <label class="mk-label">Título interno</label>
+        <input class="cc-input" placeholder="Domicilio en 18 minutos: el recorrido" />
+      </div>
+      <div class="mk-field">
+        <label class="mk-label">Descripción</label>
+        <textarea class="mk-textarea" placeholder="Escribe el texto de la publicación. Usa #hashtags y menciona el código de descuento si aplica."></textarea>
+        <span class="mk-hint">0 / 2.200 caracteres · el texto se adapta por red al publicar</span>
+      </div>
+      <div class="mk-aibox">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
+        <div><div class="mk-aibox-t">Escribir con IA</div><div class="mk-aibox-d">Genera la descripción y los hashtags a partir del producto del catálogo y de lo que mejor funcionó este mes.</div><button class="cc-btn-ai ghost js-toast" data-msg="Generando descripción con IA…" style="margin-top:9px;padding:6px 11px;font-size:11.5px;">Generar propuesta</button></div>
+      </div>
+      <div class="mk-row2">
+        <div class="mk-field"><label class="mk-label">Fecha</label><input class="cc-input" type="date" value="2026-09-04" /></div>
+        <div class="mk-field"><label class="mk-label">Hora</label><input class="cc-input" type="time" value="19:00" /></div>
+      </div>
+      <span class="mk-hint" style="margin-top:-6px">Mejor hora sugerida para Instagram: 19:00 (según los últimos 90 días).</span>
+      <div class="mk-field">
+        <label class="mk-label">Producto o promoción vinculada</label>
+        <select class="cc-input">
+          <option>Sin vincular</option>
+          <option selected>Burger Parche — $ 28.900</option>
+          <option>Combo alitas 2x1 — código PARCHE2</option>
+          <option>Domicilio gratis Laureles</option>
+        </select>
+        <span class="mk-hint">Permite atribuir vistas, clientes y pedidos a esta publicación.</span>
+      </div>
+      <div class="mk-field">
+        <label class="mk-label">Automatización de comentarios</label>
+        <select class="cc-input">
+          <option selected>Aplicar todas las reglas activas</option>
+          <option>Solo preguntas de precio</option>
+          <option>Solo pedido por comentario</option>
+          <option>No responder automáticamente</option>
+        </select>
+      </div>
+    </div>
+    <div class="mk-dw-foot">
+      <button class="lm-btn-ghost js-close" data-close="drawer-post">Guardar borrador</button>
+      <div style="display:flex;gap:8px">
+        <button class="lm-btn-ghost js-close" data-close="drawer-post">Cancelar</button>
+        <button class="lm-btn-primary js-save" data-close="drawer-post" data-msg="Publicación programada para el vie 4 sep, 19:00">Programar</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- MODAL · nueva automatización -->
+<div class="cc-overlay center" id="modal-rule" hidden>
+  <div class="cc-modal">
+    <div class="mk-dw-head">
+      <div><div class="mk-dw-title">Nueva automatización</div><div class="mk-dw-sub">Responde comentarios y mensajes sin intervención manual</div></div>
+      <button class="lm-icon-sm js-close" data-close="modal-rule"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="mk-dw-body">
+      <div class="mk-row2">
+        <div class="mk-field"><label class="mk-label">Nombre de la regla</label><input class="cc-input" placeholder="Preguntas por domicilio" /></div>
+        <div class="mk-field"><label class="mk-label">Se aplica en</label><select class="cc-input"><option selected>Comentarios</option><option>Mensajes directos</option><option>Comentarios y mensajes</option></select></div>
+      </div>
+      <div class="mk-field">
+        <label class="mk-label">Cuentas</label>
+        <div class="mk-netpick">
+          <button class="mk-netopt on js-netopt"><span class="mk-net-badge ig">IG</span><span class="mk-netopt-n">Instagram</span></button>
+          <button class="mk-netopt on js-netopt"><span class="mk-net-badge tt">TT</span><span class="mk-netopt-n">TikTok</span></button>
+          <button class="mk-netopt js-netopt"><span class="mk-net-badge">FB</span><span class="mk-netopt-n">Facebook</span></button>
+        </div>
+      </div>
+      <div class="mk-field">
+        <label class="mk-label">Palabras clave que activan la respuesta</label>
+        <input class="cc-input" placeholder="domicilio, envían, llevan, cuánto demora" />
+        <span class="mk-hint">Separadas por coma. No distingue mayúsculas ni tildes.</span>
+      </div>
+      <div class="mk-field">
+        <label class="mk-label">Respuesta pública</label>
+        <textarea class="mk-textarea" placeholder="Sí, llevamos a domicilio en Laureles y alrededores. Pide por el link del perfil."></textarea>
+      </div>
+      <div class="mk-field">
+        <label class="mk-label">Acción en el POS</label>
+        <select class="cc-input"><option selected>Enviar mensaje directo con el menú</option><option>Crear cliente y abrir conversación</option><option>Escalar a un encargado</option><option>Ocultar el comentario</option><option>Solo responder</option></select>
+      </div>
+      <div class="mk-field">
+        <label class="mk-label">Límites</label>
+        <div class="mk-row2">
+          <select class="cc-input"><option selected>Máx. 1 respuesta por persona y publicación</option><option>Sin límite</option></select>
+          <select class="cc-input"><option selected>Todo el día</option><option>Solo en horario de atención</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="mk-dw-foot">
+      <span class="mk-sub">Puedes probarla con un comentario de ejemplo antes de activarla.</span>
+      <div style="display:flex;gap:8px">
+        <button class="lm-btn-ghost js-close" data-close="modal-rule">Cancelar</button>
+        <button class="lm-btn-primary js-save" data-close="modal-rule" data-msg="Automatización creada y activada">Crear y activar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · ideas con IA -->
+<div class="cc-overlay center" id="modal-ai" hidden>
+  <div class="cc-modal" style="width:560px">
+    <div class="mk-dw-head">
+      <div><div class="mk-dw-title">Ideas de contenido con IA</div><div class="mk-dw-sub">A partir de tus ventas, tu catálogo y lo que rindió este mes</div></div>
+      <button class="lm-icon-sm js-close" data-close="modal-ai"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="mk-dw-body">
+      <div class="mk-aibox">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
+        <div><div class="mk-aibox-t">Los videos de proceso convierten 3 veces más</div><div class="mk-aibox-d">Tus reels de cocina generan 318 clientes por cada 40 mil vistas. Los de producto estático, 61.</div></div>
+      </div>
+      <div class="mk-field">
+        <label class="mk-label">Propuestas para la próxima semana</label>
+        <div class="mk-panel">
+          <div class="mk-postrow"><div class="mk-post-main"><div class="mk-post-title">Cómo se hace la salsa de la casa</div><div class="mk-post-meta"><span>Reel 0:30 · IG + TT</span><span>·</span><span>vie 19:00</span></div></div><button class="lm-btn-ghost sm js-open-drawer">Programar</button></div>
+          <div class="mk-postrow"><div class="mk-post-main"><div class="mk-post-title">Sancocho de domingo: edición limitada</div><div class="mk-post-meta"><span>Reel 0:20 · TT</span><span>·</span><span>dom 13:30</span></div></div><button class="lm-btn-ghost sm js-open-drawer">Programar</button></div>
+          <div class="mk-postrow"><div class="mk-post-main"><div class="mk-post-title">El pedido más grande del mes</div><div class="mk-post-meta"><span>Carrusel · IG</span><span>·</span><span>mar 12:30</span></div></div><button class="lm-btn-ghost sm js-open-drawer">Programar</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="mk-dw-foot">
+      <button class="lm-btn-ghost js-close" data-close="modal-ai">Cerrar</button>
+      <button class="cc-btn-ai js-save" data-close="modal-ai" data-msg="3 propuestas guardadas como borradores">Guardar las 3 como borrador</button>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/supabase-2.js?v=1789520000"></script>
+<script src="pos-nucleo.js?v=1798911000"></script>
+<script src="marketing-guardia.js?v=1799200000"></script>
+<script src="marketing.js?v=1799200000"></script>
+</body>
+</html>
