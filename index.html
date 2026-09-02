@@ -493,6 +493,16 @@ a{color:inherit;text-decoration:none}
 .pc-brillo{position:absolute;inset:0;z-index:9;pointer-events:none;border-radius:5px;
   background:linear-gradient(103deg,rgba(255,255,255,.10) 0 18%,transparent 34%)}
 
+/*  EL GRUESO DE LA TAPA. Mismo truco que el canto de la base: una banda
+    pegada al borde de ARRIBA de la tapa, girada 90 grados respecto a ella.
+    Abierta se ve de canto —casi nada, que es lo correcto—; cerrada, ese
+    borde queda de frente y es donde se ve el grosor de la pantalla.     */
+.pc-tapa-canto{position:absolute;left:0;right:0;bottom:100%;height:9px;
+  transform-origin:50% 100%;transform:rotateX(90deg);
+  border-radius:11px 11px 0 0;
+  background:linear-gradient(180deg,#0B0F19,#1E2536 55%,#2A3145);
+  box-shadow:0 0 0 1px rgba(255,255,255,.05)}
+
 /*  La base: un plano TUMBADO que sale hacia quien mira desde la bisagra. Va
     fuera del flujo porque tumbado ocupa una franja mucho mas baja que su
     alto de verdad, y si no dejaria un hueco enorme debajo.               */
@@ -518,10 +528,18 @@ a{color:inherit;text-decoration:none}
 .pc-base::after{content:'';position:absolute;left:50%;transform:translateX(-50%);
   top:56%;width:26%;height:30%;border-radius:6px;               /* el tactil  */
   background:rgba(255,255,255,.035);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
-/*  el teclado son rayas: a este tamano dibujar tecla por tecla es ruido  */
-.pc-teclas{position:absolute;left:9%;right:9%;top:12%;height:38%;border-radius:4px;
-  background:repeating-linear-gradient(180deg,
-    rgba(255,255,255,.055) 0 3px,transparent 3px 8px)}
+/*  El teclado, tecla por tecla. No hay que dibujarlo en perspectiva: la
+    base ya es un plano girado, asi que las teclas se colocan en
+    coordenadas normales y la perspectiva se las aplica sola. Las filas las
+    escribe el guion, que son seis y setenta y pico teclas.              */
+.pc-teclas{position:absolute;left:7.5%;right:7.5%;top:8%;height:45%;
+  display:flex;flex-direction:column;gap:3px}
+.pc-fila{display:flex;gap:3px;flex:1}
+.pc-fila.fn{flex:.66}
+.pc-tec{flex:1;min-width:0;border-radius:3px;
+  background:linear-gradient(180deg,#222A3D 0%,#161C2B 62%,#111624);
+  box-shadow:inset 0 -1.5px 0 rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.055),
+             0 1px 1.5px rgba(0,0,0,.45)}
 
 .pc-sombra{position:absolute;left:6%;right:6%;top:calc(100% + 92px);height:26px;
   border-radius:50%;filter:blur(7px);
@@ -1933,6 +1951,7 @@ body{background:#FFFFFF}
   <div class="pc rev" id="pc">
     <div class="pc-cuerpo">
       <div class="pc-tapa">
+        <span class="pc-tapa-canto"></span>
         <span class="pc-camara"></span>
         <div class="pc-pantalla">
           <!--  El chat lo dibuja el guion; son las mismas clases .ch-* de la
@@ -3616,6 +3635,30 @@ window.CobraPlan.iniciar({
   var caja = document.getElementById('ch2');
   var pc   = document.getElementById('pc');
   if (!caja || !pc) return;
+
+  /*  ── EL TECLADO ────────────────────────────────────────────────────
+      Cada numero es lo que ocupa una tecla en su fila: 1 es una normal,
+      6.25 es la barra espaciadora. Van aqui y no en el HTML porque son
+      setenta y seis teclas y a mano seria una pared ilegible.          */
+  (function () {
+    var FILAS = [
+      [1,1,1,1,1,1,1,1,1,1,1,1,1],                                  // esc + F1..F12
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,2],                                // numeros + borrar
+      [1.5,1,1,1,1,1,1,1,1,1,1,1,1,1.5],                            // tab + QWERTY
+      [1.75,1,1,1,1,1,1,1,1,1,1,1,2.25],                            // bloq + ASDF + entrar
+      [2.25,1,1,1,1,1,1,1,1,1,1,2.75],                              // mayus + ZXCV
+      [1.25,1.25,1.25,6.25,1.25,1.25,1.25,1.25]                     // ctrl + espacio
+    ];
+    var t = pc.querySelector('.pc-teclas');
+    if (!t) return;
+    t.innerHTML = FILAS.map(function (fila, i) {
+      return '<span class="pc-fila' + (i === 0 ? ' fn' : '') + '">'
+        + fila.map(function (w) {
+            return '<span class="pc-tec" style="flex:' + w + '"></span>';
+          }).join('')
+        + '</span>';
+    }).join('');
+  })();
 
   var IC = {
     wa:    '<svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 0 0-8.5 15.3L2 22l4.8-1.3A10 10 0 1 0 12 2zm0 1.8a8.2 8.2 0 1 1-4.2 15.2l-.3-.2-2.9.8.8-2.8-.2-.3A8.2 8.2 0 0 1 12 3.8zm-2.8 4c-.2 0-.5.1-.6.3-.2.3-.8.8-.8 1.9s.8 2.2.9 2.3c.1.2 1.6 2.6 4 3.5 2 .8 2.4.7 2.8.6.4 0 1.3-.5 1.5-1 .2-.5.2-.9.1-1l-.6-.3s-1.3-.6-1.5-.7c-.2-.1-.4-.1-.5.1l-.7.9c-.1.1-.2.1-.4 0-.2 0-.9-.3-1.7-1-.6-.6-1-1.2-1.2-1.4-.1-.2 0-.3.1-.4l.3-.4.2-.4v-.3l-.7-1.7c-.1-.4-.3-.3-.4-.3h-.4z"/></svg>',
