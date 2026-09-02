@@ -16279,3 +16279,75 @@ día que se escriba código de servidor contra `pos_facturas` o
 exactamente igual de callado. No se tocaron: cambiar permisos en producción sin
 que haga falta es meter riesgo a cambio de nada, y ahora la regla del `res.ok`
 haría que se notara enseguida.
+
+
+---
+
+## 2026-09-02 · La landing: la portada y el simulador de la tablet
+
+### La portada mantiene el color
+
+Tres cosas la apagaban y las tres estaban en `index.html`:
+
+1. El velo (`.hero .velo`) iba **de lado a lado** (`93deg`), no de arriba
+   abajo: era igual de opaco arriba que abajo. Ahora es vertical — 6 % arriba
+   y 92 % abajo, que es donde se apoyan el titular y las tarjetas.
+2. El clon que vuela desde la tarjeta al cambiar de portada (`.carr-vuelo`)
+   se habia quedado con `grayscale(.55)` mientras la foto de fondo ya iba a
+   `.15`: la imagen volaba gris y "recuperaba el color" al aterrizar. Los dos
+   llevan ahora el mismo filtro.
+3. Las dos fotos se cruzaban **las dos a media opacidad**, y dos capas a
+   medias sobre negro dejan pasar menos luz que una entera. Ahora la que sale
+   se queda opaca por debajo y se apaga de golpe medio segundo despues.
+
+Y el acercamiento: encogia la portada ENTERA (`scale(.972)`), que con el fondo
+de la pagina en blanco deja ver los bordes. Ahora se acerca solo la foto y
+siempre por encima de 1 (`hfAcerca`, 105 % -> 100 %).
+
+### El simulador (seccion `#probar`, debajo del hero)
+
+Una tablet con el salon y la toma de pedido en miniatura, **tocable**: mesa ->
+categoria -> plato -> presentacion -> adiciones -> comanda -> enviar a cocina,
+y la mesa vuelve ocupada. Clases `.sim-*` (el bloque) y `.sm-*` (lo de dentro
+de la pantalla), todo en `index.html`.
+
+**No es un dibujo:** los colores, radios, sombras y proporciones salen de
+`styles/modules/ventas-salon.css` y de `tomar-pedido.css`. Los estados y sus
+colores son los de `modules/ventas-salon.js`. Si el POS cambia de aspecto,
+esto se queda viejo y hay que compararlo contra esos dos archivos.
+
+### Tres trampas que costaron sangre y que van a repetirse
+
+1. **`.sim-pant button` pesa (0,1,1) y le gana a cualquier `.sm-algo`
+   (0,1,0).** Un reset de botones escrito asi le borro a TODOS los botones del
+   simulador el fondo, el borde y el relleno; las tarjetas se quedaron en nada
+   y el boton azul salio blanco y partido en dos renglones. Va envuelto en
+   `:where(.sim-pant button)`, que no pesa nada.
+2. **Un `@media` o un `@container` colocado ANTES de la regla base no hace
+   nada**: pesan igual y gana la de abajo. Paso dos veces el mismo dia. El
+   guion que genera el bloque lleva una comprobacion que recorre el CSS y
+   avisa si vuelve a pasar.
+3. **`margin:0 auto` en una celda de rejilla la encoge a su contenido**, y su
+   contenido era `.sim-pant`, que con `container-type:inline-size` no se mide
+   por lo que lleva dentro: midio cero y en el movil la tablet quedo del
+   tamano de la camarita. Va `width:100%` + `justify-self:center`.
+
+### Lo demas del bloque
+
+- El aviso de "toca aqui" lleva cuatro senales a la vez (borde que late, mano
+  que toca con dos ondas, etiqueta, y lo de al lado apagado al 40 %). Con el
+  modal abierto, las rejas de detras NO marcan nada: un aviso suelto detras
+  iria primero en el orden del documento y se llevaria la senal a algo que ni
+  se puede tocar.
+- Tocar una presentacion **no rehace el modal**: rehacerlo volvia a disparar
+  su animacion de entrada y la pantalla pegaba un parpadeo como si recargara.
+  Hay repintado parcial (`pintarModal`, `refrescarPres`).
+- La tablet viene girada en los tres ejes y se endereza segun se acerca al
+  centro de la pantalla, con una meseta de +-26 % para que no se tuerza
+  mientras alguien la esta usando.
+
+### De paso
+
+`document.getElementById('q').addEventListener(...)` seguia en la landing
+despues de que se quitara la barra de busqueda: `#q` ya no existe y reventaba
+en **cada carga** de la pagina. Quitado.
