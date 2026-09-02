@@ -134,10 +134,16 @@ a{color:inherit;text-decoration:none}
 /* ═══════════ HERO — COLLAGE POR CAPAS ═══════════ */
 .hero{position:relative;min-height:104svh;overflow:hidden;padding-top:64px}
 .hero .fondo{position:absolute;inset:0;z-index:1}
-.hero .fondo .ph{width:100%;height:100%;filter:grayscale(.55) contrast(1.12)}
+.hero .fondo .ph{width:100%;height:100%;filter:grayscale(.15) contrast(1.06) saturate(1.06)}
 .hero .velo{position:absolute;inset:0;z-index:2;
-  background:linear-gradient(93deg,rgba(6,7,11,.97) 22%,rgba(6,7,11,.55) 58%,rgba(6,7,11,.86) 100%),
-  radial-gradient(90% 70% at 12% 12%,rgba(91,107,255,.4),transparent 62%),
+  background:
+  /*  De arriba abajo: arriba casi nada, para que se vea el color de la foto;
+      abajo opaco, que es donde se apoyan el titular y las tarjetas.        */
+  linear-gradient(180deg,rgba(6,7,11,.30) 0%,rgba(6,7,11,.06) 24%,
+                         rgba(6,7,11,.52) 62%,rgba(6,7,11,.92) 100%),
+  /*  Y algo por el lado izquierdo, que es donde cae el titular.            */
+  linear-gradient(93deg,rgba(6,7,11,.66) 20%,rgba(6,7,11,.12) 58%,rgba(6,7,11,.26) 100%),
+  radial-gradient(90% 70% at 12% 12%,rgba(91,107,255,.28),transparent 62%),
   linear-gradient(0deg,var(--neg) 1%,transparent 30%)}
 .hero .rejilla{position:absolute;inset:0;z-index:2;opacity:.16;pointer-events:none;
   background-image:linear-gradient(var(--linea) 1px,transparent 1px),linear-gradient(90deg,var(--linea) 1px,transparent 1px);
@@ -476,11 +482,29 @@ a{color:inherit;text-decoration:none}
    Sergio: la portada anterior estaba "muy cargada". Se quitaron el titulo
    gigante de fondo, el recorte de la cajera, los dos sellos, la tarjeta de
    WhatsApp y el texto vertical. Queda foto + titular + fila de tarjetas. */
-.hero{transition:transform .5s cubic-bezier(.65,0,.25,1)}
-.hero.saltando{transform:scale(.972)}
-.fondo .hf{position:absolute;inset:0;opacity:0;transition:opacity .5s ease}
-.fondo .hf.on{opacity:1}
-.fondo .hf .ph{width:100%;height:100%;filter:grayscale(.55) contrast(1.12)}
+/*  ── EL CRUCE DE LAS DOS FOTOS ─────────────────────────────────────────
+    Antes las dos se cruzaban a media opacidad. Dos capas a medias sobre el
+    negro del fondo dejan pasar menos luz que una entera, asi que la portada
+    se oscurecia justo durante el cambio y "recuperaba el color" al acabar.
+
+    Ahora la que sale se queda ENTERA por debajo y la que entra se funde
+    encima. Su opacidad no baja poco a poco: se apaga de golpe medio segundo
+    despues, cuando la nueva ya la tapa del todo y no se ve.               */
+.fondo .hf{position:absolute;inset:0;opacity:0;z-index:0;
+  transition:opacity 0s linear .5s}
+.fondo .hf.on{opacity:1;z-index:1;transition:opacity .5s ease}
+
+/*  ── EL ACERCAMIENTO ───────────────────────────────────────────────────
+    La portada ENTERA se encogia (scale .972). Con el fondo de la pagina en
+    blanco eso deja ver los bordes por los lados. Ahora el que se mueve es
+    solo la foto y SIEMPRE por encima de 1: entra un poco acercada y se va
+    asentando. Como vive dentro del hero, que recorta, no hay borde posible. */
+@keyframes hfAcerca{from{transform:scale(1.055)}to{transform:scale(1)}}
+.fondo .hf.on{animation:hfAcerca 1.6s cubic-bezier(.16,.84,.25,1) both}
+@media (prefers-reduced-motion:reduce){.fondo .hf.on{animation:none}}
+/*  Antes iba a grayscale(.55) y se comia mas de medio color. Ahora casi
+    no desatura: el velo de arriba ya baja bastante la foto.           */
+.fondo .hf .ph{width:100%;height:100%;filter:grayscale(.15) contrast(1.06) saturate(1.06)}
 
 .hero-txt{position:relative}
 .hero-cuando{display:block;margin-bottom:14px;font-family:'DM Mono',ui-monospace,monospace;
@@ -786,7 +810,9 @@ a{color:inherit;text-decoration:none}
 }
 .carr-vuelo{position:absolute;z-index:2;border-radius:0;overflow:hidden;
   background-size:cover;background-position:center;pointer-events:none;
-  filter:grayscale(.55) contrast(1.12);
+  /*  EL MISMO filtro que la foto de fondo. Si aqui es distinto, la imagen va
+      de un color durante el vuelo y cambia al aterrizar.                   */
+  filter:grayscale(.15) contrast(1.06) saturate(1.06);
   transition:clip-path .52s cubic-bezier(.62,0,.2,1),opacity .12s ease .4s}
 
 /* ── el pie: flechas, la linea del reloj y el contador ── */
