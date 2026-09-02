@@ -724,7 +724,14 @@ a{color:inherit;text-decoration:none}
   .rx-v{font-size:14px}
 }
 
-/* ══ PUNTOS Y PREMIOS: el contador corre y el nivel se desbloquea ═════════
+/* ══ PUNTOS Y PREMIOS — APARCADO ═════════════════════════
+
+   Estos estilos se quedan a proposito. La tarjeta salio del carrusel de
+   la portada el 2-sep-2026 (Sergio: «esa informacion la colocamos mas
+   abajo, igual tenemos espacio») y van a volver a usarse en su propia
+   seccion. Las fotos siguen en img/landing/*-puntos.jpg.
+
+   El contador corre y el nivel se desbloquea despues ═════════
 
    Las manos con los platos ya vienen en la foto. Aqui solo se anima lo que
    sale del telefono. El ciclo dura 9 s: cuenta, respira, se va y vuelve.   */
@@ -839,7 +846,6 @@ a{color:inherit;text-decoration:none}
       <div class="hf" data-i="2"><div class="ph" data-et="fondo · Pantalla de cocina" style="background-image:url(img/landing/fondo-cocina.jpg)"></div></div>
       <div class="hf" data-i="3"><div class="ph" data-et="fondo · Comprobantes" style="background-image:url(img/landing/fondo-comprobantes.jpg)"></div><div class="cx" id="cx" aria-hidden="true"></div></div>
       <div class="hf" data-i="4"><div class="ph" data-et="fondo · Rentabilidad" style="background-image:url(img/landing/fondo-rentabilidad.jpg)"></div><div class="rx" id="rx" aria-hidden="true"></div></div>
-      <div class="hf" data-i="5"><div class="ph" data-et="fondo · Puntos y premios" style="background-image:url(img/landing/fondo-puntos.jpg)"></div><div class="px" id="px" aria-hidden="true"></div></div>
   </div>
   <div class="velo"></div><div class="rejilla"></div>
 
@@ -872,7 +878,6 @@ a{color:inherit;text-decoration:none}
         <div class="tj" role="button" tabindex="0" data-id="cocina"><div class="ph claro" data-et="tarjeta · Pantalla de cocina" style="background-image:url(img/landing/tarjeta-cocina.jpg)"></div><span class="tj-txt"><span class="tj-cuando">En la plancha</span><span class="tj-nom">Pantalla de cocina</span></span></div>
         <div class="tj" role="button" tabindex="0" data-id="comprobantes"><div class="ph claro" data-et="tarjeta · Comprobantes" style="background-image:url(img/landing/tarjeta-comprobantes.jpg)"></div><span class="tj-txt"><span class="tj-cuando">Un Nequi a las 11 p. m.</span><span class="tj-nom">Comprobantes</span></span></div>
         <div class="tj" role="button" tabindex="0" data-id="rentabilidad"><div class="ph claro" data-et="tarjeta · Rentabilidad" style="background-image:url(img/landing/tarjeta-rentabilidad.jpg)"></div><span class="tj-txt"><span class="tj-cuando">Al cerrar el mes</span><span class="tj-nom">Rentabilidad</span></span></div>
-        <div class="tj" role="button" tabindex="0" data-id="puntos"><div class="ph claro" data-et="tarjeta · Puntos y premios" style="background-image:url(img/landing/tarjeta-puntos.jpg)"></div><span class="tj-txt"><span class="tj-cuando">Cuando vuelve</span><span class="tj-nom">Puntos y premios</span></span></div>
         <div class="tj" role="button" tabindex="0" data-id="chat"><div class="ph claro" data-et="tarjeta · Chat automático" style="background-image:url(img/landing/tarjeta-chat.jpg)"></div><span class="tj-txt"><span class="tj-cuando">Sábado, 8:40 p. m.</span><span class="tj-nom">Chat automático</span></span></div>
       </div>
     </div>
@@ -884,7 +889,7 @@ a{color:inherit;text-decoration:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
       </button>
       <span class="carr-linea"><i id="carr-avance"></i></span>
-      <span class="carr-num"><b id="carr-n">01</b><span>/ 06</span></span>
+      <span class="carr-num"><b id="carr-n">01</b><span>/ 05</span></span>
     </div>
   </div>
 
@@ -1432,15 +1437,6 @@ window.CobraPlan.iniciar({
     "t2": "te deja",
     "t3": "plata",
     "sub": "Costo real de cada plato, margen por producto y el semáforo que avisa cuál dejó de ser rentable."
-  },
-  {
-    "id": "puntos",
-    "nombre": "Puntos y premios",
-    "cuando": "Cuando vuelve",
-    "t1": "El cliente",
-    "t2": "vuelve",
-    "t3": "solo",
-    "sub": "Puntos por cada compra, premios que tú decides, y un mensaje que le recuerda que los tiene."
   }
 ];
   var PAUSA = 4000;          // lo que dura cada tarjeta, medido del video
@@ -1693,46 +1689,6 @@ window.CobraPlan.iniciar({
       +   '<div class="rx-2">' + a[2] + '</div></div>'
       + '<div class="rx-v" style="color:' + a[4] + '">' + a[3] + '</div></div>';
   }).join('');
-})();
-</script>
-
-<script>
-/*  ══ EL CONTADOR DE PUNTOS ═══════════════════════════════════════════════
-    Sube de 0 a 240 con un frenado suave —rapido al principio y lento al
-    final, que es como se siente un contador de verdad— y se reinicia con
-    cada vuelta del ciclo de 9 s, en el mismo momento en que la animacion de
-    CSS vuelve a empezar. Asi el numero y el movimiento van juntos.        */
-(function () {
-  var caja = document.getElementById('px');
-  if (!caja) return;
-
-  var META = 240, CICLO = 9000, CUENTA = 1400;   // ms
-
-  var chispas = [['53%','62%',16],['58%','54%',20],['61%','46%',24],
-                 ['56%','38%',19],['65%','34%',15]];
-  caja.innerHTML =
-      '<div class="px-c"><div class="px-n" id="px-n">0</div><div class="px-l">puntos</div></div>'
-    + '<div class="px-niv"><i></i> Nivel Oro desbloqueado</div>'
-    + chispas.map(function (c, i) {
-        return '<span class="px-ch" style="left:' + c[0] + ';top:' + c[1] + ';font-size:' + c[2]
-             + 'px;animation-delay:' + (i * 0.22).toFixed(2) + 's">+</span>';
-      }).join('');
-
-  var n = document.getElementById('px-n');
-  /*  Si alguien pidio menos movimiento, el numero se queda quieto en su
-      valor final: se entiende igual y no se le mueve nada en la cara.    */
-  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    n.textContent = '+' + META; return;
-  }
-
-  var t0 = performance.now();
-  (function marco(t) {
-    var d = (t - t0) % CICLO;
-    var k = Math.min(1, d / CUENTA);
-    var suave = 1 - Math.pow(1 - k, 3);          // frena al final
-    n.textContent = '+' + Math.round(META * suave);
-    requestAnimationFrame(marco);
-  })(t0);
 })();
 </script>
 </body>
