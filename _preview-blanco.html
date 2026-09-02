@@ -839,12 +839,21 @@ body{background:#FFFFFF}
   color:var(--tinta);
 }
 /*  Los blancos translucidos de ABAJO: sobre blanco no existirian.  */
-.sec .arg .nbig{background:rgba(15,23,42,.05)}
-.sec .bb.e{background:rgba(15,23,42,.04)}
 .precios-p2 .per{background:rgba(15,23,42,.05)}
-.sec .rul::before{background:rgba(15,23,42,.06)}
-.sec .pg{background:rgba(15,23,42,.04)}
-.sec .pg .bk{background:rgba(15,23,42,.07)}
+
+/*  ══ LAS TARJETAS NO CAMBIAN ═════════════════════════════════════════════
+    Su contraste lo da su propia foto o su propio fondo, no el de la pagina.
+    Como las variables bajan por el arbol, la escala clara de `.sec` se
+    colaba dentro de ellas y les oscurecia el texto encima de la foto.
+    Aqui se les devuelve la escala de siempre, entera.                     */
+.sec .arg, .sec .b, .sec .movil, .sec .rul-c,
+.sec .p1, .sec .p2, .sec .p3, .pie, .mb{
+  --neg:#070A18; --neg2:#0B1026; --caja:#141A38; --vidrio:rgba(26,32,64,.62);
+  --linea:rgba(255,255,255,.09); --linea2:rgba(255,255,255,.05);
+  --tinta:#F4F6FB; --t2:#B7BEDA; --t3:#8189AD; --t4:#5C6489;
+  --ind:#A9B2FF; --claro:#A9B2FF; --verde:#4ADE80;
+  color:var(--tinta);
+}
 </style>
 </head>
 <body>
