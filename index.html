@@ -811,6 +811,48 @@ a{color:inherit;text-decoration:none}
   .carr-marco::-webkit-scrollbar{display:none}
   .tj{flex:0 0 132px}
 }
+/* ══ DE LA PORTADA HACIA ABAJO, EN BLANCO ════════════════════════════════
+
+   La portada se queda oscura a proposito: su titular es blanco sobre foto y
+   sus imagenes son de noche. Aclararla no es cambiar un color, es rehacerla.
+
+   Aqui solo se vuelven a declarar las variables sobre los bloques de abajo.
+   Como las variables bajan por el arbol, todo lo que vive dentro cambia solo
+   y no hay que tocar los 89 sitios que las usan.                          */
+body{background:#FFFFFF}
+/*  OJO con quien NO entra aqui:
+      · `.pie` no es el pie de pagina, es el rotulo que va ENCIMA de
+        cada captura, con su degradado oscuro. Sale 6 veces.
+      · `.mb` es la barra fija del movil, con su propio fondo oscuro.
+    Los dos llevan texto claro sobre oscuro y se quedan como estaban. */
+.sec, .precios-p2, .cierre{
+  --neg:#FFFFFF; --neg2:#F8FAFC; --caja:#FFFFFF; --vidrio:rgba(255,255,255,.72);
+  --linea:rgba(15,23,42,.10); --linea2:rgba(15,23,42,.06);
+  --tinta:#0F172A; --t2:#475569; --t3:#64748B; --t4:#94A3B8;
+  --ind:#5B6BFF; --claro:#5B6BFF; --verde:#16A34A;
+  background:#FFFFFF;
+  /*  El color se vuelve a APLICAR aqui, no solo la variable: `body` ya
+      resolvio su `color:var(--tinta)` al tono claro y los hijos heredan ese
+      valor ya calculado, no la variable. Sin esta linea el texto sigue
+      saliendo casi blanco sobre blanco.                                  */
+  color:var(--tinta);
+}
+/*  Los blancos translucidos de ABAJO: sobre blanco no existirian.  */
+.precios-p2 .per{background:rgba(15,23,42,.05)}
+
+/*  ══ LAS TARJETAS NO CAMBIAN ═════════════════════════════════════════════
+    Su contraste lo da su propia foto o su propio fondo, no el de la pagina.
+    Como las variables bajan por el arbol, la escala clara de `.sec` se
+    colaba dentro de ellas y les oscurecia el texto encima de la foto.
+    Aqui se les devuelve la escala de siempre, entera.                     */
+.sec .arg, .sec .b, .sec .movil, .sec .rul-c,
+.sec .p1, .sec .p2, .sec .p3, .pie, .mb{
+  --neg:#070A18; --neg2:#0B1026; --caja:#141A38; --vidrio:rgba(26,32,64,.62);
+  --linea:rgba(255,255,255,.09); --linea2:rgba(255,255,255,.05);
+  --tinta:#F4F6FB; --t2:#B7BEDA; --t3:#8189AD; --t4:#5C6489;
+  --ind:#A9B2FF; --claro:#A9B2FF; --verde:#4ADE80;
+  color:var(--tinta);
+}
 </style>
 </head>
 <body>
