@@ -1950,11 +1950,9 @@ body{background:#FFFFFF}
     var f=b.parentElement,ab=f.classList.contains('on');
     [].forEach.call(document.querySelectorAll('.fq'),function(x){x.classList.remove('on')});
     if(!ab)f.classList.add('on');});});
-  document.getElementById('q').addEventListener('input',function(e){
-    var t=e.target.value.trim().toLowerCase();
-    [].forEach.call(document.querySelectorAll('.fq'),function(f){
-      f.style.display=!t||f.textContent.toLowerCase().indexOf(t)>=0?'':'none';});
-    if(t)document.getElementById('faq').scrollIntoView({behavior:'smooth'});});
+  /*  Aqui filtraba las preguntas la barra de busqueda de la cabecera. La
+      barra se quito el 2-sep-2026 y su oyente se quedo: `#q` ya no existe,
+      asi que `addEventListener` sobre null reventaba en cada carga.  */
 
   /*  Aqui vivia la calculadora de precios de la pagina, con SUS PROPIOS
       descuentos, distintos a los del registro. La cuenta la hace ahora
