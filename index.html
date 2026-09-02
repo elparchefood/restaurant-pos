@@ -591,6 +591,94 @@ a{color:inherit;text-decoration:none}
 
     Por eso `border-radius` es 0: las esquinas redondeadas viajan dentro del
     propio recorte (`round`), que se anima con el.                          */
+
+/* ══ COMPROBANTES: la unica diapositiva que se mueve ═══════════════════════
+
+   Cuatro capas, y el orden importa: las tarjetas van DETRAS del chico, que es
+   lo que hace que la escena tenga profundidad en vez de parecer un collage.
+   El chico es un recorte con transparencia, asi que las tapa de verdad.
+
+   Nada de esto usa `backdrop-filter`: sobre un amarillo liso el cristal se
+   consigue igual con blanco translucido, y asi funciona en todos lados.    */
+.cx{position:absolute;inset:0;overflow:hidden;z-index:2;pointer-events:none}
+
+/*  El desfile: la fila lleva las tarjetas DOS VECES seguidas y se desplaza la
+    mitad justa. Al terminar vuelve al principio y el salto no se ve, porque
+    la segunda mitad es identica a la primera.                              */
+.cx-via{position:absolute;top:20%;left:0;display:flex;gap:26px;width:max-content;
+  animation:cxDesfile 46s linear infinite}
+.cx-t{flex:0 0 auto;width:206px;height:268px;border-radius:20px;padding:16px 15px;
+  display:flex;flex-direction:column;
+  background:linear-gradient(118deg,rgba(255,255,255,.42) 0%,rgba(255,255,255,.17) 42%,rgba(255,255,255,.12) 100%);
+  border:1px solid rgba(255,255,255,.4);
+  box-shadow:0 22px 44px -18px rgba(70,40,0,.55);
+  animation:cxFlota 7s ease-in-out infinite}
+.cx-t:nth-child(2n){animation-delay:-1.4s}
+.cx-t:nth-child(3n){animation-delay:-2.8s}
+.cx-t:nth-child(5n){animation-delay:-4.2s}
+.cx-b{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;
+  letter-spacing:.06em;text-transform:uppercase;color:#5A3406}
+.cx-b i{width:16px;height:16px;border-radius:5px;display:flex;align-items:center;
+  justify-content:center;font-size:9px;font-weight:800;color:#fff;font-style:normal}
+.cx-s{margin-top:11px;font-size:11.5px;font-weight:700;color:#6B4408}
+.cx-p{font-size:31px;font-weight:800;letter-spacing:-.035em;color:#241300;line-height:1;margin-top:3px}
+.cx-q{margin-top:9px;font-size:12.5px;font-weight:700;color:#3A2200}
+.cx-h{margin-top:2px;font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;color:#7A5210}
+.cx-r{margin-top:auto;font-family:'DM Mono',ui-monospace,monospace;font-size:9.5px;color:#8A5E14;letter-spacing:.04em}
+/*  El sello verde no esta desde el principio: aparece, que es justo lo que
+    hace Cobra —leer el comprobante y confirmarlo— contado en un gesto.     */
+.cx-ok{margin-top:9px;align-self:flex-start;display:inline-flex;align-items:center;gap:5px;
+  background:rgba(22,163,74,.18);border:1px solid rgba(22,163,74,.5);color:#14532D;
+  border-radius:999px;padding:4px 9px;font-size:10px;font-weight:800;
+  animation:cxSello 7s ease-in-out infinite}
+.cx-ok svg{width:11px;height:11px}
+
+/*  El chico: recorte con transparencia, apoyado en el suelo de la foto.    */
+.cx-chico{position:absolute;bottom:0;right:17%;height:93%;z-index:3;
+  filter:drop-shadow(0 18px 30px rgba(80,45,0,.35))}
+
+/*  El reproductor, delante de todo.  */
+.cx-barra{position:absolute;z-index:4;left:50%;bottom:16%;transform:translateX(-50%);
+  width:min(52%,560px);border-radius:30px;padding:26px 30px;
+  background:linear-gradient(160deg,rgba(255,255,255,.46),rgba(255,255,255,.30));
+  border:1px solid rgba(255,255,255,.5);
+  box-shadow:0 20px 50px -22px rgba(70,40,0,.55);
+  display:flex;flex-direction:column;align-items:center;gap:20px}
+.cx-m{display:flex;align-items:center;gap:38px;color:#fff}
+.cx-m svg{filter:drop-shadow(0 2px 6px rgba(70,40,0,.45))}
+.cx-l{width:100%;height:5px;border-radius:999px;background:rgba(255,255,255,.42);position:relative}
+.cx-l i{position:absolute;inset:0 auto 0 0;border-radius:999px;background:#fff;
+  box-shadow:0 0 10px rgba(255,255,255,.7);animation:cxAguja 46s linear infinite}
+.cx-l b{position:absolute;top:50%;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;
+  border-radius:999px;background:#fff;box-shadow:0 1px 6px rgba(70,40,0,.5);
+  animation:cxPunta 46s linear infinite}
+
+/*  Los pesos y los vistos que van saliendo.  */
+.cx-ch{position:absolute;z-index:2;font-weight:800;color:#fff;font-size:22px;
+  text-shadow:0 3px 12px rgba(90,50,0,.55);opacity:0;animation:cxSube 5.5s ease-out infinite}
+
+@keyframes cxDesfile{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes cxFlota{0%,100%{transform:translateY(0)}50%{transform:translateY(-13px)}}
+@keyframes cxSello{0%,58%{opacity:0;transform:scale(.8)}
+  66%{opacity:1;transform:scale(1.08)}72%,100%{opacity:1;transform:scale(1)}}
+@keyframes cxAguja{from{width:2%}to{width:100%}}
+@keyframes cxPunta{from{left:2%}to{left:100%}}
+@keyframes cxSube{0%{opacity:0;transform:translateY(14px) scale(.6)}
+  18%{opacity:1;transform:translateY(0) scale(1)}
+  65%{opacity:.9}
+  100%{opacity:0;transform:translateY(-96px) scale(.85)}}
+
+/*  Quien pidio menos movimiento ve la escena quieta, no una foto distinta. */
+@media (prefers-reduced-motion:reduce){
+  .cx-via,.cx-t,.cx-ok,.cx-l i,.cx-l b,.cx-ch{animation:none}
+  .cx-ch{opacity:.9}
+}
+@media (max-width:820px){
+  .cx-t{width:168px;height:224px}
+  .cx-p{font-size:26px}
+  .cx-barra{width:74%;padding:18px 20px;gap:14px}
+  .cx-m{gap:26px}
+}
 .carr-vuelo{position:absolute;z-index:2;border-radius:0;overflow:hidden;
   background-size:cover;background-position:center;pointer-events:none;
   filter:grayscale(.55) contrast(1.12);
@@ -649,7 +737,7 @@ a{color:inherit;text-decoration:none}
       <div class="hf on" data-i="0"><div class="ph" data-et="fondo · Chat automático" style="background-image:url(img/landing/fondo-chat.jpg)"></div></div>
       <div class="hf" data-i="1"><div class="ph" data-et="fondo · Toma de pedidos" style="background-image:url(img/landing/fondo-pedidos.jpg)"></div></div>
       <div class="hf" data-i="2"><div class="ph" data-et="fondo · Pantalla de cocina" style="background-image:url(img/landing/fondo-cocina.jpg)"></div></div>
-      <div class="hf" data-i="3"><div class="ph" data-et="fondo · Comprobantes"></div></div>
+      <div class="hf" data-i="3"><div class="ph" data-et="fondo · Comprobantes" style="background-image:url(img/landing/fondo-comprobantes.jpg)"></div><div class="cx" id="cx" aria-hidden="true"></div></div>
       <div class="hf" data-i="4"><div class="ph" data-et="fondo · Rentabilidad"></div></div>
       <div class="hf" data-i="5"><div class="ph" data-et="fondo · Puntos y premios"></div></div>
   </div>
@@ -682,7 +770,7 @@ a{color:inherit;text-decoration:none}
       <div class="carr-via" id="carr-via">
         <div class="tj" role="button" tabindex="0" data-id="pedidos"><div class="ph claro" data-et="tarjeta · Toma de pedidos" style="background-image:url(img/landing/tarjeta-pedidos.jpg)"></div><span class="tj-txt"><span class="tj-cuando">En la mesa 4</span><span class="tj-nom">Toma de pedidos</span></span></div>
         <div class="tj" role="button" tabindex="0" data-id="cocina"><div class="ph claro" data-et="tarjeta · Pantalla de cocina" style="background-image:url(img/landing/tarjeta-cocina.jpg)"></div><span class="tj-txt"><span class="tj-cuando">En la plancha</span><span class="tj-nom">Pantalla de cocina</span></span></div>
-        <div class="tj" role="button" tabindex="0" data-id="comprobantes"><div class="ph claro" data-et="tarjeta · Comprobantes"></div><span class="tj-txt"><span class="tj-cuando">Un Nequi a las 11 p. m.</span><span class="tj-nom">Comprobantes</span></span></div>
+        <div class="tj" role="button" tabindex="0" data-id="comprobantes"><div class="ph claro" data-et="tarjeta · Comprobantes" style="background-image:url(img/landing/tarjeta-comprobantes.jpg)"></div><span class="tj-txt"><span class="tj-cuando">Un Nequi a las 11 p. m.</span><span class="tj-nom">Comprobantes</span></span></div>
         <div class="tj" role="button" tabindex="0" data-id="rentabilidad"><div class="ph claro" data-et="tarjeta · Rentabilidad"></div><span class="tj-txt"><span class="tj-cuando">Al cerrar el mes</span><span class="tj-nom">Rentabilidad</span></span></div>
         <div class="tj" role="button" tabindex="0" data-id="puntos"><div class="ph claro" data-et="tarjeta · Puntos y premios"></div><span class="tj-txt"><span class="tj-cuando">Cuando vuelve</span><span class="tj-nom">Puntos y premios</span></span></div>
         <div class="tj" role="button" tabindex="0" data-id="chat"><div class="ph claro" data-et="tarjeta · Chat automático" style="background-image:url(img/landing/tarjeta-chat.jpg)"></div><span class="tj-txt"><span class="tj-cuando">Sábado, 8:40 p. m.</span><span class="tj-nom">Chat automático</span></span></div>
@@ -1412,6 +1500,67 @@ window.CobraPlan.iniciar({
   });
 
   arrancarReloj();
+})();
+</script>
+
+<script>
+/*  ══ LA ESCENA DE COMPROBANTES ═══════════════════════════════════════════
+    Se dibuja desde aqui y no a mano en el HTML porque las tarjetas van DOS
+    veces (el desfile es un bucle: la segunda vuelta es copia de la primera y
+    por eso no se ve el salto). Escribirlas dos veces a mano seria pedir que
+    algun dia una de las dos se quede vieja.                                */
+(function () {
+  var caja = document.getElementById('cx');
+  if (!caja) return;
+
+  var COLOR = { Nequi:'#7C1FA0', Daviplata:'#DC2626', Bancolombia:'#F5A524', Transfiya:'#0EA5E9' };
+  /*  Inventados: ni un cliente ni una cifra de verdad.  */
+  var PAGOS = [
+    ['Bancolombia','$38.500','Mariana Ochoa','10:58 p. m.','REF 8842 1907'],
+    ['Daviplata','$52.000','Andrés Quintero','11:02 p. m.','REF 3315 6620'],
+    ['Nequi','$41.000','Valentina Gómez','11:04 p. m.','REF 7729 0431'],
+    ['Nequi','$27.500','Camilo Restrepo','11:07 p. m.','REF 5108 2264'],
+    ['Transfiya','$64.000','Daniela Peña','11:11 p. m.','REF 9047 5583'],
+    ['Nequi','$19.000','Julián Mora','11:15 p. m.','REF 2286 7710'],
+    ['Bancolombia','$83.000','Sara Villamil','11:19 p. m.','REF 6653 3092']
+  ];
+  var VISTO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" ' +
+              'stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+
+  function tarjeta(p, i) {
+    return '<div class="cx-t" style="animation-delay:' + (-i * 0.9).toFixed(1) + 's">'
+      + '<div class="cx-b"><i style="background:' + (COLOR[p[0]] || '#64748B') + '">' + p[0][0] + '</i>' + p[0] + '</div>'
+      + '<div class="cx-s">Transferencia exitosa</div>'
+      + '<div class="cx-p">' + p[1] + '</div>'
+      + '<div class="cx-q">' + p[2] + '</div>'
+      + '<div class="cx-h">' + p[3] + '</div>'
+      + '<div class="cx-ok" style="animation-delay:' + (-i * 1.1).toFixed(1) + 's">' + VISTO + ' Confirmado</div>'
+      + '<div class="cx-r">' + p[4] + '</div>'
+      + '</div>';
+  }
+
+  //  Dos vueltas: la fila se desplaza la mitad y vuelve al principio sin salto.
+  var fila = PAGOS.map(tarjeta).join('') + PAGOS.map(tarjeta).join('');
+
+  //  Los pesos y los vistos que van saliendo, repartidos por la escena.
+  var CHISPAS = [['$','12%','52%','0s'],['✓','23%','38%','1.3s'],['$','34%','60%','2.6s'],
+                 ['✓','8%','30%','3.6s'],['$','44%','44%','4.4s'],['✓','29%','66%','5s']];
+  var chispas = CHISPAS.map(function (c) {
+    return '<span class="cx-ch" style="left:' + c[1] + ';top:' + c[2] + ';animation-delay:' + c[3] + '">' + c[0] + '</span>';
+  }).join('');
+
+  caja.innerHTML =
+      '<div class="cx-via">' + fila + '</div>'
+    + chispas
+    + '<img class="cx-chico" src="img/landing/chico-comprobantes.webp" alt="">'
+    + '<div class="cx-barra">'
+    +   '<div class="cx-m">'
+    +     '<svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M11 12 20 6v12zM2 12l9-6v12z"/></svg>'
+    +     '<svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1.4"/><rect x="14" y="4" width="4" height="16" rx="1.4"/></svg>'
+    +     '<svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M13 12 4 6v12zM22 12l-9-6v12z"/></svg>'
+    +   '</div>'
+    +   '<div class="cx-l"><i></i><b></b></div>'
+    + '</div>';
 })();
 </script>
 </body>
