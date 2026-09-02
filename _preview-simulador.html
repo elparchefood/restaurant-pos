@@ -500,16 +500,37 @@ a{color:inherit;text-decoration:none}
 .sim-txt .lead{font-size:16.5px;color:var(--t2);margin-top:16px;max-width:42ch}
 .sim-pasos{list-style:none;margin:26px 0 0;padding:0;display:flex;flex-direction:column;gap:2px}
 .sim-paso{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:11px;
-  transition:background .25s}
+  transition:background .25s,box-shadow .25s}
 .sim-paso i{width:23px;height:23px;flex:0 0 auto;border-radius:999px;font-style:normal;
   display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:800;
   background:rgba(15,23,42,.07);color:var(--t3);transition:background .25s,color .25s}
 .sim-paso b{font-size:14.5px;font-weight:600;color:var(--t3);transition:color .25s}
-.sim-paso.on{background:rgba(91,107,255,.09)}
-.sim-paso.on i{background:var(--ind);color:#fff}
-.sim-paso.on b{color:var(--tinta)}
 .sim-paso.ya i{background:#DCFCE7;color:#16A34A}
 .sim-paso.ya b{color:var(--t2)}
+
+/*  ── EL PASO EN QUE VAS ────────────────────────────────────────────────
+    Sergio: *"que ese paso se resalte, que brille, que algo suceda"*. Tres
+    cosas, al mismo compas de 1,7 s que el aviso de la tablet, para que se
+    lea como una sola cosa y no como dos animaciones sueltas:
+      · una barra de color pegada al canto izquierdo,
+      · el numero con su anillo que late,
+      · y una flecha que apunta a la tablet, o sea a donde hay que tocar. */
+.sim-paso.on{background:linear-gradient(90deg,rgba(91,107,255,.15),rgba(91,107,255,.02));
+  box-shadow:inset 3px 0 0 var(--ind)}
+.sim-paso.on i{background:var(--ind);color:#fff;animation:simLate 1.7s ease-in-out infinite}
+.sim-paso.on b{color:var(--tinta);font-weight:800}
+.sim-paso.on::after{content:'';width:7px;height:7px;flex:0 0 auto;margin-left:auto;
+  border-right:2.2px solid var(--ind);border-bottom:2.2px solid var(--ind);
+  border-radius:0 0 2px 0;transform:rotate(-45deg);
+  animation:simFlecha 1.7s ease-in-out infinite}
+@keyframes simLate{
+  0%,100%{box-shadow:0 0 0 0 rgba(91,107,255,.55)}
+  55%,100%{box-shadow:0 0 0 9px rgba(91,107,255,0)}}
+@keyframes simFlecha{
+  0%,100%{transform:rotate(-45deg) translate(0,0);opacity:.55}
+  30%    {transform:rotate(-45deg) translate(3px,3px);opacity:1}}
+@media(prefers-reduced-motion:reduce){
+  .sim-paso.on i,.sim-paso.on::after{animation:none}}
 .sim-otra{margin-top:22px;display:inline-flex;align-items:center;gap:8px;padding:11px 18px;
   border-radius:11px;border:1px solid rgba(15,23,42,.14);background:#fff;color:var(--t2);
   font-family:'Archivo';font-size:11.5px;font-weight:800;letter-spacing:.1em;
@@ -519,9 +540,20 @@ a{color:inherit;text-decoration:none}
 .sim-otra:hover{border-color:var(--ind);color:var(--ind)}
 .sim-otra svg{width:14px;height:14px}
 
-/*  ── la tablet ── */
+/*  ── la tablet ──
+    Viene ladeada y se endereza sola cuando la seccion llega al centro de la
+    pantalla. Los tres giros los escribe el guion en --gx/--gy/--gz segun lo
+    centrada que este; aqui solo estan los valores de reposo, por si el guion
+    no llega a correr.
+
+    `perspective` va en la propia transformacion y no en el padre a proposito:
+    el padre es una celda de rejilla y ponerle perspectiva le crea un contexto
+    de apilamiento que se traga las sombras de la tablet.                  */
 .sim-tablet{position:relative;background:linear-gradient(150deg,#1C2130,#0A0D16 60%);
   border-radius:26px;padding:15px 15px 17px;
+  transform:perspective(1100px) rotateX(var(--gx,0deg)) rotateY(var(--gy,0deg))
+            rotateZ(var(--gz,0deg)) scale(var(--ge,1));
+  transform-origin:50% 60%;will-change:transform;
   box-shadow:0 42px 80px -34px rgba(15,23,42,.5),0 8px 22px -10px rgba(15,23,42,.26),
              inset 0 1px 0 rgba(255,255,255,.09)}
 .sim-tablet::before{content:'';position:absolute;top:7px;left:50%;transform:translateX(-50%);
@@ -547,26 +579,62 @@ a{color:inherit;text-decoration:none}
 .sm-vista.on{display:flex}
 
 /*  ── EL AVISO DE "TOCA AQUI" ───────────────────────────────────────────
-    Anillo que respira + etiqueta. La etiqueta va DENTRO del elemento (no
-    flotando fuera) porque las rejas del POS recortan lo que se sale.     */
-.sm-late{position:relative;border-color:#5B6BFF !important;
-  animation:smLate 1.6s ease-in-out infinite}
+    Sergio, 2-sep: *"no se nota que la persona debe tocar ahi"*. Una sola
+    senal no basta a este tamano, asi que van CUATRO a la vez y todas al
+    mismo compas de 1,7 s:
+
+        1 · el borde late y la tarjeta respira,
+        2 · una mano baja, toca y deja dos ondas, como un dedo de verdad,
+        3 · la etiqueta, mas grande y con su flecha,
+        4 · y lo que tiene al lado se apaga, que asi no hay donde mas mirar.
+
+    Lo cuarto es lo que mas hace: con una sola tarjeta encendida no hace
+    falta leer nada para saber donde va el dedo.                          */
+.sm-late{position:relative;z-index:5;border-color:#5B6BFF !important;
+  animation:smLate 1.7s ease-in-out infinite}
 @keyframes smLate{
-  0%,100%{box-shadow:0 0 0 3px rgba(91,107,255,.22)}
-  50%    {box-shadow:0 0 0 8px rgba(91,107,255,.04)}}
-.sm-toca{position:absolute;z-index:6;top:-1px;right:-1px;background:#5B6BFF;color:#fff;
-  font-size:7.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
-  padding:3px 7px;border-radius:0 9px 0 9px;pointer-events:none;white-space:nowrap}
+  0%,100%{box-shadow:0 0 0 3px rgba(91,107,255,.34);transform:scale(1)}
+  26%    {box-shadow:0 0 0 9px rgba(91,107,255,.10);transform:scale(1.025)}
+  48%    {box-shadow:0 0 0 3px rgba(91,107,255,.34);transform:scale(1)}}
+.sm-apagado{opacity:.4;filter:saturate(.45);transition:opacity .3s,filter .3s}
+
+/*  la mano y sus ondas */
+.sm-tap{position:absolute;left:50%;top:57%;width:0;height:0;z-index:8;pointer-events:none}
+.sm-tap.lado{left:auto;right:-2px;top:50%}
+.sm-tap svg{position:absolute;left:-4px;top:-5px;width:26px;height:26px;
+  filter:drop-shadow(0 3px 7px rgba(15,23,42,.5));
+  animation:smDedo 1.7s cubic-bezier(.3,.7,.3,1) infinite}
+@keyframes smDedo{
+  0%,100%{transform:translateY(0)}
+  16%    {transform:translateY(-7px)}
+  30%    {transform:translateY(1px)}
+  46%    {transform:translateY(0)}}
+.sm-onda{position:absolute;left:-14px;top:-14px;width:28px;height:28px;border-radius:999px;
+  border:2.2px solid #5B6BFF;opacity:0;animation:smOnda 1.7s ease-out infinite}
+.sm-onda.dos{animation-delay:.17s}
+@keyframes smOnda{
+  0%,26%{transform:scale(.3);opacity:0}
+  33%   {opacity:.72}
+  100%  {transform:scale(2.2);opacity:0}}
+
+.sm-toca{position:absolute;z-index:9;top:0;right:0;background:#5B6BFF;color:#fff;
+  font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+  padding:4px 8px;border-radius:0 9px 0 9px;pointer-events:none;white-space:nowrap;
+  box-shadow:0 5px 14px -3px rgba(91,107,255,.75)}
 /*  En la esquina de arriba a la izquierda: la de la derecha ya la ocupa el
     circulito de escoger, y el recuadro recorta, asi que va pegada al borde. */
-.sm-toca.izq{top:0;right:auto;left:0;border-radius:0 0 9px 0}
+.sm-toca.izq{right:auto;left:0;border-radius:0 0 9px 0}
 /*  Sobre un boton la etiqueta va encima, que dentro no cabe. Y pegada a su
     borde IZQUIERDO: centrada le caia justo encima al total de la comanda. */
-.sm-toca.arriba{top:auto;right:auto;left:0;bottom:calc(100% + 6px);
-  border-radius:999px;padding:3px 9px}
-.sm-toca.arriba::after{content:'';position:absolute;top:100%;left:14px;
-  border:3px solid transparent;border-top-color:#5B6BFF}
-@media(prefers-reduced-motion:reduce){.sm-late{animation:none}}
+.sm-toca.arriba{top:auto;right:auto;left:0;bottom:calc(100% + 8px);
+  border-radius:999px;padding:4px 10px;animation:smBota 1.7s ease-in-out infinite}
+.sm-toca.arriba::after{content:'';position:absolute;top:100%;left:15px;
+  border:4px solid transparent;border-top-color:#5B6BFF}
+@keyframes smBota{0%,100%{transform:translateY(0)}30%{transform:translateY(-4px)}}
+
+@media(prefers-reduced-motion:reduce){
+  .sm-late,.sm-tap svg,.sm-onda,.sm-toca.arriba{animation:none}
+  .sm-onda{display:none}}
 
 /*  ── barra de arriba (vs-topbar: 60px en el POS) ── */
 .sm-top{height:34px;flex:0 0 auto;background:#fff;border-bottom:1px solid #ECEEF2;
@@ -743,8 +811,10 @@ a{color:inherit;text-decoration:none}
 .sm-prods{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(3,1fr);
   grid-auto-rows:min-content;gap:8px;align-content:start}
 @container (max-width:430px){.sm-cats,.sm-prods{grid-template-columns:repeat(2,1fr)}}
+/*  Sin `overflow:hidden`: recortaba la onda de la mano del aviso. La foto ya
+    lleva su propio redondeo, asi que la tarjeta no necesita recortar.    */
 .sm-cat{display:flex;flex-direction:column;background:#fff;border:1px solid #ECEEF2;
-  border-radius:9px;overflow:hidden;position:relative;
+  border-radius:9px;position:relative;
   transition:transform .15s,box-shadow .15s,border-color .15s}
 .sm-cat:hover{transform:translateY(-3px);box-shadow:0 10px 22px -12px rgba(15,23,42,.22)}
 .sm-cat img{width:calc(100% - 10px);margin:5px 5px 0;aspect-ratio:16/9;object-fit:cover;
@@ -810,12 +880,15 @@ a{color:inherit;text-decoration:none}
 
 /*  paso 1: la presentacion (pm-choice) */
 .sm-elige{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+/*  Igual que la tarjeta de categoria: el recorte se lo queda la foto, no la
+    opcion, para que la onda del aviso pueda salirse.                     */
 .sm-op{position:relative;background:#fff;border:1.5px solid #ECEEF2;border-radius:10px;
-  overflow:hidden;display:flex;flex-direction:column;
+  display:flex;flex-direction:column;
   transition:border-color .14s,box-shadow .14s,transform .12s}
 .sm-op:hover{border-color:#C7D2FE;transform:translateY(-2px)}
 .sm-op.on{border-color:#5B6BFF;box-shadow:0 0 0 3px rgba(91,107,255,.14)}
-.sm-op-foto{position:relative;aspect-ratio:16/10;background:#F1F5F9}
+.sm-op-foto{position:relative;aspect-ratio:16/10;background:#F1F5F9;
+  border-radius:8.5px;overflow:hidden}
 .sm-op-foto img{width:100%;height:100%;object-fit:cover;display:block}
 .sm-op-velo{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;
   padding:6px 8px;color:#fff;
@@ -1414,7 +1487,10 @@ body{background:#FFFFFF}
       </button>
     </div>
 
-    <div class="sim-tablet rev">
+    <!--  Sin `rev`: esa clase termina en `transform:none`, que pesa mas que
+          `.sim-tablet` y le borraria el giro en 3D. Su entrada es el propio
+          giro, que lo lleva el guion.                                     -->
+    <div class="sim-tablet" id="sim-tablet">
       <!--  Todo lo de dentro lo dibuja el guion: son tres vistas sobre el
             mismo nodo, igual que en el POS de verdad.                     -->
       <div class="sim-pant" id="sim-pant"></div>
@@ -2248,7 +2324,10 @@ window.CobraPlan.iniciar({
     ok:    '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
     plato: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18"/><path d="M12 11a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9z"/><path d="M12 3v4"/></svg>',
     disq:  '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>',
-    fuego: '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>'
+    fuego: '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+    /*  La mano que toca. Va rellena de blanco con el contorno oscuro para
+        que se vea igual sobre una foto que sobre una tarjeta blanca.    */
+    dedo:  '<svg viewBox="0 0 32 32" fill="#fff" stroke="#0F172A" stroke-width="1.7" stroke-linejoin="round"><path d="M13 17.4V7.2a2.4 2.4 0 0 1 4.8 0v7.6a2.1 2.1 0 0 1 3.6.6l2.2 3.4c.5.8.7 1.7.5 2.6l-.9 3.6A3.6 3.6 0 0 1 19.7 28h-4.4a3.6 3.6 0 0 1-2.8-1.3l-4.6-5.6a2.2 2.2 0 0 1 3.2-3z"/></svg>'
   };
 
   var F = 'img/landing/platos/';
@@ -2472,7 +2551,7 @@ window.CobraPlan.iniciar({
             +   '<div class="sm-tot"><span>Total</span><b>' + pesos(totalCarro()) + '</b></div>'
             +   '<div class="sm-acciones">'
             +     '<button class="sm-btn-g">' + IC.disq + 'Guardar</button>'
-            +     '<button class="sm-btn-p" data-enviar="1"' + toca(true, 'arriba') + '>'
+            +     '<button class="sm-btn-p" data-enviar="1"' + toca(!S.modal, 'arriba') + '>'
             +       IC.fuego + 'Enviar a cocina</button>'
             +   '</div>'
             + '</div>'
@@ -2493,8 +2572,9 @@ window.CobraPlan.iniciar({
 
   function rejaCategorias() {
     /*  Sin nada en la comanda se senala una categoria; con algo dentro el
-        aviso ya se mudo al boton de enviar y aqui no debe haber dos.     */
-    var guia = S.carro.length ? '' : 'carnes';
+        aviso ya se mudo al boton de enviar. Y con el modal abierto, nada:
+        lo de aqui esta DETRAS y el aviso tiene que ir en el modal.       */
+    var guia = (S.carro.length || S.modal) ? '' : 'carnes';
     var cards = CARTA.map(function (c) {
       return '<button class="sm-cat" data-cat="' + c.id + '"' + toca(c.id === guia) + '>'
         + '<img src="' + F + c.foto + '.jpg" alt="" loading="lazy">'
@@ -2511,7 +2591,7 @@ window.CobraPlan.iniciar({
 
   function rejaProductos() {
     var c = CARTA.filter(function (x) { return x.id === S.cat; })[0];
-    var guia = S.carro.length ? -1 : 0;
+    var guia = (S.carro.length || S.modal) ? -1 : 0;   // ver rejaCategorias
     var cards = c.prods.map(function (p, i) {
       var enCarro = S.carro.filter(function (l) { return l.nom === p.nom; })
                            .reduce(function (a, l) { return a + l.cant; }, 0);
@@ -2536,30 +2616,33 @@ window.CobraPlan.iniciar({
   //  EL MODAL DEL PRODUCTO
   //  Mismos pasos que el POS: Presentacion (si hay 2+) y Personalizar.
   // ═══════════════════════════════════════════════════════════════════
+  function subModal(c, p) {
+    var sel = S.pres !== null ? p.pres[S.pres][0] : '';
+    return esc(c.nom) + (sel ? ' · <b style="color:#0F172A">' + esc(sel) + '</b>' : '');
+  }
+  function pasosModal(ultimo) {
+    return paso(0, 'Presentación')
+      + '<span class="sm-mline' + (ultimo ? ' ya' : '') + '"></span>'
+      + paso(1, 'Personalizar');
+  }
+
   function vistaModal() {
     if (!S.modal) return '';
     var c = CARTA.filter(function (x) { return x.id === S.cat; })[0];
     var p = c.prods[S.prod];
     var ultimo = S.mpaso === 1;
 
-    var cuerpo = ultimo ? paneCustom(p) : panePres(p);
-    var sel = S.pres !== null ? p.pres[S.pres][0] : '';
-
     return '<div class="sm-overlay on" data-cerrar="fondo"><div class="sm-modal">'
       + '<div class="sm-mhead">'
       +   '<div style="display:flex;align-items:center;gap:8px;min-width:0">'
       +     '<span class="sm-mhead-ic">' + IC.plato + '</span>'
       +     '<span style="min-width:0"><span class="sm-mtit">' + esc(p.nom) + '</span>'
-      +       '<span class="sm-msub">' + esc(c.nom)
-      +         (sel ? ' · <b style="color:#0F172A">' + esc(sel) + '</b>' : '') + '</span></span>'
+      +       '<span class="sm-msub">' + subModal(c, p) + '</span></span>'
       +   '</div>'
       +   '<button class="sm-mclose" data-cerrar="x">' + IC.x + '</button>'
       + '</div>'
-      + '<div class="sm-msteps">'
-      +   paso(0, 'Presentación') + '<span class="sm-mline' + (ultimo ? ' ya' : '') + '"></span>'
-      +   paso(1, 'Personalizar')
-      + '</div>'
-      + '<div class="sm-mbody">' + cuerpo + '</div>'
+      + '<div class="sm-msteps">' + pasosModal(ultimo) + '</div>'
+      + '<div class="sm-mbody">' + (ultimo ? paneCustom(p) : panePres(p)) + '</div>'
       + '<div class="sm-mfoot">' + pieModal(p, ultimo) + '</div>'
       + '</div></div>';
   }
@@ -2623,21 +2706,45 @@ window.CobraPlan.iniciar({
   // ═══════════════════════════════════════════════════════════════════
   //  PINTAR
   // ═══════════════════════════════════════════════════════════════════
-  function pintar() {
-    pant.innerHTML = (S.vista === 'salon' ? vistaSalon() : vistaOrden()) + vistaModal();
-
-    /*  El aviso: el borde que late y la etiqueta, colgados ya con el nodo
-        hecho. `textContent` y no innerHTML: aqui no hay nada que escapar
-        y asi no hay forma de meter HTML por accidente.                  */
-    [].forEach.call(pant.querySelectorAll('[data-late]'), function (t) {
-      t.classList.add('sm-late');
-      var b = document.createElement('span');
-      var d = t.getAttribute('data-late');
-      b.className = 'sm-toca' + (d === 'dentro' ? '' : ' ' + d);
-      b.textContent = 'Toca aquí';
-      t.appendChild(b);
+  /*  El aviso se monta aqui, con los nodos ya hechos. Primero se limpia lo
+      de la vuelta anterior: en los repintados parciales quedan restos.   */
+  function marcarAvisos() {
+    [].forEach.call(pant.querySelectorAll('.sm-late'), function (e) { e.classList.remove('sm-late'); });
+    [].forEach.call(pant.querySelectorAll('.sm-apagado'), function (e) { e.classList.remove('sm-apagado'); });
+    [].forEach.call(pant.querySelectorAll('.sm-toca,.sm-tap'), function (e) {
+      if (e.parentNode) e.parentNode.removeChild(e);
     });
 
+    /*  Con el modal abierto manda SIEMPRE el aviso de dentro: uno que se
+        quede suelto por detras iria primero en el orden del documento y se
+        llevaria la senal a una tarjeta que ni siquiera se puede tocar.   */
+    var t = pant.querySelector('.sm-modal [data-late]') || pant.querySelector('[data-late]');
+    if (!t) return;
+    var donde = t.getAttribute('data-late');
+    t.classList.add('sm-late');
+
+    //  `textContent`: aqui no hay nada que escapar y asi no hay forma de
+    //  colar HTML por accidente.
+    var et = document.createElement('span');
+    et.className = 'sm-toca' + (donde === 'dentro' ? '' : ' ' + donde);
+    et.textContent = 'Toca aquí';
+    t.appendChild(et);
+
+    var tap = document.createElement('span');
+    tap.className = 'sm-tap' + (donde === 'arriba' ? ' lado' : '');
+    tap.innerHTML = '<span class="sm-onda"></span><span class="sm-onda dos"></span>' + IC.dedo;
+    t.appendChild(tap);
+
+    /*  Y lo que tiene al lado se apaga. Es lo que mas hace por que se note:
+        con una sola tarjeta encendida no hay donde mas mirar.           */
+    var padre = t.parentElement;
+    if (padre && /sm-mesas|sm-cats|sm-prods|sm-elige/.test(padre.className))
+      [].forEach.call(padre.children, function (h) {
+        if (h !== t) h.classList.add('sm-apagado');
+      });
+  }
+
+  function pintarPasos() {
     var p = pasoActual(), lista = document.getElementById('sim-pasos');
     if (lista) [].forEach.call(lista.children, function (li) {
       var n = +li.getAttribute('data-p');
@@ -2645,6 +2752,50 @@ window.CobraPlan.iniciar({
     });
     var otra = document.getElementById('sim-otra');
     if (otra) otra.classList.toggle('se-ve', !!S.enviado);
+  }
+
+  function pintar() {
+    pant.innerHTML = (S.vista === 'salon' ? vistaSalon() : vistaOrden()) + vistaModal();
+    marcarAvisos();
+    pintarPasos();
+  }
+
+  /*  ── LOS REPINTADOS PARCIALES ──────────────────────────────────────────
+      Rehacer `pant.innerHTML` con el modal abierto vuelve a crear el modal
+      entero, y con el se dispara otra vez su animacion de entrada: la
+      pantalla pega un parpadeo como si recargara. Estas dos funciones
+      cambian solo lo de dentro y dejan el modal donde esta.             */
+  function pintarModal() {
+    var m = pant.querySelector('.sm-modal');
+    if (!m) { pintar(); return; }
+    var c = CARTA.filter(function (x) { return x.id === S.cat; })[0];
+    var p = c.prods[S.prod], ultimo = S.mpaso === 1;
+    m.querySelector('.sm-msub').innerHTML   = subModal(c, p);
+    m.querySelector('.sm-msteps').innerHTML = pasosModal(ultimo);
+    m.querySelector('.sm-mbody').innerHTML  = ultimo ? paneCustom(p) : panePres(p);
+    m.querySelector('.sm-mfoot').innerHTML  = pieModal(p, ultimo);
+    marcarAvisos();
+    pintarPasos();
+  }
+
+  /*  Escoger presentacion no toca NI el cuerpo: solo el borde de las dos
+      opciones, su circulito y el pie. Rehacer el cuerpo volveria a crear
+      las dos fotos, y ahi es donde se veia el tiron.                    */
+  function refrescarPres() {
+    var m = pant.querySelector('.sm-modal');
+    if (!m) { pintar(); return; }
+    var c = CARTA.filter(function (x) { return x.id === S.cat; })[0];
+    var p = c.prods[S.prod];
+    [].forEach.call(m.querySelectorAll('[data-pres]'), function (b, i) {
+      var on = S.pres === i;
+      b.classList.toggle('on', on);
+      b.querySelector('.sm-radio').innerHTML = on ? IC.ok : '';
+      b.removeAttribute('data-late');   // ya escogio: el aviso se muda al boton
+    });
+    m.querySelector('.sm-msub').innerHTML  = subModal(c, p);
+    m.querySelector('.sm-mfoot').innerHTML = pieModal(p, false);
+    marcarAvisos();
+    pintarPasos();
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -2701,13 +2852,60 @@ window.CobraPlan.iniciar({
       m.total = totalCarro(); m.quien = 'VA'; m.min = 0;
       S.vista = 'salon'; S.enviado = true; S.cat = null;
     }
-    pintar();
+
+    /*  Lo que solo cambia por dentro del modal NO rehace la pantalla: si no,
+        el modal se vuelve a crear y parpadea.                            */
+    if (d.pres !== undefined) refrescarPres();
+    else if (d.mpaso !== undefined || d.adic !== undefined || d.cant) pintarModal();
+    else pintar();
   });
 
   var otra = document.getElementById('sim-otra');
   if (otra) otra.addEventListener('click', function () { reiniciar(); pintar(); });
 
   pintar();
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  LA TABLET LADEADA
+  //  De lejos viene girada en los tres ejes; segun la seccion se acerca al
+  //  centro de la pantalla se va enderezando, y al pasarse vuelve a girar.
+  //  Hay una meseta en el medio: si se enderezara solo en el punto exacto,
+  //  bastaria un dedo de scroll para torcerla mientras alguien la usa.
+  // ═══════════════════════════════════════════════════════════════════
+  (function () {
+    var tab = document.getElementById('sim-tablet');
+    if (!tab) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    var REPOSO = { gx: 12, gy: -26, gz: 4.5, ge: .90 };  // como viene de lejos
+    var pedido = false;
+
+    function medir() {
+      pedido = false;
+      var r = tab.getBoundingClientRect();
+      var alto = window.innerHeight || document.documentElement.clientHeight;
+      //  Sin ventana que medir (pestana de fondo, panel escondido) no se
+      //  toca nada: mejor dejarlo como esta que ponerlo torcido de golpe.
+      if (!alto) return;
+      //  0 = centrada en la pantalla; 1 = fuera del todo
+      var d = Math.abs((r.top + r.height / 2) - alto / 2) / (alto / 2 + r.height / 2);
+      //  la meseta: hasta el 26% de distancia se considera centrada
+      var k = Math.min(1, Math.max(0, (d - .26) / .54));
+      k = k * k * (3 - 2 * k);                            // sin esquinas
+      tab.style.setProperty('--gx', (REPOSO.gx * k).toFixed(2) + 'deg');
+      tab.style.setProperty('--gy', (REPOSO.gy * k).toFixed(2) + 'deg');
+      tab.style.setProperty('--gz', (REPOSO.gz * k).toFixed(2) + 'deg');
+      tab.style.setProperty('--ge', (1 - (1 - REPOSO.ge) * k).toFixed(4));
+    }
+    function alScroll() {
+      if (pedido) return;                 // una medida por cuadro, no por evento
+      pedido = true;
+      requestAnimationFrame(medir);
+    }
+    window.addEventListener('scroll', alScroll, { passive: true });
+    window.addEventListener('resize', alScroll);
+    medir();
+  })();
 })();
 </script>
 </body>
