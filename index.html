@@ -723,6 +723,62 @@ a{color:inherit;text-decoration:none}
   .rx-ic{width:30px;height:30px}
   .rx-v{font-size:14px}
 }
+
+/* ══ PUNTOS Y PREMIOS: el contador corre y el nivel se desbloquea ═════════
+
+   Las manos con los platos ya vienen en la foto. Aqui solo se anima lo que
+   sale del telefono. El ciclo dura 9 s: cuenta, respira, se va y vuelve.   */
+.px{position:absolute;inset:0;overflow:hidden;z-index:2;pointer-events:none}
+.px-c{position:absolute;left:63%;top:5%;transform:translateX(-50%);text-align:center;
+  filter:drop-shadow(0 10px 34px rgba(91,107,255,.75));animation:pxEntra 9s ease-in-out infinite}
+.px-n{font-size:clamp(38px,6vw,86px);font-weight:800;letter-spacing:-.05em;line-height:.9;color:#fff;
+  text-shadow:0 0 26px rgba(160,175,255,.85);font-variant-numeric:tabular-nums}
+.px-l{font-size:clamp(11px,1.1vw,17px);font-weight:800;letter-spacing:.22em;text-transform:uppercase;
+  color:#C7D2FE;margin-top:6px}
+
+/*  El nivel entra cuando el contador ya termino.  */
+.px-niv{position:absolute;left:63%;top:20%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:8px;padding:8px 15px;border-radius:999px;white-space:nowrap;
+  background:linear-gradient(140deg,rgba(255,255,255,.22),rgba(255,255,255,.1));
+  border:1px solid rgba(255,255,255,.34);
+  font-size:clamp(10px,.95vw,14px);font-weight:800;color:#fff;
+  box-shadow:0 16px 36px -12px rgba(0,0,0,.6);opacity:0;
+  animation:pxNivel 9s ease-in-out infinite}
+.px-niv i{width:8px;height:8px;border-radius:999px;background:#FBBF24;display:block;
+  box-shadow:0 0 12px #FBBF24}
+
+/*  Las chispas suben del telefono hacia el numero.  */
+.px-ch{position:absolute;color:#fff;font-weight:800;
+  text-shadow:0 3px 16px rgba(120,140,255,.9);opacity:0;
+  animation:pxSube 9s ease-out infinite}
+
+@keyframes pxEntra{
+  0%   {opacity:0;transform:translateX(-50%) translateY(16px) scale(.9)}
+  6%   {opacity:1;transform:translateX(-50%) translateY(0) scale(1)}
+  /* el golpecito justo cuando el contador llega al final */
+  26%  {transform:translateX(-50%) scale(1.07)}
+  30%  {transform:translateX(-50%) scale(1)}
+  84%  {opacity:1}
+  92%  {opacity:0;transform:translateX(-50%) translateY(-14px) scale(.96)}
+  100% {opacity:0;transform:translateX(-50%) translateY(16px) scale(.9)}
+}
+@keyframes pxNivel{
+  0%,28%  {opacity:0;transform:translateX(-50%) scale(.8)}
+  34%     {opacity:1;transform:translateX(-50%) scale(1.06)}
+  38%,84% {opacity:1;transform:translateX(-50%) scale(1)}
+  92%,100%{opacity:0;transform:translateX(-50%) scale(.94)}
+}
+@keyframes pxSube{
+  0%  {opacity:0;transform:translateY(10px) scale(.6)}
+  10% {opacity:.95;transform:translateY(-10px) scale(1)}
+  40% {opacity:.7}
+  55% {opacity:0;transform:translateY(-110px) scale(.8)}
+  100%{opacity:0;transform:translateY(10px) scale(.6)}
+}
+@media (prefers-reduced-motion:reduce){
+  .px-c,.px-niv,.px-ch{animation:none;opacity:1;transform:translateX(-50%)}
+  .px-ch{transform:none}
+}
 .carr-vuelo{position:absolute;z-index:2;border-radius:0;overflow:hidden;
   background-size:cover;background-position:center;pointer-events:none;
   filter:grayscale(.55) contrast(1.12);
@@ -783,7 +839,7 @@ a{color:inherit;text-decoration:none}
       <div class="hf" data-i="2"><div class="ph" data-et="fondo · Pantalla de cocina" style="background-image:url(img/landing/fondo-cocina.jpg)"></div></div>
       <div class="hf" data-i="3"><div class="ph" data-et="fondo · Comprobantes" style="background-image:url(img/landing/fondo-comprobantes.jpg)"></div><div class="cx" id="cx" aria-hidden="true"></div></div>
       <div class="hf" data-i="4"><div class="ph" data-et="fondo · Rentabilidad" style="background-image:url(img/landing/fondo-rentabilidad.jpg)"></div><div class="rx" id="rx" aria-hidden="true"></div></div>
-      <div class="hf" data-i="5"><div class="ph" data-et="fondo · Puntos y premios"></div></div>
+      <div class="hf" data-i="5"><div class="ph" data-et="fondo · Puntos y premios" style="background-image:url(img/landing/fondo-puntos.jpg)"></div><div class="px" id="px" aria-hidden="true"></div></div>
   </div>
   <div class="velo"></div><div class="rejilla"></div>
 
@@ -816,7 +872,7 @@ a{color:inherit;text-decoration:none}
         <div class="tj" role="button" tabindex="0" data-id="cocina"><div class="ph claro" data-et="tarjeta · Pantalla de cocina" style="background-image:url(img/landing/tarjeta-cocina.jpg)"></div><span class="tj-txt"><span class="tj-cuando">En la plancha</span><span class="tj-nom">Pantalla de cocina</span></span></div>
         <div class="tj" role="button" tabindex="0" data-id="comprobantes"><div class="ph claro" data-et="tarjeta · Comprobantes" style="background-image:url(img/landing/tarjeta-comprobantes.jpg)"></div><span class="tj-txt"><span class="tj-cuando">Un Nequi a las 11 p. m.</span><span class="tj-nom">Comprobantes</span></span></div>
         <div class="tj" role="button" tabindex="0" data-id="rentabilidad"><div class="ph claro" data-et="tarjeta · Rentabilidad" style="background-image:url(img/landing/tarjeta-rentabilidad.jpg)"></div><span class="tj-txt"><span class="tj-cuando">Al cerrar el mes</span><span class="tj-nom">Rentabilidad</span></span></div>
-        <div class="tj" role="button" tabindex="0" data-id="puntos"><div class="ph claro" data-et="tarjeta · Puntos y premios"></div><span class="tj-txt"><span class="tj-cuando">Cuando vuelve</span><span class="tj-nom">Puntos y premios</span></span></div>
+        <div class="tj" role="button" tabindex="0" data-id="puntos"><div class="ph claro" data-et="tarjeta · Puntos y premios" style="background-image:url(img/landing/tarjeta-puntos.jpg)"></div><span class="tj-txt"><span class="tj-cuando">Cuando vuelve</span><span class="tj-nom">Puntos y premios</span></span></div>
         <div class="tj" role="button" tabindex="0" data-id="chat"><div class="ph claro" data-et="tarjeta · Chat automático" style="background-image:url(img/landing/tarjeta-chat.jpg)"></div><span class="tj-txt"><span class="tj-cuando">Sábado, 8:40 p. m.</span><span class="tj-nom">Chat automático</span></span></div>
       </div>
     </div>
@@ -1637,6 +1693,46 @@ window.CobraPlan.iniciar({
       +   '<div class="rx-2">' + a[2] + '</div></div>'
       + '<div class="rx-v" style="color:' + a[4] + '">' + a[3] + '</div></div>';
   }).join('');
+})();
+</script>
+
+<script>
+/*  ══ EL CONTADOR DE PUNTOS ═══════════════════════════════════════════════
+    Sube de 0 a 240 con un frenado suave —rapido al principio y lento al
+    final, que es como se siente un contador de verdad— y se reinicia con
+    cada vuelta del ciclo de 9 s, en el mismo momento en que la animacion de
+    CSS vuelve a empezar. Asi el numero y el movimiento van juntos.        */
+(function () {
+  var caja = document.getElementById('px');
+  if (!caja) return;
+
+  var META = 240, CICLO = 9000, CUENTA = 1400;   // ms
+
+  var chispas = [['53%','62%',16],['58%','54%',20],['61%','46%',24],
+                 ['56%','38%',19],['65%','34%',15]];
+  caja.innerHTML =
+      '<div class="px-c"><div class="px-n" id="px-n">0</div><div class="px-l">puntos</div></div>'
+    + '<div class="px-niv"><i></i> Nivel Oro desbloqueado</div>'
+    + chispas.map(function (c, i) {
+        return '<span class="px-ch" style="left:' + c[0] + ';top:' + c[1] + ';font-size:' + c[2]
+             + 'px;animation-delay:' + (i * 0.22).toFixed(2) + 's">+</span>';
+      }).join('');
+
+  var n = document.getElementById('px-n');
+  /*  Si alguien pidio menos movimiento, el numero se queda quieto en su
+      valor final: se entiende igual y no se le mueve nada en la cara.    */
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    n.textContent = '+' + META; return;
+  }
+
+  var t0 = performance.now();
+  (function marco(t) {
+    var d = (t - t0) % CICLO;
+    var k = Math.min(1, d / CUENTA);
+    var suave = 1 - Math.pow(1 - k, 3);          // frena al final
+    n.textContent = '+' + Math.round(META * suave);
+    requestAnimationFrame(marco);
+  })(t0);
 })();
 </script>
 </body>
