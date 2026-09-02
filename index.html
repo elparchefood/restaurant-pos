@@ -466,50 +466,61 @@ a{color:inherit;text-decoration:none}
 .cmp-cab h2{font-size:clamp(28px,3.4vw,44px);line-height:1;letter-spacing:-.03em}
 .cmp-cab .lead{font-size:16.5px;color:var(--t2);margin-top:14px}
 
-.pc{width:min(100%,700px);margin:0 auto;perspective:1700px}
-/*  El cuerpo se inclina un poco: mirando de frente del todo, una tapa
-    cerrada seria una linea de un pixel y no se entenderia que es.       */
-.pc-cuerpo{transform:rotateX(9deg);transform-style:preserve-3d}
-.pc-tapa{transform-origin:50% 100%;transform-style:preserve-3d;
+/*  ── LA GEOMETRIA ──────────────────────────────────────────────────────
+    Las dos piezas comparten la BISAGRA —el borde de abajo de la tapa— y el
+    ancho, asi que la perspectiva las deforma igual y encajan solas.
+
+    Antes la base era una BARRA PLANA de 15 px mientras la tapa si giraba en
+    3D: al cerrarse se abria en abanico y quedaba mas ancha que la barra.  */
+.pc{width:min(100%,660px);margin:0 auto;perspective:1500px;padding-bottom:104px}
+.pc-cuerpo{position:relative;transform-style:preserve-3d;transform:rotateX(13deg)}
+
+/*  La tapa: de pie con --abre en 0, tumbada sobre la base a -90.         */
+.pc-tapa{position:relative;transform-origin:50% 100%;transform-style:preserve-3d;
   transform:rotateX(var(--abre,0deg));
-  background:linear-gradient(160deg,#1C2130,#0A0D16 62%);
-  border:1px solid rgba(255,255,255,.09);border-bottom:none;
-  border-radius:13px 13px 3px 3px;padding:11px 11px 13px;
-  box-shadow:0 -8px 40px -18px rgba(0,0,0,.9)}
-.pc-camara{width:4px;height:4px;border-radius:999px;background:#2C3346;margin:0 auto 7px;
+  background:linear-gradient(158deg,#232A3D,#0D111C 64%);
+  border-radius:12px 12px 4px 4px;padding:10px 10px 12px;
+  box-shadow:0 0 0 1px rgba(255,255,255,.07),0 -6px 34px -16px rgba(0,0,0,.85)}
+.pc-camara{width:4px;height:4px;border-radius:999px;background:#2C3346;margin:0 auto 6px;
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
-.pc-pantalla{aspect-ratio:16/10;border-radius:6px;overflow:hidden;background:#08080A;
-  position:relative}
-/*  el reflejo del cristal, que es lo que hace que parezca una pantalla  */
-.pc-brillo{position:absolute;inset:0;z-index:9;pointer-events:none;border-radius:6px;
+/*  `backface-visibility`: cerrada se ve la ESPALDA de la tapa —el aluminio—
+    y no el chat aplastado, que era lo que delataba que no es un portatil. */
+.pc-pantalla{aspect-ratio:16/10;border-radius:5px;overflow:hidden;background:#08080A;
+  position:relative;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.pc-brillo{position:absolute;inset:0;z-index:9;pointer-events:none;border-radius:5px;
   background:linear-gradient(103deg,rgba(255,255,255,.10) 0 18%,transparent 34%)}
 
-/*  La base: el teclado visto en escorzo. No lleva teclas dibujadas a
-    proposito —a este tamano serian ruido— sino el degradado del aluminio. */
-.pc-base{height:15px;border-radius:0 0 15px 15px;position:relative;
-  background:linear-gradient(180deg,#252B3E 0 38%,#141926 62%,#0B0F19);
-  box-shadow:0 30px 56px -22px rgba(0,0,0,.75),0 8px 18px -8px rgba(0,0,0,.5)}
-.pc-base::after{content:'';position:absolute;left:50%;top:0;transform:translateX(-50%);
-  width:84px;height:4px;border-radius:0 0 5px 5px;background:rgba(255,255,255,.11)}
-/*  la sombra que proyecta sobre el suelo */
-.pc-sombra{width:78%;height:24px;margin:0 auto;border-radius:50%;
-  background:radial-gradient(ellipse at center,rgba(0,0,0,.42),transparent 70%);
-  filter:blur(5px)}
+/*  La base: un plano TUMBADO que sale hacia quien mira desde la bisagra. Va
+    fuera del flujo porque tumbado ocupa una franja mucho mas baja que su
+    alto de verdad, y si no dejaria un hueco enorme debajo.               */
+.pc-base{position:absolute;left:0;right:0;top:100%;aspect-ratio:100/66;
+  transform-origin:50% 0;transform:rotateX(90deg);
+  border-radius:0 0 11px 11px;
+  background:linear-gradient(180deg,#2A3145 0%,#1B2130 26%,#141926 70%,#0D1119);
+  box-shadow:0 0 0 1px rgba(255,255,255,.06)}
+.pc-base::before{content:'';position:absolute;left:22%;right:22%;top:0;height:3px;
+  border-radius:0 0 4px 4px;background:rgba(0,0,0,.5)}          /* la bisagra */
+.pc-base::after{content:'';position:absolute;left:50%;transform:translateX(-50%);
+  top:56%;width:26%;height:30%;border-radius:6px;               /* el tactil  */
+  background:rgba(255,255,255,.035);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+/*  el teclado son rayas: a este tamano dibujar tecla por tecla es ruido  */
+.pc-teclas{position:absolute;left:9%;right:9%;top:12%;height:38%;border-radius:4px;
+  background:repeating-linear-gradient(180deg,
+    rgba(255,255,255,.055) 0 3px,transparent 3px 8px)}
+
+.pc-sombra{position:absolute;left:6%;right:6%;top:calc(100% + 92px);height:26px;
+  border-radius:50%;filter:blur(7px);
+  background:radial-gradient(ellipse at center,rgba(0,0,0,.40),transparent 72%)}
 
 /*  Dentro de la pantalla el chat va a 16/10, no a 16/11 como en la tarjeta. */
 .pc-pantalla .ch{aspect-ratio:auto;height:100%;border:none;border-radius:0;box-shadow:none}
-/*  La pantalla se ENCIENDE al abrirse, como una de verdad: con la tapa
-    casi cerrada se veia el chat aplastado asomando por encima, que era lo
-    unico que delataba que no es un portatil. Apagada queda el negro del
-    propio cristal (#08080A), que ya es el fondo del recuadro.           */
+/*  La pantalla se ENCIENDE al abrirse, como una de verdad.               */
 .pc-pantalla .ch{opacity:var(--luz,1)}
 /*  Y AQUI SI SE TOCA. `.ch-esc` lleva `pointer-events:none` porque en la
     tarjeta del asistente es una animacion y nada es pulsable; en el portatil
     el recorrido lo hace quien visita la pagina.                          */
 .pc-pantalla .ch-esc{pointer-events:auto}
 
-/*  Dos clases, no una: `.sim-otra` es `inline-flex` y esta definida mas
-    abajo, asi que con el mismo peso ganaria ella y no se centraria.    */
 .sim-otra.cmp-otra{display:flex;margin:26px auto 0}
 
 /*  El aviso, colgado por DEBAJO. "Crear pedido" vive en el borde de arriba
@@ -1915,9 +1926,9 @@ body{background:#FFFFFF}
           <span class="pc-brillo"></span>
         </div>
       </div>
-      <div class="pc-base"></div>
+      <div class="pc-base"><span class="pc-teclas"></span></div>
+      <div class="pc-sombra"></div>
     </div>
-    <div class="pc-sombra"></div>
   </div>
 
   <button class="sim-otra cmp-otra" id="cmp-otra" type="button">
