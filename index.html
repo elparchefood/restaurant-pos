@@ -472,11 +472,18 @@ a{color:inherit;text-decoration:none}
 
     Antes la base era una BARRA PLANA de 15 px mientras la tapa si giraba en
     3D: al cerrarse se abria en abanico y quedaba mas ancha que la barra.  */
-.pc{width:min(100%,660px);margin:0 auto;perspective:1500px;padding-bottom:104px}
+.pc{width:min(100%,660px);margin:0 auto;perspective:1500px;padding-bottom:30%}
 /*  -13 y no +13: en positivo la camara se va POR DEBAJO del teclado y el
     panel tactil sale por encima de las teclas. Medido: con +13 el borde
     de delante de la base cae mas arriba que la bisagra.               */
-.pc-cuerpo{position:relative;transform-style:preserve-3d;transform:rotateX(-13deg)}
+.pc-cuerpo{position:relative;transform-style:preserve-3d;transform:rotateX(-13deg);
+  /*  `pointer-events:none` es OBLIGATORIO. Es un envoltorio sin fondo, pero
+      una caja transparente si recibe pulsaciones, y su plano esta en Z=0.
+      La tapa va inclinada hacia atras, asi que su parte de ARRIBA —la
+      cabecera, donde vive "Crear pedido"— queda por DETRAS de ese plano y el
+      envoltorio se llevaba el clic. El boton del comprobante si respondia
+      porque esta mas abajo, casi a la altura de la bisagra.             */
+  pointer-events:none}
 
 /*  La tapa: de pie con --abre en 0, tumbada sobre la base a -90.
 
@@ -488,11 +495,13 @@ a{color:inherit;text-decoration:none}
     `translateZ(-5px)` — la separa del plano de la base. Va DESPUES del giro,
     asi que se mueve por su propia normal: cerrada, eso es hacia arriba. Dos
     planos exactamente encima se pelean por quien pinta y dejan costuras. */
-/*  SIN `transform-style:preserve-3d`. Lo tenia solo para colgarle una banda
-    de canto, y eso convertia el chat entero en una capa 3D aparte: dos
-    planos mas que componer. El grosor de la pantalla lo da ahora el sello,
-    que es una sombra en el MISMO plano y no necesita 3D.                */
+/*  `preserve-3d` es OBLIGATORIO aqui, aunque sume una capa: sin el, los
+    hijos de la tapa quedan aplanados y DEJAN DE RECIBIR EL CLIC —el
+    navegador da la pulsacion al contenedor y los botones del chat no
+    responden—. Lo que si se quito fue la banda de canto que colgaba de
+    ella; el grosor de la pantalla lo da ahora el sello.                 */
 .pc-tapa{position:relative;margin:0 5px;transform-origin:50% 100%;
+  transform-style:preserve-3d;
   transform:rotateX(var(--abre,12deg)) translateZ(-5px);
   background:linear-gradient(158deg,#232A3D,#0D111C 64%);
   border-radius:12px 12px 4px 4px;padding:10px 10px 12px;
@@ -505,11 +514,18 @@ a{color:inherit;text-decoration:none}
              0 0 0 var(--sello,0px) #0B0F19}
 .pc-camara{width:4px;height:4px;border-radius:999px;background:#2C3346;margin:0 auto 6px;
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
-/*  La pantalla ENTERA se desvanece con --luz, no solo el chat. Cerrada
-    desaparece y por debajo queda el degradado de la tapa —el aluminio—,
-    que es lo que se ve en un portatil cerrado de verdad.               */
+/*  NUNCA `opacity` aqui. Un valor distinto de 1 la convierte en capa
+    compuesta y, dentro de la cadena de `preserve-3d`, el navegador deja de
+    pasar la pulsacion a traves: los botones del chat dejan de responder.
+    Para apagarla esta `.pc-apaga`, que va ENCIMA y no envuelve a nadie.  */
 .pc-pantalla{aspect-ratio:16/10;border-radius:5px;overflow:hidden;background:#08080A;
-  position:relative;opacity:var(--luz,1)}
+  position:relative}
+/*  La tapadera: el mismo aluminio de la tapa, que aparece al reves que la
+    luz. Cerrada la cubre entera y se ve un portatil cerrado; abierta vale
+    cero y no existe. `pointer-events:none` para que el clic la atraviese. */
+.pc-apaga{position:absolute;inset:0;z-index:10;pointer-events:none;border-radius:5px;
+  background:linear-gradient(158deg,#232A3D,#0D111C 64%);
+  opacity:calc(1 - var(--luz,1))}
 .pc-brillo{position:absolute;inset:0;z-index:9;pointer-events:none;border-radius:5px;
   background:linear-gradient(103deg,rgba(255,255,255,.10) 0 18%,transparent 34%)}
 
@@ -584,9 +600,20 @@ a{color:inherit;text-decoration:none}
 /*  Dentro de la pantalla el chat va a 16/10, no a 16/11 como en la tarjeta. */
 .pc-pantalla .ch{aspect-ratio:auto;height:100%;border:none;border-radius:0;box-shadow:none}
 /*  (la pantalla entera ya se apaga con --luz, ver mas arriba)           */
-/*  Y AQUI SI SE TOCA. `.ch-esc` lleva `pointer-events:none` porque en la
-    tarjeta del asistente es una animacion y nada es pulsable; en el portatil
-    el recorrido lo hace quien visita la pagina.                          */
+/*  SIN `backdrop-filter` dentro del portatil. Un filtro de fondo crea una
+    capa compuesta y, dentro de la cadena de `preserve-3d`, el navegador deja
+    de pasar la pulsacion a lo que hay dentro: "Crear pedido" no respondia.
+    Los fondos se suben de opacidad para que no se note que falta.       */
+.pc-pantalla .ch-head{-webkit-backdrop-filter:none;backdrop-filter:none;
+  background:rgba(13,14,18,.94)}
+.pc-pantalla .ch-comp{-webkit-backdrop-filter:none;backdrop-filter:none;
+  background:rgba(13,14,18,.96)}
+
+/*  Y AQUI SI SE TOCA. Se le devuelve solo a la pantalla, que es lo unico
+    que hay que tocar. (`.ch-esc` lo lleva apagado porque en la tarjeta del
+    asistente es una animacion y nada es pulsable; en el portatil el
+    recorrido lo hace quien visita la pagina.)                           */
+.pc-pantalla{pointer-events:auto}
 .pc-pantalla .ch-esc{pointer-events:auto}
 
 .sim-otra.cmp-otra{display:flex;margin:26px auto 0}
@@ -1991,6 +2018,7 @@ body{background:#FFFFFF}
           <!--  El chat lo dibuja el guion; son las mismas clases .ch-* de la
                 tarjeta del asistente.                                     -->
           <div class="ch" id="ch2"></div>
+          <span class="pc-apaga"></span>
           <span class="pc-brillo"></span>
         </div>
       </div>
