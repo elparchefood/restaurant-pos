@@ -488,8 +488,11 @@ a{color:inherit;text-decoration:none}
     `translateZ(-5px)` — la separa del plano de la base. Va DESPUES del giro,
     asi que se mueve por su propia normal: cerrada, eso es hacia arriba. Dos
     planos exactamente encima se pelean por quien pinta y dejan costuras. */
+/*  SIN `transform-style:preserve-3d`. Lo tenia solo para colgarle una banda
+    de canto, y eso convertia el chat entero en una capa 3D aparte: dos
+    planos mas que componer. El grosor de la pantalla lo da ahora el sello,
+    que es una sombra en el MISMO plano y no necesita 3D.                */
 .pc-tapa{position:relative;margin:0 5px;transform-origin:50% 100%;
-  transform-style:preserve-3d;
   transform:rotateX(var(--abre,12deg)) translateZ(-5px);
   background:linear-gradient(158deg,#232A3D,#0D111C 64%);
   border-radius:12px 12px 4px 4px;padding:10px 10px 12px;
@@ -502,26 +505,14 @@ a{color:inherit;text-decoration:none}
              0 0 0 var(--sello,0px) #0B0F19}
 .pc-camara{width:4px;height:4px;border-radius:999px;background:#2C3346;margin:0 auto 6px;
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
-/*  `backface-visibility`: cerrada se ve la ESPALDA de la tapa —el aluminio—
-    y no el chat aplastado, que era lo que delataba que no es un portatil. */
+/*  La pantalla ENTERA se desvanece con --luz, no solo el chat. Cerrada
+    desaparece y por debajo queda el degradado de la tapa —el aluminio—,
+    que es lo que se ve en un portatil cerrado de verdad.               */
 .pc-pantalla{aspect-ratio:16/10;border-radius:5px;overflow:hidden;background:#08080A;
-  position:relative;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+  position:relative;opacity:var(--luz,1)}
 .pc-brillo{position:absolute;inset:0;z-index:9;pointer-events:none;border-radius:5px;
   background:linear-gradient(103deg,rgba(255,255,255,.10) 0 18%,transparent 34%)}
 
-/*  EL GRUESO DE LA TAPA. Mismo truco que el canto de la base: una banda
-    pegada al borde de ARRIBA de la tapa, girada 90 grados respecto a ella.
-    Abierta se ve de canto —casi nada, que es lo correcto—; cerrada, ese
-    borde queda de frente y es donde se ve el grosor de la pantalla.     */
-.pc-tapa-canto{position:absolute;left:0;right:0;bottom:100%;height:9px;
-  transform-origin:50% 100%;transform:rotateX(90deg);
-  border-radius:11px 11px 0 0;
-  background:linear-gradient(180deg,#0B0F19,#1E2536 55%,#2A3145);
-  box-shadow:0 0 0 1px rgba(255,255,255,.05)}
-
-/*  La base: un plano TUMBADO que sale hacia quien mira desde la bisagra. Va
-    fuera del flujo porque tumbado ocupa una franja mucho mas baja que su
-    alto de verdad, y si no dejaria un hueco enorme debajo.               */
 /*  EL RESPALDO. Un plano opaco por debajo de todo, un poco mas grande que
     la base y que la tapa. No arregla ninguna rendija: hace que deje de
     importar, porque por ella se ve este azul oscuro y no el blanco de la
@@ -582,14 +573,17 @@ a{color:inherit;text-decoration:none}
     cuerpo que una "A".                                                  */
 .pc-tec.mini{font-size:6px;color:#69738C}
 
-.pc-sombra{position:absolute;left:6%;right:6%;top:calc(100% + 92px);height:26px;
-  border-radius:50%;filter:blur(7px);
+/*  FUERA del espacio 3D. Lleva `filter:blur()`, y un filtro dentro de un
+    `preserve-3d` obliga al navegador a aplanar y es fuente conocida de
+    fallos al componer las capas. La sombra no necesita 3D: es una mancha
+    debajo del portatil.                                                 */
+.pc-sombra{position:absolute;left:8%;right:8%;bottom:6px;height:26px;
+  border-radius:50%;filter:blur(7px);z-index:-1;
   background:radial-gradient(ellipse at center,rgba(0,0,0,.40),transparent 72%)}
 
 /*  Dentro de la pantalla el chat va a 16/10, no a 16/11 como en la tarjeta. */
 .pc-pantalla .ch{aspect-ratio:auto;height:100%;border:none;border-radius:0;box-shadow:none}
-/*  La pantalla se ENCIENDE al abrirse, como una de verdad.               */
-.pc-pantalla .ch{opacity:var(--luz,1)}
+/*  (la pantalla entera ya se apaga con --luz, ver mas arriba)           */
 /*  Y AQUI SI SE TOCA. `.ch-esc` lleva `pointer-events:none` porque en la
     tarjeta del asistente es una animacion y nada es pulsable; en el portatil
     el recorrido lo hace quien visita la pagina.                          */
@@ -1992,7 +1986,6 @@ body{background:#FFFFFF}
   <div class="pc rev" id="pc">
     <div class="pc-cuerpo">
       <div class="pc-tapa">
-        <span class="pc-tapa-canto"></span>
         <span class="pc-camara"></span>
         <div class="pc-pantalla">
           <!--  El chat lo dibuja el guion; son las mismas clases .ch-* de la
@@ -2004,8 +1997,8 @@ body{background:#FFFFFF}
       <div class="pc-suelo"></div>
       <div class="pc-base"><span class="pc-teclas"></span></div>
       <div class="pc-canto"></div>
-      <div class="pc-sombra"></div>
     </div>
+    <div class="pc-sombra"></div>
   </div>
 
   <button class="sim-otra cmp-otra" id="cmp-otra" type="button">
