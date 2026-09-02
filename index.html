@@ -516,6 +516,15 @@ a{color:inherit;text-decoration:none}
 /*  La base: un plano TUMBADO que sale hacia quien mira desde la bisagra. Va
     fuera del flujo porque tumbado ocupa una franja mucho mas baja que su
     alto de verdad, y si no dejaria un hueco enorme debajo.               */
+/*  EL RESPALDO. Un plano opaco por debajo de todo, un poco mas grande que
+    la base y que la tapa. No arregla ninguna rendija: hace que deje de
+    importar, porque por ella se ve este azul oscuro y no el blanco de la
+    pagina. Perseguir como reparte el navegador dos planos que casi se tocan
+    es una pelea que cambia con cada zoom.                               */
+.pc-suelo{position:absolute;left:-8px;right:-8px;top:100%;aspect-ratio:100/71;
+  transform-origin:50% 0;transform:rotateX(90deg) translateZ(-3px);
+  border-radius:0 0 14px 14px;background:#0B0F19}
+
 /*  Mas honda que alto tiene la tapa (69 contra los ~65 que mide ella), para
     que cerrada la tapa quede DENTRO y no se pase por delante.           */
 .pc-base{position:absolute;left:0;right:0;top:100%;aspect-ratio:100/69;
@@ -1986,6 +1995,7 @@ body{background:#FFFFFF}
           <span class="pc-brillo"></span>
         </div>
       </div>
+      <div class="pc-suelo"></div>
       <div class="pc-base"><span class="pc-teclas"></span></div>
       <div class="pc-canto"></div>
       <div class="pc-sombra"></div>
