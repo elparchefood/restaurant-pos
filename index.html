@@ -493,7 +493,13 @@ a{color:inherit;text-decoration:none}
   transform:rotateX(var(--abre,12deg)) translateZ(-5px);
   background:linear-gradient(158deg,#232A3D,#0D111C 64%);
   border-radius:12px 12px 4px 4px;padding:10px 10px 12px;
-  box-shadow:0 0 0 1px rgba(255,255,255,.07),0 -6px 34px -16px rgba(0,0,0,.85)}
+  /*  El ultimo es EL SELLO: una banda opaca del color del chasis alrededor
+      de la tapa, en su propio plano. Crece de 0 a 16 px segun se cierra
+      (--sello lo escribe el guion). Abierta vale 0 y no se ve; cerrada tapa
+      cualquier rendija que quede entre la tapa y la base. Va el ultimo para
+      que se pinte por DEBAJO de los otros dos.                          */
+  box-shadow:0 0 0 1px rgba(255,255,255,.07),0 -6px 34px -16px rgba(0,0,0,.85),
+             0 0 0 var(--sello,0px) #0B0F19}
 .pc-camara{width:4px;height:4px;border-radius:999px;background:#2C3346;margin:0 auto 6px;
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
 /*  `backface-visibility`: cerrada se ve la ESPALDA de la tapa —el aluminio—
@@ -3945,6 +3951,7 @@ window.CobraPlan.iniciar({
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       pc.style.setProperty('--abre', '12deg');
       pc.style.setProperty('--luz', '1');
+      pc.style.setProperty('--sello', '0px');
       return;
     }
     /*  Abierta no es 0: a 0 la tapa queda en el plano del conjunto, que va
@@ -3967,6 +3974,8 @@ window.CobraPlan.iniciar({
           del ancho, el mismo `aspect-ratio` que lleva en el CSS. Si se
           cambia uno hay que cambiar el otro.                            */
       pc.style.setProperty('--fondo', Math.round(pc.offsetWidth * .69) + 'px');
+      /*  El sello: nada con la tapa abierta, 16 px con la tapa cerrada.  */
+      pc.style.setProperty('--sello', (16 * k).toFixed(1) + 'px');
     }
     function alScroll(){
       if (pedido) return;
