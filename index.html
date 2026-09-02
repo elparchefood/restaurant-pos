@@ -577,10 +577,24 @@ a{color:inherit;text-decoration:none}
     al aterrizar. Ahora vuela ya oscurecido, igual que va a quedar.
 
     No puede ir dentro de `.carr`, que esta recortado: ahi no podria crecer. */
-.carr-vuelo{position:absolute;z-index:2;border-radius:14px;overflow:hidden;
+/*  ⚠️ ESTO NO SE ESCALA, SE RECORTA — y es a proposito.
+
+    Antes el clon salia del tamano de la tarjeta (vertical) y crecia hasta la
+    portada (apaisada) con `scale(8.5, 3.7)`: dos escalas distintas, o sea la
+    foto estirada a lo ancho y aplastada a lo alto. Sergio lo vio enseguida
+    (1-sep-2026).
+
+    Ahora el clon nace YA del tamano final, con la foto en su proporcion
+    correcta, y lo que se anima es la VENTANA por la que se ve
+    (`clip-path: inset`). Recortar no deforma. El movimiento es el mismo; la
+    imagen ya no se estira, se destapa.
+
+    Por eso `border-radius` es 0: las esquinas redondeadas viajan dentro del
+    propio recorte (`round`), que se anima con el.                          */
+.carr-vuelo{position:absolute;z-index:2;border-radius:0;overflow:hidden;
   background-size:cover;background-position:center;pointer-events:none;
   filter:grayscale(.55) contrast(1.12);
-  transition:transform .52s cubic-bezier(.62,0,.2,1),border-radius .52s ease,opacity .12s ease .4s}
+  transition:clip-path .52s cubic-bezier(.62,0,.2,1),opacity .12s ease .4s}
 
 /* ── el pie: flechas, la linea del reloj y el contador ── */
 .carr-pie{display:flex;align-items:center;gap:10px;margin-top:16px}
@@ -1321,8 +1335,13 @@ window.CobraPlan.iniciar({
     vuelo.className = 'carr-vuelo';
     //  Coordenadas relativas al contenedor del fondo, que mide exactamente
     //  lo mismo que la portada (`inset:0`).
-    vuelo.style.cssText += ';left:' + (r.left - rh.left) + 'px;top:' + (r.top - rh.top) + 'px;' +
-                           'width:' + r.width + 'px;height:' + r.height + 'px;';
+    /*  El clon ocupa la portada entera desde el primer cuadro: asi la foto
+        esta en su proporcion buena y nunca se estira. Lo que empieza pequeno
+        es el RECORTE, puesto justo encima de la tarjeta.                   */
+    var x0 = r.left - rh.left, y0 = r.top - rh.top;
+    vuelo.style.cssText += ';left:0;top:0;width:' + rh.width + 'px;height:' + rh.height + 'px;';
+    vuelo.style.clipPath = 'inset(' + y0 + 'px ' + (rh.width - x0 - r.width) + 'px ' +
+                           (rh.height - y0 - r.height) + 'px ' + x0 + 'px round 14px)';
     var fondoNuevo = fondos.children[nuevo].querySelector('.ph');
     var img = fondoNuevo && getComputedStyle(fondoNuevo).backgroundImage;
     if (img && img !== 'none') vuelo.style.backgroundImage = img;
@@ -1337,11 +1356,8 @@ window.CobraPlan.iniciar({
     pintarTexto(nuevo);
 
     requestAnimationFrame(function () {
-      vuelo.style.transform = 'translate(' + (rh.left - r.left) + 'px,' + (rh.top - r.top) + 'px) ' +
-                              'scale(' + (rh.width / r.width) + ',' + (rh.height / r.height) + ')';
-      vuelo.style.transformOrigin = 'top left';
-      vuelo.style.transformOrigin = 'top left';
-      vuelo.style.borderRadius = '0';
+      //  La ventana se abre hasta la portada entera. La foto no se mueve.
+      vuelo.style.clipPath = 'inset(0px 0px 0px 0px round 0px)';
 
       // el fondo de verdad se enciende debajo mientras el clon todavia tapa
       for (var k = 0; k < fondos.children.length; k++)
