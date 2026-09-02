@@ -264,6 +264,190 @@ a{color:inherit;text-decoration:none}
   filter:drop-shadow(0 2px 6px rgba(0,0,0,.55))}
 @media(max-width:1080px){.arg-redes{left:32px;bottom:26px;gap:12px}
   .arg-redes svg{width:21px;height:21px}}
+
+/* ══ EL CHAT DE COBRA, EN LA TARJETA DEL ASISTENTE ════════════════════════
+
+   Esto no es un dibujo de un chat: es el chat de Cobra a escala. Los valores
+   salen de `chat-ia.css`, con el original anotado al lado.
+
+   La pantalla tiene DOS escenas encadenadas: primero llega el mensaje y el
+   asistente toma el pedido; cuando acaba, la pantalla cambia y sale ventas
+   con el domicilio ya creado. Es el recorrido entero de un pedido.        */
+#asistente .rep{width:min(46%,460px);padding:0;background:none;border:none;
+  transform:translateY(-50%);box-shadow:none;backdrop-filter:none}
+
+/*  El `color` va escrito a mano en las dos escenas. La tarjeta que las
+    contiene es de las oscuras y reparte texto claro; sin volver a decirlo,
+    lo que no lleve color propio sale BLANCO SOBRE BLANCO en ventas —el
+    titulo "Domicilios" se perdia entero.                                */
+.ch{position:relative;overflow:hidden;aspect-ratio:16/11;border-radius:14px;
+  container-type:inline-size;color:#EDEEF2;background:#08080A;
+  font-family:'DM Sans',system-ui,sans-serif;line-height:1.4;
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 34px 70px -26px rgba(0,0,0,.75),0 6px 18px -8px rgba(0,0,0,.5)}
+.ch *{box-sizing:border-box}
+.ch-esc{position:absolute;inset:0;display:flex;opacity:0;transform:scale(.985);
+  transition:opacity .45s ease,transform .45s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.ch-esc.on{opacity:1;transform:none}
+
+/*  ── LA LISTA DE CONVERSACIONES (.ci-list) ──
+    En el chat de verdad mide 366 px y va sobre #111217.                   */
+.ch-list{width:40%;flex:0 0 auto;min-width:0;background:#111217;
+  border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column}
+.ch-list-cab{padding:9px 9px 8px;border-bottom:1px solid rgba(255,255,255,.07);flex:0 0 auto}
+.ch-list-tit{font-size:12px;font-weight:800;color:#EDEEF2;letter-spacing:-.01em}
+.ch-list-sub{font-size:7.5px;font-weight:400;color:#585C6B;margin-top:1px}
+.ch-convs{flex:1;min-height:0;overflow:hidden;padding:4px 0}
+
+/*  .ci-conv: fila de 10/14 con radio 15 y 11 de hueco  */
+.ch-conv{display:flex;align-items:center;gap:7px;padding:6px 8px;margin:0 4px;
+  border-radius:9px;position:relative;
+  transition:background .16s,opacity .35s,transform .35s}
+.ch-conv.act{background:#161821;border:1px solid #262935;
+  box-shadow:inset 0 0 0 1px rgba(124,92,255,.10)}
+.ch-conv.act::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:2px;height:58%;border-radius:3px;background:#7C5CFF}
+/*  la que acaba de entrar cae desde arriba */
+.ch-conv.nueva{animation:chCae .45s cubic-bezier(.2,.8,.2,1) both}
+@keyframes chCae{from{opacity:0;transform:translateY(-11px)}to{opacity:1;transform:none}}
+
+.ch-av-wrap{position:relative;flex:0 0 auto}
+/*  .ci-av: 42 px con radio 15. Las iniciales sobre uno de los siete tintes
+    de chat-ia.js —para WhatsApp NO hay foto, Meta no la manda.           */
+.ch-av{width:26px;height:26px;border-radius:9px;display:flex;align-items:center;
+  justify-content:center;font-size:9px;font-weight:700}
+.ch-av img{width:100%;height:100%;border-radius:9px;object-fit:cover;display:block}
+/*  .ci-av-badge: 18 px, radio 8, con borde del color del panel  */
+.ch-av-badge{position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:5px;
+  border:1.5px solid #111217;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 4px -1px rgba(0,0,0,.5)}
+.ch-av-badge svg{width:7px;height:7px;display:block}
+.ch-av-badge.ch-wa{background:#25D366}
+.ch-av-badge.ch-ig{background:linear-gradient(135deg,#FEDA75,#FA7E1E 25%,#D62976 55%,#962FBF 80%,#4F5BD5)}
+.ch-av-badge.ch-fb{background:#0866FF}
+
+.ch-conv-main{flex:1;min-width:0}
+.ch-conv-top{display:flex;align-items:baseline;justify-content:space-between;gap:5px;margin-bottom:1px}
+.ch-conv-nom{font-size:9px;font-weight:600;color:#EDEEF2;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.ch-conv.sinleer .ch-conv-nom{font-weight:800}
+.ch-conv-hora{font-size:7px;color:#585C6B;flex:0 0 auto}
+.ch-conv.sinleer .ch-conv-hora{color:#7C5CFF}
+.ch-conv-bot{display:flex;align-items:center;justify-content:space-between;gap:5px}
+.ch-conv-prev{font-size:8px;color:#787C8B;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;flex:1}
+/*  .ci-unread: pastilla del acento con su sombra  */
+.ch-sinleer{min-width:13px;height:12px;padding:0 4px;border-radius:999px;background:#7C5CFF;
+  color:#fff;font-size:7.5px;font-weight:700;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 3px 6px -2px rgba(124,92,255,.6);flex:0 0 auto}
+
+/*  ── EL PANEL DEL CHAT (.ci-chat) ──
+    #08080A con los dos resplandores morados de siempre.                   */
+.ch-panel{flex:1;min-width:0;display:flex;flex-direction:column;position:relative;
+  background-color:#08080A;
+  background-image:
+    radial-gradient(1100px 620px at 82% -8%,rgba(124,92,255,.07),transparent 62%),
+    radial-gradient(880px 520px at 8% 112%,rgba(124,92,255,.055),transparent 60%)}
+
+/*  .ci-chat-head: 69 px, translucida y desenfocada  */
+.ch-head{height:42px;flex:0 0 auto;background:rgba(13,14,18,.72);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  border-bottom:1px solid #1D1F27;display:flex;align-items:center;gap:8px;padding:0 11px}
+.ch-head-av{width:26px;height:26px;border-radius:8px;flex:0 0 auto;display:flex;
+  align-items:center;justify-content:center;font-size:9px;font-weight:700}
+.ch-head-txt{min-width:0;flex:1}
+.ch-head-nom{display:block;font-size:11px;font-weight:600;color:#EDEEF2;letter-spacing:-.015em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ch-head-meta{display:flex;align-items:center;gap:5px;margin-top:1px}
+/*  .ci-chan-chip. Los modificadores van PREFIJADOS (.ch-wa y no .wa):
+    `.wa` a secas es el boton flotante de WhatsApp de la landing y se
+    define mas abajo, asi que ganaba y convertia el chip del canal en un
+    circulo verde de 54 px flotando fuera del recuadro.               */
+.ch-chip{display:inline-flex;align-items:center;gap:3px;padding:1px 5px;border-radius:999px;
+  font-size:7px;font-weight:600;color:#fff;white-space:nowrap}
+.ch-chip svg{width:7px;height:7px;display:block}
+.ch-chip.ch-wa{background:#25D366}
+.ch-chip.ch-ig{background:linear-gradient(135deg,#D62976,#962FBF)}
+.ch-chip.ch-fb{background:#0866FF}
+.ch-vivo{font-size:7.5px;color:#787C8B;display:flex;align-items:center;gap:3px;white-space:nowrap}
+/*  .ci-dot-live: late cada 2 s  */
+.ch-vivo i{width:5px;height:5px;border-radius:50%;background:#16A34A;display:block;
+  animation:chLate 2s infinite}
+@keyframes chLate{0%,100%{opacity:1}50%{opacity:.45}}
+
+/*  ── EL HILO (.ci-thread) ── */
+/*  Se desplaza como el hilo de verdad y siempre queda abajo. La barra se
+    esconde: en una maqueta de 460 px estorba mas de lo que ayuda.        */
+.ch-hilo{flex:1;min-height:0;overflow-y:auto;padding:10px 12px;
+  display:flex;flex-direction:column;gap:4px;scrollbar-width:none}
+.ch-hilo::-webkit-scrollbar{width:0;height:0}
+.ch-fecha{text-align:center;font-size:7.5px;margin:0 0 4px}
+.ch-fecha span{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);
+  border-radius:999px;padding:2px 7px;color:rgba(255,255,255,.5)}
+.ch-fila{display:flex;animation:chSube .3s cubic-bezier(.2,.8,.2,1) both}
+.ch-fila.ent{justify-content:flex-start}
+.ch-fila.sal{justify-content:flex-end}
+@keyframes chSube{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/*  .ci-bubble: 72% de ancho, y las esquinas mordidas de cada lado  */
+.ch-bb{max-width:76%;padding:6px 8px;font-size:9px;line-height:1.45;position:relative;
+  white-space:pre-wrap;overflow-wrap:anywhere}
+.ch-bb.ent{background:#161821;border:1px solid rgba(255,255,255,.09);
+  border-radius:11px 11px 11px 4px;color:#EDEEF2}
+.ch-bb.sal{background:linear-gradient(135deg,#7C5CFF 0%,#5B3FE0 100%);
+  border-radius:11px 11px 4px 11px;color:#fff;
+  box-shadow:0 8px 20px -6px rgba(92,63,226,.5)}
+.ch-bb .m{display:block;font-size:7px;margin-top:2px}
+.ch-bb.ent .m{color:#585C6B}
+.ch-bb.sal .m{color:rgba(255,255,255,.65);text-align:right}
+/*  .ci-typing-bubble + ci-blink  */
+.ch-esc-puntos{display:flex;align-items:center;gap:3px;padding:7px 9px !important;min-width:30px}
+.ch-pt{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.5);display:inline-block;
+  animation:chBlink 1.2s ease-in-out infinite}
+.ch-pt:nth-child(2){animation-delay:.2s}
+.ch-pt:nth-child(3){animation-delay:.4s}
+@keyframes chBlink{0%,80%,100%{opacity:.3;transform:scale(.85)}40%{opacity:1;transform:scale(1)}}
+
+/*  ── EL REDACTOR (.ci-composer) ── */
+.ch-comp{flex:0 0 auto;background:rgba(13,14,18,.88);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  border-top:1px solid rgba(255,255,255,.07);padding:8px 11px;
+  display:flex;align-items:center;gap:6px}
+.ch-comp-ic{width:24px;height:24px;border-radius:7px;flex:0 0 auto;
+  border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.05);color:#A6A9B6;
+  display:flex;align-items:center;justify-content:center}
+.ch-comp-ic svg{width:11px;height:11px;display:block}
+.ch-comp-in{flex:1;min-width:0;height:24px;border-radius:8px;
+  border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.04);
+  display:flex;align-items:center;padding:0 9px;font-size:8.5px;color:#585C6B}
+.ch-comp-env{width:24px;height:24px;border-radius:7px;flex:0 0 auto;
+  background:linear-gradient(180deg,#7C5CFF 0%,#5B3FE0 100%);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 6px 14px -4px rgba(124,92,255,.6)}
+.ch-comp-env svg{width:11px;height:11px;display:block}
+
+/*  ── LA SEGUNDA ESCENA: ventas con el domicilio ya creado ──
+    Reaprovecha las clases .sm-* del simulador de la tablet: es la MISMA
+    pantalla de ventas, asi que no hay que volver a describirla.          */
+.ch-ventas{background:#FAFAFB;color:#0F172A;flex-direction:column}
+.ch-ventas .sm-mesas{grid-template-columns:repeat(2,1fr);grid-auto-rows:minmax(66px,1fr);
+  padding:8px 10px 10px;gap:7px}
+.ch-ventas .sm-cab{padding:8px 10px 0}
+.ch-ventas .sm-tabs{padding:7px 10px 0}
+/*  el que acaba de entrar se senala un momento */
+.ch-nuevo{outline:2px solid rgba(245,158,11,0);outline-offset:2px;
+  animation:chNuevo 1.5s ease-out 3}
+@keyframes chNuevo{0%{outline-color:rgba(245,158,11,.75)}100%{outline-color:rgba(245,158,11,0)}}
+.ch-canal-tag{font-size:7px;font-weight:600;padding:1px 5px;border-radius:4px;flex:0 0 auto}
+
+@container (max-width:360px){
+  .ch-list{width:36%}
+  .ch-conv-hora,.ch-list-sub{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  .ch-conv.nueva,.ch-fila,.ch-nuevo{animation:none}
+  .ch-vivo i,.ch-pt{animation:none}
+}
 .arg .fr{display:block;margin-top:20px;font-family:'Archivo';font-size:17px;font-weight:800;
   color:#fff;border-left:3px solid var(--acid);padding-left:14px;text-transform:none;letter-spacing:-.01em}
 .arg .rep{position:absolute;z-index:4;right:5%;top:50%;transform:translateY(-50%) rotate(1.4deg);
@@ -1529,12 +1713,10 @@ body{background:#FFFFFF}
       <p>Los tres llegan al mismo sitio. El asistente toma el pedido completo, con presentaciones y adiciones, cobra y lo manda a la cocina. De noche, en hora pico, o cuando nadie puede contestar.</p>
       <span class="fr">«Cada pedido que no contestas es plata que se va al de la esquina.»</span>
     </div>
-    <div class="rep vidrio">
-      <div class="cab" style="font-size:10px;color:var(--t3);margin-bottom:10px;letter-spacing:.1em;text-transform:uppercase">Pedido #418 · 11:47 p. m.</div>
-      <div class="bb e">¿Todavía tienen churrasco?</div>
-      <div class="bb a">Personal $32.000 o para dos $58.000</div>
-      <div class="bb e">El de dos, conjunto Las Palmas</div>
-      <div class="bb a">Listo 🙌 A cocina. 35 min.</div>
+    <div class="rep">
+      <!--  La pantalla. Todo lo de dentro lo dibuja el guion: son dos escenas
+            —el chat y ventas— sobre el mismo nodo.                        -->
+      <div class="ch" id="ch" aria-hidden="true"></div>
     </div>
     <div class="arg-redes" aria-label="WhatsApp, Instagram y Facebook">
       <svg viewBox="0 0 24 24" role="img" aria-label="WhatsApp"><path fill="#25D366" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884a9.82 9.82 0 0 1 6.988 2.898 9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
@@ -2931,6 +3113,263 @@ window.CobraPlan.iniciar({
     window.addEventListener('resize', alScroll);
     medir();
   })();
+})();
+</script>
+
+<script>
+/*  ══ EL CHAT DE LA TARJETA DEL ASISTENTE ═════════════════════════════════
+
+    Dos escenas encadenadas, en bucle:
+
+      1 · Entra una conversacion nueva en la lista, con su pastilla de sin
+          leer. El cliente escribe, el asistente contesta y le toma el pedido
+          entero: plato, presentacion, direccion y forma de pago.
+      2 · La pantalla cambia a ventas y ahi esta el domicilio ya creado, con
+          el mismo nombre, los mismos items y el mismo total.
+
+    Solo corre mientras se ve: fuera de pantalla se para sola. Y si alguien
+    pidio menos movimiento, se pinta el final y no se mueve nada.          */
+(function () {
+  var caja = document.getElementById('ch');
+  if (!caja) return;
+
+  /*  Los dibujos de canal salen de GLYPH, en chat-ia.js.  */
+  var G = {
+    wa: '<svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 0 0-8.5 15.3L2 22l4.8-1.3A10 10 0 1 0 12 2zm0 1.8a8.2 8.2 0 1 1-4.2 15.2l-.3-.2-2.9.8.8-2.8-.2-.3A8.2 8.2 0 0 1 12 3.8zm-2.8 4c-.2 0-.5.1-.6.3-.2.3-.8.8-.8 1.9s.8 2.2.9 2.3c.1.2 1.6 2.6 4 3.5 2 .8 2.4.7 2.8.6.4 0 1.3-.5 1.5-1 .2-.5.2-.9.1-1l-.6-.3s-1.3-.6-1.5-.7c-.2-.1-.4-.1-.5.1l-.7.9c-.1.1-.2.1-.4 0-.2 0-.9-.3-1.7-1-.6-.6-1-1.2-1.2-1.4-.1-.2 0-.3.1-.4l.3-.4.2-.4v-.3l-.7-1.7c-.1-.4-.3-.3-.4-.3h-.4z"/></svg>',
+    ig: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="3.6"/><circle cx="17.2" cy="6.8" r="1" fill="#fff" stroke="none"/></svg>',
+    fb: '<svg viewBox="0 0 24 24" fill="#fff"><path d="M13.5 21v-7h2.3l.4-2.9h-2.7V9.3c0-.8.3-1.4 1.5-1.4h1.4V5.3c-.7-.1-1.4-.1-2.1-.1-2.1 0-3.6 1.3-3.6 3.7v2.1H8.3V14h2.4v7h2.8z"/></svg>'
+  };
+  var IC = {
+    clip:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.05 12.25 20.2a5 5 0 0 1-7.07-7.07l9.19-9.19a3.33 3.33 0 0 1 4.71 4.71l-9.19 9.2a1.67 1.67 0 0 1-2.36-2.36l8.49-8.48"/></svg>',
+    emoji: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0"/><circle cx="9" cy="10" r=".6" fill="currentColor"/><circle cx="15" cy="10" r=".6" fill="currentColor"/></svg>',
+    env:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>',
+    reloj: '<svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
+  };
+
+  /*  Los siete tintes de las iniciales, de chat-ia.js.  */
+  var TINTES = [['#EEF2FF','#5B6BFF'],['#FFF1F2','#F43F5E'],['#ECFDF5','#10B981'],
+                ['#FFF7ED','#F97316'],['#F5F3FF','#8B5CF6'],['#F0F9FF','#0EA5E9'],
+                ['#FEF3C7','#D97706']];
+
+  /*  Nombres, telefonos y textos: inventados. Todo lo demas es el de verdad.
+      Las de WhatsApp van con iniciales y no con foto A PROPOSITO: Meta no
+      manda la foto de perfil en WhatsApp, solo en Instagram y Messenger. */
+  var OTRAS = [
+    { nom:'Andrés Melo',      canal:'ig', tinte:4, hora:'8:22 p. m.', prev:'¿Hacen domicilio a Bellavista?' },
+    { nom:'Camila Restrepo',  canal:'fb', tinte:2, hora:'8:05 p. m.', prev:'Gracias!! 🙌' },
+    { nom:'+57 311 555 0142', canal:'wa', tinte:5, hora:'7:48 p. m.', prev:'Listo, quedo pendiente' }
+  ];
+  var YO = { nom:'Daniela Ospina', canal:'wa', tinte:0, hora:'8:41 p. m.', tel:'+57 310 555 0128' };
+
+  /*  La conversacion. `t` es lo que tarda en aparecer despues de la anterior;
+      las de Cobra llevan antes los tres puntitos de "escribiendo".        */
+  var CHARLA = [
+    { de:'ent', txt:'Buenas, ¿todavía tienen churrasco?', h:'8:41 p. m.', t:900 },
+    { de:'sal', txt:'¡Hola! Soy el asistente de Sabor y Brasa 🤖\nSí, nos queda. Personal $32.900 o para dos $58.900.', h:'8:41 p. m.', esc:1200, t:600 },
+    { de:'ent', txt:'El de dos, a domicilio\nCra 9 #12-45, apto 302', h:'8:42 p. m.', t:1500 },
+    { de:'sal', txt:'Listo. Churrasco para dos $58.900 + domicilio $5.000 = $63.900.\n¿Efectivo o transferencia?', h:'8:42 p. m.', esc:1300, t:600 },
+    { de:'ent', txt:'Transferencia', h:'8:43 p. m.', t:1200 },
+    { de:'sal', txt:'¡Gracias! Ya quedó en cocina 🙌\nSale en 35 min.', h:'8:43 p. m.', esc:1100, t:600 }
+  ];
+
+  var PEDIDO = { cliente:'Daniela Ospina', items:2, total:63900 };
+
+  function pesos(v){ return '$' + String(v).replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
+  function esc(t){ return String(t).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function iniciales(n){
+    if (/^\+/.test(n)) return '#';              // un numero suelto no tiene iniciales
+    var p = n.trim().split(/\s+/);
+    return ((p[0]||'')[0] + (p[1]||'')[0] || '?').toUpperCase();
+  }
+  function avatar(c, grande){
+    var t = TINTES[c.tinte % TINTES.length];
+    return '<span class="' + (grande ? 'ch-head-av' : 'ch-av') + '" style="background:' + t[0]
+      + ';color:' + t[1] + '">' + esc(iniciales(c.nom)) + '</span>';
+  }
+  function fila(c, act, sinLeer, nueva){
+    return '<div class="ch-conv' + (act ? ' act' : '') + (sinLeer ? ' sinleer' : '')
+      + (nueva ? ' nueva' : '') + '">'
+      + '<span class="ch-av-wrap">' + avatar(c)
+      +   '<span class="ch-av-badge ch-' + c.canal + '">' + G[c.canal] + '</span></span>'
+      + '<span class="ch-conv-main">'
+      +   '<span class="ch-conv-top"><span class="ch-conv-nom">' + esc(c.nom) + '</span>'
+      +     '<span class="ch-conv-hora">' + esc(c.hora) + '</span></span>'
+      +   '<span class="ch-conv-bot"><span class="ch-conv-prev">' + esc(c.prev || '') + '</span>'
+      +     (sinLeer ? '<span class="ch-sinleer">1</span>' : '') + '</span>'
+      + '</span></div>';
+  }
+
+  //  ── el armazon, una sola vez ───────────────────────────────────────
+  caja.innerHTML =
+      '<div class="ch-esc ch-chat on">'
+    +   '<div class="ch-list">'
+    +     '<div class="ch-list-cab"><div class="ch-list-tit">Conversaciones</div>'
+    +       '<div class="ch-list-sub">Sabor y Brasa · Sede Centro</div></div>'
+    +     '<div class="ch-convs" id="ch-convs"></div>'
+    +   '</div>'
+    +   '<div class="ch-panel">'
+    +     '<div class="ch-head">' + avatar(YO, 1)
+    +       '<span class="ch-head-txt"><span class="ch-head-nom">' + esc(YO.nom) + '</span>'
+    +         '<span class="ch-head-meta"><span class="ch-chip ch-wa">' + G.wa + 'WhatsApp</span>'
+    +           '<span class="ch-vivo"><i></i>' + esc(YO.tel) + '</span></span></span>'
+    +     '</div>'
+    +     '<div class="ch-hilo" id="ch-hilo"></div>'
+    +     '<div class="ch-comp"><span class="ch-comp-ic">' + IC.clip + '</span>'
+    +       '<span class="ch-comp-in">Escribe un mensaje…</span>'
+    +       '<span class="ch-comp-ic">' + IC.emoji + '</span>'
+    +       '<span class="ch-comp-env">' + IC.env + '</span></div>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="ch-esc ch-ventas" id="ch-ventas"></div>';
+
+  var convs = document.getElementById('ch-convs');
+  var hilo  = document.getElementById('ch-hilo');
+  var chat  = caja.querySelector('.ch-chat');
+  var vent  = document.getElementById('ch-ventas');
+
+  //  ── la escena de ventas, con el domicilio ya creado ────────────────
+  function pintarVentas(){
+    var otros = [
+      { est:'listo',  nom:'Julián Mora',    canal:'WhatsApp', cc:'#22C55E', cb:'#DCFCE7', it:3, total:74200, min:12 },
+      { est:'camino', nom:'Sara Villamil',  canal:'Instagram',cc:'#E1306C', cb:'#FCE7F3', it:1, total:28900, min:24 }
+    ];
+    /*  DELIVERY_META de ventas-salon.js  */
+    var EST = {
+      preparacion:{ t:'En preparación', c:'#F59E0B', tt:'#FFFBEB', r:'#FDE68A' },
+      listo:      { t:'Listo',          c:'#8B5CF6', tt:'#F5F3FF', r:'#DDD6FE' },
+      camino:     { t:'En camino',      c:'#3B82F6', tt:'#EFF6FF', r:'#BFDBFE' }
+    };
+    function tarjeta(d, nueva){
+      var e = EST[d.est];
+      return '<div class="sm-mesa' + (nueva ? ' ch-nuevo' : '')
+        + '" style="background:' + e.tt + ';border-color:' + e.r + '">'
+        + '<div class="sm-mesa-cab">'
+        +   '<span class="sm-pill" style="color:' + e.c + ';background:' + e.tt + '">'
+        +     '<i style="background:' + e.c + '"></i>' + e.t + '</span>'
+        +   '<span class="sm-reloj">' + IC.reloj + d.min + ' min</span>'
+        + '</div>'
+        + '<div class="sm-num-fila">'
+        +   '<span class="sm-num tinta" style="font-size:10px;font-weight:700;white-space:nowrap;'
+        +     'overflow:hidden;text-overflow:ellipsis;max-width:100%">' + esc(d.nom) + '</span>'
+        +   '<span class="ch-canal-tag" style="color:' + d.cc + ';background:' + d.cb + '">'
+        +     d.canal + '</span>'
+        + '</div>'
+        + '<div class="sm-pie"><div class="sm-pie-act">'
+        +   '<span class="sm-items">' + d.it + ' ítems · <b style="color:#22C55E">Transferencia</b></span>'
+        +   '<span class="sm-total">' + pesos(d.total) + '</span>'
+        + '</div></div></div>';
+    }
+    var nuevo = { est:'preparacion', nom:PEDIDO.cliente, canal:'WhatsApp',
+                  cc:'#22C55E', cb:'#DCFCE7', it:PEDIDO.items, total:PEDIDO.total, min:0 };
+    vent.innerHTML =
+        '<div class="sm-top"><div class="sm-marca"><span class="sm-logo">C</span>'
+      +   '<span><b>Cobra POS</b><s>Sabor y Brasa</s></span></div>'
+      +   '<div class="sm-user"><span class="sm-ava">VA</span></div></div>'
+      + '<div class="sm-cab"><div><div class="sm-eyeb">Ventas</div>'
+      +   '<div class="sm-tit" style="font-size:14px">Domicilios</div></div></div>'
+      + '<div class="sm-tabs"><span class="sm-tab">Salón <u>6</u></span>'
+      +   '<span class="sm-tab on">Domicilios <u>3</u></span></div>'
+      + '<div class="sm-mesas">' + tarjeta(nuevo, 1) + otros.map(function(d){return tarjeta(d)}).join('') + '</div>';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  EL CICLO
+  // ═══════════════════════════════════════════════════════════════════
+  var quieto = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var pendientes = [], corriendo = false, viendo = false;
+
+  /*  `parar()` no solo cancela el reloj: tambien resuelve la espera. Sin eso
+      el bucle se queda dormido dentro de un `await` para siempre, `corriendo`
+      nunca vuelve a false y al volver a entrar en pantalla ya no arranca. */
+  function esperar(ms){
+    return new Promise(function(res){
+      var id = setTimeout(function(){ olvidar(res); res(); }, ms);
+      pendientes.push({ id: id, res: res });
+    });
+  }
+  function olvidar(res){
+    pendientes = pendientes.filter(function(p){ return p.res !== res; });
+  }
+  function parar(){
+    pendientes.forEach(function(p){ clearTimeout(p.id); p.res(); });
+    pendientes = [];
+  }
+  function burbuja(m){
+    return '<div class="ch-fila ' + m.de + '"><div class="ch-bb ' + m.de + '">' + esc(m.txt)
+      + '<span class="m">' + esc(m.h) + (m.de === 'sal' ? ' ✓✓' : '') + '</span></div></div>';
+  }
+
+  /*  La vista previa la trae cada mensaje en `prev`, no se recorta del texto:
+      partir por el salto de linea obliga a escribirlo escapado y ese escape
+      ya se me colo una vez como salto de verdad, dejando el guion roto.   */
+  function pintarLista(sinLeer, nueva, prev){
+    var yo = { nom:YO.nom, canal:YO.canal, tinte:YO.tinte, hora:YO.hora,
+               prev: prev || CHARLA[0].txt };
+    convs.innerHTML = fila(yo, true, sinLeer, nueva)
+      + OTRAS.map(function(c){ return fila(c, false, false, false); }).join('');
+  }
+
+  async function ciclo(){
+    if (corriendo) return;
+    corriendo = true;
+    while (viendo) {
+      // ── escena 1: el chat ──
+      chat.classList.add('on'); vent.classList.remove('on');
+      hilo.innerHTML = '<div class="ch-fecha"><span>Hoy</span></div>';
+      pintarLista(true, true);
+      await esperar(1000); if (!viendo) break;
+
+      for (var i = 0; i < CHARLA.length; i++) {
+        var m = CHARLA[i];
+        if (m.esc) {                       // "escribiendo…" antes de contestar
+          hilo.insertAdjacentHTML('beforeend',
+            '<div class="ch-fila sal" id="ch-esc"><div class="ch-bb sal ch-esc-puntos">'
+            + '<span class="ch-pt"></span><span class="ch-pt"></span><span class="ch-pt"></span></div></div>');
+          await esperar(m.esc); if (!viendo) break;
+          var e = document.getElementById('ch-esc'); if (e) e.remove();
+        }
+        hilo.insertAdjacentHTML('beforeend', burbuja(m));
+        hilo.scrollTop = hilo.scrollHeight;       // como el hilo de verdad
+        if (i === 0) pintarLista(false, false, m.txt);   // ya la leyo
+        await esperar(m.t); if (!viendo) break;
+      }
+      if (!viendo) break;
+
+      // ── escena 2: ventas con el domicilio ──
+      await esperar(1100); if (!viendo) break;
+      chat.classList.remove('on'); vent.classList.add('on');
+      await esperar(4200);
+    }
+    corriendo = false;
+  }
+
+  if (quieto) {
+    //  Sin movimiento: se pinta la conversacion entera y ahi se queda.
+    pintarLista(false, false);
+    hilo.innerHTML = '<div class="ch-fecha"><span>Hoy</span></div>'
+      + CHARLA.map(burbuja).join('');
+    return;
+  }
+
+  pintarLista(true, false);
+  hilo.innerHTML = '<div class="ch-fecha"><span>Hoy</span></div>';
+  /*  Ventas no cambia nunca, asi que se pinta de una. Pintarla dentro del
+      ciclo dejaba un parpadeo en blanco si el navegador frenaba los relojes
+      justo entre encenderla y llenarla.                                  */
+  pintarVentas();
+
+  /*  Solo se mueve mientras se ve: fuera de pantalla se para sola y no gasta
+      nada. Sin esto, la animacion sigue corriendo con la pagina en otro
+      sitio y en un portatil eso se nota en la bateria.                    */
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (ent) {
+      viendo = ent[0].isIntersecting;
+      if (viendo) ciclo(); else parar();
+    }, { threshold: .25 }).observe(caja);
+  } else {
+    viendo = true; ciclo();
+  }
 })();
 </script>
 </body>
