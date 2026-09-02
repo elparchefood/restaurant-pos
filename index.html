@@ -507,7 +507,11 @@ a{color:inherit;text-decoration:none}
     fuera del flujo porque tumbado ocupa una franja mucho mas baja que su
     alto de verdad, y si no dejaria un hueco enorme debajo.               */
 .pc-base{position:absolute;left:0;right:0;top:100%;aspect-ratio:100/66;
-  transform-origin:50% 0;transform:rotateX(90deg);transform-style:preserve-3d;
+  transform-origin:50% 0;transform:rotateX(90deg);
+  /*  SIN `preserve-3d`. Con el, cada una de las 74 teclas se iba a su propia
+      capa 3D y al ampliar la pagina las juntas no casaban al pixel: por ahi
+      se veia el blanco del fondo. Plana, la base se dibuja como UNA imagen y
+      se gira entera, asi que no hay juntas que puedan fallar.           */
   background:linear-gradient(180deg,#2A3145 0%,#1B2130 26%,#141926 70%,#0D1119);
   box-shadow:0 0 0 1px rgba(255,255,255,.06)}
 
@@ -515,8 +519,12 @@ a{color:inherit;text-decoration:none}
     -90 encima la devuelve a la vertical: el canto queda de pie, mirando de
     frente, colgando del borde de delante. Sin el, la base es un plano de un
     pixel y el portatil parece una hoja.                                  */
+/*  Fuera de la base, para que ella pueda ser plana. Se coloca solo: cuelga
+    del borde de la bisagra y se echa hacia delante --fondo pixeles, que es
+    lo que mide la base de fondo. Lo escribe el guion porque `translateZ` no
+    admite porcentajes.                                                  */
 .pc-canto{position:absolute;left:0;right:0;top:100%;height:14px;
-  transform-origin:50% 0;transform:rotateX(-90deg);
+  transform:translateZ(var(--fondo,430px));
   border-radius:0 0 10px 10px;
   background:linear-gradient(180deg,#252C40 0%,#171D2C 45%,#0B0F19);
   box-shadow:0 0 0 1px rgba(255,255,255,.05),0 20px 34px -14px rgba(0,0,0,.75)}
@@ -536,10 +544,16 @@ a{color:inherit;text-decoration:none}
   display:flex;flex-direction:column;gap:3px}
 .pc-fila{display:flex;gap:3px;flex:1}
 .pc-fila.fn{flex:.66}
-.pc-tec{flex:1;min-width:0;border-radius:3px;
+.pc-tec{flex:1;min-width:0;border-radius:3px;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'DM Sans',system-ui,sans-serif;font-size:8px;font-weight:600;
+  color:#7E88A3;line-height:1;white-space:nowrap;
   background:linear-gradient(180deg,#222A3D 0%,#161C2B 62%,#111624);
   box-shadow:inset 0 -1.5px 0 rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.055),
              0 1px 1.5px rgba(0,0,0,.45)}
+/*  Las que no son una letra van mas pequenas: "Bloq" no cabe al mismo
+    cuerpo que una "A".                                                  */
+.pc-tec.mini{font-size:6px;color:#69738C}
 
 .pc-sombra{position:absolute;left:6%;right:6%;top:calc(100% + 92px);height:26px;
   border-radius:50%;filter:blur(7px);
@@ -1960,7 +1974,8 @@ body{background:#FFFFFF}
           <span class="pc-brillo"></span>
         </div>
       </div>
-      <div class="pc-base"><span class="pc-teclas"></span><span class="pc-canto"></span></div>
+      <div class="pc-base"><span class="pc-teclas"></span></div>
+      <div class="pc-canto"></div>
       <div class="pc-sombra"></div>
     </div>
   </div>
@@ -3641,20 +3656,32 @@ window.CobraPlan.iniciar({
       6.25 es la barra espaciadora. Van aqui y no en el HTML porque son
       setenta y seis teclas y a mano seria una pared ilegible.          */
   (function () {
+    /*  Teclado latinoamericano. Cada tecla es letra + ancho; las seis
+        filas suman 15, que es lo que suma un teclado de verdad, asi que
+        las columnas se alinean solas.                                */
+    var A = function (t, w, mini) { return { t: t, w: w || 1, m: mini }; };
     var FILAS = [
-      [1,1,1,1,1,1,1,1,1,1,1,1,1],                                  // esc + F1..F12
-      [1,1,1,1,1,1,1,1,1,1,1,1,1,2],                                // numeros + borrar
-      [1.5,1,1,1,1,1,1,1,1,1,1,1,1,1.5],                            // tab + QWERTY
-      [1.75,1,1,1,1,1,1,1,1,1,1,1,2.25],                            // bloq + ASDF + entrar
-      [2.25,1,1,1,1,1,1,1,1,1,1,2.75],                              // mayus + ZXCV
-      [1.25,1.25,1.25,6.25,1.25,1.25,1.25,1.25]                     // ctrl + espacio
+      [A('esc',1,1),A('F1',1,1),A('F2',1,1),A('F3',1,1),A('F4',1,1),A('F5',1,1),
+       A('F6',1,1),A('F7',1,1),A('F8',1,1),A('F9',1,1),A('F10',1,1),A('F11',1,1),
+       A('F12',1,1),A('',2,1)],
+      [A('\u00b0'),A('1'),A('2'),A('3'),A('4'),A('5'),A('6'),A('7'),A('8'),A('9'),
+       A('0'),A('\u00bf'),A('!'),A('\u232b',2,1)],
+      [A('Tab',1.5,1),A('Q'),A('W'),A('E'),A('R'),A('T'),A('Y'),A('U'),A('I'),A('O'),
+       A('P'),A('\u00b4'),A('+'),A('\\',1.5,1)],
+      [A('Bloq',1.75,1),A('A'),A('S'),A('D'),A('F'),A('G'),A('H'),A('J'),A('K'),
+       A('L'),A('\u00d1'),A('{'),A('Enter',2.25,1)],
+      [A('\u21e7',2.25,1),A('Z'),A('X'),A('C'),A('V'),A('B'),A('N'),A('M'),A(','),
+       A('.'),A('-'),A('\u21e7',2.75,1)],
+      [A('Ctrl',1.25,1),A('Fn',1.25,1),A('\u229e',1.25,1),A('Alt',1.25,1),A('',6.25),
+       A('AltGr',1.25,1),A('Ctrl',1.25,1),A('\u25c4\u25ba',1.5,1)]
     ];
     var t = pc.querySelector('.pc-teclas');
     if (!t) return;
     t.innerHTML = FILAS.map(function (fila, i) {
       return '<span class="pc-fila' + (i === 0 ? ' fn' : '') + '">'
-        + fila.map(function (w) {
-            return '<span class="pc-tec" style="flex:' + w + '"></span>';
+        + fila.map(function (k) {
+            return '<span class="pc-tec' + (k.m ? ' mini' : '') + '" style="flex:'
+              + k.w + '">' + k.t + '</span>';
           }).join('')
         + '</span>';
     }).join('');
@@ -3914,6 +3941,9 @@ window.CobraPlan.iniciar({
       /*  La luz entra mas tarde que el giro: primero se abre la tapa y
           despues prende, no las dos cosas a la vez.                     */
       pc.style.setProperty('--luz', Math.max(0, 1 - k * 1.6).toFixed(3));
+      /*  Lo que mide la base de fondo, para colocar el canto en 3D: el 66%
+          del ancho, el mismo `aspect-ratio` que lleva en el CSS.        */
+      pc.style.setProperty('--fondo', Math.round(pc.offsetWidth * .66) + 'px');
     }
     function alScroll(){
       if (pedido) return;
