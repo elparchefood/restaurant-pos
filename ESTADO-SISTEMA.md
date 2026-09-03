@@ -16665,9 +16665,30 @@ cambie la pregunta para que la respuesta que tenia sirviera.
 - `tiktok-videos` devuelve ahora tambien `ts`, el momento en crudo: con la
   fecha ya formateada no se puede ni filtrar por rango ni agrupar por mes.
 
-### Lo que falta para que estos numeros dejen de ser cero
+### `tiktok-videos`: DESPLEGADA el 3-sep-2026 (v3)
 
-**Desplegar `supabase/functions/tiktok-videos`.** El permiso `video.list` ya
-lo tenemos; lo que falta es la funcion de servidor, porque el token no puede
-bajar al navegador. Sin ella las tres cifras salen en cero — correctamente,
-pero en cero.
+El permiso `video.list` ya lo teniamos; faltaba la funcion de servidor, porque
+el token no puede bajar al navegador. Sergio dio el visto bueno y esta activa.
+
+**Lleva candado de sesion.** Usa la llave de servicio, que se salta las
+politicas de la base, asi que sin comprobar nada cualquiera que adivinara un
+`branch_id` recibiria los datos de ese restaurante. Se comprueba
+preguntandole a la base **con el token de quien llama**: si sus politicas le
+devuelven esa sede, tiene acceso. Asi las reglas de permisos viven en un solo
+sitio y no hay que repetirlas dentro de la funcion.
+
+Comprobado contra la funcion viva: preflight CORS 200; sin sesion 401; sin
+sede 400; token invalido 401.
+
+#### Dos trampas que costaron dos intentos
+
+1. **Los `import` de `deno.land` NO cargan en Supabase.** La funcion empezaba
+   con `import { serve } from "https://deno.land/std@0.177.0/http/server.ts"`
+   y no arrancaba: BOOT_ERROR 503. **Las 20 funciones que si funcionan en este
+   repo usan todas `Deno.serve`** y ninguna importa nada de deno.land. Esa
+   comparacion da la respuesta en un minuto; es lo primero que hay que mirar.
+
+2. **El `GET /body` devuelve la linea 1 mocha, pero el codigo guardado esta
+   bien.** Al ver el recorte supuse que pasaba al SUBIR y le puse un relleno
+   al archivo: hipotesis equivocada, intento perdido. La funcion arranca
+   perfectamente y su `/body` sigue saliendo mocho. No perder tiempo ahi.
