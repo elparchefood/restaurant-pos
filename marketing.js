@@ -284,6 +284,19 @@
   }
 
   // ══════════════════════════════════════════════════════════════════════
+  //  CALENDARIO — la función entera está pendiente de permiso
+  // ══════════════════════════════════════════════════════════════════════
+  function pintarCalendario() {
+    var cal = $('mk-calendario');
+    if (!cal) return;
+    cal.innerHTML = '<div style="padding:26px">' + hueco(
+      'Programar contenido: en cuanto Meta apruebe',
+      'Falta el permiso para publicar: instagram_content_publish en Instagram y '
+      + 'pages_manage_posts en Facebook. Son de los que se van a solicitar. El video '
+      + 'se guarda aquí y Cobra lo publica a la hora que elijas.') + '</div>';
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
   //  AUTOMATIZACIONES
   //  Las cifras de mensajes son reales. Las reglas de comentarios son la
   //  función que falta, así que se dice.
@@ -447,6 +460,7 @@
   function arrancar() {
     if (!D) return;
     pintarBarra();
+    pintarCalendario();
     pintarResumen();
     pintarMeses();
     pintarFiltros();
@@ -493,12 +507,15 @@
       var net = t.closest('.mk-netopt');
       if (net) { net.classList.toggle('on'); return; }
 
-      /*  Crear reglas de comentarios necesita un permiso de Meta que aún no
-          tenemos. Se avisa en vez de abrir un formulario que no guardaría.
-          (Lo de programar contenido se quitó entero el 3-sep: dependía de una
-          aprobación de TikTok que lleva más de un mes sin respuesta, y no se
-          promete lo que no se controla.)                                  */
-      if (t.closest('.js-open-rule, .cc-add-tile, .mk-qcard')) {
+      /*  Programar y las reglas están apagados hasta que Meta apruebe. Se
+          avisa en vez de abrir un formulario que no guardaría nada.
+          El aviso habla SOLO de Meta: de TikTok no se promete programar,
+          porque esa solicitud lleva más de un mes sin respuesta.        */
+      if (t.closest('.js-open-drawer, .cc-add-tile, .mk-qcard')) {
+        aviso('Programar contenido necesita un permiso de Meta que aún no tenemos');
+        return;
+      }
+      if (t.closest('.js-open-rule')) {
         aviso('Responder comentarios necesita un permiso de Meta que aún no tenemos');
         return;
       }

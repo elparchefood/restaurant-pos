@@ -16539,13 +16539,32 @@ no controlamos y que ya lleva un mes muda. Un cartel de "falta un permiso"
 esta bien cuando el permiso **va a llegar**; cuando es incierto, lo que hace
 es prometer.
 
-### Lo que se quito
+### Lo que se quito — SOLO lo de TikTok
 
-- La pestana **Calendario** entera y el boton **"Programar publicacion"**.
+- **Que TikTok se pueda programar.** No se nombra en ningun sitio: ni en el
+  calendario, ni en el aviso del boton, ni en su tarjeta.
 - De la tarjeta de TikTok, la linea de comentarios. TikTok **no ofrece
   responder comentarios por API**: ahi no falta un permiso, no existe la
   funcion. Decir "falta el permiso" daria a entender que algun dia llega.
 - TikTok sale del **filtro de mensajes** del chat: siempre daria cero.
+
+> ⚠️ **AQUI ME PASE Y HAY QUE NO REPETIRLO.** En la primera pasada quite
+> tambien la pestana **Calendario** entera y el boton **"Programar
+> publicacion"**, que no tienen nada que ver con TikTok. Sergio dicto una
+> frase ambigua —"ni siquiera se lo puedes quitar"— y la interprete en la
+> direccion de borrar. Su respuesta: *"no te dije que quitaras absolutamente
+> nada, solo las cosas que tenian que ver con TikTok"*. Todo devuelto.
+>
+> **Borrar una pantalla completa no es un juicio de rutina.** Ante una frase
+> ambigua, se pregunta; y si la duda es entre quitar y dejar, se deja.
+
+### Programar SIGUE en pie
+
+Es de las funciones que se van a construir, con **permisos de Meta**
+(`instagram_content_publish`, `pages_manage_posts`), que son los que si se van
+a solicitar. El video se guarda en Cobra y **Cobra lo publica a la hora
+elegida** — igual que hace Metricool. Lo unico que no se promete es hacerlo
+en TikTok.
 
 ### Lo que se queda
 
