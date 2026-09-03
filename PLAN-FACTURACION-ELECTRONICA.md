@@ -631,3 +631,84 @@ Sirve para aprender las formas y probar el flujo. Nada mas.
 **En los secretos de Supabase (`FACTUS_*`), NUNCA en este repositorio, que es
 publico.** Solo las lee la Edge Function que emite. El navegador no las ve
 jamas.
+
+---
+
+# 13. EMITIENDO DE VERDAD — funcion `facturar` (3-sep-2026)
+
+**Factura emitida y validada en el sandbox: `SETP990017628`**, con su CUFE y su
+QR de la DIAN. Fase 2 del plan, hecha.
+
+## 13.1 Los campos reales, que NO son los de la documentacion
+
+Escribi el cuerpo segun su documentacion y su API lo rechazo tres veces
+diciendo exactamente que estaba mal. **Dejar que el servidor corrija es mas
+rapido y mas fiable que leer**: su documentacion mezcla nombres de la V1 con
+los de la V2.
+
+Lo que costo tres intentos:
+
+| Lo que dice la documentacion | Lo que acepta la API |
+|---|---|
+| `payment_form` suelto arriba | **`payment_details`**, lista, obligatoria |
+| `payment_form_code` dentro | **`payment_form`** |
+| `unit_measure_id` | **`unit_measure_code`** |
+| `standard_code_id` | **`standard_code`** |
+| unidad `70` | **unidad `94`** (el 70 lo rechaza) |
+| `taxes` opcional | **obligatorio**, aun con el producto excluido |
+
+## 13.2 El cuerpo que funciona
+
+```
+reference_code   = el id del pedido        ← LA IDEMPOTENCIA
+payment_details  = [{ payment_form, payment_method_code, amount }]
+customer         = consumidor final (222222222222)
+items[]          = { code_reference, name, quantity, price,
+                     unit_measure_code:"94", standard_code:"1",
+                     taxes:[{ code, rate, is_excluded }] }
+```
+
+**`price` va SIN impuesto** ("valor neto"). Nosotros guardamos el precio CON
+impuesto incluido, que es lo normal en Colombia, asi que se usa **`tax_base`**,
+que es justo la parte sin impuesto y **ya quedo congelada al vender** (regla
+dura 4). Nunca se recalcula.
+
+## 13.3 Lo que devuelve, y que se guarda
+
+| Campo | Para que |
+|---|---|
+| `number` | el numero de la DIAN (`SETP990017628`) |
+| `cufe` | el sello unico |
+| `is_validated` | si la DIAN la acepto |
+| `links.qr` | **el QR que va impreso en el tiquete** |
+| `links.public_url` | la copia en la web, para reenviar |
+| `totals` | el desglose |
+| `errors` | avisos de la DIAN que NO bloquean |
+
+Se consulta despues con `GET /v2/bills/show/<reference_code>`: **la referencia
+es la llave**, Factus no devuelve un id propio.
+
+## 13.4 Las reglas duras, y como quedan cubiertas
+
+| Regla | Como |
+|---|---|
+| 2 · reintentar no duplica | Dos barreras: se mira `pos_facturas` antes de salir a internet, y `reference_code` hace que Factus devuelva LA MISMA factura |
+| 4 · impuestos congelados | Se lee `tax_base` y `tax_pct` del renglon, guardados al vender |
+| 7 · un rechazo siempre se ve | Lo que conteste se guarda **tal cual** en `respuesta` |
+| — · credenciales | En secretos de Supabase. **Nunca bajan al navegador** |
+| — · quien llama | Se comprueba con SU token: si las politicas de la base le devuelven el pedido, es suyo |
+
+Ademas: si responde **409** (quedo una a medio enviar) se borra por su
+referencia y se reintenta **una** vez. Sin eso el pedido se atasca para siempre
+repitiendo el mismo 409.
+
+## 13.5 Lo que falta
+
+- **Fase 3** — la cola: llamar a `fn_factura_reintentar` desde un cron.
+- **Fase 4** — notas de credito contra Factus (`fn_nota_credito_numero` ya
+  esta, falta el envio).
+- **Fase 5** — el QR y el CUFE en el tiquete, y el panel `ger-dian`.
+- **El boton** en la pantalla de ventas.
+- Descubierto de paso: **los rangos de numeracion se pueden crear por API**
+  (`POST /v2/numbering-ranges`), asi que dar de alta un restaurante se puede
+  automatizar.
