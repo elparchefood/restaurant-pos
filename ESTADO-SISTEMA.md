@@ -16692,3 +16692,55 @@ sede 400; token invalido 401.
    bien.** Al ver el recorte supuse que pasaba al SUBIR y le puse un relleno
    al archivo: hipotesis equivocada, intento perdido. La funcion arranca
    perfectamente y su `/body` sigue saliendo mocho. No perder tiempo ahi.
+
+## "4 cuentas conectadas" y TikTok sin llave (3-sep-2026)
+
+Con la funcion ya desplegada, la pantalla seguia en cero y decia **"La
+conexion de TikTok no tiene token"**. La cuenta figuraba conectada.
+
+**La causa no estaba ni en la funcion ni en la pantalla.** La migracion
+`15-MIGRACION-CHAT-IA.sql` (linea 122) **siembra los cuatro canales con
+`connected: true` y sin `meta`**: son datos de ejemplo del arranque del
+modulo, no conexiones reales. Llevabamos afirmando "conectado" apoyandonos en
+una fila de relleno.
+
+Es el error de siempre con otra ropa: **dar por cierto algo porque hay un
+registro que lo dice, sin comprobar que sea verdad.**
+
+### La correccion, y por que solo toca a TikTok
+
+- **En TikTok la llave ES la conexion**: sin ella no se le puede preguntar
+  nada. `connected:true` sin `meta.access_token` no significa nada, asi que
+  ahora se exige la llave para contarlo como conectado (marca `sinLlave`).
+- **WhatsApp, Instagram y Facebook NO se tocan.** Ahi la conexion se demuestra
+  sola: los mensajes estan entrando. Marcarlos desconectados por sospecha
+  estropearia algo que funciona.
+- **No se toco la base.** La fila de ejemplo puede quedarse; lo que se arreglo
+  es que la pantalla se la creyera.
+
+Resultado: el contador dice **3** y no 4, TikTok sale del filtro, su tarjeta
+dice "Vuelve a conectarla en Chat IA", y el pie de las cifras da ese mismo
+motivo en vez de hablar de permisos de Meta, que no era.
+
+### El cartel decia un motivo viejo
+
+El titulo venia del servidor y era correcto, pero **debajo habia un parrafo
+fijo** que decia "falta desplegar la funcion de servidor" cuando ya llevaba
+rato desplegada. El motivo lo sabe el servidor y cambia; el parrafo estaba
+escrito a mano en el navegador y no se entera. Ahora se elige segun el motivo
+que llega, y **dice que hacer**: un cartel que explica un problema sin la
+salida deja igual de atascado que no ponerlo.
+
+### La llave dura 24 h: se renueva sola (v4)
+
+Sin esto la pantalla funcionaria el dia que se conecta la cuenta y al
+siguiente volveria a cero pidiendo reconectar a mano. **Todos los dias.** Eso
+no es una funcion terminada.
+
+TikTok entrega un `refresh_token` que dura mucho mas; **ya lo guardabamos
+desde el principio** (`tiktok-oauth-callback` lo mete en `meta`) y no lo usaba
+nadie. Ahora, si TikTok contesta que la llave no vale, se renueva y se
+reintenta **UNA vez**: si el refresh tambien caduco, repetir no arregla nada y
+dejaria la pantalla colgada — ahi si toca reconectar a mano, que es lo que se
+dice. La llave nueva se guarda en la base en el momento, o cada consulta
+volveria a renovar y gastaria una llamada de mas.

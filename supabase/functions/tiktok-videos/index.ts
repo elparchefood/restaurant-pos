@@ -25,6 +25,9 @@ const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 /*  La anonima es para comprobar al que llama: con ella y su token, las
     politicas de la base deciden si esa sede es suya.                  */
 const ANON_KEY     = Deno.env.get("SUPABASE_ANON_KEY")!;
+/*  Para renovar la llave hace falta identificarse como la app.        */
+const TK_KEY       = Deno.env.get("TIKTOK_CLIENT_KEY")!;
+const TK_SECRET    = Deno.env.get("TIKTOK_CLIENT_SECRET")!;
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
@@ -116,22 +119,83 @@ Deno.serve(async (req) => {
     if (!token) return json({ error: "La conexión de TikTok no tiene token" });
 
     // ── los videos ───────────────────────────────────────────────────
-    const tk = await fetch(
-      `https://open.tiktokapis.com/v2/video/list/?fields=${CAMPOS}`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ max_count: 20 }),
-      },
-    );
-    const d = await tk.json().catch(() => null);
+    async function pedirVideos(t: string) {
+      const res = await fetch(
+        `https://open.tiktokapis.com/v2/video/list/?fields=${CAMPOS}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ max_count: 20 }),
+        },
+      );
+      return { res, cuerpo: await res.json().catch(() => null) };
+    }
 
-    if (!tk.ok || d?.error?.code && d.error.code !== "ok") {
-      const codigo = d?.error?.code || tk.status;
+    /*  ── LA LLAVE DE TIKTOK DURA 24 HORAS ────────────────────────────
+        Sin renovarla, esto funcionaría el día que se conecta la cuenta y al
+        siguiente volvería a cero pidiendo reconectar a mano. Todos los días.
+
+        TikTok entrega un `refresh_token` que dura mucho más y sirve para
+        pedir una llave nueva sin que nadie toque nada. Ya lo guardábamos
+        desde el principio; no lo usaba nadie.                          */
+    async function renovar(): Promise<string | null> {
+      const refresh = canal.meta?.refresh_token;
+      if (!refresh) return null;
+
+      const r = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_key: TK_KEY, client_secret: TK_SECRET,
+          grant_type: "refresh_token", refresh_token: refresh,
+        }),
+      });
+      /*  `fetch` no lanza con un 400: hay que mirar `ok` a mano.        */
+      if (!r.ok) {
+        console.error("no se pudo renovar:", r.status, (await r.text()).slice(0, 300));
+        return null;
+      }
+      const d = await r.json().catch(() => null);
+      if (!d?.access_token) return null;
+
+      /*  Se guarda YA, o la siguiente consulta volvería a renovar y gastaría
+          una llamada de más cada vez.                                   */
+      const meta = {
+        ...canal.meta,
+        access_token:  d.access_token,
+        refresh_token: d.refresh_token ?? refresh,
+        expires_at: new Date(Date.now() + (d.expires_in ?? 86400) * 1000).toISOString(),
+      };
+      const g = await fetch(
+        `${SUPABASE_URL}/rest/v1/chat_channels?branch_id=eq.${branch_id}&channel=eq.tiktok`,
+        {
+          method: "PATCH",
+          headers: {
+            apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`,
+            "Content-Type": "application/json", Prefer: "return=minimal",
+          },
+          body: JSON.stringify({ meta }),
+        },
+      );
+      if (!g.ok) console.error("llave renovada pero no guardada:", g.status, await g.text());
+      return d.access_token;
+    }
+
+    let { res: tk, cuerpo: d } = await pedirVideos(token);
+    let codigo = d?.error?.code && d.error.code !== "ok" ? d.error.code : (tk.ok ? null : tk.status);
+
+    /*  Un solo reintento. Si el refresh tambien caduco, repetir no arregla
+        nada y deja la pantalla colgada; ahi si toca reconectar a mano.  */
+    if (codigo === "access_token_invalid" || tk.status === 401) {
+      const nueva = await renovar();
+      if (nueva) {
+        ({ res: tk, cuerpo: d } = await pedirVideos(nueva));
+        codigo = d?.error?.code && d.error.code !== "ok" ? d.error.code : (tk.ok ? null : tk.status);
+      }
+    }
+
+    if (codigo) {
       console.error("TikTok respondió mal:", codigo, JSON.stringify(d).slice(0, 400));
-      /*  El token de TikTok vence a las 24 h y se renueva con el refresh. Si
-          está vencido conviene decirlo con esas palabras, que es accionable:
-          el dueño vuelve a conectar y ya.                                 */
       if (codigo === "access_token_invalid" || tk.status === 401) {
         return json({ error: "La conexión con TikTok venció: vuelve a conectarla" });
       }

@@ -190,12 +190,7 @@
 
     if (!VIDEOS.length) {
       lista.innerHTML = '<div style="padding:14px 16px">' + hueco(
-        r.falta || 'Todavía no hay publicaciones',
-        r.falta
-          ? 'TikTok ya nos dejó leer los videos publicados (permiso video.list). Falta '
-            + 'desplegar la función de servidor que los trae: el token no puede bajar al '
-            + 'navegador. Instagram y Facebook necesitan además el permiso para leer medios.'
-          : 'Cuando publiques en TikTok aparecerán aquí.') + '</div>';
+        r.falta || 'Todavía no hay publicaciones', queHacer(r.falta)) + '</div>';
       if (det) det.innerHTML = '';
       return;
     }
@@ -213,6 +208,38 @@
         + '</div>';
     }).join('');
     pintarDetalle();
+  }
+
+  /*  Qué hacer con cada motivo.
+
+      El motivo lo decide el SERVIDOR y cambia; antes debajo había un párrafo
+      fijo escrito aquí, que se quedó diciendo "falta desplegar la función"
+      cuando la función ya llevaba rato desplegada. Un cartel con el
+      diagnóstico bueno arriba y uno viejo debajo confunde más que ayudar.
+
+      Y cada caso dice QUÉ HACER: explicar un problema sin la salida deja al
+      que lo lee igual de atascado.                                       */
+  function queHacer(motivo) {
+    if (!motivo) return 'Cuando publiques en TikTok aparecerán aquí.';
+    var m = String(motivo).toLowerCase();
+
+    if (m.indexOf('token') >= 0 || m.indexOf('venci') >= 0) {
+      return 'La cuenta figura conectada pero la llave de acceso no está o ya venció '
+           + '(las de TikTok duran poco). Entra a Chat IA, abre TikTok y vuelve a '
+           + 'conectarla: con eso se renueva y los números aparecen aquí.';
+    }
+    if (m.indexOf('no está conectado') >= 0 || m.indexOf('no esta conectado') >= 0) {
+      return 'Conecta la cuenta de TikTok desde Chat IA y sus números aparecerán aquí.';
+    }
+    if (m.indexOf('desplegar') >= 0) {
+      return 'El permiso video.list ya lo tenemos; falta la función de servidor que trae '
+           + 'los videos, porque la llave no puede bajar al navegador.';
+    }
+    /*  Cualquier otro fallo del servidor: se enseña tal cual y se dice que no
+        es culpa de los permisos, para no mandar a nadie a pedir uno que ya
+        tiene.                                                            */
+    return 'TikTok no respondió bien. No es un permiso que falte: vuelve a intentarlo en '
+         + 'un rato y, si sigue igual, reconecta la cuenta desde Chat IA.';
   }
 
   function pintarDetalle() {
@@ -434,7 +461,7 @@
             permiso" cuando WhatsApp no tiene muro, y por tanto no hay ningún
             permiso que pedir. Y faltaba lo único que hoy funciona de verdad,
             que son los mensajes.                                          */
-        +   filas(k, on)
+        +   filas(k, on, c)
         + '</div>'
         + '<div class="mk-auto-foot"><a class="cc-btn-ghost" href="chat-ia.html">'
         +   (on ? 'Ver conversaciones' : 'Conectar desde Chat IA') + '</a></div>'
@@ -468,8 +495,15 @@
       vaya a llegar. No ofrece responder comentarios por API, y de publicar se
       decidió no depender (la solicitud lleva más de un mes sin respuesta).
       Escribir "falta el permiso" en su tarjeta sería prometer.           */
-  function filas(k, on) {
+  function filas(k, on, c) {
     if (k === 'tiktok') {
+      /*  `sinLlave` = la fila dice conectado pero no hay llave de acceso.
+          Viene de los datos de ejemplo de la migración del chat. Decir solo
+          "Conecta la cuenta" dejaría a alguien mirando una cuenta que ya
+          figura conectada sin entender qué le falta.                    */
+      if (c && c.sinLlave) {
+        return kv('Videos y sus números', 'Vuelve a conectarla en Chat IA');
+      }
       return kv('Videos y sus números', on ? 'Disponible' : 'Conecta la cuenta');
     }
     var msg = kv('Mensajes', on ? 'Funcionando' : 'Conecta la cuenta');

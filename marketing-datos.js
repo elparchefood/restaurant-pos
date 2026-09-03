@@ -133,7 +133,26 @@
       .select('channel,connected,handle,display_name,meta')
       .eq('branch_id', b);
     var e = fallo(r, 'cuentas');
-    return { lista: r.data || [], error: e };
+
+    /*  ── TIKTOK: SIN LLAVE NO HAY CONEXION ──────────────────────────
+        La migracion del modulo de chat siembra los cuatro canales con
+        `connected: true` y sin `meta` (15-MIGRACION-CHAT-IA.sql, linea 122).
+        Son datos de ejemplo, no conexiones. Por eso la pantalla decia
+        "conectado" y la funcion no encontraba llave.
+
+        En TikTok la llave ES la conexion: sin ella no se le puede preguntar
+        nada. Asi que aqui se exige.
+
+        A WhatsApp, Instagram y Facebook NO se les aplica: ahi la conexion se
+        demuestra sola porque los mensajes estan entrando, y marcarlos
+        desconectados por sospecha estropearia algo que funciona.      */
+    var lista = (r.data || []).map(function (c) {
+      if (c.channel === 'tiktok' && c.connected && !(c.meta && c.meta.access_token)) {
+        return Object.assign({}, c, { connected: false, sinLlave: true });
+      }
+      return c;
+    });
+    return { lista: lista, error: e };
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -397,6 +416,15 @@
     var conectadas = (await cuentas()).lista.filter(function (c) { return c.connected; });
 
     // ── TikTok ──────────────────────────────────────────
+    /*  La fila figura conectada pero sin llave (dato de ejemplo de la
+        migracion del chat). Se dice, o las cifras saldrian en cero con un
+        pie hablando de permisos de Meta, que no es el motivo.          */
+    var todas = (await cuentas()).lista;
+    if (todas.some(function (c) { return c.channel === 'tiktok' && c.sinLlave; })) {
+      res.porRed.tiktok = vacia();
+      res.falta.tiktok  = 'Vuelve a conectar TikTok en Chat IA';
+    }
+
     if (conectadas.some(function (c) { return c.channel === 'tiktok'; })) {
       var tk = await videosTikTok();
       if (tk.falta) {
