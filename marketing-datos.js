@@ -43,10 +43,76 @@
 
   function sb() { return (window._pos && window._pos.sb) || null; }
 
-  /* El branch de la sesión. Todas las consultas van filtradas por él: sin esto
-     un restaurante vería los números de otro. */
-  function branch() {
-    return (window._pos && window._pos.state && window._pos.state.branchId) || null;
+  /* ══ LA SEDE ══════════════════════════════════════════════════════════
+
+     Todas las consultas van filtradas por ella: sin esto un restaurante
+     vería los números de otro.
+
+     Leerla de `_pos.state.branchId` a secas NO basta, y por eso esta pantalla
+     llegó a decir "Sin conectar" con las cuentas conectadas:
+
+       · `posContexto` la resuelve de forma ASÍNCRONA. Si Marketing pregunta
+         antes de que termine, sale null, la consulta se filtra por nada y
+         vuelve vacía.
+       · Puede no haberla nunca: una cuenta sin `branch_id` en su metadata.
+
+     Se hace lo mismo que Chat IA, que es donde las cuentas sí se ven: se
+     espera al contexto y, si aun así no hay sede, se coge la primera del
+     restaurante. Se resuelve UNA vez y se guarda: son ~8 consultas por
+     pantalla y no tiene sentido repetir la búsqueda en cada una.        */
+  var _sede = null;
+
+  function esperarContexto() {
+    return new Promise(function (res) {
+      try {
+        if (!window._pos || typeof window._pos.on !== 'function') return res();
+        if (window._pos.state && window._pos.state.branchId) return res();
+        var hecho = false;
+        var fin = function () { if (!hecho) { hecho = true; res(); } };
+        window._pos.on('core:ready', fin);
+        /*  Tope de tiempo: si el núcleo no arranca, mejor seguir con el
+            respaldo que dejar la pantalla colgada para siempre.        */
+        setTimeout(fin, 2500);
+      } catch (e) { res(); }
+    });
+  }
+
+  async function branch() {
+    if (_sede) return _sede;
+    await esperarContexto();
+
+    var b = (window._pos && window._pos.state && window._pos.state.branchId) || null;
+    if (b) { _sede = b; return b; }
+
+    /*  Respaldo: la primera sede del restaurante, en orden fijo para que no
+        dependa de cómo estén guardadas las filas.                       */
+    var s = sb();
+    var t = (window._pos && window._pos.state && window._pos.state.tenantId) || null;
+    if (s && t) {
+      var r = await s.from('branches').select('id').eq('tenant_id', t)
+        .order('created_at').limit(1).maybeSingle();
+      if (r.data) { _sede = r.data.id; return _sede; }
+    }
+    return null;
+  }
+
+  /* ══ QUE PASO DE VERDAD ═══════════════════════════════════════════════
+
+     Supabase NO lanza excepción cuando rechaza una consulta: devuelve
+     `{data:null, error:{...}}`. Escribir `return r.data || []` convierte
+     cualquier fallo —un permiso denegado, una columna que no existe— en una
+     lista vacía, y la pantalla acaba afirmando "no hay nada" cuando lo que
+     pasó es que no pudo mirar. Es el mismo fallo que dejó el rastro del
+     gerente mudo durante semanas.
+
+     Todo lo que sale de aquí lleva `error`. La pantalla decide qué enseñar,
+     pero ya no puede confundir "no hay" con "no pude leer".            */
+  function fallo(r, donde) {
+    if (r && r.error) {
+      console.error('marketing · ' + donde + ':', r.error.message || r.error);
+      return r.error.message || 'No se pudo leer';
+    }
+    return null;
   }
 
   function desdeISO(dias) {
@@ -58,12 +124,14 @@
   //  Esto es real y completo: es nuestra propia tabla.
   // ══════════════════════════════════════════════════════════════════════
   async function cuentas() {
-    var s = sb(), b = branch();
-    if (!s || !b) return [];
+    var s = sb(), b = await branch();
+    if (!s) return { lista: [], error: 'No hay sesión' };
+    if (!b) return { lista: [], error: 'No se pudo saber en qué sede estás' };
     var r = await s.from('chat_channels')
       .select('channel,connected,handle,display_name,meta')
       .eq('branch_id', b);
-    return r.data || [];
+    var e = fallo(r, 'cuentas');
+    return { lista: r.data || [], error: e };
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -75,7 +143,7 @@
   //  permisos de estadísticas. Se dice así en la pantalla.
   // ══════════════════════════════════════════════════════════════════════
   async function ventasPorRed(dias) {
-    var s = sb(), b = branch();
+    var s = sb(), b = await branch();
     if (!s || !b) return { total: 0, redes: {}, pedidos: 0 };
 
     var conv = await s.from('chat_conversations')
@@ -112,7 +180,7 @@
   //  CUÁNTAS CONVERSACIONES ACABAN EN PEDIDO
   // ══════════════════════════════════════════════════════════════════════
   async function conversaciones(dias) {
-    var s = sb(), b = branch();
+    var s = sb(), b = await branch();
     if (!s || !b) return { total: 0, conPedido: 0, sinResponder: 0 };
 
     var todas = await s.from('chat_conversations')
@@ -141,7 +209,7 @@
   //  bot o una persona.
   // ══════════════════════════════════════════════════════════════════════
   async function respuestas(dias) {
-    var s = sb(), b = branch();
+    var s = sb(), b = await branch();
     var vacio = { atendidas: 0, porBot: 0, porPersona: 0, medianaSeg: null };
     if (!s || !b) return vacio;
 
@@ -198,7 +266,7 @@
   var TIKTOK_FN = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/tiktok-videos';
 
   async function videosTikTok() {
-    var b = branch();
+    var b = await branch();
     if (!b) return { falta: FALTA.tiktok, videos: [] };
     try {
       var res = await fetch(TIKTOK_FN, {
@@ -223,6 +291,10 @@
   // ══════════════════════════════════════════════════════════════════════
   async function quienSoy() {
     var s = sb();
+    /*  Se espera ANTES de leer. El nucleo resuelve la sesion de forma
+        asincrona: preguntar primero devolvia null y el cuadrito del usuario
+        salia en blanco.                                                  */
+    await esperarContexto();
     var u = (window._pos && window._pos.state && window._pos.state.user) || null;
     var m = (u && u.user_metadata) || {};
     /*  El nombre puede venir con tres llaves distintas según cómo se creó la
@@ -231,8 +303,10 @@
     var nombre = m.nombre || m.full_name || m.name
               || ((u && u.email) ? u.email.split('@')[0] : '');
     var sede = '';
-    if (s && branch()) {
-      var r = await s.from('branches').select('name').eq('id', branch()).maybeSingle();
+    var b = await branch();
+    if (s && b) {
+      var r = await s.from('branches').select('name').eq('id', b).maybeSingle();
+      fallo(r, 'sede');
       sede = (r.data && r.data.name) || '';
     }
     return {
@@ -253,7 +327,7 @@
   var MES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
   async function ventasPorMes(meses) {
-    var s = sb(), b = branch();
+    var s = sb(), b = await branch();
     var hoy = new Date();
     /*  Se arma la lista de meses SIEMPRE, aunque no haya ventas: cuatro
         barras en cero dicen "no hubo", que es información. Una lista vacía

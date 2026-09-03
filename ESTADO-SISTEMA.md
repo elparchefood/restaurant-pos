@@ -16478,3 +16478,48 @@ los del propio POS: 4 % (`--surface-2`) y 6 % (`--surface-3`).
   `@container` colocado ANTES de su regla base (misma especificidad, gana la
   de abajo, y no avisa nadie). Salio limpia.
 - Cuadre de `<div>`, `<button>` y `<section>` despues de cada corte.
+
+## El fallo del "Sin conectar" (3-sep-2026)
+
+Sergio abrio Marketing y las cuatro cuentas decian **"Sin conectar"** con
+Instagram, Facebook y WhatsApp conectados. Dos fallos mios, los dos del mismo
+tipo: **fallar en silencio**.
+
+**1. No miraba `error` en NINGUNA consulta.** Supabase no lanza excepcion
+cuando rechaza una consulta: devuelve `{data:null, error:{...}}`. Estaba
+escrito `return r.data || []`, asi que un permiso denegado o una columna que
+no existe salian por pantalla como "no hay cuentas". Es exactamente el fallo
+que dejo mudo el rastro del gerente durante semanas.
+
+**2. Leia la sede una vez y sin respaldo.** `_pos.state.branchId` sale de
+`user_metadata.branch_id` y lo termina de resolver `posContexto` de forma
+**asincrona**; `core:ready` se emite en la linea 1693 de `pos-nucleo.js`, mucho
+despues. Marketing preguntaba antes de tiempo, salia `null`, y la consulta se
+filtraba por nada. Chat IA —donde las cuentas SI se ven— hace dos cosas que yo
+no hacia: **espera al contexto** y, si aun asi no hay sede, **coge la primera
+del restaurante**.
+
+La pista que lo delato estaba en la propia captura: el cuadrito del usuario
+salia **vacio**, sin iniciales. Eso no es una cuenta sin nombre — es
+`_pos.state.user` todavia en null cuando la pantalla pregunto. `quienSoy()`
+tambien leia antes de esperar.
+
+### La regla que sale de aqui
+
+**"No hay" y "no pude leer" son dos cosas distintas y la pantalla tiene que
+decir cual de las dos es.** Ahora todo lo que devuelve `marketing-datos.js`
+lleva `error`, y si la lectura falla las tarjetas **no se pintan**: sale un
+cartel que dice que no se pudo leer y por que. Afirmar "Sin conectar" cuando
+lo que paso es que no se pudo mirar es la misma mentira que un numero
+inventado.
+
+### Como se comprobo
+
+Banco de pruebas con un cliente de Supabase **falso** —sin tocar la base— que
+reproduce las dos situaciones:
+
+- **sesion que llega 400 ms tarde**: sale "3 cuentas conectadas",
+  Instagram/Facebook/WhatsApp como Conectada, TikTok Sin conectar, y el
+  usuario y la sede bien puestos.
+- **consulta rechazada**: sale "No se pudieron leer las cuentas" con el
+  motivo, cero tarjetas, y el contador dice "No se pudo comprobar".

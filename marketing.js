@@ -267,7 +267,7 @@
   async function pintarFiltros() {
     var sel = $('mk-filtro-cuenta');
     if (sel) {
-      var lista = (await D.cuentas()).filter(function (c) { return c.connected; });
+      var lista = (await D.cuentas()).lista.filter(function (c) { return c.connected; });
       sel.innerHTML = '<option>Todas las cuentas</option>'
         + lista.map(function (c) { return '<option>' + esc(red(c.channel).n) + '</option>'; }).join('');
     }
@@ -336,9 +336,27 @@
   async function pintarCuentas() {
     var caja = $('mk-cuentas');
     if (!caja) return;
-    var lista = await D.cuentas();
+    var res   = await D.cuentas();
+    var lista = res.lista;
     var conv  = await D.conversaciones(dias);
     var orden = ['instagram', 'facebook', 'whatsapp', 'tiktok'];
+
+    /*  Si no se pudo leer NO se pinta ninguna tarjeta. Una tarjeta que dice
+        "Sin conectar" cuando lo que pasó es que la consulta falló es una
+        mentira, y aquí ya pasó: Sergio vio Instagram, Facebook y WhatsApp
+        como desconectados estando conectados.                           */
+    if (res.error) {
+      caja.innerHTML = '<div style="grid-column:1/-1">' + hueco(
+        'No se pudieron leer las cuentas',
+        'La pantalla no puede decirte si están conectadas porque la consulta no '
+        + 'respondió: ' + esc(res.error) + '. Para verlas y conectarlas, entra a Chat IA.')
+        + '</div>';
+      var b0 = $('mk-conectadas');
+      if (b0) b0.textContent = 'No se pudo comprobar';
+      var t0 = $('mk-tab-cuentas');
+      if (t0) t0.hidden = true;
+      return;
+    }
 
     caja.innerHTML = orden.map(function (k) {
       var c = lista.filter(function (x) { return x.channel === k; })[0];
