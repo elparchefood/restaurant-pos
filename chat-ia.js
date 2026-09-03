@@ -8,6 +8,25 @@
     chocaba con el const del nucleo y tumbaba la pantalla entera. */
 //  $ viene del nucleo (pos-core): redeclararlo chocaba con su const.
 
+/*  ══ VUELTA DE TIKTOK ═══════════════════════════════════════════════════
+    La funcion que recoge el permiso de TikTok termina mandando siempre aqui.
+    Pero TikTok ya no se conecta desde el chat —aqui no tiene mensajes, asi
+    que no pinta nada—, sino desde Marketing.
+
+    Antes de salir, Marketing deja una nota. Si esta, se reenvia alli con el
+    resultado pegado. Va lo PRIMERO del archivo, antes de montar nada: cargar
+    el chat entero para irse acto seguido es tiempo perdido a la vista.    */
+(function () {
+  try {
+    var u = new URL(window.location.href);
+    if (u.searchParams.get('channel') !== 'tiktok') return;
+    var volver = sessionStorage.getItem('tiktok.volver');
+    if (!volver) return;
+    sessionStorage.removeItem('tiktok.volver');
+    window.location.replace(volver + u.search);
+  } catch (e) { /* si algo falla, se queda en el chat: lo de siempre */ }
+})();
+
 const TIKTOK_CLIENT_KEY = '7650415130718502929';
 const OAUTH_CALLBACK    = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/tiktok-oauth-callback';
 

@@ -16744,3 +16744,41 @@ reintenta **UNA vez**: si el refresh tambien caduco, repetir no arregla nada y
 dejaria la pantalla colgada — ahi si toca reconectar a mano, que es lo que se
 dice. La llave nueva se guarda en la base en el momento, o cada consulta
 volveria a renovar y gastaria una llamada de mas.
+
+## TikTok se conecta DESDE Marketing (3-sep-2026)
+
+Sergio: *"mas que de esta pantalla tambien se pueda conectar; no tiene logica
+conectarlo desde el Chat IA, si no tenemos la funcion de TikTok en el chat
+entonces no tendria logica"*.
+
+De cajon: **la conexion va donde vive la funcion.** En el chat TikTok no pinta
+nada —no tiene mensajes— asi que mandar alli a alguien que quiere ver sus
+videos es pasearlo por una pantalla que no le sirve.
+
+La tarjeta de TikTok en **Cuentas** lleva ahora su propio boton: "Conectar
+TikTok" / "Reconectar TikTok". Las demas redes siguen mandando al chat, que es
+donde se leen y contestan sus mensajes.
+
+### Como vuelve a su sitio SIN tocar el servidor
+
+`tiktok-oauth-callback` termina mandando siempre a `chat-ia.html`, y esta en
+produccion funcionando. Cambiarla seria meter mano en una pieza viva por un
+detalle de navegacion.
+
+En vez de eso: antes de salir hacia TikTok, Marketing deja una nota en
+`sessionStorage`. Al volver, **lo primero** que hace `chat-ia.js` —antes de
+montar nada, que cargar el chat entero para irse acto seguido es tiempo
+perdido a la vista— es leerla y reenviar a Marketing con el resultado pegado.
+
+La nota sobrevive el viaje porque es el mismo navegador y la misma pestana. Y
+si se perdiera, lo peor que pasa es acabar en el chat, **que es exactamente lo
+que pasaba antes**: un respaldo que falla hacia lo de siempre, no hacia un
+error.
+
+### Comprobado de punta a punta
+
+Se pulso el boton y **TikTok acepto la peticion y pidio iniciar sesion**, lo
+que confirma que la llave de la app y la direccion de retorno son validas. En
+la propia respuesta de TikTok viajaban: `client_key`, los seis permisos con
+`video.list`, `response_type=code`, el `redirect_uri` de la funcion y el
+`state` con la sede.

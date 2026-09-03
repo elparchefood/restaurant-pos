@@ -463,8 +463,17 @@
             que son los mensajes.                                          */
         +   filas(k, on, c)
         + '</div>'
-        + '<div class="mk-auto-foot"><a class="cc-btn-ghost" href="chat-ia.html">'
-        +   (on ? 'Ver conversaciones' : 'Conectar desde Chat IA') + '</a></div>'
+        /*  TikTok se conecta AQUI. En el chat no tiene mensajes, asi que
+            mandar alli a quien quiere ver sus videos es pasearlo por una
+            pantalla que no le sirve. Las demas si van al chat: ahi es donde
+            se leen y contestan sus mensajes.                            */
+        + '<div class="mk-auto-foot">'
+        +   (k === 'tiktok'
+                ? '<button class="cc-btn-ghost js-tiktok">'
+                  + (on ? 'Reconectar TikTok' : 'Conectar TikTok') + '</button>'
+                : '<a class="cc-btn-ghost" href="chat-ia.html">'
+                  + (on ? 'Ver conversaciones' : 'Conectar desde Chat IA') + '</a>')
+        + '</div>'
         + '</div>';
     }).join('')
     + '<div style="grid-column:1/-1">' + hueco(
@@ -536,6 +545,47 @@
     setTimeout(function () { if (d.parentNode) d.remove(); if (avisoActual === d) avisoActual = null; }, 2600);
   }
 
+  /*  ══ CONECTAR TIKTOK ═══════════════════════════════════════════════
+      Se pide permiso a TikTok y se vuelve AQUI.
+
+      Los mismos permisos que pide el chat, ni uno mas: solo leer la cuenta y
+      la lista de videos. `biz.spark.auth` va porque ya estaba concedido en la
+      app; no publica nada, solo deja promocionar un video ya publicado.
+
+      La funcion del servidor que recoge la respuesta termina mandando siempre
+      al chat, y esta en produccion. En vez de tocarla, se deja una nota antes
+      de salir y al volver el chat reenvia aqui. Si la nota se perdiera, se
+      acaba en el chat — que es lo que pasaba antes, no un error nuevo.   */
+  var TIKTOK_KEY      = '7650415130718502929';
+  var TIKTOK_CALLBACK = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/tiktok-oauth-callback';
+  var TIKTOK_PERMISOS = 'user.info.basic,user.info.username,user.info.profile,'
+                      + 'user.account.type,video.list,biz.spark.auth';
+
+  async function conectarTikTok() {
+    var b = await D.sede();
+    if (!b) { aviso('No se pudo saber en qué sede estás'); return; }
+    try { sessionStorage.setItem('tiktok.volver', 'marketing.html'); } catch (e) {}
+    window.location.href = 'https://www.tiktok.com/v2/auth/authorize'
+      + '?client_key=' + TIKTOK_KEY
+      + '&scope=' + TIKTOK_PERMISOS
+      + '&response_type=code'
+      + '&redirect_uri=' + encodeURIComponent(TIKTOK_CALLBACK)
+      + '&state=' + encodeURIComponent(b);
+  }
+
+  /*  Al volver de TikTok se dice como fue. El aviso sale una sola vez: se
+      limpia la direccion para que al recargar no reaparezca.            */
+  function avisarVuelta() {
+    var u = new URL(window.location.href);
+    if (u.searchParams.get('channel') !== 'tiktok') return;
+    if (u.searchParams.get('connected') === '1') aviso('TikTok conectado');
+    else if (u.searchParams.get('error')) aviso('No se pudo conectar TikTok. Inténtalo otra vez.');
+    u.searchParams.delete('channel');
+    u.searchParams.delete('connected');
+    u.searchParams.delete('error');
+    history.replaceState(null, '', u.pathname + (u.search === '?' ? '' : u.search));
+  }
+
   function pestana(nombre) {
     $$('.cc-tab').forEach(function (t) {
       var suya = t.getAttribute('data-screen') === nombre;
@@ -551,6 +601,7 @@
     if (!D) return;
     pintarBarra();
     pintarCalendario();
+    avisarVuelta();
     pintarFiltros();
     pintarResumen();   // pinta tambien las barritas, que dependen de sus datos
     pintarAutos();
@@ -562,6 +613,8 @@
 
       var toast = t.closest('.js-toast');
       if (toast) { aviso(toast.getAttribute('data-msg') || 'Listo'); return; }
+
+      if (t.closest('.js-tiktok')) { conectarTikTok(); return; }
 
       var tab = t.closest('.cc-tab');
       if (tab) { pestana(tab.getAttribute('data-screen')); return; }

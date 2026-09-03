@@ -488,6 +488,7 @@
   window.mkDatos = {
     FALTA: FALTA,
     cuentas: cuentas,
+    sede: branch,
     estadisticasRedes: estadisticasRedes,
     vistasPorMes: vistasPorMes,
     quienSoy: quienSoy,
