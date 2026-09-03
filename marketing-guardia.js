@@ -20,7 +20,7 @@
   /*  Se tapa la pantalla hasta saber. Si naciera visible, alguien que no debe
       verla alcanzaria a leerla el instante que tarda la consulta.        */
   var velo = document.createElement('div');
-  velo.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#08080A';
+  velo.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#FAFAFB';
   document.documentElement.appendChild(velo);
 
   function fuera() { window.location.replace('dashboard.html'); }

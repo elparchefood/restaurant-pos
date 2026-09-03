@@ -32,6 +32,43 @@ producto, ni en la documentación de puesta en marcha.
 
 ---
 
+## 0-ter. MARKETING: oculta HOY, pero por otro motivo (3-sep-2026)
+
+`marketing.html` tampoco la ve ningún restaurante todavía, pero **no entra en
+la lista de arriba**. Los tres de arriba son de Sergio por diseño y lo normal
+es que sigan así. Marketing está esperando a que **Meta apruebe los permisos**,
+y el día que lleguen **pasa a Pro**.
+
+La diferencia importa: si se apunta como "exclusiva de Sergio" a secas, dentro
+de tres meses alguien lee eso y no la mueve nunca.
+
+**Cómo se destapa el día que Meta apruebe:** en `pos-nav.js` se cambia
+`soloPlataforma:true` por el candado de plan de siempre
+(`posPlan.exigir('marketing')`), y en `marketing-guardia.js` lo mismo. No hay
+que tocar nada más.
+
+### La regla de esta pantalla: NI UN NUMERO INVENTADO
+
+Se entregó una primera versión con datos de ejemplo (214 millones en ventas,
+184 mil vistas, un usuario llamado "Valentina M.") y Sergio la devolvió el
+mismo día. **En una pantalla de marketing un número falso es peor que un
+hueco, porque se cree.**
+
+Lo que aplica a cualquier cosa que se añada aquí:
+
+- Cada cifra sale de la base o **se marca como pendiente diciendo qué permiso
+  falta**. No se rellena con algo bonito.
+- Un botón que avisa "listo" sin haber hecho nada es la misma mentira que un
+  número inventado, solo que se dispara al tocarlo. O hace lo que dice, o no
+  está. Se salva el que explica por qué todavía no se puede.
+- Un filtro que no filtra y un formulario que no guarda: fuera. Desesperan más
+  que no tenerlos.
+
+De dónde sale cada dato y qué permiso falta en cada hueco: **ESTADO-SISTEMA.md,
+sección MARKETING**.
+
+---
+
 ## 0. Regla de documentación continua (OBLIGATORIA)
 
 Después de cada cambio importante, corrección compleja o decisión de diseño, **actualizar `ESTADO-SISTEMA.md`** antes de terminar la sesión. Esto garantiza que cuando la conversación se compacte, toda la información esté en los documentos y no se pierda.

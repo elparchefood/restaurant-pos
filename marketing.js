@@ -1,37 +1,43 @@
-/* marketing.js — Marketing (maqueta operativa)
+/* marketing.js — la pantalla de Marketing.
  *
- * ────────────────────────────────────────────────────────────────────────
- *  ATENCIÓN: TODAVÍA NO HAY DATOS DE VERDAD.
+ * NO HAY NI UN DATO INVENTADO. Cada cifra sale de `marketing-datos.js`, que
+ * lee la base; y lo que hoy no se puede saber sale como un hueco que dice qué
+ * permiso falta y para qué sirve.
  *
- *  Todo lo que se ve aquí está escrito a mano en este archivo: las
- *  publicaciones, las cifras, el calendario y las automatizaciones. Nada sale
- *  de Meta ni de TikTok, porque los permisos para leer estadísticas y para
- *  publicar todavía no están aprobados.
+ * Esa es la regla: un número falso en una pantalla de marketing es peor que un
+ * hueco, porque el hueco se pregunta y el número se cree.
  *
- *  Sirve para dos cosas hasta que lo estén:
- *    · que Sergio pruebe el recorrido y diga qué falta antes de construirlo;
- *    · grabar los vídeos que Meta pide para conceder los permisos.
+ * Hoy está conectado:
+ *   · Cuentas ......... real y completo (chat_channels)
+ *   · Ventas por red .. real (conversaciones que acabaron en pedido)
+ *   · Conversión ...... real (conversaciones que compran / total)
+ *   · Respuestas ...... real (quién contestó y en cuánto)
+ *   · TikTok .......... el permiso está; falta desplegar `tiktok-videos`
  *
- *  Por eso la pantalla NO se le muestra a ningún restaurante: la entrada del
- *  menú nace escondida y solo se destapa para el administrador de la
- *  plataforma (ver pos-nav.js). El día que Meta apruebe, esto se cambia por
- *  datos reales y la entrada pasa a depender del plan.
- * ────────────────────────────────────────────────────────────────────────
+ * Falta permiso de Meta para: vistas y alcance, publicaciones de Instagram,
+ * comentarios y programar contenido. Ver la cabecera de marketing-datos.js.
  */
 (function () {
   'use strict';
 
   var $  = function (id) { return document.getElementById(id); };
   var $$ = function (s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); };
+  var D  = window.mkDatos;
 
-  /* Números en colombiano: miles con punto, decimales con coma. */
   var NUM = new Intl.NumberFormat('es-CO');
   function miles(n) { return NUM.format(n); }
-  function pesos(n) { return '$ ' + NUM.format(Math.round(n)); }
+  function pesos(n) { return '$ ' + NUM.format(Math.round(n || 0)); }
   function corto(n) {
     if (n >= 1000000) return (n / 1000000).toFixed(1).replace('.', ',') + 'M';
     if (n >= 1000)    return (n / 1000).toFixed(1).replace('.', ',') + 'K';
-    return miles(n);
+    return miles(n || 0);
+  }
+  function pct(a, b) { return b ? (a * 100 / b).toFixed(1).replace('.', ',') + '%' : '—'; }
+  function duracion(seg) {
+    if (seg == null) return '—';
+    if (seg < 60) return Math.round(seg) + ' s';
+    if (seg < 3600) return Math.round(seg / 60) + ' min';
+    return (seg / 3600).toFixed(1).replace('.', ',') + ' h';
   }
   function esc(t) {
     return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
@@ -39,60 +45,357 @@
     });
   }
 
-  // ══════════════════════════════════════════════════════════════════════
-  //  LOS DATOS DE MENTIRA
-  //  Salen de las notas del diseño. Cuando lleguen los de verdad, esto se
-  //  sustituye por la consulta y el resto del archivo no cambia.
-  // ══════════════════════════════════════════════════════════════════════
-  var POSTS = [
-    { id:'427-012', prod:'Burger Parche',            estado:'Publicada', red:'tt', formato:'Reel 0:28',
-      fecha:'24 ago 13:00', vistas:41200, clientes:318, pedidos:214, likes:6940, coment:842,
-      ventas:9500000, conv:0.77, guard:1284 },
-    { id:'426-001', prod:'Combo alitas 2x1',         estado:'Publicada', red:'ig', formato:'Reel 0:22',
-      fecha:'19 ago 12:00', vistas:28700, clientes:261, pedidos:188, likes:5120, coment:614,
-      ventas:8400000, conv:0.91, guard:980 },
-    { id:'424-112', prod:'Domicilio gratis Laureles',estado:'Publicada', red:'ig', formato:'Carrusel 4',
-      fecha:'12 ago 19:00', vistas:19400, clientes:174, pedidos:121, likes:3480, coment:298,
-      ventas:5400000, conv:0.90, guard:742 },
-    { id:'421-020', prod:'Sin vincular',             estado:'En pausa',  red:'fb', formato:'Video 1:04',
-      fecha:'8 ago 11:00',  vistas:9860,  clientes:63,  pedidos:34,  likes:1180, coment:96,
-      ventas:1500000, conv:0.64, guard:210 },
-    { id:'419-004', prod:'Trío de salsas',           estado:'En cola',   red:'tt', formato:'Reel 0:35',
-      fecha:'5 ago 21:00',  vistas:16240, clientes:112, pedidos:71,  likes:2640, coment:351,
-      ventas:3100000, conv:0.69, guard:488 }
-  ];
-
+  /*  Los colores de cada red son los que ya usa el POS en `CANAL_META`
+      (ventas-salon.js), para que una red se vea igual en toda la aplicación. */
   var RED = {
-    ig: { n:'Instagram', c:'#7C5CFF' },
-    tt: { n:'TikTok',    c:'#F0629B' },
-    fb: { n:'Facebook',  c:'#4C9BFF' }
+    instagram: { n: 'Instagram', c: '#E1306C', b: 'ig' },
+    facebook:  { n: 'Facebook',  c: '#1877F2', b: 'fb' },
+    whatsapp:  { n: 'WhatsApp',  c: '#22C55E', b: 'wa' },
+    tiktok:    { n: 'TikTok',    c: '#0F172A', b: 'tk' }
   };
+  function red(k) { return RED[k] || { n: k || 'Otro', c: '#64748B', b: '' }; }
 
-  /*  dia 0 = lunes. `h` es hora decimal: 19.5 son las 19:30.
-      `dur` en 1 y no en 0.5: el alto es `dur * 54 - 6`, y con media hora
-      salen 21 px, donde no cabe el titulo y solo se ve la hora.        */
-  var EVENTOS = [
-    { d:0, h:12.5, dur:1, red:'ig', t:'Combo del día — Burger Parche',      est:'done'  },
-    { d:1, h:13,   dur:1, red:'tt', t:'Reto: 3 salsas a ciegas',            est:'done'  },
-    { d:1, h:19.5, dur:1, red:'ig', t:'Historia: detrás de la parrilla',    est:'done'  },
-    { d:2, h:12,   dur:1, red:'ig', t:'2x1 en alitas — código PARCHE2',     est:'done'  },
-    { d:2, h:21,   dur:1, red:'tt', t:'Domicilio en 18 minutos: el recorrido', est:'cola' },
-    { d:3, h:12.5, dur:1, red:'ig', t:'Carrusel: nuevo menú de almuerzo',   est:''      },
-    { d:3, h:17,   dur:1, red:'fb', t:'Reserva para grupos — 10% dto.',     est:'draft' },
-    { d:4, h:13,   dur:1, red:'tt', t:'Viernes de parche: mesa larga',      est:''      },
-    { d:4, h:19,   dur:1, red:'ig', t:'Reel: la salsa de la casa',          est:''      },
-    { d:4, h:20.5, dur:1, red:'fb', t:'Evento: música en vivo',             est:''      },
-    { d:5, h:12,   dur:1, red:'ig', t:'Antes y después del plato estrella', est:''      },
-    { d:6, h:13.5, dur:1, red:'tt', t:'Domingo de sancocho',                est:''      }
-  ];
-
-  /* Las mejores horas por día, que se pintan de fondo en la rejilla. */
-  var MEJORES = [[12,19],[13,21],[12,19],[12,19],[13,19],[12,13],[13,21]];
-
-  var H0 = 6, H1 = 23, ROW = 54;      // primera hora, última hora, alto por hora
+  var dias = 30;              // el rango del segmentado de arriba
 
   // ══════════════════════════════════════════════════════════════════════
-  //  AVISOS
+  //  EL HUECO HONESTO
+  //  Se usa en todas partes donde falta un permiso. Dice QUÉ falta y PARA QUÉ
+  //  sirve, para que al leerlo se entienda qué se está pidiendo y por qué.
+  // ══════════════════════════════════════════════════════════════════════
+  function hueco(titulo, porque) {
+    return '<div class="mkd-card" style="padding:22px;text-align:center">'
+      + '<div style="width:38px;height:38px;border-radius:12px;margin:0 auto 10px;'
+      +   'background:var(--warn-tint);color:var(--warn);display:flex;align-items:center;'
+      +   'justify-content:center">'
+      +   '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+      +   'stroke-width="2" stroke-linecap="round"><rect x="4" y="10" width="16" height="10" rx="2"/>'
+      +   '<path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>'
+      + '<div style="font-size:13.5px;font-weight:700;color:var(--ink)">' + esc(titulo) + '</div>'
+      + '<div style="font-size:12px;color:var(--ink-3);margin-top:5px;line-height:1.5;'
+      +   'max-width:340px;margin-left:auto;margin-right:auto">' + esc(porque) + '</div>'
+      + '</div>';
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  RESUMEN
+  // ══════════════════════════════════════════════════════════════════════
+  async function pintarResumen() {
+    var caja = $('mk-kpis');
+    var conv = await D.conversaciones(dias);
+    var resp = await D.respuestas(dias);
+
+    if (caja) {
+      caja.innerHTML =
+          kpi('Conversaciones atendidas', miles(conv.total), 'últimos ' + dias + ' días')
+        + kpi('Acabaron en pedido', miles(conv.conPedido),
+              pct(conv.conPedido, conv.total) + ' de las conversaciones')
+        + kpi('Tiempo de respuesta', duracion(resp.medianaSeg),
+              resp.medianaSeg == null ? 'sin datos en el periodo' : 'mediana, no promedio');
+    }
+
+    var v = await D.ventasPorRed(dias);
+    var val = $('mk-ventas');
+    if (val) val.textContent = pesos(v.total);
+
+    var redes = $('mk-ventas-redes');
+    if (redes) {
+      var claves = Object.keys(v.redes).sort(function (a, b) { return v.redes[b] - v.redes[a]; });
+      redes.innerHTML = claves.length
+        ? claves.map(function (k) {
+            return '<div class="mkd-tile"><div class="mkd-tile-n">' + pesos(v.redes[k]) + '</div>'
+              + '<div class="mkd-tile-s">' + esc(red(k).n) + '</div></div>';
+          }).join('')
+        : '<div class="mkd-tile-s" style="padding:8px 2px">Todavía no hay pedidos que hayan '
+          + 'salido de una conversación en este periodo.</div>';
+    }
+
+    /*  Se dice de dónde sale el número: es atribución por CANAL, no por
+        publicación. Para saber qué post trajo la venta hacen falta las
+        estadísticas de Meta, y prometerlo sin tenerlas seria mentir.     */
+    var nota = $('mk-ventas-nota');
+    if (nota) {
+      nota.textContent = v.pedidos
+        ? miles(v.pedidos) + ' pedidos que salieron de una conversación. Por red, no por publicación.'
+        : '';
+    }
+
+    pintarPublicaciones();
+  }
+  function kpi(lbl, val, pie) {
+    return '<div class="mkd-kpi"><div class="mkd-lbl">' + esc(lbl) + '</div>'
+      + '<div class="mkd-val">' + esc(val) + '</div>'
+      + (pie ? '<div class="mkd-lbl" style="margin-top:4px">' + esc(pie) + '</div>' : '')
+      + '</div>';
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  LAS PUBLICACIONES
+  //  Hoy solo TikTok, y solo cuando esté desplegada la función que las lee.
+  //  Instagram y Facebook necesitan permiso para leer medios.
+  // ══════════════════════════════════════════════════════════════════════
+  var VIDEOS = [], sel = 0;
+
+  async function pintarPublicaciones() {
+    var lista = $('post-list'), det = $('post-detail');
+    if (!lista) return;
+
+    var r = await D.videosTikTok();
+    VIDEOS = r.videos || [];
+
+    /*  El contador de la cabecera. Sin videos no se pinta: al lado de un
+        cartel que ya explica que falta la funcion, un "Publicadas 0" solo
+        repite la mala noticia.                                          */
+    var pills = $('mk-pub-pills');
+    if (pills) {
+      pills.innerHTML = VIDEOS.length
+        ? '<button class="mkd-pill on">Publicadas <span>' + VIDEOS.length + '</span></button>'
+        : '';
+    }
+
+    if (!VIDEOS.length) {
+      lista.innerHTML = '<div style="padding:14px 16px">' + hueco(
+        r.falta || 'Todavía no hay publicaciones',
+        r.falta
+          ? 'TikTok ya nos dejó leer los videos publicados (permiso video.list). Falta '
+            + 'desplegar la función de servidor que los trae: el token no puede bajar al '
+            + 'navegador. Instagram y Facebook necesitan además el permiso para leer medios.'
+          : 'Cuando publiques en TikTok aparecerán aquí.') + '</div>';
+      if (det) det.innerHTML = '';
+      return;
+    }
+
+    lista.innerHTML = VIDEOS.map(function (v, i) {
+      return '<div class="mkd-lrow' + (i === sel ? ' on' : '') + '" data-i="' + i + '">'
+        + (v.cover
+            ? '<img class="mkd-lthumb" src="' + esc(v.cover) + '" alt="" loading="lazy">'
+            : '<span class="mkd-lthumb"></span>')
+        + '<span class="mkd-lmain">'
+        +   '<span class="mkd-lid" style="display:block">' + esc(v.titulo || 'Sin título') + '</span>'
+        +   '<span class="mkd-lsub" style="display:block">' + esc(v.fecha || '') + ' · TikTok</span>'
+        + '</span>'
+        + '<span class="mkd-lamount">' + corto(v.vistas) + '</span>'
+        + '</div>';
+    }).join('');
+    pintarDetalle();
+  }
+
+  function pintarDetalle() {
+    var caja = $('post-detail');
+    if (!caja || !VIDEOS.length) return;
+    var v = VIDEOS[sel];
+    caja.innerHTML =
+        '<div class="mkd-det-top"><span class="mkd-det-lbl">Publicación</span>'
+      +   '<span class="mkd-chip">TikTok</span></div>'
+      + '<div class="mkd-det-id"><span class="mkd-det-num" style="font-size:17px">'
+      +   esc(v.titulo || 'Sin título') + '</span></div>'
+      + '<div class="mkd-det-cols">'
+      +   '<div><div class="mkd-det-col-lbl">Publicado</div>'
+      +     '<div class="mkd-det-col-v"><div><div class="mkd-det-col-t">'
+      +       esc(v.fecha || '—') + '</div>'
+      +     '<div class="mkd-det-col-s">' + (v.duracion ? esc(v.duracion) : '') + '</div></div></div></div>'
+      +   '<div><div class="mkd-det-col-lbl">Producto vinculado</div>'
+      +     '<div class="mkd-det-col-v"><div><div class="mkd-det-col-t" '
+      +       'style="color:var(--muted);font-weight:600">Sin vincular</div>'
+      +     '<div class="mkd-det-col-s">Vincular pide el permiso de estadísticas</div></div></div></div>'
+      + '</div>'
+      + '<div class="mkd-det-tiles" style="grid-template-columns:repeat(3,1fr)">'
+      +   dtile(corto(v.vistas), 'Vistas')
+      +   dtile(corto(v.likes), 'Likes')
+      +   dtile(corto(v.comentarios), 'Comentarios')
+      + '</div>'
+      + '<div class="mkd-det-foot">'
+      +   '<div class="mkd-tot"><span>Compartidos</span><b>' + corto(v.compartidos) + '</b></div>'
+      +   '<div class="mkd-foot-actions">'
+      +     (v.enlace
+        ? '<a class="cc-btn-ghost" href="' + esc(v.enlace) + '" target="_blank" rel="noopener">Abrir en TikTok</a>'
+        : '')
+      +   '</div>'
+      + '</div>';
+  }
+  function dtile(n, s2) {
+    return '<div class="mkd-dtile"><div class="mkd-dtile-n">' + esc(n) + '</div>'
+      + '<div class="mkd-dtile-s">' + esc(s2) + '</div></div>';
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  LA BARRA DE ARRIBA — sede y usuario de la sesion
+  //  Traia "Valentina M. / Administrador / Sede Centro", que no existe.
+  // ══════════════════════════════════════════════════════════════════════
+  async function pintarBarra() {
+    var yo = await D.quienSoy();
+    var n = $('mk-user-name'), r = $('mk-user-role'), a = $('mk-user-av'), sd = $('mk-sede-top');
+    if (n) n.textContent = yo.nombre;
+    if (r) r.textContent = yo.rol;
+    if (a) a.textContent = yo.iniciales;
+    /*  Sin sede el rotulo se esconde entero: un "Sede" a secas no dice nada
+        y deja el hueco raro.                                             */
+    if (sd) {
+      sd.innerHTML = 'Sede <strong>' + esc(yo.sede) + '</strong>';
+      sd.hidden = !yo.sede;
+    }
+    var sub = $('mk-sede');
+    if (sub && yo.sede) sub.textContent = yo.sede;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  LAS CUATRO BARRITAS POR MES
+  //  Es venta atribuida al chat, no alcance: el alcance necesita permisos que
+  //  no tenemos. La barra mas alta manda y las demas se miden contra ella.
+  // ══════════════════════════════════════════════════════════════════════
+  async function pintarMeses() {
+    var caja = $('mk-meses');
+    if (!caja) return;
+    var lista = await D.ventasPorMes(4);
+    var tope = Math.max.apply(null, lista.map(function (m) { return m.valor; }));
+    caja.innerHTML = lista.map(function (m, i) {
+      /*  Si todavia no hay ventas todas van a cero: NO se reparte un 100%
+          entre ceros, que dibujaria un mes ganador salido de la nada.    */
+      var ancho = tope > 0 ? Math.round(m.valor * 100 / tope) : 0;
+      var suave = (i === lista.length - 1) ? ' soft' : '';   // el mes en curso va a medias
+      return '<div class="mkd-month" title="' + esc(pesos(m.valor)) + '">'
+        + '<span>' + esc(m.mes) + '</span><div class="mkd-track">'
+        + '<div class="mkd-fill' + suave + '" style="width:' + ancho + '%"></div></div></div>';
+    }).join('');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  LOS FILTROS — solo los que filtran de verdad
+  //  El de formato (Reel / Carrusel / Historia) y el buscador se quitaron del
+  //  HTML: filtraban por datos que no tenemos, y un filtro que no filtra
+  //  desespera mas que no tenerlo.
+  // ══════════════════════════════════════════════════════════════════════
+  async function pintarFiltros() {
+    var sel = $('mk-filtro-cuenta');
+    if (sel) {
+      var lista = (await D.cuentas()).filter(function (c) { return c.connected; });
+      sel.innerHTML = '<option>Todas las cuentas</option>'
+        + lista.map(function (c) { return '<option>' + esc(red(c.channel).n) + '</option>'; }).join('');
+    }
+    var rango = $('mk-rango');
+    if (rango) {
+      /*  A mano y no con toLocaleDateString: el es-CO devuelve
+          "4 de ago de 2026", que aqui ocupa el doble y se lee peor.   */
+      var M = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      var fmt = function (d) {
+        return d.getDate() + ' ' + M[d.getMonth()] + ' ' + d.getFullYear();
+      };
+      rango.textContent = fmt(new Date(Date.now() - dias * 864e5)) + ' — ' + fmt(new Date());
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  CALENDARIO — la función entera está pendiente de permiso
+  // ══════════════════════════════════════════════════════════════════════
+  function pintarCalendario() {
+    var cal = $('mk-calendario');
+    if (!cal) return;
+    cal.style.height = 'auto';
+    cal.innerHTML = '<div style="padding:26px">' + hueco(
+      'Programar contenido: falta el permiso',
+      'Para publicar y programar hace falta instagram_content_publish en Instagram y '
+      + 'pages_manage_posts en Facebook. En TikTok, video.publish o video.upload. Ninguno '
+      + 'está aprobado todavía: mientras tanto, aquí no habría nada que enseñar.') + '</div>';
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  AUTOMATIZACIONES
+  //  Las cifras de mensajes son reales. Las reglas de comentarios son la
+  //  función que falta, así que se dice.
+  // ══════════════════════════════════════════════════════════════════════
+  async function pintarAutos() {
+    var caja = $('mk-auto-kpis');
+    if (caja) {
+      var r = await D.respuestas(dias);
+      var c = await D.conversaciones(dias);
+      caja.innerHTML =
+          akpi('Mensajes respondidos', miles(r.atendidas), 'últimos ' + dias + ' días')
+        + akpi('Contestó el asistente', miles(r.porBot), pct(r.porBot, r.atendidas) + ' del total')
+        + akpi('Contestó una persona', miles(r.porPersona), pct(r.porPersona, r.atendidas) + ' del total')
+        + akpi('Tiempo de respuesta', duracion(r.medianaSeg), 'mediana')
+        + akpi('Sin responder ahora', miles(c.sinResponder), 'esperan contestación');
+    }
+    var reglas = $('mk-reglas');
+    if (reglas) {
+      reglas.innerHTML = hueco(
+        'Responder comentarios: falta el permiso',
+        'Las cifras de arriba son de MENSAJES, que es lo que hoy podemos leer y contestar. '
+        + 'Para hacer lo mismo con los comentarios hacen falta instagram_manage_comments y '
+        + 'pages_manage_engagement, y suscribir los avisos de comentarios. TikTok no ofrece '
+        + 'responder comentarios por API, así que esto será solo de Meta.');
+    }
+  }
+  function akpi(lbl, val, pie) {
+    return '<div class="mk-kpi"><div class="mk-kpi-lbl">' + esc(lbl) + '</div>'
+      + '<div class="mk-kpi-val">' + esc(val) + '</div>'
+      + '<div class="mk-kpi-foot">' + esc(pie) + '</div></div>';
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  CUENTAS — real y completo
+  // ══════════════════════════════════════════════════════════════════════
+  async function pintarCuentas() {
+    var caja = $('mk-cuentas');
+    if (!caja) return;
+    var lista = await D.cuentas();
+    var conv  = await D.conversaciones(dias);
+    var orden = ['instagram', 'facebook', 'whatsapp', 'tiktok'];
+
+    caja.innerHTML = orden.map(function (k) {
+      var c = lista.filter(function (x) { return x.channel === k; })[0];
+      var r = red(k), on = c && c.connected;
+      var meta = (c && c.meta) || {};
+      var nombre = (c && (c.display_name || c.handle)) || '';
+      return '<div class="mk-auto">'
+        + '<div class="mk-auto-top"><div class="mk-net">'
+        +   '<div class="mk-net-badge" style="background:' + r.c + '1f;color:' + r.c + '">'
+        +     esc(r.n.slice(0, 2).toUpperCase()) + '</div>'
+        +   '<div><div class="mk-auto-title">' + esc(r.n) + '</div>'
+        +   '<div class="mk-auto-sub">' + (nombre ? esc(nombre) : 'Sin conectar') + '</div></div>'
+        + '</div>'
+        + (on ? '<span class="lm-pill-success">● Conectada</span>'
+              : '<span class="mkd-chip">Sin conectar</span>')
+        + '</div>'
+        + '<div>'
+        +   kv('Estadísticas', on ? 'Falta el permiso de Meta' : '—')
+        +   (k === 'tiktok' && on
+                ? kv('Publicaciones', 'Permiso video.list concedido')
+                : kv('Publicaciones', 'Falta el permiso de lectura'))
+        +   kv('Comentarios', 'Falta el permiso')
+        + '</div>'
+        + '<div class="mk-auto-foot"><a class="cc-btn-ghost" href="chat-ia.html">'
+        +   (on ? 'Ver conversaciones' : 'Conectar desde Chat IA') + '</a></div>'
+        + '</div>';
+    }).join('')
+    + '<div style="grid-column:1/-1">' + hueco(
+        'Seguidores, alcance e interacción: falta el permiso',
+        'Los números de una cuenta —seguidores, alcance, interacción, salud— vienen de las '
+        + 'estadísticas de Meta: instagram_manage_insights y read_insights. En TikTok, '
+        + 'user.info.stats. Ninguno está aprobado.') + '</div>';
+
+    /*  El numero de la pestana: cuantas cuentas hay conectadas de verdad.
+        Nace escondido y solo aparece si hay alguna — un "0" colgado de la
+        pestana no informa, solo estorba.                                */
+    var tab = $('mk-tab-cuentas');
+    if (tab) {
+      var cn = lista.filter(function (x) { return x.connected; }).length;
+      tab.textContent = cn;
+      tab.hidden = !cn;
+    }
+
+    var badge = $('mk-conectadas');
+    if (badge) {
+      var n = lista.filter(function (x) { return x.connected; }).length;
+      badge.textContent = n + (n === 1 ? ' cuenta conectada' : ' cuentas conectadas');
+    }
+  }
+  function kv(k, v) {
+    return '<div class="mk-kv"><span class="mk-kv-k">' + esc(k) + '</span>'
+      + '<span class="mk-kv-v" style="font-size:11.5px;color:var(--ink-3);font-weight:600">'
+      + esc(v) + '</span></div>';
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  AVISOS, PESTAÑAS Y VENTANAS
   // ══════════════════════════════════════════════════════════════════════
   var avisoActual = null;
   function aviso(msg) {
@@ -105,124 +408,6 @@
     setTimeout(function () { if (d.parentNode) d.remove(); if (avisoActual === d) avisoActual = null; }, 2600);
   }
 
-  // ══════════════════════════════════════════════════════════════════════
-  //  LA LISTA DE PUBLICACIONES Y SU DETALLE
-  // ══════════════════════════════════════════════════════════════════════
-  var sel = 0;
-
-  function pintarLista() {
-    var caja = $('post-list');
-    if (!caja) return;
-    caja.innerHTML = POSTS.map(function (p, i) {
-      var enCola = p.estado === 'En cola';
-      return '<div class="mkd-lrow' + (i === sel ? ' on' : '') + '" data-i="' + i + '">'
-        + '<span class="mkd-lthumb" style="background:' + RED[p.red].c + '33"></span>'
-        + '<span class="mkd-lmain">'
-        +   '<span class="mkd-lid" style="display:block"># ' + esc(p.id) + '</span>'
-        +   '<span class="mkd-lsub" style="display:block">' + esc(p.fecha) + ' · ' + esc(RED[p.red].n) + '</span>'
-        + '</span>'
-        + '<span class="mkd-chip' + (enCola ? ' live' : '') + '">' + esc(p.estado) + '</span>'
-        + '<span class="mkd-lamount">' + corto(p.vistas) + '</span>'
-        + '</div>';
-    }).join('');
-  }
-
-  function pintarDetalle() {
-    var caja = $('post-detail');
-    if (!caja) return;
-    var p = POSTS[sel], r = RED[p.red];
-    caja.innerHTML =
-        '<div class="mkd-det-top">'
-      +   '<span class="mkd-det-lbl">Publicación</span>'
-      +   '<span class="mkd-chip' + (p.estado === 'En cola' ? ' live' : '') + '">' + esc(p.estado) + '</span>'
-      + '</div>'
-      + '<div class="mkd-det-id"><span class="mkd-det-num"># ' + esc(p.id) + '</span></div>'
-      + '<div class="mkd-det-cols">'
-      +   '<div><div class="mkd-det-col-lbl">Cuenta</div>'
-      +     '<div class="mkd-det-col-v">'
-      +       '<span style="width:9px;height:9px;border-radius:999px;flex:0 0 auto;background:' + r.c + '"></span>'
-      +       '<div><div class="mkd-det-col-t">' + esc(r.n) + '</div>'
-      +       '<div class="mkd-det-col-s">' + esc(p.formato) + ' · ' + esc(p.fecha) + '</div></div>'
-      +     '</div></div>'
-      +   '<div><div class="mkd-det-col-lbl">Producto vinculado</div>'
-      +     '<div class="mkd-det-col-v"><div>'
-      +       '<div class="mkd-det-col-t">' + esc(p.prod) + '</div>'
-      +       '<div class="mkd-det-col-s">' + miles(p.guard) + ' guardados</div></div>'
-      +     '</div></div>'
-      + '</div>'
-      + '<div class="mkd-det-tiles">'
-      +   dtile(corto(p.vistas), 'Vistas')
-      +   dtile(miles(p.clientes) + ' · ' + String(p.conv).replace('.', ',') + '%', 'Vistas → clientes')
-      +   dtile(miles(p.pedidos), 'Pedidos')
-      +   '<button class="mkd-plus js-open-drawer" title="Programar una publicación como esta">+</button>'
-      + '</div>'
-      + '<div class="mkd-det-foot">'
-      +   tot('Likes', miles(p.likes))
-      +   tot('Comentarios', miles(p.coment))
-      +   tot('Ventas atribuidas', pesos(p.ventas))
-      +   '<div class="mkd-foot-actions">'
-      +     '<button class="cc-btn-ghost js-toast" data-msg="Abriendo la publicación en ' + esc(r.n) + '">Abrir publicación</button>'
-      +     '<button class="cc-btn-ghost js-toast" data-msg="Más opciones">···</button>'
-      +     '<button class="mkd-brand-pill js-toast" data-msg="Duplicando con IA">Duplicar con IA</button>'
-      +   '</div>'
-      + '</div>';
-  }
-  function dtile(n, s2) {
-    return '<div class="mkd-dtile"><div class="mkd-dtile-n">' + esc(n) + '</div>'
-      + '<div class="mkd-dtile-s">' + esc(s2) + '</div></div>';
-  }
-  function tot(lbl, val) {
-    return '<div class="mkd-tot"><span>' + esc(lbl) + '</span><b>' + esc(val) + '</b></div>';
-  }
-
-  var DIAS = ['lun','mar','mié','jue','vie','sáb','dom'];
-  var FECHAS = ['31 ago','1 sep','2 sep','3 sep','4 sep','5 sep','6 sep'];
-  var HOY = 3;                          // jueves, para que la linea de ahora se vea
-
-  function pintarCalendario() {
-    var cab = $('cal-head'), rejilla = $('cal-grid');
-    if (!cab || !rejilla) return;
-
-    /*  La cabecera y la rejilla son dos `grid` de 58px + 7 columnas, asi que
-        las dos empiezan con una celda vacia: la de la columna de las horas. */
-    cab.innerHTML = '<div class="mk-cal-hcell"></div>' + DIAS.map(function (d, i) {
-      var cl = 'mk-cal-hcell' + (i >= 5 ? ' weekend' : '') + (i === HOY ? ' today' : '');
-      return '<div class="' + cl + '"><div class="mk-cal-dow">' + d + '</div>'
-        + '<div class="mk-cal-hsub">' + FECHAS[i] + '</div></div>';
-    }).join('');
-
-    var horas = '<div class="mk-cal-hours">';
-    for (var h = H0; h <= H1; h++) {
-      horas += '<div class="mk-cal-hour"><span>' + (h < 10 ? '0' + h : h) + ':00</span></div>';
-    }
-    horas += '</div>';
-
-    var cols = '';
-    for (var d = 0; d < 7; d++) {
-      var clases = 'mk-cal-col' + (d >= 5 ? ' weekend' : '') + (d === HOY ? ' today' : '');
-      var celdas = '';
-      for (var k = H0; k <= H1; k++) {
-        celdas += '<div class="mk-cal-cell' + (MEJORES[d].indexOf(k) >= 0 ? ' best' : '') + '"></div>';
-      }
-      var evs = EVENTOS.filter(function (e) { return e.d === d; }).map(function (e) {
-        var top = (e.h - H0) * ROW + 2, alto = e.dur * ROW - 6;
-        var hm = Math.floor(e.h), mm = Math.round((e.h - hm) * 60);
-        return '<button class="mk-ev ' + e.red + (e.est ? ' ' + e.est : '') + '"'
-          + ' style="top:' + top + 'px;height:' + alto + 'px" data-drawer="1">'
-          + '<span class="mk-ev-dot"></span>'
-          + '<span class="mk-ev-h">' + (hm < 10 ? '0' + hm : hm) + ':' + (mm < 10 ? '0' + mm : mm) + '</span>'
-          + '<span class="mk-ev-t">' + esc(e.t) + '</span></button>';
-      }).join('');
-      var ahora = d === HOY
-        ? '<div class="mk-cal-now" style="top:' + ((11.05 - H0) * ROW) + 'px"></div>' : '';
-      cols += '<div class="' + clases + '">' + celdas + evs + ahora + '</div>';
-    }
-    rejilla.innerHTML = horas + cols;
-  }
-
-  // ══════════════════════════════════════════════════════════════════════
-  //  PESTAÑAS
-  // ══════════════════════════════════════════════════════════════════════
   function pestana(nombre) {
     $$('.cc-tab').forEach(function (t) {
       var suya = t.getAttribute('data-screen') === nombre;
@@ -230,32 +415,20 @@
       if (suya) { var c = $('crumb'); if (c) c.textContent = t.getAttribute('data-crumb') || t.textContent.trim(); }
     });
     $$('.screen').forEach(function (s) { s.classList.toggle('on', s.id === 'screen-' + nombre); });
-    if (nombre === 'calendario') {
-      var sc = document.querySelector('.mk-cal-scroll');
-      /* Se deja la hora actual a la vista en vez de empezar a las 6 de la
-         mañana, que es cuando no hay nada. */
-      if (sc) sc.scrollTop = (11 - H0) * ROW - 70;
-    }
   }
 
-  // ══════════════════════════════════════════════════════════════════════
-  //  DRAWER Y MODALES
-  // ══════════════════════════════════════════════════════════════════════
-  function abrir(id)  { var e = $(id); if (e) e.hidden = false; }
-  function cerrar(id) { var e = $(id); if (e) e.hidden = true; }
   function cerrarTodo() { $$('.cc-overlay').forEach(function (o) { o.hidden = true; }); }
 
-  // ══════════════════════════════════════════════════════════════════════
-  //  ARRANQUE
-  // ══════════════════════════════════════════════════════════════════════
   function arrancar() {
-    pintarLista();
-    pintarDetalle();
+    if (!D) return;
+    pintarBarra();
     pintarCalendario();
+    pintarResumen();
+    pintarMeses();
+    pintarFiltros();
+    pintarAutos();
+    pintarCuentas();
 
-    /* Un solo oyente para todo: la lista y el calendario se vuelven a pintar
-       enteros, así que colgar oyentes de cada fila sería volverlos a colgar
-       cada vez. */
     document.addEventListener('click', function (ev) {
       var t = ev.target.closest ? ev.target : null;
       if (!t) return;
@@ -267,71 +440,54 @@
       if (tab) { pestana(tab.getAttribute('data-screen')); return; }
 
       var fila = t.closest('.mkd-lrow');
-      if (fila) { sel = +fila.getAttribute('data-i'); pintarLista(); pintarDetalle(); return; }
+      if (fila) {
+        sel = +fila.getAttribute('data-i');
+        $$('.mkd-lrow').forEach(function (f, i) { f.classList.toggle('on', i === sel); });
+        pintarDetalle();
+        return;
+      }
 
-      /* Segmentados y píldoras: solo mueven el `.on` dentro de su grupo. */
-      var seg = t.closest('.cc-seg button, #range-seg button, .mkd-pills button');
+      /*  El rango de arriba sí cambia los datos: no es decoración. */
+      var seg = t.closest('#range-seg button');
       if (seg) {
         Array.prototype.forEach.call(seg.parentElement.children, function (b) { b.classList.remove('on'); });
         seg.classList.add('on');
+        dias = parseInt(seg.textContent, 10) || 30;
+        pintarResumen();
+        pintarFiltros();
+        pintarAutos();
+        pintarCuentas();
         return;
       }
-      var chip = t.closest('.cc-fchip');
-      if (chip) {
-        Array.prototype.forEach.call(chip.parentElement.children, function (b) { b.classList.remove('on'); });
-        chip.classList.add('on');
+
+      var otro = t.closest('.cc-seg button, .mkd-pills button, .cc-fchip');
+      if (otro) {
+        Array.prototype.forEach.call(otro.parentElement.children, function (b) { b.classList.remove('on'); });
+        otro.classList.add('on');
         return;
       }
-      /* Las cuentas del drawer sí son de selección múltiple. */
       var net = t.closest('.mk-netopt');
       if (net) { net.classList.toggle('on'); return; }
 
-      var sw = t.closest('.mk-switch');
-      if (sw) {
-        sw.classList.toggle('on');
-        var lbl = sw.parentElement.querySelector('.mk-switch-lbl');
-        if (lbl) {
-          var on = sw.classList.contains('on');
-          lbl.textContent = on ? 'Activa' : 'En pausa';
-          lbl.classList.toggle('off', !on);
-        }
+      /*  Programar y las reglas están apagados a propósito: no se puede
+          ofrecer un botón que promete algo que el permiso no deja hacer. */
+      if (t.closest('.js-open-drawer, .js-open-rule, .cc-add-tile, .mk-qcard')) {
+        aviso('Programar contenido necesita un permiso de Meta que aún no tenemos');
         return;
       }
-
-      if (t.closest('.js-open-drawer, .mk-cal-cell, [data-drawer], .mk-qcard')) { abrir('drawer-post'); return; }
-      if (t.closest('.js-open-rule, .cc-add-tile')) { abrir('modal-rule'); return; }
-      if (t.closest('.js-open-ai'))                 { abrir('modal-ai');   return; }
-      if (t.closest('.js-close'))                   { cerrarTodo();        return; }
-
-      /* Programar: cierra y avisa, que es lo único que puede hacer hoy. */
-      if (t.closest('.js-programar')) {
-        cerrarTodo();
-        aviso('Publicación programada para el vie 4 sep, 19:00');
-        return;
-      }
+      if (t.closest('.js-close'))   { cerrarTodo(); return; }
     });
 
-    /* El fondo del overlay cierra; el contenido no. */
     $$('.cc-overlay').forEach(function (o) {
       o.addEventListener('mousedown', function (e) { if (e.target === o) o.hidden = true; });
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrarTodo(); });
 
-    /*  El contador de caracteres. El textarea no tiene id en el diseno, asi
-        que se busca por clase dentro del drawer, y el texto de ayuda es el
-        `.mk-hint` que va justo despues.                                   */
-    var desc = document.querySelector('#drawer-post .mk-textarea');
-    var ayuda = desc && desc.nextElementSibling;
-    if (desc && ayuda && ayuda.classList.contains('mk-hint')) {
-      desc.addEventListener('input', function () {
-        ayuda.textContent = miles(desc.value.length)
-          + ' / 2.200 caracteres · el texto se adapta por red al publicar';
-      });
-    }
-
     pestana('resumen');
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arrancar);
-  else arrancar();
+  /*  Se espera al núcleo: sin cliente de Supabase no hay nada que leer. */
+  if (window._pos && window._pos.sb) arrancar();
+  else if (window._pos && window._pos.on) window._pos.on('core:ready', arrancar);
+  else window.addEventListener('load', arrancar);
 })();

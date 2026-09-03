@@ -16351,3 +16351,130 @@ esto se queda viejo y hay que compararlo contra esos dos archivos.
 `document.getElementById('q').addEventListener(...)` seguia en la landing
 despues de que se quitara la barra de busqueda: `#q` ya no existe y reventaba
 en **cada carga** de la pagina. Quitado.
+
+---
+
+# MARKETING (3-sep-2026)
+
+Pantalla nueva: `marketing.html` + `marketing.css` + `marketing.js` +
+`marketing-datos.js` + `marketing-guardia.js`.
+
+## Quien la ve
+
+HOY, **solo el administrador de la plataforma**. Dos candados:
+
+- `pos-nav.js` la crea con `soloPlataforma:true`, asi que **nace escondida**
+  del menu y se destapa despues de la comprobacion.
+- `marketing-guardia.js` es el candado de verdad: quien escriba la direccion a
+  mano tambien queda fuera. Pregunta por `es_admin_plataforma()` **y no
+  leyendo `user_profiles`**, que no da permiso de lectura a nadie a proposito
+  — una consulta directa fallaria y dejaria fuera hasta al propio Sergio.
+- Tapa la pantalla con un velo hasta saber la respuesta. Si naciera visible,
+  quien no debe verla alcanzaria a leerla el instante de la consulta.
+
+No se invento un "plan premium": **los planes son dos**, Starter y Pro. El dia
+que Meta apruebe, se cambia `soloPlataforma` por `posPlan.exigir('marketing')`
+y pasa a Pro sin tocar nada mas.
+
+## De donde sale cada numero — `marketing-datos.js`
+
+**Regla del modulo: si no lo tenemos, se dice. No se rellena con algo bonito.**
+Un numero falso en una pantalla de marketing es peor que un hueco, porque se
+cree.
+
+| Dato | Fuente |
+|---|---|
+| Cuentas conectadas | `chat_channels` |
+| Ventas atribuidas | `chat_conversations.order_id` -> `pos_orders` |
+| Ventas mes a mes | lo mismo, agrupado por `pos_orders.created_at` |
+| Conversaciones que compran | `chat_conversations` |
+| Quien contesto y en cuanto | `chat_messages` (`direction` + `origen`) |
+| Sin responder | `unread_count > 0` **y** `last_sender = 'contact'` |
+| Sede y usuario de la barra | la sesion + `branches` |
+
+Tres decisiones que no son obvias:
+
+- **Mediana, no media**, en el tiempo de respuesta: un caso raro de seis horas
+  no puede mandar sobre doscientos de veinte segundos.
+- Se **descartan los intervalos negativos y los de mas de 24 h**: son relojes
+  desincronizados o conversaciones retomadas al otro dia.
+- Las consultas `.in()` van **en trozos de 100**. Una lista larga de ids no
+  cabe en la URL y PostgREST responde un 414 que no explica nada.
+
+## Los huecos, y que permiso falta en cada uno
+
+| Falta | Permiso |
+|---|---|
+| Vistas, alcance, seguidores | `instagram_manage_insights`, `read_insights` |
+| Publicaciones de Instagram | `instagram_basic` con lectura de medios |
+| Comentarios (leer y responder) | `instagram_manage_comments`, `pages_manage_engagement` |
+| Programar contenido | `instagram_content_publish`, `pages_manage_posts` |
+| Videos de TikTok | el permiso `video.list` **ya lo tenemos** |
+
+Lo de TikTok es el unico que NO depende de Meta: el permiso esta concedido,
+pero el token vive en `chat_channels.meta` y **no puede bajar al navegador**.
+Hace falta la funcion `supabase/functions/tiktok-videos` — escrita, **sin
+desplegar**. Mientras tanto la lista de publicaciones ensena el hueco honesto.
+
+## El error que hubo que corregir
+
+La primera version se entrego **con datos inventados**: 214 millones en
+ventas, 184 mil vistas, tres borradores de video, un usuario llamado
+"Valentina M.", productos con precio y la frase "tus reels de cocina generan
+318 clientes". Sergio lo detecto de inmediato.
+
+Se limpio entero. El criterio en cada corte:
+
+- rotulo de la interfaz ("Instagram", "Guardar", "Alcance") -> **se queda**
+- afirmacion sobre ESTE restaurante (nombre, cifra, fecha) -> **fuera**
+
+Ademas se quitaron:
+
+- **Cuatro botones que mentian**: "Exportar" avisaba "Informe de marketing
+  exportado" sin exportar nada; otro decia "Abriendo informe de atribucion"
+  sin abrir ninguno. Un boton que afirma haber hecho algo que no hizo es la
+  misma mentira que un numero inventado, solo que se dispara al tocarlo.
+- **El drawer y los dos modales enteros** (programar publicacion, crear
+  automatizacion, ideas con IA). Mueven funciones que hoy no existen, y ahi
+  dentro vivian los productos con precio y la frase de los 318 clientes. Un
+  formulario que no hace nada es peor que no tenerlo: se llena y se pierde el
+  rato.
+- **El filtro de formato y el buscador**: filtraban por datos que no tenemos.
+  Un filtro que no filtra desespera mas que no tenerlo.
+
+Se conserva **"Programar publicacion"**, que si dice la verdad: al tocarlo
+explica que falta el permiso de Meta. Ese es el trato con los pendientes — se
+ensenan y se dice por que no estan.
+
+## El tema claro
+
+El paquete del disenador venia oscuro y Sergio lo quiso blanco. Dos capas, no
+una:
+
+1. Al final de `marketing.css` habia un bloque "CAPA OSCURA" (~10,4 KB) que
+   pisaba los tokens claros que el propio archivo ya traia. **Borrado**, y los
+   tokens del POS (`--bg:#FAFAFB`, `--surface:#FFF`, `--ink:#0F172A`) vuelven
+   a mandar.
+2. El bloque `.mkd` —todo el Resumen— traia **su propia paleta azul marino**
+   metida aparte (`--d-bg:#0F172A`). Vive en una sola declaracion, asi que se
+   aclara ahi y el bloque entero cambia sin tocar ninguna otra regla.
+
+Trampa de la que salio un ajuste: dentro de `.mkd` los fondos suaves estaban
+hechos con **blanco translucido** (`rgba(255,255,255,.09)`), que sobre una
+tarjeta oscura da un gris claro y sobre una blanca no se ve. Se giraron a
+negro translucido — pero al girarlos **duplique la opacidad** pensando que
+sobre blanco hacia falta mas, y es al reves: un 20 % de negro sobre blanco es
+un gris marcado que deja el texto gris casi ilegible. Los valores buenos son
+los del propio POS: 4 % (`--surface-2`) y 6 % (`--surface-3`).
+
+## Como se comprobo
+
+- **Contraste medido, no mirado**: un guion recorre cada elemento con texto,
+  sube por los padres hasta dar con un fondo opaco y calcula la razon de
+  contraste. Aviso: un degradado **no es `backgroundColor`**, asi que el
+  avatar salio como "blanco sobre blanco" siendo un falso positivo. Lo que si
+  encontro de verdad fueron los datos inventados que aun quedaban.
+- **Auditoria del CSS**: recorre las reglas y avisa de cualquier `@media` o
+  `@container` colocado ANTES de su regla base (misma especificidad, gana la
+  de abajo, y no avisa nadie). Salio limpia.
+- Cuadre de `<div>`, `<button>` y `<section>` despues de cada corte.
