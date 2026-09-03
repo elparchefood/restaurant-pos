@@ -24,8 +24,26 @@ const ALL_CHANNELS = ['whatsapp', 'instagram', 'facebook', 'tiktok'];
    está construida y hace falta poder grabarla para la solicitud a Meta —los
    permisos se piden mostrando la función andando, no al revés. Mientras Meta
    no apruebe, solo conecta quien tenga rol en la app (modo desarrollo), que es
-   justo lo que se necesita para grabar. TikTok sí sigue sin construir. */
-const SOON_CHANNELS = ['tiktok'];
+   justo lo que se necesita para grabar.
+
+   Hoy está vacío: ya no queda ninguno "próximamente". */
+const SOON_CHANNELS = [];
+
+/*  ══ TIKTOK NO ES UN CANAL DE MENSAJES ═══════════════════════════════════
+    Sergio, 3-sep-2026, tras un mes sin respuesta a la solicitud: TikTok se
+    queda SOLO en estadísticas.
+
+    Estuvo marcado como "Próximamente", y eso prometía algo que no se puede
+    prometer: TikTok **no ofrece mensajes directos por API** para cuentas
+    normales. No es que falte construirlo — no existe.
+
+    Pero el canal NO se borra: las estadísticas que sí queremos salen de
+    `video.list`, y para eso la cuenta tiene que estar conectada. Este modal
+    es el único sitio donde se conecta. Quitarlo dejaría las estadísticas sin
+    puerta de entrada.
+
+    Así que se queda, conectable, diciendo exactamente lo que da.          */
+const SOLO_STATS = ['tiktok'];
 const CHANNELS = {
   whatsapp:  { key:'wa', label:'WhatsApp',  solid:'#25D366', dotColor:'#25D366' },
   instagram: { key:'ig', label:'Instagram', solid:'#E1306C', dotColor:'#E1306C' },
@@ -533,7 +551,8 @@ function renderChannelsSidebar() {
     const count       = counts[ch] || 0;
 
     const pic = connected && connectedMap[ch].meta?.profile_picture_url;
-    const isSoon = SOON_CHANNELS.indexOf(ch) >= 0;
+    const isSoon  = SOON_CHANNELS.indexOf(ch) >= 0;
+    const soloStat = SOLO_STATS.indexOf(ch) >= 0;
     const right = connected
       ? (pic
           /* Si la foto no carga se muestra el numero, no un icono roto. Las
@@ -545,7 +564,11 @@ function renderChannelsSidebar() {
           : `<span class="n">${count || ''}</span>`)
       : (isSoon
           ? `<span class="ci-connect-tag" style="background:#F1F5F9;color:#94A3B8">Próximamente</span>`
-          : `<span class="ci-connect-tag">Conectar</span>`);
+          : soloStat
+            /*  Dice lo que da, no lo que falta: aquí no hay mensajes ni los
+                va a haber, y conectarlo sirve para los números.          */
+            ? `<span class="ci-connect-tag" style="background:#F1F5F9;color:#64748B">Solo estadísticas</span>`
+            : `<span class="ci-connect-tag">Conectar</span>`);
 
     return `
       <button class="ci-chan-row${connected ? '' : ' ci-chan-disconnected'}" data-channel="${ch}" title="${connected ? meta.label + ' conectado' : 'Conectar ' + meta.label}">
@@ -564,6 +587,12 @@ function renderChannelsSidebar() {
         showToast('🔜 ' + (CHANNELS[ch]?.label || ch) + ' estará disponible próximamente', 'info');
         return;
       }
+      /*  TikTok abre el modal como los demás —hay que poder conectarlo para
+          las estadísticas— pero se dice de entrada qué da y qué no, para que
+          nadie se quede esperando mensajes que no van a llegar.          */
+      if (SOLO_STATS.indexOf(ch) >= 0) {
+        showToast('TikTok se conecta para ver los números de tus videos. Mensajes no tiene.', 'info');
+      }
       openChannelModal(ch);
     });
   });
@@ -577,7 +606,9 @@ function renderFilters() {
 
   const btns = [
     { f:'all', label:`Todos <span class="sc">${total}</span>`, glyph:'' },
-    ...ALL_CHANNELS.map(ch => ({
+    /*  Sin TikTok: un filtro de mensajes de TikTok siempre daría cero,
+        porque de TikTok no entran mensajes.                             */
+    ...ALL_CHANNELS.filter(ch => SOLO_STATS.indexOf(ch) < 0).map(ch => ({
       f: ch,
       label: `<span class="sc">${counts[ch]||0}</span>`,
       glyph: `<span class="ci-chan-glyph chan-${CHANNELS[ch].key}" style="width:18px;height:18px">${GLYPH[CHANNELS[ch].key]}</span>`,

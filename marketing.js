@@ -284,20 +284,6 @@
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  //  CALENDARIO — la función entera está pendiente de permiso
-  // ══════════════════════════════════════════════════════════════════════
-  function pintarCalendario() {
-    var cal = $('mk-calendario');
-    if (!cal) return;
-    cal.style.height = 'auto';
-    cal.innerHTML = '<div style="padding:26px">' + hueco(
-      'Programar contenido: falta el permiso',
-      'Para publicar y programar hace falta instagram_content_publish en Instagram y '
-      + 'pages_manage_posts en Facebook. En TikTok, video.publish o video.upload. Ninguno '
-      + 'está aprobado todavía: mientras tanto, aquí no habría nada que enseñar.') + '</div>';
-  }
-
-  // ══════════════════════════════════════════════════════════════════════
   //  AUTOMATIZACIONES
   //  Las cifras de mensajes son reales. Las reglas de comentarios son la
   //  función que falta, así que se dice.
@@ -374,11 +360,12 @@
               : '<span class="mkd-chip">Sin conectar</span>')
         + '</div>'
         + '<div>'
-        +   kv('Estadísticas', on ? 'Falta el permiso de Meta' : '—')
-        +   (k === 'tiktok' && on
-                ? kv('Publicaciones', 'Permiso video.list concedido')
-                : kv('Publicaciones', 'Falta el permiso de lectura'))
-        +   kv('Comentarios', 'Falta el permiso')
+        /*  Cada red dice lo SUYO. Antes las cuatro enseñaban las mismas tres
+            líneas y salían tonterías: WhatsApp con "Publicaciones: falta el
+            permiso" cuando WhatsApp no tiene muro, y por tanto no hay ningún
+            permiso que pedir. Y faltaba lo único que hoy funciona de verdad,
+            que son los mensajes.                                          */
+        +   filas(k, on)
         + '</div>'
         + '<div class="mk-auto-foot"><a class="cc-btn-ghost" href="chat-ia.html">'
         +   (on ? 'Ver conversaciones' : 'Conectar desde Chat IA') + '</a></div>'
@@ -406,6 +393,26 @@
       badge.textContent = n + (n === 1 ? ' cuenta conectada' : ' cuentas conectadas');
     }
   }
+  /*  Qué enseña la tarjeta de cada red.
+
+      TikTok va aparte a propósito: lo suyo NO es que falte un permiso que
+      vaya a llegar. No ofrece responder comentarios por API, y de publicar se
+      decidió no depender (la solicitud lleva más de un mes sin respuesta).
+      Escribir "falta el permiso" en su tarjeta sería prometer.           */
+  function filas(k, on) {
+    if (k === 'tiktok') {
+      return kv('Videos y sus números', on ? 'Disponible' : 'Conecta la cuenta');
+    }
+    var msg = kv('Mensajes', on ? 'Funcionando' : 'Conecta la cuenta');
+    /*  WhatsApp no tiene muro: ni publicaciones, ni comentarios, ni alcance.
+        No es que falten permisos — es que no existe eso que pedir.        */
+    if (k === 'whatsapp') return msg;
+    return msg
+      + kv('Estadísticas',  'Falta el permiso de Meta')
+      + kv('Publicaciones', 'Falta el permiso de lectura')
+      + kv('Comentarios',   'Falta el permiso');
+  }
+
   function kv(k, v) {
     return '<div class="mk-kv"><span class="mk-kv-k">' + esc(k) + '</span>'
       + '<span class="mk-kv-v" style="font-size:11.5px;color:var(--ink-3);font-weight:600">'
@@ -440,7 +447,6 @@
   function arrancar() {
     if (!D) return;
     pintarBarra();
-    pintarCalendario();
     pintarResumen();
     pintarMeses();
     pintarFiltros();
@@ -487,10 +493,13 @@
       var net = t.closest('.mk-netopt');
       if (net) { net.classList.toggle('on'); return; }
 
-      /*  Programar y las reglas están apagados a propósito: no se puede
-          ofrecer un botón que promete algo que el permiso no deja hacer. */
-      if (t.closest('.js-open-drawer, .js-open-rule, .cc-add-tile, .mk-qcard')) {
-        aviso('Programar contenido necesita un permiso de Meta que aún no tenemos');
+      /*  Crear reglas de comentarios necesita un permiso de Meta que aún no
+          tenemos. Se avisa en vez de abrir un formulario que no guardaría.
+          (Lo de programar contenido se quitó entero el 3-sep: dependía de una
+          aprobación de TikTok que lleva más de un mes sin respuesta, y no se
+          promete lo que no se controla.)                                  */
+      if (t.closest('.js-open-rule, .cc-add-tile, .mk-qcard')) {
+        aviso('Responder comentarios necesita un permiso de Meta que aún no tenemos');
         return;
       }
       if (t.closest('.js-close'))   { cerrarTodo(); return; }

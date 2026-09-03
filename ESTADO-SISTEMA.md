@@ -16523,3 +16523,76 @@ reproduce las dos situaciones:
   usuario y la sede bien puestos.
 - **consulta rechazada**: sale "No se pudieron leer las cuentas" con el
   motivo, cero tarjetas, y el contador dice "No se pudo comprobar".
+
+## TikTok: hasta donde llega, y por que (3-sep-2026)
+
+Decision de Sergio despues de comprobar que **la solicitud a TikTok lleva mas
+de un mes sin respuesta**:
+
+> "No habra bandeja unificada con TikTok... tampoco vamos a poner contenido
+> programado, por ahora no vamos a prometerlo. Si podemos medir estadisticas
+> de TikTok, hasta ahi llegamos. Nos vamos a enfocar en solicitar permisos de
+> Meta, que son mas directos. TikTok es incierto."
+
+**LA REGLA:** no se ensena en el producto lo que depende de una aprobacion que
+no controlamos y que ya lleva un mes muda. Un cartel de "falta un permiso"
+esta bien cuando el permiso **va a llegar**; cuando es incierto, lo que hace
+es prometer.
+
+### Lo que se quito
+
+- La pestana **Calendario** entera y el boton **"Programar publicacion"**.
+- De la tarjeta de TikTok, la linea de comentarios. TikTok **no ofrece
+  responder comentarios por API**: ahi no falta un permiso, no existe la
+  funcion. Decir "falta el permiso" daria a entender que algun dia llega.
+- TikTok sale del **filtro de mensajes** del chat: siempre daria cero.
+
+### Lo que se queda
+
+- Las **estadisticas de TikTok** (`video.list`, que si pedimos).
+- Todo lo de **Meta** marcado como pendiente: esos permisos SI se van a
+  solicitar y son el foco.
+- **TikTok se sigue pudiendo conectar** en Chat IA, con la etiqueta "Solo
+  estadisticas" en vez de "Proximamente". Ojo al borrarlo: ese modal es el
+  UNICO sitio donde se conecta la cuenta, y sin conexion no hay estadisticas.
+
+### Sobre programar: lo que dice la documentacion
+
+El endpoint de publicar de TikTok (**Direct Post**) acepta titulo, privacidad,
+comentarios, dueto, stitch, portada, patrocinado y si es de IA. **Campo de
+fecha futura no acepta ninguno.**
+
+Pero eso NO significa que no se pueda programar. Metricool lo hace con la API
+oficial: **guarda el video y lo publica en el momento**, servidor a servidor.
+La cola es de Metricool, no de TikTok. O sea que la programacion es trabajo
+nuestro —facil, ya sabemos hacerlo— y **lo que bloquea es el permiso
+`video.publish`**, que es justo el que lleva un mes atascado.
+
+### La salida por un tercero, y por que hoy no sale a cuenta
+
+Existen pasarelas que YA pasaron la auditoria de TikTok y publican por
+nosotros (Ayrshare, Blotato, PostPeer, la propia API de Metricool). Con eso se
+salta la aprobacion de TikTok por completo.
+
+El problema es el precio, con Cobra a 149k/249k al mes:
+
+| Plan de Ayrshare | Precio | Por restaurante |
+|---|---|---|
+| Premium, 1 perfil | 149 USD/mes | inviable |
+| Business, 30 perfiles | 599 USD/mes | ~20 USD (~80.000 COP) |
+| 31-100 perfiles | +8,99 USD | ~36.000 COP |
+| 101-500 perfiles | +3,49 USD | ~14.000 COP |
+
+Un perfil = un restaurante, no una red. **Los 599 USD son un piso fijo**: con
+cinco restaurantes saldria a ~480.000 COP cada uno, mas del doble del plan
+Pro. Solo empieza a tener sentido pasados los ~100 restaurantes, y aun asi es
+un coste recurrente por restaurante que tendria que ir al precio.
+
+**Conclusion: aparcado.** Si algun dia se retoma, encaja como venta aparte
+—igual que los mapas— y no dentro del plan.
+
+### Las paginas legales no son el problema
+
+Descartado ya: `privacy-policy.html` y `terms.html` responden 200 tanto en
+cobrapos.app como en GitHub Pages. La causa mas comun de que una revision se
+quede muda es que el revisor no pueda abrirlas, y no es el caso.
