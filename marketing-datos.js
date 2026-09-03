@@ -271,9 +271,16 @@
     var b = await branch();
     if (!b) return { falta: FALTA.tiktok, videos: [] };
     try {
+      /*  Se manda el token de la sesion: la funcion comprueba con el que
+          esta sede es tuya antes de responder. Sin esto devuelve 401.   */
+      var s = sb();
+      var ses = s && (await s.auth.getSession());
+      var tok = ses && ses.data && ses.data.session && ses.data.session.access_token;
+      if (!tok) return { falta: 'No hay sesion', videos: [] };
+
       var res = await fetch(TIKTOK_FN, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
         body: JSON.stringify({ branch_id: b })
       });
       /*  `fetch` NO lanza excepción con un 404 ni con un 500: hay que mirar

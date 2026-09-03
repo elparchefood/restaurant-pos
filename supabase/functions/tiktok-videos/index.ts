@@ -20,10 +20,11 @@
  *   · No toca comentarios: TikTok no ofrece responderlos por API para cuentas
  *     normales.
  */
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+/*  La anonima es para comprobar al que llama: con ella y su token, las
+    politicas de la base deciden si esa sede es suya.                  */
+const ANON_KEY     = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
@@ -62,12 +63,38 @@ function duracion(seg: number): string {
   return m + ":" + String(s).padStart(2, "0");
 }
 
-serve(async (req) => {
+/*  Deno.serve y no un `serve` importado de deno.land: ese import no lo
+    carga el entorno de Supabase y la funcion no arranca (BOOT_ERROR).
+    Las otras 20 funciones del proyecto usan todas Deno.serve.       */
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   try {
     const { branch_id } = await req.json();
     if (!branch_id) return json({ error: "Falta la sede" }, 400);
+
+    /*  ── QUIEN LLAMA TIENE QUE TENER ESA SEDE ───────────────────────
+        Abajo se usa la llave de servicio, que se salta las politicas de la
+        base. Sin esta comprobacion, cualquiera que adivinara un branch_id
+        recibiria los datos de ese restaurante.
+
+        Se comprueba preguntandole a la base CON EL TOKEN DE QUIEN LLAMA: si
+        sus politicas le devuelven esa sede, tiene acceso. Asi las reglas de
+        permisos viven en un solo sitio —la base— y no hay que repetirlas
+        aqui ni mantenerlas sincronizadas.                              */
+    const auth = req.headers.get("Authorization") || "";
+    if (!auth.startsWith("Bearer ")) return json({ error: "Sin sesion" }, 401);
+
+    const suyo = await fetch(
+      `${SUPABASE_URL}/rest/v1/branches?id=eq.${branch_id}&select=id`,
+      { headers: { apikey: ANON_KEY, Authorization: auth } },
+    );
+    /*  `fetch` no lanza con un 401 ni con un 403: hay que mirar `ok`.   */
+    if (!suyo.ok) {
+      console.error("no se pudo comprobar la sede:", suyo.status, await suyo.text());
+      return json({ error: "No se pudo comprobar la sesion" }, 401);
+    }
+    if (!((await suyo.json())?.length)) return json({ error: "Esa sede no es tuya" }, 403);
 
     // ── el canal de TikTok de esta sede ──────────────────────────────
     const chRes = await fetch(
