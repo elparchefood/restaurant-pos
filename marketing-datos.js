@@ -41,6 +41,8 @@
     tiktok:    'Falta desplegar la función que lee TikTok'
   };
 
+  var MES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
   function sb() { return (window._pos && window._pos.sb) || null; }
 
   /* ══ LA SEDE ══════════════════════════════════════════════════════════
@@ -324,7 +326,6 @@
   //  Las cuatro barritas del resumen. Mismo vínculo que ventasPorRed, pero
   //  agrupado por mes en vez de por red.
   // ══════════════════════════════════════════════════════════════════════
-  var MES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
   async function ventasPorMes(meses) {
     var s = sb(), b = await branch();
@@ -360,9 +361,100 @@
     return lista;
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  //  LAS ESTADÍSTICAS DE LAS REDES — lo que manda en el Resumen
+  //
+  //  Publicaciones, visualizaciones y me gusta. Es lo que el Resumen tiene
+  //  que ensenar: rendimiento en redes, no cuantos mensajes contestamos.
+  //
+  //  Hoy la única red que da números es TikTok (`video.list`). Instagram y
+  //  Facebook los darán cuando Meta apruebe las estadísticas. Las redes sin
+  //  datos van EN CERO con su motivo al lado — no se sustituyen por otra
+  //  métrica que sí se pueda calcular, que es justo el error que hubo aquí.
+  // ══════════════════════════════════════════════════════════════════════
+  function vacia() {
+    return { videos: 0, vistas: 0, likes: 0, comentarios: 0, compartidos: 0 };
+  }
+
+  async function estadisticasRedes(dias) {
+    var desde = Date.now() / 1000 - dias * 86400;
+    var res = {
+      total: vacia(),
+      porRed: {},
+      /*  Por qué una red no tiene números. La pantalla lo ensena tal cual: un
+          cero sin explicación se lee como "no funciona".                  */
+      falta: {},
+      porMes: []
+    };
+
+    var conectadas = (await cuentas()).lista.filter(function (c) { return c.connected; });
+
+    // ── TikTok ──────────────────────────────────────────
+    if (conectadas.some(function (c) { return c.channel === 'tiktok'; })) {
+      var tk = await videosTikTok();
+      if (tk.falta) {
+        res.falta.tiktok = tk.falta;
+        res.porRed.tiktok = vacia();
+      } else {
+        var v = tk.videos.filter(function (x) { return !x.ts || x.ts >= desde; });
+        var acc = vacia();
+        acc.videos = v.length;
+        v.forEach(function (x) {
+          acc.vistas       += x.vistas       || 0;
+          acc.likes        += x.likes        || 0;
+          acc.comentarios  += x.comentarios  || 0;
+          acc.compartidos  += x.compartidos  || 0;
+        });
+        res.porRed.tiktok = acc;
+        res.mesesTikTok = v;
+      }
+    }
+
+    // ── Meta ───────────────────────────────────────────
+    ['instagram', 'facebook'].forEach(function (k) {
+      if (!conectadas.some(function (c) { return c.channel === k; })) return;
+      res.porRed[k] = vacia();
+      res.falta[k]  = FALTA.insights;
+    });
+
+    /*  WhatsApp no entra: no tiene muro, ni publicaciones ni visualizaciones.
+        Meterlo con ceros daría a entender que algún día los tendrá.        */
+
+    Object.keys(res.porRed).forEach(function (k) {
+      var r = res.porRed[k];
+      res.total.videos      += r.videos;
+      res.total.vistas      += r.vistas;
+      res.total.likes       += r.likes;
+      res.total.comentarios += r.comentarios;
+      res.total.compartidos += r.compartidos;
+    });
+    return res;
+  }
+
+  /*  Visualizaciones por mes, para las barritas. Se cuentan las de los videos
+      PUBLICADOS en cada mes: es lo que se puede saber con `video.list`, que
+      da un total por video y no un desglose por día.                      */
+  function vistasPorMes(videos, meses) {
+    var hoy = new Date(), lista = [], porClave = {};
+    for (var i = meses - 1; i >= 0; i--) {
+      var d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      var m = { clave: d.getFullYear() + '-' + d.getMonth(), mes: MES[d.getMonth()], valor: 0 };
+      lista.push(m); porClave[m.clave] = m;
+    }
+    (videos || []).forEach(function (v) {
+      if (!v.ts) return;
+      var f = new Date(v.ts * 1000);
+      var m = porClave[f.getFullYear() + '-' + f.getMonth()];
+      if (m) m.valor += v.vistas || 0;
+    });
+    return lista;
+  }
+
   window.mkDatos = {
     FALTA: FALTA,
     cuentas: cuentas,
+    estadisticasRedes: estadisticasRedes,
+    vistasPorMes: vistasPorMes,
     quienSoy: quienSoy,
     ventasPorMes: ventasPorMes,
     ventasPorRed: ventasPorRed,

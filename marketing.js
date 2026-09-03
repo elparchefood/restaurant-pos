@@ -79,19 +79,55 @@
   // ══════════════════════════════════════════════════════════════════════
   //  RESUMEN
   // ══════════════════════════════════════════════════════════════════════
-  async function pintarResumen() {
-    var caja = $('mk-kpis');
-    var conv = await D.conversaciones(dias);
-    var resp = await D.respuestas(dias);
+  /*  Lo último leído, para no volver a pedirlo al cambiar de filtro: el
+      filtro no cambia los datos, cambia qué parte de ellos se ensena.   */
+  var ESTADIS = null;
+  var filtroRed = null;        // null = todas las cuentas
 
+  /*  Cuando NINGUNA red da números, el pie de la primera cifra explica por
+      qué. Sin eso, tres ceros se leen como "esto no funciona".          */
+  function motivoGeneral(e) {
+    var motivos = Object.keys(e.falta).map(function (k) { return e.falta[k]; });
+    if (!Object.keys(e.porRed).length) return 'conecta una cuenta para ver sus números';
+    if (e.total.videos || e.total.vistas) return 'todas las cuentas';
+    return motivos.length ? motivos[0] : 'todavía no hay publicaciones';
+  }
+
+  async function pintarResumen() {
+    /*  El Resumen mide RENDIMIENTO EN REDES: publicaciones, visualizaciones
+        y me gusta. No cuántos mensajes contestamos — eso vive en
+        Automatizaciones, que es su sitio.
+
+        Aquí hubo un error que conviene no repetir: como la métrica pedida no
+        tenía datos, se puso otra que sí los tenía. Eso no es rellenar un
+        hueco, es cambiarle la pantalla a quien la diseñó. Si el dato no está,
+        **la métrica correcta va en cero** y se dice por qué.             */
+    ESTADIS = await D.estadisticasRedes(dias);
+
+    /*  El filtro de arriba manda: con una red elegida se enseñan SOLO sus
+        números; con "Todas", la suma.                                   */
+    var n = (filtroRed && ESTADIS.porRed[filtroRed]) ? ESTADIS.porRed[filtroRed] : ESTADIS.total;
+    /*  El pie de la primera cifra: si a esa red le falta un permiso, se dice;
+        si no, el periodo. Poner "en TikTok" seria repetir el filtro de al
+        lado.                                                            */
+    var pie = filtroRed
+      ? (ESTADIS.falta[filtroRed] || ('últimos ' + dias + ' días'))
+      : motivoGeneral(ESTADIS);
+
+    var caja = $('mk-kpis');
     if (caja) {
       caja.innerHTML =
-          kpi('Conversaciones atendidas', miles(conv.total), 'últimos ' + dias + ' días')
-        + kpi('Acabaron en pedido', miles(conv.conPedido),
-              pct(conv.conPedido, conv.total) + ' de las conversaciones')
-        + kpi('Tiempo de respuesta', duracion(resp.medianaSeg),
-              resp.medianaSeg == null ? 'sin datos en el periodo' : 'mediana, no promedio');
+          kpi('Publicaciones', miles(n.videos), pie)
+        + kpi('Visualizaciones', miles(n.vistas), 'últimos ' + dias + ' días')
+        + kpi('Me gusta', miles(n.likes),
+              n.comentarios || n.compartidos
+                ? miles(n.comentarios) + ' comentarios · ' + miles(n.compartidos) + ' compartidos'
+                : 'últimos ' + dias + ' días');
     }
+
+    /*  Las barritas pasan a ser visualizaciones por mes, no ventas: esto es
+        la tarjeta de estadísticas de redes.                             */
+    pintarMeses();
 
     var v = await D.ventasPorRed(dias);
     var val = $('mk-ventas');
@@ -245,14 +281,17 @@
   async function pintarMeses() {
     var caja = $('mk-meses');
     if (!caja) return;
-    var lista = await D.ventasPorMes(4);
+    /*  Visualizaciones de los videos publicados en cada mes. Es lo que se
+        puede saber: `video.list` da un total por video, no un desglose por
+        día. Sin datos salen cuatro barras en cero, que es información.  */
+    var lista = D.vistasPorMes((ESTADIS && ESTADIS.mesesTikTok) || [], 4);
     var tope = Math.max.apply(null, lista.map(function (m) { return m.valor; }));
     caja.innerHTML = lista.map(function (m, i) {
       /*  Si todavia no hay ventas todas van a cero: NO se reparte un 100%
           entre ceros, que dibujaria un mes ganador salido de la nada.    */
       var ancho = tope > 0 ? Math.round(m.valor * 100 / tope) : 0;
       var suave = (i === lista.length - 1) ? ' soft' : '';   // el mes en curso va a medias
-      return '<div class="mkd-month" title="' + esc(pesos(m.valor)) + '">'
+      return '<div class="mkd-month" title="' + esc(miles(m.valor) + ' visualizaciones') + '">'
         + '<span>' + esc(m.mes) + '</span><div class="mkd-track">'
         + '<div class="mkd-fill' + suave + '" style="width:' + ancho + '%"></div></div></div>';
     }).join('');
@@ -267,9 +306,26 @@
   async function pintarFiltros() {
     var sel = $('mk-filtro-cuenta');
     if (sel) {
-      var lista = (await D.cuentas()).lista.filter(function (c) { return c.connected; });
-      sel.innerHTML = '<option>Todas las cuentas</option>'
-        + lista.map(function (c) { return '<option>' + esc(red(c.channel).n) + '</option>'; }).join('');
+      /*  Solo las redes que TIENEN estadísticas. WhatsApp no entra: no tiene
+          publicaciones ni visualizaciones, y ofrecerlo en el filtro sería
+          prometer una vista que siempre estaría vacía.                  */
+      var lista = (await D.cuentas()).lista.filter(function (c) {
+        return c.connected && c.channel !== 'whatsapp';
+      });
+      sel.innerHTML = '<option value="">Todas las cuentas</option>'
+        + lista.map(function (c) {
+            return '<option value="' + esc(c.channel) + '">' + esc(red(c.channel).n) + '</option>';
+          }).join('');
+      sel.value = filtroRed || '';
+      /*  Se engancha una sola vez: pintarFiltros corre en cada cambio de
+          rango y si no, se apilarian oyentes.                           */
+      if (!sel.dataset.enganchado) {
+        sel.dataset.enganchado = '1';
+        sel.addEventListener('change', function () {
+          filtroRed = sel.value || null;
+          pintarResumen();
+        });
+      }
     }
     var rango = $('mk-rango');
     if (rango) {
@@ -461,9 +517,8 @@
     if (!D) return;
     pintarBarra();
     pintarCalendario();
-    pintarResumen();
-    pintarMeses();
     pintarFiltros();
+    pintarResumen();   // pinta tambien las barritas, que dependen de sus datos
     pintarAutos();
     pintarCuentas();
 

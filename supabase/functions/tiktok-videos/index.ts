@@ -115,6 +115,10 @@ serve(async (req) => {
       id:          v.id,
       titulo:      (v.title as string) || (v.video_description as string) || "",
       fecha:       fecha(Number(v.create_time)),
+      /*  El momento en crudo, ademas del texto: la pantalla agrupa por
+          mes y filtra por rango, y para eso una fecha ya formateada no
+          sirve.                                                      */
+      ts:          Number(v.create_time) || 0,
       duracion:    duracion(Number(v.duration)),
       vistas:      Number(v.view_count)    || 0,
       likes:       Number(v.like_count)    || 0,

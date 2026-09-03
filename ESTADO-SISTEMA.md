@@ -16615,3 +16615,59 @@ un coste recurrente por restaurante que tendria que ir al precio.
 Descartado ya: `privacy-policy.html` y `terms.html` responden 200 tanto en
 cobrapos.app como en GitHub Pages. La causa mas comun de que una revision se
 quede muda es que el revisor no pueda abrirlas, y no es el caso.
+
+## Que mide el Resumen de Marketing (3-sep-2026)
+
+**El Resumen mide RENDIMIENTO EN REDES.** Publicaciones, visualizaciones y me
+gusta. No cuantos mensajes contestamos: eso vive en **Automatizaciones**, que
+es su sitio.
+
+Sergio, corrigiendome:
+
+> "El resumen especificamente es para ver nuestro rendimiento en redes
+> sociales, no para ver cuantos mensajes hemos respondido. Justamente yo te lo
+> deje en el handoff... el resumen es donde va absolutamente toda la
+> informacion de las estadisticas de nuestras redes sociales; se va a poder
+> filtrar por red social o ver el resumen completo."
+
+Y su handoff lo decia: las tres cifras eran **"Vistas del mes"**, "Vistas
+convertidas en clientes" y "Tiempo medio de respuesta". Yo las cambie por
+"Conversaciones atendidas", "Acabaron en pedido" y "Tiempo de respuesta".
+
+### EL ERROR DE FONDO, que es el que no hay que repetir
+
+Como la metrica pedida **no tenia datos**, puse **otra metrica que si los
+tenia**. Eso no es rellenar un hueco: es cambiarle la pantalla a quien la
+diseno, y ademas se disimula bien, porque los numeros son de verdad.
+
+> **Si el dato no esta, la metrica CORRECTA va en cero y se dice por que.
+> Nunca se sustituye por una distinta que casualmente se puede calcular.**
+
+Es primo del error de los datos inventados: alli me invente los numeros, aqui
+cambie la pregunta para que la respuesta que tenia sirviera.
+
+### Como esta montado
+
+- `mkDatos.estadisticasRedes(dias)` junta las cifras por red. **Hoy la unica
+  red con numeros es TikTok** (`video.list`); Instagram y Facebook los daran
+  cuando Meta apruebe las estadisticas, y hasta entonces van **en cero con su
+  motivo al lado**.
+- **WhatsApp no entra en el filtro ni en las sumas**: no tiene muro, ni
+  publicaciones ni visualizaciones. Meterlo con ceros daria a entender que
+  algun dia los tendra.
+- Las barritas por mes son **visualizaciones de los videos publicados en cada
+  mes**. Es lo que se puede saber: `video.list` da un total por video, no un
+  desglose por dia.
+- **El filtro por red filtra de verdad.** No vuelve a consultar: guarda lo
+  leido y cambia que parte se ensena. Su oyente se engancha UNA vez
+  (`dataset.enganchado`), porque `pintarFiltros` corre en cada cambio de rango
+  y si no se apilarian.
+- `tiktok-videos` devuelve ahora tambien `ts`, el momento en crudo: con la
+  fecha ya formateada no se puede ni filtrar por rango ni agrupar por mes.
+
+### Lo que falta para que estos numeros dejen de ser cero
+
+**Desplegar `supabase/functions/tiktok-videos`.** El permiso `video.list` ya
+lo tenemos; lo que falta es la funcion de servidor, porque el token no puede
+bajar al navegador. Sin ella las tres cifras salen en cero — correctamente,
+pero en cero.
