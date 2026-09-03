@@ -270,7 +270,7 @@
       +   '<div class="mkd-tot"><span>Compartidos</span><b>' + corto(v.compartidos) + '</b></div>'
       +   '<div class="mkd-foot-actions">'
       +     (v.enlace
-        ? '<a class="cc-btn-ghost" href="' + esc(v.enlace) + '" target="_blank" rel="noopener">Abrir en TikTok</a>'
+        ? '<a class="lm-btn-ghost sm" href="' + esc(v.enlace) + '" target="_blank" rel="noopener">Abrir en TikTok</a>'
         : '')
       +   '</div>'
       + '</div>';
@@ -467,11 +467,14 @@
             mandar alli a quien quiere ver sus videos es pasearlo por una
             pantalla que no le sirve. Las demas si van al chat: ahi es donde
             se leen y contestan sus mensajes.                            */
+        /*  `.lm-btn-ghost` y `.lm-link`, que SI existen en marketing.css.
+            Antes ponia `.cc-btn-ghost`, que no existe: el boton salia crudo
+            del sistema y los enlaces, como texto azul suelto.            */
         + '<div class="mk-auto-foot">'
         +   (k === 'tiktok'
-                ? '<button class="cc-btn-ghost js-tiktok">'
+                ? '<button class="lm-btn-ghost sm js-tiktok">'
                   + (on ? 'Reconectar TikTok' : 'Conectar TikTok') + '</button>'
-                : '<a class="cc-btn-ghost" href="chat-ia.html">'
+                : '<a class="lm-link" href="chat-ia.html">'
                   + (on ? 'Ver conversaciones' : 'Conectar desde Chat IA') + '</a>')
         + '</div>'
         + '</div>';
@@ -564,13 +567,99 @@
   async function conectarTikTok() {
     var b = await D.sede();
     if (!b) { aviso('No se pudo saber en qué sede estás'); return; }
-    try { sessionStorage.setItem('tiktok.volver', 'marketing.html'); } catch (e) {}
-    window.location.href = 'https://www.tiktok.com/v2/auth/authorize'
+
+    var url = 'https://www.tiktok.com/v2/auth/authorize'
       + '?client_key=' + TIKTOK_KEY
       + '&scope=' + TIKTOK_PERMISOS
       + '&response_type=code'
       + '&redirect_uri=' + encodeURIComponent(TIKTOK_CALLBACK)
       + '&state=' + encodeURIComponent(b);
+
+    /*  NUNCA se lleva la ventana de la aplicación a tiktok.com. En el
+        ejecutable eso deja de mostrar Cobra, TikTok intenta abrir su app con
+        un enlace `bytedance://` —Windows saca un cartel— y al terminar el
+        permiso vuelve a la versión WEB, o sea fuera de la sesión.
+
+        No hace falta volver: el permiso lo recoge una función de servidor que
+        deja la conexión guardada en la base. Termine donde termine el
+        navegador, la conexión ya quedó hecha; aquí basta con releerla.  */
+    var enExe = !!window.electronPOS;
+    abrirVentana(url, enExe);
+  }
+
+  /*  La ventana de conectar. Propia, con el diseño del producto: ni alert ni
+      prompt del navegador.                                              */
+  function abrirVentana(url, enExe) {
+    var v = document.createElement('div');
+    v.className = 'cc-overlay center';
+    v.innerHTML =
+      '<div class="cc-modal" style="width:520px">'
+      + '<div style="padding:20px 20px 4px">'
+      +   '<div class="mk-dw-title">Conectar TikTok</div>'
+      +   '<div class="mk-dw-sub">TikTok pide el permiso en su propia página</div>'
+      + '</div>'
+      + '<div style="padding:14px 20px 4px;font-size:13px;color:var(--ink-2);line-height:1.55">'
+      +   (enExe
+            ? 'Esto se hace en tu navegador: dentro del programa, TikTok intenta abrir '
+              + 'su aplicación y se pierde la sesión.<br><br>Copia el enlace, pégalo en el '
+              + 'navegador y acepta. Cuando termines, vuelve aquí y toca <b>Ya la conecté</b>.'
+            : 'Se abre en otra pestaña. Acepta los permisos y vuelve aquí.')
+      + '</div>'
+      + (enExe
+          ? '<div style="padding:12px 20px 0"><input class="cc-input" id="tk-url" readonly '
+            + 'value="' + esc(url) + '" style="font-size:11px"></div>'
+          : '')
+      + '<div class="mk-dw-foot" style="margin-top:14px">'
+      +   '<button class="lm-btn-ghost sm js-cerrar-tk">Cancelar</button>'
+      +   '<span style="display:flex;gap:8px">'
+      +     '<button class="lm-btn-ghost sm js-ya-tk">Ya la conecté</button>'
+      +     '<button class="lm-btn-primary js-ir-tk">'
+      +       (enExe ? 'Copiar enlace' : 'Abrir TikTok') + '</button>'
+      +   '</span>'
+      + '</div></div>';
+    document.body.appendChild(v);
+
+    function cerrar() { v.remove(); }
+    v.addEventListener('mousedown', function (e) { if (e.target === v) cerrar(); });
+    v.querySelector('.js-cerrar-tk').addEventListener('click', cerrar);
+
+    v.querySelector('.js-ir-tk').addEventListener('click', function () {
+      if (!enExe) {
+        /*  Otra pestaña, nunca la misma: si el bloqueador la impide se dice,
+            en vez de dejar a alguien esperando una pestaña que no llegó. */
+        var w = window.open(url, '_blank', 'noopener');
+        if (!w) aviso('Tu navegador bloqueó la ventana. Permítela y vuelve a intentarlo.');
+        return;
+      }
+      var caja = v.querySelector('#tk-url');
+      caja.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(url).then(function () { aviso('Enlace copiado'); },
+          function () { if (!ok) aviso('Selecciona el enlace y cópialo con Ctrl+C'); });
+      } else {
+        aviso(ok ? 'Enlace copiado' : 'Selecciona el enlace y cópialo con Ctrl+C');
+      }
+    });
+
+    /*  "Ya la conecté" relee la base. Es lo único que hace falta: la conexión
+        la guardó la función de servidor, no esta pantalla.               */
+    v.querySelector('.js-ya-tk').addEventListener('click', async function () {
+      var b = this;
+      b.disabled = true; b.textContent = 'Comprobando…';
+      var r = await D.cuentas();
+      var tk = r.lista.filter(function (c) { return c.channel === 'tiktok'; })[0];
+      if (tk && tk.connected) {
+        cerrar();
+        aviso('TikTok conectado');
+        pintarCuentas();
+        pintarResumen();
+      } else {
+        b.disabled = false; b.textContent = 'Ya la conecté';
+        aviso('Todavía no aparece conectada. Termina el permiso en TikTok y vuelve a probar.');
+      }
+    });
   }
 
   /*  Al volver de TikTok se dice como fue. El aviso sale una sola vez: se

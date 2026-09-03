@@ -13,17 +13,20 @@
     Pero TikTok ya no se conecta desde el chat —aqui no tiene mensajes, asi
     que no pinta nada—, sino desde Marketing.
 
-    Antes de salir, Marketing deja una nota. Si esta, se reenvia alli con el
-    resultado pegado. Va lo PRIMERO del archivo, antes de montar nada: cargar
-    el chat entero para irse acto seguido es tiempo perdido a la vista.    */
+    Se reenvia alli con el resultado pegado, sin condiciones: TikTok ya no es
+    un canal del chat. (Hubo una version con una nota en sessionStorage; no
+    servia, porque en el navegador la conexion se abre en OTRA pestana y una
+    pestana nueva no hereda esa nota de forma fiable.)
+
+    Va lo PRIMERO del archivo, antes de montar nada: cargar el chat entero
+    para irse acto seguido es tiempo perdido a la vista.                  */
 (function () {
   try {
     var u = new URL(window.location.href);
     if (u.searchParams.get('channel') !== 'tiktok') return;
-    var volver = sessionStorage.getItem('tiktok.volver');
-    if (!volver) return;
-    sessionStorage.removeItem('tiktok.volver');
-    window.location.replace(volver + u.search);
+    /*  Sin condiciones y sin nada guardado: TikTok ya no es un canal del
+        chat, asi que una respuesta suya no tiene nada que hacer aqui.   */
+    window.location.replace('marketing.html' + u.search);
   } catch (e) { /* si algo falla, se queda en el chat: lo de siempre */ }
 })();
 

@@ -16759,21 +16759,61 @@ La tarjeta de TikTok en **Cuentas** lleva ahora su propio boton: "Conectar
 TikTok" / "Reconectar TikTok". Las demas redes siguen mandando al chat, que es
 donde se leen y contestan sus mensajes.
 
+### ⚠️ LA APLICACION NUNCA NAVEGA A TIKTOK
+
+Primer intento: `window.location.href = <permiso de TikTok>`, o sea llevar la
+VENTANA DE LA APLICACION a tiktok.com. En el navegador funciona; **dentro del
+ejecutable es un error de bulto**, y Sergio lo vio de inmediato:
+
+- la ventana deja de mostrar Cobra y muestra TikTok;
+- TikTok intenta abrir su app movil con un vinculo `bytedance://` y **Windows
+  saca un cartel** pidiendo una aplicacion para abrirlo;
+- y aunque el permiso saliera bien, la funcion que lo recoge termina mandando
+  a la version WEB: el ejecutable acabaria enseñando otra cosa. De ahi el "me
+  saco de la sesion".
+
+**La solucion, y por que es esta.** El puente de Electron (`window.electronPOS`)
+no vive en este repo y no ofrece abrir el navegador, asi que no se le puede
+pedir. Pero **no hace falta volver**: el permiso lo recoge una funcion de
+servidor que deja la conexion guardada en la base. Termine donde termine el
+navegador, la conexion ya quedo hecha; aqui basta con releerla.
+
+Asi que la aplicacion no navega a ningun lado. Abre una **ventana propia**
+(nada de `alert` ni `prompt`) que:
+
+- en el navegador, abre TikTok en **otra pestaña** (`_blank`, `noopener`), y si
+  el bloqueador la impide **lo dice**, en vez de dejar a alguien esperando una
+  pestaña que no llego;
+- en el ejecutable, da **el enlace para copiar**, porque ahi no hay forma
+  fiable de abrir el navegador desde dentro;
+- y en los dos casos ofrece **"Ya la conecte"**, que relee la base y actualiza
+  la pantalla.
+
+Comprobado en los dos casos: la direccion de la pagina **no cambia** al pulsar,
+y en el navegador la apertura sale con `_blank`, `noopener` y los seis permisos.
+
+### El boton salia crudo: una clase que no existe
+
+`.cc-btn-ghost` **no esta en marketing.css**. La buena es `.lm-btn-ghost`. Por
+eso el boton salia con la pinta cruda del sistema y los enlaces de las otras
+tarjetas, como texto azul suelto. Corregidos los tres sitios: el boton a
+`.lm-btn-ghost sm`, los enlaces a `.lm-link`.
+
 ### Como vuelve a su sitio SIN tocar el servidor
 
 `tiktok-oauth-callback` termina mandando siempre a `chat-ia.html`, y esta en
 produccion funcionando. Cambiarla seria meter mano en una pieza viva por un
 detalle de navegacion.
 
-En vez de eso: antes de salir hacia TikTok, Marketing deja una nota en
-`sessionStorage`. Al volver, **lo primero** que hace `chat-ia.js` —antes de
-montar nada, que cargar el chat entero para irse acto seguido es tiempo
-perdido a la vista— es leerla y reenviar a Marketing con el resultado pegado.
+En vez de eso, **lo primero** que hace `chat-ia.js` —antes de montar nada, que
+cargar el chat entero para irse acto seguido es tiempo perdido a la vista— es
+mirar si la direccion trae `channel=tiktok`, y si es asi reenviar a Marketing
+con el resultado pegado. Sin condiciones y sin nada guardado: **TikTok ya no es
+un canal del chat**, asi que una respuesta suya no tiene nada que hacer alli.
 
-La nota sobrevive el viaje porque es el mismo navegador y la misma pestana. Y
-si se perdiera, lo peor que pasa es acabar en el chat, **que es exactamente lo
-que pasaba antes**: un respaldo que falla hacia lo de siempre, no hacia un
-error.
+(Hubo una version que dejaba una nota en `sessionStorage` antes de salir. No
+servia: en el navegador la conexion se abre en OTRA pestana, y una pestana
+nueva no hereda esa nota de forma fiable — menos aun abierta con `noopener`.)
 
 ### Comprobado de punta a punta
 
