@@ -541,3 +541,93 @@ codigo. No es purismo: es que el cambio ya esta planeado, con fecha difusa pero
 decidido. Lo que dependa de Factus vive en un solo archivo; lo demas —el
 consecutivo, la cola, las notas de credito, el recibo, la pantalla— no se
 entera de quien emite.
+
+---
+
+# 12. La API de Factus, probada contra el sandbox (3-sep-2026)
+
+Esto no sale de la documentacion: sale de llamar a su servidor con nuestras
+credenciales y mirar lo que contesto.
+
+## 12.1 Autenticacion — funciona
+
+`POST https://api-sandbox.factus.com.co/oauth/token`, **form-data**, con
+`grant_type=password`, `client_id`, `client_secret`, `username`, `password`.
+Devuelve `access_token` (~1.028 caracteres), `refresh_token` (~778) y
+`expires_in: 3600`.
+
+**El token dura UNA HORA.** Hay que guardarlo y reusarlo: pedir uno en cada
+factura es un viaje de mas en el momento en que el cajero esta esperando.
+
+> Produccion cambia solo el dominio: `https://api.factus.com.co`.
+
+## 12.2 ⚠️ CORRECCION AL PLAN: el consecutivo lo lleva FACTUS
+
+`GET /v2/numbering-ranges` devuelve, en el sandbox:
+
+| Documento | Prefijo | Desde | Hasta | Actual |
+|---|---|---:|---:|---:|
+| Factura de Venta | SETP | 990000000 | 995000000 | 990017627 |
+| Documento Soporte | SEDS | 984000000 | 985000000 | 984000678 |
+| Nota Credito | NC | — | — | 664 |
+| Nota Debito | ND | — | — | 86 |
+
+**Factus lleva el contador.** Nosotros construimos `fn_factura_numero` con
+bloqueo de fila dando por hecho que el numero lo poniamos nosotros. Con Factus
+eso crearia **dos contadores que se separan**, que es peor que no tener
+ninguno.
+
+**Como queda:**
+
+- El numero **lo pone el proveedor** y nosotros guardamos el que devuelve.
+- `pos_facturacion_rangos` pasa a ser un **espejo** de lo que reporta el
+  proveedor, para la alerta de "se te esta acabando el rango". Deja de ser la
+  fuente del numero.
+- `fn_factura_numero` **no se borra**: Alanube podria exigir que el numero lo
+  pongamos nosotros, y esta hecha y probada. Es el adaptador el que decide si
+  se usa.
+
+La regla dura 1 decia *"el consecutivo sale de la base con bloqueo, nunca del
+navegador"*. Su INTENCION —que no haya duplicados y que no lo ponga el
+navegador— se cumple igual: lo pone el servidor de Factus, y la idempotencia
+la da `reference_code`.
+
+## 12.3 Emitir: `POST /v2/bills/validate`
+
+Cabeceras `Content-Type: application/json`, `Authorization: Bearer <token>`,
+`Accept: application/json`.
+
+**`reference_code` es la idempotencia, y viene de fabrica.** La documentacion
+lo dice: *"Si envia un reference_code ya procesado, recibira los datos
+correspondientes a la factura existente"*. Se manda el **id del pedido**: dos
+cajas tocando "facturar" a la vez no pueden sacar dos facturas.
+
+**Un caso que hay que manejar:** si responde **409 Conflict** con *"Se encontro
+una factura pendiente por enviar a la DIAN"*, hay que **borrarla por su
+referencia** y volver a crearla. El campo `is_validated` dice si llego a
+validarse.
+
+## 12.4 Consumidor final — el caso del restaurante
+
+Confirmado en una factura real del sandbox: el cliente va con
+`identification: "222222222222"`, `graphic_representation_name: "Consumidor
+final"`, `identification_document.code: "13"` (cedula) y
+`legal_organization.code: "2"` (persona natural). El `number` que devuelve es
+el de la DIAN, del estilo `SETP990017626`.
+
+## 12.5 ⚠️ El sandbox es COMPARTIDO
+
+Las facturas que hay dentro son de otros integradores (se ve el
+`api_client_name` de terceros). O sea:
+
+- lo que creemos ahi lo puede ver cualquiera que tenga esas credenciales,
+- **no se sube ni un dato real de un restaurante ni de un cliente**,
+- y los numeros que se vean no son nuestros.
+
+Sirve para aprender las formas y probar el flujo. Nada mas.
+
+## 12.6 Donde viven las credenciales
+
+**En los secretos de Supabase (`FACTUS_*`), NUNCA en este repositorio, que es
+publico.** Solo las lee la Edge Function que emite. El navegador no las ve
+jamas.
