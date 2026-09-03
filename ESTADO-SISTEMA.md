@@ -16822,3 +16822,51 @@ que confirma que la llave de la app y la direccion de retorno son validas. En
 la propia respuesta de TikTok viajaban: `client_key`, los seis permisos con
 `video.list`, `response_type=code`, el `redirect_uri` de la funcion y el
 `state` con la sede.
+
+## Publicaciones de TikTok: los tres fallos con la cuenta ya conectada (3-sep-2026)
+
+### 1 · "0 publicaciones" con seis videos listados debajo
+
+Los KPIs filtraban por el rango de 30 dias y los videos de El Parche son de
+enero: daban cero, mientras la lista de abajo los enseñaba todos. **Dos cifras
+de la misma pantalla contandose cosas distintas.**
+
+El error de fondo: `video.list` **NO devuelve "los videos de los ultimos 30
+dias"**, devuelve los ~20 mas recientes, sin fecha de por medio. Recortarlos
+por el rango es inventarse una capacidad que la API no tiene.
+
+Ahora para TikTok **el rango no aplica**, y el rotulo lo dice: *"tus ultimas 6
+publicaciones, desde el 21 de ene"*. El rango sigue aplicando donde si se
+puede filtrar de verdad (ventas atribuidas, mensajes). Y el pie dejo de
+mentir: decia "falta el permiso de Meta" cuando el motivo era otro.
+
+Las barritas por mes se cuentan **desde el video mas reciente**, no desde hoy:
+si el restaurante lleva medio año sin publicar, cuatro barras en cero no dicen
+nada. Cada barra lleva su mes escrito, asi que no se confunde.
+
+### 2 · Las filas ocupaban todo el ancho y el detalle desaparecia
+
+**Medido:** con la rejilla puesta a `1fr 1.18fr`, la lista se quedaba **1446
+px** y el detalle **256**.
+
+La causa es la trampa clasica de CSS Grid: **un hijo de rejilla tiene
+`min-width:auto`**, o sea su minimo es el de su contenido. Los pies de TikTok
+son larguisimos y van con `white-space:nowrap`, asi que su minimo era enorme y
+empujaba la columna hasta comerse la de al lado. El `text-overflow:ellipsis`
+de `.mkd-lid` **no llegaba a activarse nunca**.
+
+Un `min-width:0` en los hijos de las dos rejillas. Despues: **583 / 688**, los
+titulos largos con puntos suspensivos y sin desborde horizontal.
+
+> Y una trampa dentro de la trampa: la primera comprobacion dijo que el
+> arreglo no funcionaba. **Era el CSS cacheado** bajo su version vieja: la
+> regla ni se habia cargado. Publicar no basta, hay que subir la version — en
+> el navegador y en el ejecutable.
+
+### 3 · El detalle, con todo lo que da la API
+
+Pie completo, fecha, duracion, visualizaciones, me gusta, comentarios,
+compartidos, y la **interaccion sobre las vistas**, que es la cifra que de
+verdad dice si un video funciono: 40 mil vistas con 20 me gusta y 40 mil con
+6.000 no son lo mismo. Al pie se dice que eso es TODO lo que TikTok entrega
+por publicacion, para que no parezca que falta algo por pereza.

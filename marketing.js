@@ -86,6 +86,20 @@
 
   /*  Cuando NINGUNA red da números, el pie de la primera cifra explica por
       qué. Sin eso, tres ceros se leen como "esto no funciona".          */
+  /*  "tus ultimas 6 publicaciones, desde el 27 de ene". Se dice DESDE
+      CUANDO porque un numero sin periodo no significa nada.             */
+  function rotuloTikTok(e) {
+    var n = e.porRed.tiktok && e.porRed.tiktok.videos;
+    if (!n) return null;
+    var txt = 'tus últimas ' + n + (n === 1 ? ' publicación' : ' publicaciones');
+    if (e.desdeTikTok) {
+      var d = new Date(e.desdeTikTok * 1000);
+      txt += ', desde el ' + d.getDate() + ' de '
+           + ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()];
+    }
+    return txt;
+  }
+
   function motivoGeneral(e) {
     var motivos = Object.keys(e.falta).map(function (k) { return e.falta[k]; });
     if (!Object.keys(e.porRed).length) return 'conecta una cuenta para ver sus números';
@@ -110,19 +124,27 @@
     /*  El pie de la primera cifra: si a esa red le falta un permiso, se dice;
         si no, el periodo. Poner "en TikTok" seria repetir el filtro de al
         lado.                                                            */
-    var pie = filtroRed
-      ? (ESTADIS.falta[filtroRed] || ('últimos ' + dias + ' días'))
-      : motivoGeneral(ESTADIS);
+    /*  El rotulo dice QUE se esta contando. Para TikTok no es "los ultimos
+        30 dias": son las ultimas publicaciones que da la API, vengan de
+        cuando vengan. Decir el rango seria mentir sobre el numero de al
+        lado.                                                            */
+    var pie;
+    if (filtroRed) pie = ESTADIS.falta[filtroRed] || rotuloTikTok(ESTADIS) || ('últimos ' + dias + ' días');
+    else pie = (ESTADIS.total.videos ? rotuloTikTok(ESTADIS) : null) || motivoGeneral(ESTADIS);
+    var periodo = rotuloTikTok(ESTADIS) || ('últimos ' + dias + ' días');
 
     var caja = $('mk-kpis');
     if (caja) {
       caja.innerHTML =
           kpi('Publicaciones', miles(n.videos), pie)
-        + kpi('Visualizaciones', miles(n.vistas), 'últimos ' + dias + ' días')
+        /*  El mismo pie que arriba: si lo que se cuenta son las ultimas
+            publicaciones de TikTok, poner "ultimos 30 dias" seria mentir
+            sobre el numero que tiene encima.                            */
+        + kpi('Visualizaciones', miles(n.vistas), periodo)
         + kpi('Me gusta', miles(n.likes),
               n.comentarios || n.compartidos
                 ? miles(n.comentarios) + ' comentarios · ' + miles(n.compartidos) + ' compartidos'
-                : 'últimos ' + dias + ' días');
+                : periodo);
     }
 
     /*  Las barritas pasan a ser visualizaciones por mes, no ventas: esto es
@@ -242,39 +264,54 @@
          + 'un rato y, si sigue igual, reconecta la cuenta desde Chat IA.';
   }
 
+  /*  El detalle: TODO lo que da `video.list`. Fecha, duracion, vistas, me
+      gusta, comentarios, compartidos y la interaccion sobre las vistas, que
+      es la cifra que de verdad dice si un video funciono — 40 mil vistas con
+      20 me gusta y 40 mil con 6.000 no son lo mismo.                     */
   function pintarDetalle() {
     var caja = $('post-detail');
     if (!caja || !VIDEOS.length) return;
-    var v = VIDEOS[sel];
+    var v = VIDEOS[sel] || VIDEOS[0];
+
+    var inter = v.vistas
+      ? (((v.likes || 0) + (v.comentarios || 0) + (v.compartidos || 0)) * 100 / v.vistas)
+      : null;
+
     caja.innerHTML =
-        '<div class="mkd-det-top"><span class="mkd-det-lbl">Publicación</span>'
+        '<div class="mkd-det-top"><span class="mkd-det-lbl">Publicaci\u00f3n</span>'
       +   '<span class="mkd-chip">TikTok</span></div>'
-      + '<div class="mkd-det-id"><span class="mkd-det-num" style="font-size:17px">'
-      +   esc(v.titulo || 'Sin título') + '</span></div>'
-      + '<div class="mkd-det-cols">'
+      /*  El pie completo, con saltos: aqui SI cabe, y es lo que se public\u00f3. */
+      + '<div class="mkd-det-id"><span style="font-size:13.5px;font-weight:600;line-height:1.45;'
+      +   'white-space:pre-wrap;word-break:break-word">' + esc(v.titulo || 'Sin t\u00edtulo') + '</span></div>'
+      + '<div class="mkd-det-cols" style="margin-top:14px">'
       +   '<div><div class="mkd-det-col-lbl">Publicado</div>'
       +     '<div class="mkd-det-col-v"><div><div class="mkd-det-col-t">'
-      +       esc(v.fecha || '—') + '</div>'
-      +     '<div class="mkd-det-col-s">' + (v.duracion ? esc(v.duracion) : '') + '</div></div></div></div>'
-      +   '<div><div class="mkd-det-col-lbl">Producto vinculado</div>'
-      +     '<div class="mkd-det-col-v"><div><div class="mkd-det-col-t" '
-      +       'style="color:var(--muted);font-weight:600">Sin vincular</div>'
-      +     '<div class="mkd-det-col-s">Vincular pide el permiso de estadísticas</div></div></div></div>'
+      +       esc(v.fecha || '\u2014') + '</div>'
+      +     '<div class="mkd-det-col-s">' + (v.duracion ? 'Duraci\u00f3n ' + esc(v.duracion) : '') + '</div></div></div></div>'
+      +   '<div><div class="mkd-det-col-lbl">Interacci\u00f3n</div>'
+      +     '<div class="mkd-det-col-v"><div><div class="mkd-det-col-t">'
+      +       (inter == null ? '\u2014' : inter.toFixed(1).replace('.', ',') + '%') + '</div>'
+      +     '<div class="mkd-det-col-s">me gusta, comentarios y compartidos sobre las vistas</div>'
+      +     '</div></div></div>'
       + '</div>'
-      + '<div class="mkd-det-tiles" style="grid-template-columns:repeat(3,1fr)">'
-      +   dtile(corto(v.vistas), 'Vistas')
-      +   dtile(corto(v.likes), 'Likes')
-      +   dtile(corto(v.comentarios), 'Comentarios')
+      + '<div class="mkd-det-tiles" style="grid-template-columns:repeat(2,1fr)">'
+      +   dtile(miles(v.vistas), 'Visualizaciones')
+      +   dtile(miles(v.likes), 'Me gusta')
+      +   dtile(miles(v.comentarios), 'Comentarios')
+      +   dtile(miles(v.compartidos), 'Compartidos')
       + '</div>'
       + '<div class="mkd-det-foot">'
-      +   '<div class="mkd-tot"><span>Compartidos</span><b>' + corto(v.compartidos) + '</b></div>'
+      +   '<div class="mkd-tot" style="font-size:11px;color:var(--muted);font-weight:500;'
+      +     'line-height:1.5">Estos son todos los datos que TikTok entrega por publicaci\u00f3n. '
+      +     'Seguidores y alcance necesitan un permiso que no tenemos.</div>'
       +   '<div class="mkd-foot-actions">'
-      +     (v.enlace
-        ? '<a class="lm-btn-ghost sm" href="' + esc(v.enlace) + '" target="_blank" rel="noopener">Abrir en TikTok</a>'
-        : '')
+      +     (v.enlace && v.enlace !== '#'
+          ? '<a class="lm-btn-ghost sm" href="' + esc(v.enlace) + '" target="_blank" rel="noopener">Abrir en TikTok</a>'
+          : '')
       +   '</div>'
       + '</div>';
   }
+
   function dtile(n, s2) {
     return '<div class="mkd-dtile"><div class="mkd-dtile-n">' + esc(n) + '</div>'
       + '<div class="mkd-dtile-s">' + esc(s2) + '</div></div>';

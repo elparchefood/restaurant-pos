@@ -530,7 +530,14 @@ h1{margin:0;}
 .mkd-search input{flex:1;min-width:0;border:none;background:none;outline:none;font-family:inherit;font-size:11.5px;font-weight:600;color:var(--d-ink);}
 .mkd-search input::placeholder{color:var(--d-mut);}
 
+/*  `min-width:0` en los hijos NO es adorno: un hijo de rejilla tiene
+    `min-width:auto`, o sea su minimo es el de su contenido. Los pies de
+    TikTok son larguisimos y van sin cortes, asi que su minimo era enorme y
+    empujaba esta columna hasta comerse la del detalle (medido: 1446 px
+    contra 256, con la rejilla puesta a 1fr 1.18fr). Sin esto, el
+    text-overflow:ellipsis de .mkd-lid no llega a activarse nunca.       */
 .mkd-row2{display:grid;grid-template-columns:1fr 1.18fr;gap:14px;align-items:start;}
+.mkd-row1>*,.mkd-row2>*{min-width:0;}
 .mkd-list{padding:6px 0 6px;}
 .mkd-list-head{display:flex;align-items:center;gap:10px;padding:12px 16px 12px;}
 .mkd-card-title{font-size:14px;font-weight:700;letter-spacing:-0.015em;white-space:nowrap;}

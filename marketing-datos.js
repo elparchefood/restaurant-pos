@@ -431,7 +431,12 @@
         res.falta.tiktok = tk.falta;
         res.porRed.tiktok = vacia();
       } else {
-        var v = tk.videos.filter(function (x) { return !x.ts || x.ts >= desde; });
+        /*  SIN filtrar por fecha, a proposito. `video.list` no devuelve "los
+            videos de los ultimos 30 dias": devuelve los ~20 mas recientes.
+            Recortarlos por el rango es inventarse una capacidad que la API no
+            tiene, y dejaba la pantalla diciendo "0 publicaciones" con los
+            videos listados justo debajo. El rotulo dice lo que se cuenta. */
+        var v = tk.videos;
         var acc = vacia();
         acc.videos = v.length;
         v.forEach(function (x) {
@@ -442,6 +447,10 @@
         });
         res.porRed.tiktok = acc;
         res.mesesTikTok = v;
+        /*  Desde cuando son, para poder decirlo en el rotulo.            */
+        var conFecha = v.filter(function (x) { return x.ts; });
+        res.desdeTikTok = conFecha.length
+          ? Math.min.apply(null, conFecha.map(function (x) { return x.ts; })) : null;
       }
     }
 
@@ -470,9 +479,17 @@
       PUBLICADOS en cada mes: es lo que se puede saber con `video.list`, que
       da un total por video y no un desglose por día.                      */
   function vistasPorMes(videos, meses) {
-    var hoy = new Date(), lista = [], porClave = {};
+    /*  Los meses se cuentan desde el video MAS RECIENTE, no desde hoy. Si el
+        restaurante lleva medio ano sin publicar, cuatro barras en cero no
+        dicen nada; las de los meses en que si publico, si. Cada barra lleva
+        su mes escrito, asi que no se confunde con "los ultimos cuatro".  */
+    var conFecha = (videos || []).filter(function (v) { return v.ts; });
+    var ref = conFecha.length
+      ? new Date(Math.max.apply(null, conFecha.map(function (v) { return v.ts; })) * 1000)
+      : new Date();
+    var lista = [], porClave = {};
     for (var i = meses - 1; i >= 0; i--) {
-      var d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      var d = new Date(ref.getFullYear(), ref.getMonth() - i, 1);
       var m = { clave: d.getFullYear() + '-' + d.getMonth(), mes: MES[d.getMonth()], valor: 0 };
       lista.push(m); porClave[m.clave] = m;
     }
