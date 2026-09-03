@@ -358,3 +358,186 @@ La 6 necesita un restaurante real con su NIT.
 - [Factus — sitio oficial](https://www.factus.com.co/)
 - [Factus — documentación para desarrolladores](https://developers.factus.com.co/)
 - [SDK comunitario de Factus (GitHub)](https://github.com/juacosoft/FactusDian-SDK)
+
+---
+
+# 10. FACTUS — precios, terminos y cuentas reales (3-sep-2026)
+
+Datos que **ya tenemos en firme** (correo de Factus + su tarifario + los
+terminos y condiciones 2026). Se escriben aqui porque en su momento no se
+anotaron y se perdieron: no volver a dejarlos solo en un correo.
+
+## 10.1 Lo que Factus SI hace, y lo que no
+
+Su objeto, textual en los terminos (§f.1): facturas electronicas, **notas
+credito y debito**, documentos soporte, notas de ajuste y **nomina
+electronica**.
+
+**NO hace documento equivalente POS electronico.** Lo confirman dos veces: en
+el correo (*"Solo manejamos Factura electronica"*) y en los terminos, donde no
+aparece. Su recomendacion para POS es emitir **factura electronica a consumidor
+final**.
+
+> **Decision de Sergio (3-sep):** se acepta. *"Si incluso hacer tickets consume
+> parte de la factura electronica no importa, porque de aqui a manana no me van
+> a entrar sin clientes. En el momento que ya tengamos volumen ya podemos
+> pasarnos a Alanube."* Por eso el proveedor va detras de un adaptador.
+
+## 10.2 Los dos modelos de compra
+
+### A) Bolsa anual multifacturador — pensada para SaaS multitenant
+
+Una sola bolsa que **el aliado reparte entre los NIT que quiera**.
+**NO incluye certificado digital: $130.000/ano por cada NIT.**
+
+| Documentos/ano | Valor bolsa | COP por documento |
+|---:|---:|---:|
+| 10.000 | $630.000 | 63,0 |
+| 20.000 | $1.120.000 | 56,0 |
+| 50.000 | $2.250.000 | 45,0 |
+| 80.000 | $3.200.000 | 40,0 |
+| 120.000 | $3.840.000 | 32,0 |
+| 200.000 | $5.600.000 | 28,0 |
+| 500.000 | $12.000.000 | 24,0 |
+| 750.000 | $16.500.000 | 22,0 |
+| 1.000.000 | $21.000.000 | 21,0 |
+
+### B) Planes anuales por NIT — **el certificado VA INCLUIDO**
+
+| Documentos/ano | Valor | COP por documento |
+|---:|---:|---:|
+| 150 | $169.000 | 1.126,7 |
+| 400 | $190.000 | 475,0 |
+| 1.600 | $220.000 | 137,5 |
+| 2.500 | $260.000 | 104,0 |
+| 5.000 | $290.000 | 58,0 |
+| 10.000 | $390.000 | 39,0 |
+| 15.000 | $440.000 | 29,3 |
+| 20.000 | $490.000 | 24,5 |
+| 35.000 | $820.000 | 23,4 |
+| 50.000 | $1.100.000 | 22,0 |
+| 80.000 | $1.700.000 | 21,3 |
+| 120.000 | $2.160.000 | 18,0 |
+
+Incluyen **rangos de numeracion ilimitados para sucursales, sin limitacion por
+ventas**.
+
+### ⚠️ El resultado del calculo, que es contraintuitivo
+
+**Los planes por NIT salen MAS BARATOS por documento que la bolsa
+multifacturador, y encima traen el certificado.** A 10.000 documentos: $390.000
+el plan contra $630.000 la bolsa, y la bolsa ademas suma $130.000 de
+certificado. La diferencia se mantiene en todos los tramos.
+
+Lo unico que compra la bolsa es **flexibilidad**: es un solo bote del que se
+sirve cualquier restaurante sin predecir cuanto va a gastar cada uno, y un
+cliente nuevo arranca al instante sin comprarle nada. Con planes por NIT hay
+que dimensionar cada uno por adelantado y comprar otro si se pasa.
+
+**Recomendacion:** empezar con **planes por NIT** (mas barato y con
+certificado), y pasarse a bolsa solo cuando haya tantos restaurantes que
+dimensionar uno por uno sea el problema.
+
+## 10.3 Lo que el restaurante consume — la cuenta que decide el precio
+
+Si se emite **una factura por cada tiquete**:
+
+| Ritmo | Docs/ano | Plan que toca | Costo/mes por restaurante |
+|---|---:|---|---:|
+| 50 tiquetes/dia | 18.250 | 20.000 · $490.000 | **$40.800** |
+| 150 tiquetes/dia | 54.750 | 80.000 · $1.700.000 | **$141.700** |
+| 300 tiquetes/dia | 109.500 | 120.000 · $2.160.000 | **$180.000** |
+
+Contra un plan Pro de $249.000, eso es entre el 16 % y el 72 % del precio de
+venta. **Facturacion ilimitada dentro del plan no se sostiene.**
+
+Si en cambio se emite **solo cuando el cliente la pide** (lo normal en un
+restaurante, del orden del 10 %):
+
+| Ritmo | Docs/ano | Plan que toca | Costo/mes por restaurante |
+|---|---:|---|---:|
+| 150 tiquetes/dia, 10 % pide factura | 5.475 | 10.000 · $390.000 | **$32.500** |
+
+Esa es la diferencia entre que quepa en el plan y que no.
+
+## 10.4 ⚠️ Dos clausulas de los terminos que hay que tener presentes
+
+**1. No hay devoluciones (§f.6).** Pasados 5 dias habiles, Factus *"no
+realizara ninguna devolucion de dinero, tomandose el valor recibido como pago
+de clausula penal"*. Y cada bolsa **dura 1 ano desde la compra**: lo que no se
+gaste, se pierde. Comprar grande es una puerta de un solo sentido.
+
+**2. Si no se renueva, se bloquea TODO (§f.9).** *"En caso de vencerse el plazo
+de suscripcion y no realizar la renovacion, FACTUS bloqueara automaticamente la
+cuenta impidiendo el uso de las herramientas y modulos."* Con una bolsa
+compartida eso significa que **todos los restaurantes dejan de facturar el
+mismo dia**. Hay que avisar del vencimiento con margen dentro de Cobra, igual
+que se avisa del rango de numeracion por agotarse.
+
+Otras dos que conviene saber:
+
+- **§f.11 — el reloj corre igual.** Hay 8 dias calendario para mandar los
+  papeles del certificado; si no, el plan empieza a contar desde el noveno
+  aunque no este activo.
+- **§f.10 — si se emite una factura por error, es problema nuestro.** Por eso
+  la idempotencia (regla dura 2) no es opcional.
+
+## 10.5 Papeles para ser aliado (§2.5 de los terminos)
+
+Nombre de usuario · correo · **camara de comercio no mayor a 30 dias** ·
+cedula del representante legal · **RUT** · **acuerdo de alianza y acuerdo de
+confidencialidad**.
+
+> Recordatorio: mandarle el RUT a Factus es papeleo para abrir cuenta. **NO es
+> lo mismo que registrar en el RUT la responsabilidad de facturador
+> electronico ante la DIAN**, que si obliga a facturar siempre y no se hace
+> todavia.
+
+## 10.6 Sandbox
+
+Endpoint `https://api-sandbox.factus.com.co`, API **V2**, con coleccion de
+Postman y documentacion oficial.
+
+**Las credenciales NO se guardan en este repositorio, que es publico.** Van en
+los secretos de Supabase (`FACTUS_*`) y solo las lee la Edge Function.
+
+## 10.7 Jurisdiccion
+
+Bucaramanga, Colombia (§i). Legislacion colombiana.
+
+---
+
+# 11. DECISION: **FACTUS**, y se empieza ya (3-sep-2026)
+
+Sergio, tras revisar los tres:
+
+> *"Matias API no me llamo mucho la atencion porque si en algun momento algo
+> falla, ellos no contestan. Factus siempre ha contestado."*
+
+**El criterio no fue el precio ni la API: fue quien contesta el correo.** Y es
+el criterio correcto para esto. La facturacion electronica no es una funcion
+que se pueda quedar rota un fin de semana: si un restaurante no puede facturar,
+no puede vender tranquilo. De un proveedor de infraestructura, que conteste
+importa mas que unos pesos por documento.
+
+| | Contesta | Estado |
+|---|---|---|
+| **Factus** | **Siempre** | ✅ **ELEGIDO** |
+| Alanube | Siempre | Para despues: **piden un minimo** que hoy no se alcanza |
+| MATIAS API | Le escribimos y **nunca contesto** | ❌ Descartado |
+
+De MATIAS solo hay lo que esta publicado en su web y su documentacion; las
+preguntas que se le mandaron por correo siguen sin respuesta.
+
+## El camino, que ya esta decidido
+
+1. **Hoy — Factus.** Se empieza y se lanza con ellos.
+2. **Con volumen — Alanube.** Se le pierde el miedo al minimo cuando haya
+   suficientes restaurantes. Alanube esta pensado para ISV multi-empresa y su
+   precio por documento a volumen es mejor.
+
+**Por eso el proveedor va DETRAS DE UN ADAPTADOR** y no repartido por el
+codigo. No es purismo: es que el cambio ya esta planeado, con fecha difusa pero
+decidido. Lo que dependa de Factus vive en un solo archivo; lo demas —el
+consecutivo, la cola, las notas de credito, el recibo, la pantalla— no se
+entera de quien emite.
