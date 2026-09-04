@@ -17024,3 +17024,91 @@ Lo honesto: hacerlo bien y despacio sale mas barato que el septimo parche.
 Hoy no hay numero. Antes de empezar conviene contar, sobre las conversaciones
 de una semana, **cuantas veces tuvo que entrar una persona a corregir a Paco**.
 Ese numero es el que tiene que bajar; lo demas es opinion.
+
+## Lo que se aprendio hoy sobre pedirle cosas al modelo (4-sep-2026)
+
+Tres intentos para una sola frase, y la leccion vale para todo el repaso.
+
+**Intento 1.** Se le dijo *"recuerdale amablemente que falta su confirmacion"*.
+Saco: **"¿Aun necesitas tu pedido?"** — suena a que el restaurante duda de que
+el cliente lo quiera, justo lo contrario de lo que hace falta cuando ya dio
+todos sus datos y esta esperando.
+
+**Intento 2.** Se le dio la frase HECHA: *"cierra con estas palabras EXACTAS:
+¿Confirmamos tu pedido?"*. Una corrida salio limpia. **La siguiente volvio a
+sacar "¿Aun necesitas tu pedido?"**.
+
+> **Una instruccion que solo funciona a veces no es una instruccion, es una
+> apuesta.**
+
+**Intento 3, el que quedo.** Se dejo de pedirsela. La confirmacion ya tiene su
+mecanismo en el flujo; que el modelo la repita solo abria la puerta a que la
+dijera mal. Ahora contesta la pregunta y ya.
+
+### La regla que sale de aqui
+
+Hay dos clases de instruccion y se comportan distinto:
+
+| | Ejemplo | Fiabilidad |
+|---|---|---|
+| **Un HECHO** | "va a pagar en EFECTIVO, no hay comprobante" | Alta: no se puede parafrasear mal |
+| **Una TAREA de redaccion** | "recuerdale que confirme" | Baja: la reescribe a su manera |
+
+**Darle datos funciona. Pedirle frases, no.** Cuando haga falta una frase
+exacta, no se le pide al modelo: se manda desde el flujo, que es donde ya
+viven las frases configurables.
+
+Y por eso una prueba sola no basta: la primera corrida del intento 2 dio verde
+y el arreglo estaba mal. **Si una respuesta depende del modelo, hay que
+correrla mas de una vez.**
+
+## Los dos fallos que casi se van a produccion (4-sep-2026)
+
+Los dos los cazo el banco. Ninguno lo cazaron mis comprobaciones — y esa es la
+leccion.
+
+### 1. Una barra que se volvio salto de linea
+
+Al quitar una instruccion, mi `
+` acabo siendo un salto de linea DE VERDAD y
+partio un texto en dos:
+
+    + "pregunta y nada mas. No cierres con preguntas tuyas.
+    "
+
+Error de sintaxis: la funcion **ni arrancaba** (BOOT_ERROR 503). En produccion
+eso es Paco mudo con todo el mundo.
+
+**Mi comprobacion de llaves dijo que estaba bien** — y era verdad, las llaves
+cuadraban perfectamente con el texto partido.
+
+Ya me habia pasado hoy mismo (`feedback_regex_desde_python`). Ahora las barras
+se construyen con `chr(92)`, que no la puede tocar nadie por el camino.
+
+### 2. Un nombre que ya existia
+
+En la familia 1 llame a mi funcion `pagoDelMensaje`. **Ya habia una variable
+local con ese nombre**, y el reemplazo en bloque la dejo asi:
+
+    const pagoDelMensaje = pagoEraLoQueFaltaba
+      ? pagoDelMensaje()      <- llamandose a si misma mientras nace
+      : null;
+
+Revienta cada vez que el cliente dice como paga despues del resumen — justo el
+paso que se estaba probando. Y **devolvia 200 sin escribir nada**: Paco mudo en
+el pago, en silencio.
+
+**Mi comprobacion decia "hay al menos 7 llamadas".** Las habia, contando la
+rota.
+
+> **Contar apariciones no comprueba nada. Y los simbolos pueden cuadrar sobre
+> codigo roto.**
+>
+> Lo unico que cazo los dos fue desplegar en el banco y mirar que contesta.
+
+### Lo que se hace distinto a partir de ahora
+
+1. **Antes de meter un nombre nuevo, comprobar que no exista.** En 11.700
+   lineas eso no es paranoia.
+2. **Nunca escribir barras invertidas a traves de la consola.** `chr(92)`.
+3. **Ninguna comprobacion de forma sustituye al banco.** Desplegar y ver.

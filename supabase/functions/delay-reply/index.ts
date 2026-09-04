@@ -1540,6 +1540,35 @@ INTENCION, no las palabras exactas.` },
     const e = ms.find(m => !m.digital); return e ? e.nombre.toLowerCase() : "efectivo";
   };
 
+  /*  ══ COMO PAGA: MANDA LA INTENCION ═══════════════════════════════════
+      FAMILIA 1 del repaso (4-sep-2026).
+
+      Antes, en seis sitios, se escribia:
+
+          extractPago(clienteTexto, pagosCfg) || pagoPorIntencion()
+
+      o sea: primero rastrear el texto y la intencion de respaldo. Al reves de
+      la regla. `extractPago` son ~10 regex buscando "nequi", "efectivo",
+      "transfiero", "billete"... y ganaba siempre que acertara una palabra,
+      aunque el lector hubiera entendido otra cosa.
+
+      Aqui manda el lector. `extractPago` NO se borra: queda de respaldo para
+      cuando el lector no contesto — que pasa, y perder el metodo obligaria a
+      preguntarlo otra vez.
+
+      EL RASTRO NO ES ADORNO. Cuando los dos contestan y no coinciden se
+      anota. Dentro de unos dias eso dice si el regex acertaba alguna vez
+      donde el lector fallaba, y se borra con datos en la mano. Medir antes
+      de quitar.                                                            */
+  const comoPagaEsteMensaje = (): string | null => {
+    const porIntencion = pagoPorIntencion();
+    const porTexto     = extractPago(clienteTexto, pagosCfg);
+    if (porIntencion && porTexto && porIntencion !== porTexto) {
+      console.log(`[pago] lector="${porIntencion}" texto="${porTexto}" -> gana el lector | ${clienteTexto.slice(0, 80)}`);
+    }
+    return porIntencion || porTexto;
+  };
+
   /* 5-pre. CON HUMANO AL MANDO, PACO CALLADO — DESDE AQUI (15-ago). La
      compuerta de human_takeover vivia mas abajo (donde se carga convRow), y
      todas las ramas que responden antes de llegar alla —despedida, queja,
@@ -2400,7 +2429,7 @@ INTENCION, no las palabras exactas.` },
     // en EFECTIVO. Antes quedaba en bucle repitiendo el recordatorio. Ahora se reabre
     // el pedido en efectivo y se re-muestra el resumen para confirmar.
     const stPend = (pendStatePrev && (pendStatePrev._v as number)) ? (pendStatePrev as unknown as PacoState) : null;
-    const pagoNuevoPend = (extractPago(clienteTexto, pagosCfg) || pagoPorIntencion());
+    const pagoNuevoPend = comoPagaEsteMensaje();
     const cambiaEfectivoPend = !!(pagoNuevoPend && !esMetodoDigital(pagoNuevoPend, pagosCfg));
     const esLlevarPend = stPend?.direccion ? LLEVAR_REGEX.test(stPend.direccion.toLowerCase()) : false;
     const prepagoPend  = domiciliosCfg?.llevar_prepago !== false;
@@ -2810,7 +2839,7 @@ INTENCION, no las palabras exactas.` },
         if (!ok) { delete (state as unknown as Record<string, unknown>).saldo_pago; state.pago = null; await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state }); }
         return;
       }
-      const otroPago = extractPago(clienteTexto, pagosCfg);
+      const otroPago = comoPagaEsteMensaje();
       const metS = getMetodosPago(pagosCfg).find(m => m.id === "__saldo");
       if (otroPago && (!metS || normalizarTexto(otroPago) !== normalizarTexto(metS.nombre))) {
         /* Cambio de opinion: se suelta la billetera y el flujo normal sigue
@@ -3240,7 +3269,7 @@ INTENCION, no las palabras exactas.` },
     {
       // Solo es CORRECCIÓN si ya había un pago distinto. Si el pago aún no se dio
       // (state.pago vacío), lo maneja la confirmación normal ("bueno, por nequi").
-      const pagoNuevoRes = (extractPago(clienteTexto, pagosCfg) || pagoPorIntencion());
+      const pagoNuevoRes = comoPagaEsteMensaje();
       const cambiaPago = !!(pagoNuevoRes && state.pago && normalizarTexto(pagoNuevoRes) !== normalizarTexto(state.pago));
       const esLlevarRes = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
       const prepagoRes  = domiciliosCfg?.llevar_prepago !== false;
@@ -3276,7 +3305,7 @@ INTENCION, no las palabras exactas.` },
     const pagoEraLoQueFaltaba = !state.pago
       && findNextStep(state, pasos, true, domiciliosCfg)?.id === "pago";
     const pagoDelMensaje = pagoEraLoQueFaltaba
-      ? (extractPago(clienteTexto, pagosCfg) || pagoPorIntencion())
+      ? comoPagaEsteMensaje()
       : null;
     if (pagoDelMensaje) {
       state.pago = pagoDelMensaje;
@@ -3289,7 +3318,7 @@ INTENCION, no las palabras exactas.` },
       // Si el método de pago quedó liberado (caso "para llevar + efectivo"), capturarlo
       // de este mismo mensaje: "bueno entonces por nequi" confirma Y trae el método.
       if (!state.pago) {
-        const pagoNuevo = (extractPago(clienteTexto, pagosCfg) || pagoPorIntencion());
+        const pagoNuevo = comoPagaEsteMensaje();
         if (pagoNuevo) {
           state.pago = pagoNuevo;
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -4417,7 +4446,7 @@ INTENCION, no las palabras exactas.` },
     const exigePrepagoFlujo = domiciliosCfg?.llevar_prepago !== false;
     if (llevarState && exigePrepagoFlujo && state.producto) {
       const metodoDigital = getMetodosPago(pagosCfg).find(m => m.digital);
-      const pagoMencionado = (extractPago(clienteTexto, pagosCfg) || pagoPorIntencion());
+      const pagoMencionado = comoPagaEsteMensaje();
       const mencionaNoDigital = pagoMencionado && !esMetodoDigital(pagoMencionado, pagosCfg);
       // También cubre el caso: eligió "efectivo" en el paso de pago y DESPUÉS dijo "yo paso"
       const pagoNoDigitalPrevio = state.pago && !esMetodoDigital(state.pago, pagosCfg);
@@ -4474,7 +4503,7 @@ INTENCION, no las palabras exactas.` },
     // SIEMPRE se informa antes de pagar.
     const CUANTO_RE = /(cu[aá]nto\s+(es|sale|vale|cuesta|queda|ser[ií]a|cobran?)|qu[eé]\s+precio|precio\s+total|el\s+total|cuanto\s+te\s+debo|la\s+cuenta\s+para\s+pagar|dame\s+la\s+cuenta)/i;
     if (state.producto && !state.resumen_enviado &&
-        CUANTO_RE.test(clienteTexto) && !(extractPago(clienteTexto, pagosCfg) || pagoPorIntencion())) {
+        CUANTO_RE.test(clienteTexto) && !comoPagaEsteMensaje()) {
       const stepAhora = findNextStep(state, pasos, false, domiciliosCfg);
       if (stepAhora) {
         const precios = await calcularPreciosPedido(state, branchId, domiciliosCfg, cfg._operacion as Record<string, unknown> | null);
@@ -8710,12 +8739,16 @@ async function buildConversationResponse(
       + "positivamente; si quiere corregir algo, confirma el cambio.\n"
       + "⚠️ NO digas ni des a entender que el pedido ya está en preparación, en camino o "
       + "enviado a cocina: todavía no lo está.\n"
-      /*  La frase para pedir la confirmacion va DADA, no improvisada.
-          Suelto, el modelo saco "¿Aún necesitas tu pedido?", que suena a que
-          el restaurante duda de que el cliente lo quiera — justo lo
-          contrario de lo que hace falta cuando ya dio todos sus datos.   */
-      + "Si el cliente pregunta otra cosa (cuánto demora, el precio…), contéstale y "
-      + "cierra con estas palabras EXACTAS, sin cambiarlas: \"¿Confirmamos tu pedido?\"\n"
+      /*  NO se le pide que cierre pidiendo la confirmacion. Se probo dos
+          veces con la frase DADA y una de las dos volvio a sacar "¿Aún
+          necesitas tu pedido?", que suena a que el restaurante duda.
+
+          Una instruccion que solo funciona a veces no es una instruccion,
+          es una apuesta. Y no hace falta: la confirmacion ya tiene su
+          mecanismo en el flujo (el resumen la pide). Que el modelo la
+          repita solo abre la puerta a que la diga mal.               */
+      + "Si el cliente pregunta otra cosa (cuánto demora, el precio…), contesta ESA "
+      + "pregunta y nada más. No cierres con preguntas tuyas.\n"
       + "CÓMO PAGA ESTE CLIENTE: " + lineaPago;
   } else if (nextStep) {
     const modo = nextStep.modo || "fija";
@@ -8830,6 +8863,22 @@ async function buildConversationResponse(
     "Eres un asistente virtual y NO lo escondes. Si el cliente pregunta si eres una persona, un robot o un bot, dile con naturalidad y sin rodeos que eres el asistente virtual del restaurante y que con gusto le tomas el pedido. Nunca digas que eres una persona. No uses diminutivos.",
     "",
     nextStepLine,
+    /*  ══ EL PEDIDO VIVO SIEMPRE ACOMPAÑA (4-sep-2026, propuesta de Sergio)
+
+        `_pedidoHecho` era la ULTIMA rama del `else if`: solo se usaba cuando
+        no habia resumen, ni paso pendiente, ni producto a medias. Con
+        cualquier cosa a medio empezar, Paco no se enteraba de que el cliente
+        tenia un pedido en la cocina — y contestaba como si nada.
+
+        Aqui viaja SIEMPRE, gane la rama que gane. Si la rama ya lo puso no se
+        repite: repetir en el prompt es ruido, y el ruido se ignora.        */
+    (cfg as Record<string, unknown>)._pedidoHecho
+      && !nextStepLine.includes(String((cfg as Record<string, unknown>)._pedidoHecho).slice(0, 40))
+      ? "\nSITUACIÓN DEL CLIENTE AHORA MISMO: "
+        + String((cfg as Record<string, unknown>)._pedidoHecho)
+        + "\nSi pregunta cualquier cosa, contéstale sobre ESE pedido. No le preguntes qué "
+        + "desea ni empieces uno nuevo, salvo que él diga claramente que quiere pedir algo más."
+      : "",
     "",
     "REGLAS:",
     /*  LA REGLA QUE NO SE PUEDE ROMPER, y por eso va aqui arriba y no
@@ -8874,6 +8923,22 @@ async function buildConversationResponse(
     stateLines.join("\n"),
     "",
     nextStepLine,
+    /*  ══ EL PEDIDO VIVO SIEMPRE ACOMPAÑA (4-sep-2026, propuesta de Sergio)
+
+        `_pedidoHecho` era la ULTIMA rama del `else if`: solo se usaba cuando
+        no habia resumen, ni paso pendiente, ni producto a medias. Con
+        cualquier cosa a medio empezar, Paco no se enteraba de que el cliente
+        tenia un pedido en la cocina — y contestaba como si nada.
+
+        Aqui viaja SIEMPRE, gane la rama que gane. Si la rama ya lo puso no se
+        repite: repetir en el prompt es ruido, y el ruido se ignora.        */
+    (cfg as Record<string, unknown>)._pedidoHecho
+      && !nextStepLine.includes(String((cfg as Record<string, unknown>)._pedidoHecho).slice(0, 40))
+      ? "\nSITUACIÓN DEL CLIENTE AHORA MISMO: "
+        + String((cfg as Record<string, unknown>)._pedidoHecho)
+        + "\nSi pregunta cualquier cosa, contéstale sobre ESE pedido. No le preguntes qué "
+        + "desea ni empieces uno nuevo, salvo que él diga claramente que quiere pedir algo más."
+      : "",
     "",
     "REGLAS:",
     /*  LA REGLA QUE NO SE PUEDE ROMPER, y por eso va aqui arriba y no
