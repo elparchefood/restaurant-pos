@@ -1905,77 +1905,6 @@ div.master[data-tab].cia-active { display: flex !important; }
 }
 
 
-/* ══ CONECTAR LA FACTURACIÓN — la tarjeta de alta (4-sep-2026) ══════
-   El dueño sube cuatro papeles y ya. Nunca ve una llave: esas las manda
-   el proveedor a Cobra y las carga el administrador desde su consola. */
-.fd-intro {
-  padding: 14px 18px 4px; font-size: 13px; color: #475569; line-height: 1.6;
-  max-width: 68ch;
-}
-.fd-intro b { color: #0F172A; font-weight: 700; }
-
-.fd-tipo { padding: 14px 18px 6px; display: flex; flex-direction: column; gap: 7px; }
-.fd-tipo-nota { font-size: 12px; color: #64748B; }
-
-/* Control de dos posiciones. Valores del sistema, no inventados. */
-.cc-seg { display: inline-flex; background: #F1F5F9; border-radius: 8px; padding: 3px; gap: 2px; align-self: flex-start; }
-.cc-seg button {
-  display: inline-flex; align-items: center; gap: 5px; border: none; background: transparent;
-  font-family: inherit; font-size: 11.5px; font-weight: 600; color: #64748B;
-  padding: 6px 12px; border-radius: 6px; cursor: pointer;
-}
-.cc-seg button.on { background: #fff; color: #0F172A; box-shadow: 0 1px 2px rgba(15,23,42,.1); font-weight: 700; }
-
-/* La lista de papeles: mismas orillas, mismas alturas, uno debajo de otro. */
-.fd-papeles-lista { padding: 8px 18px 4px; display: flex; flex-direction: column; }
-.fd-papel {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 0; border-bottom: 1px solid #F4F5F7;
-}
-.fd-papel:last-child { border-bottom: none; }
-.fd-papel.no-va { opacity: .42; }
-.fd-papel-txt { flex: 1; min-width: 0; }
-.fd-papel-nom { font-size: 13.5px; font-weight: 700; color: #0F172A; }
-.fd-papel-ayuda { font-size: 12px; color: #64748B; margin-top: 1px; }
-.fd-papel-est {
-  font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
-  background: #F1F5F9; color: #94A3B8; white-space: nowrap; flex-shrink: 0;
-}
-.fd-papel-est.ok    { background: #DCFCE7; color: #16A34A; }
-.fd-papel-est.sube  { background: #EEF2FF; color: #5B6BFF; }
-.fd-papel-est.mal   { background: #FEF2F2; color: #DC2626; }
-/* El botón es una etiqueta: el <input type=file> real va escondido dentro,
-   porque el de serie no se puede peinar y se ve de otro producto. */
-.fd-papel-btn { flex-shrink: 0; margin: 0; }
-
-.fd-pie {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  padding: 14px 18px 16px; border-top: 1px solid #F4F5F7; margin-top: 4px;
-}
-.fd-pie-nota { font-size: 12px; color: #94A3B8; }
-
-/* Ya conectada: a nombre de quién salen las facturas. */
-.fd-empresa {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  flex-wrap: wrap; padding: 16px 18px;
-}
-.fd-empresa-lbl { font-size: 10.5px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: .09em; }
-.fd-empresa-nom { font-size: 17px; font-weight: 800; color: #0F172A; letter-spacing: -.015em; margin-top: 3px; }
-.fd-empresa-nit { font-size: 13px; color: #64748B; font-variant-numeric: tabular-nums; margin-top: 1px; }
-.fd-amb {
-  font-size: 11px; font-weight: 700; padding: 4px 11px; border-radius: 999px;
-  background: #DCFCE7; color: #16A34A; white-space: nowrap;
-}
-.fd-amb.pruebas { background: #FFFBEB; color: #B45309; }
-
-.op-state.espera { color: #B45309; }
-.op-state.lista  { color: #16A34A; }
-
-@media (max-width: 560px) {
-  .fd-papel { flex-wrap: wrap; }
-  .fd-papel-txt { flex-basis: 100%; }
-}
-
 /* ══ LAS TARJETAS NO SE ENCOGEN — arreglo del 4-sep-2026 ══════════
    `.cf-gen-main` es una columna flex con alto fijo y `overflow-y:auto`.
    En una columna flex los hijos se encogen por defecto (`flex-shrink:1`),
@@ -1988,12 +1917,82 @@ div.master[data-tab].cia-active { display: flex !important; }
    campo "Vence el" y el consecutivo estaban cortados.
 
    Con esto, cuando no cabe, se desliza. Que es lo que se esperaba. */
-#screen-dian .op-card { flex-shrink: 0; }
+/*  Ya no hace falta: la pantalla usa el panel de Operación, que
+    desliza bien. Se deja la nota porque el fallo sigue vivo en
+    cualquier pantalla que meta tarjetas altas en `.cf-gen-main`. */
 
 /* Un boton deshabilitado que se ve igual que uno vivo es una trampa: el
    dueno hace clic, no pasa nada, y no sabe por que. Se usa la convencion
    que ya existe en esta hoja (.hr-save-btn:disabled). */
-.lm-btn-primary:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
-/* Y el papel que no le aplica no ofrece boton: ofrecerlo es invitar a un
-   tramite que no le toca. */
+
+/* ══ FACTURACIÓN — los tres pasos (4-sep-2026) ═══════════════════════
+   Misma estructura que Operación: secciones plegables con su estado a la
+   vista y el resumen al lado. Lo de abajo es solo lo que vive DENTRO de
+   cada paso; el marco lo ponen `.op-acc` y `.cf-rail`, que ya existían. */
+.fd-intro { font-size: 12.5px; color: var(--ink-2); line-height: 1.6; max-width: 62ch; padding: 6px 0 2px; }
+.fd-intro b { color: var(--ink); font-weight: 700; }
+
+.fd-tipo { display: flex; flex-direction: column; gap: 7px; padding: 14px 0 4px; }
+.fd-tipo-nota { font-size: 11.5px; color: var(--ink-3); }
+
+.cc-seg { display: inline-flex; background: #F1F5F9; border-radius: 8px; padding: 3px; gap: 2px; align-self: flex-start; }
+.cc-seg button { display: inline-flex; align-items: center; border: none; background: transparent;
+  font-family: inherit; font-size: 11.5px; font-weight: 600; color: var(--ink-3);
+  padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+.cc-seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(15,23,42,.1); font-weight: 700; }
+
+/* Los papeles: mismas orillas y misma altura, uno debajo de otro. */
+.fd-papeles-lista { display: flex; flex-direction: column; padding-top: 8px; }
+.fd-papel { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--hairline, #F1F5F9); }
+.fd-papel:last-child { border-bottom: none; }
+.fd-papel.no-va { opacity: .42; }
 .fd-papel.no-va .fd-papel-btn { display: none; }
+.fd-papel-txt { flex: 1; min-width: 0; }
+.fd-papel-nom { font-size: 13px; font-weight: 700; color: var(--ink); }
+.fd-papel-ayuda { font-size: 11.5px; color: var(--ink-3); margin-top: 1px; }
+.fd-papel-est { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+  background: #F1F5F9; color: var(--ink-4); white-space: nowrap; flex-shrink: 0; }
+.fd-papel-est.ok   { background: #DCFCE7; color: #16A34A; }
+.fd-papel-est.sube { background: #EEF2FF; color: #5B6BFF; }
+/* El botón es una etiqueta: el <input type=file> real va escondido dentro,
+   porque el de serie no se puede peinar y se ve de otro producto. */
+.fd-papel-btn { flex-shrink: 0; margin: 0; }
+
+.fd-pie { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding-top: 14px; margin-top: 10px; border-top: 1px solid var(--hairline, #F1F5F9); }
+.fd-pie-nota { font-size: 11.5px; color: var(--ink-4); }
+
+/* A nombre de quién salen las facturas. */
+.fd-empresa { display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  flex-wrap: wrap; padding: 12px 14px; background: var(--soft-3, #F8FAFC);
+  border: 1px solid var(--border); border-radius: 10px; margin: 8px 0 4px; }
+.fd-empresa-lbl { font-size: 10px; font-weight: 700; color: var(--ink-4); text-transform: uppercase; letter-spacing: .08em; }
+.fd-empresa-nom { font-size: 16px; font-weight: 800; color: var(--ink); letter-spacing: -.015em; margin-top: 3px; }
+.fd-empresa-nit { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; margin-top: 1px; }
+.fd-amb { font-size: 10.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px;
+  background: #DCFCE7; color: #16A34A; white-space: nowrap; }
+.fd-amb.pruebas { background: #FFFBEB; color: #B45309; }
+
+/* Cuántas facturas quedan. Va grande porque es lo único de este paso que
+   el dueño tiene que mirar de vez en cuando. */
+.fd-contador { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 10px 0 8px; }
+.fd-contador-n { font-size: 24px; font-weight: 800; letter-spacing: -.025em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.fd-contador-s { font-size: 11.5px; color: var(--ink-3); }
+.fd-barra { height: 8px; border-radius: 999px; background: #F1F5F9; overflow: hidden; }
+.fd-barra i { display: block; height: 100%; width: 0%; background: #5B6BFF; border-radius: 999px; transition: width .3s; }
+#dian-alerta { margin-top: 12px; padding: 10px 13px; border-radius: 10px; background: #FFFBEB;
+  border: 1px solid #FDE68A; font-size: 12px; color: #92400E; line-height: 1.55; }
+
+/* El resumen del rail. */
+.fd-res-estado { display: flex; align-items: center; gap: 9px; padding: 12px 13px; border-radius: 11px;
+  background: var(--soft-3, #F8FAFC); border: 1px solid var(--border); }
+.fd-res-punto { width: 9px; height: 9px; border-radius: 999px; background: #CBD5E1; flex-shrink: 0; }
+.fd-res-punto.va   { background: #F59E0B; }
+.fd-res-punto.list { background: #16A34A; }
+.fd-res-estado-t { font-size: 14px; font-weight: 800; color: var(--ink); letter-spacing: -.01em; }
+.fd-res-estado-s { font-size: 11.5px; color: var(--ink-3); margin-top: 1px; }
+.fd-res-num { font-size: 26px; font-weight: 800; letter-spacing: -.03em; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* Un botón deshabilitado que se ve igual que uno vivo es una trampa: se
+   hace clic, no pasa nada, y no se sabe por qué. */
+.lm-btn-primary:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }

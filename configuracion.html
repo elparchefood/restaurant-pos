@@ -1395,41 +1395,28 @@
       <section class="cf-pagehead">
         <div>
           <div class="cf-eyebrow">Configuración de cobro</div>
-          <h2 class="cf-pagetitle">Facturación electrónica</h2>
+          <h1 class="cf-pagetitle">Facturación electrónica</h1>
         </div>
       </section>
 
-      <section class="cf-body">
-        <div class="cf-gen-main">
+      <!-- Los tres pasos a la izquierda con su estado a la vista, y a la
+           derecha cómo va todo sin abrir nada. Mismo patrón que Operación.
+           Aquí los pasos SÍ van numerados porque hay orden: no se puede
+           tener resolución sin haber conectado. -->
+      <section class="cf-body cf-body-op">
 
-          <!-- ══ CONECTAR LA FACTURACIÓN — va PRIMERA a propósito ══
-               Antes de estar conectado, el contador de facturas y la
-               resolución están vacíos: lo único que importa es esto. Una
-               vez conectado, el contador vuelve arriba (dianPintar). -->
-          <div class="op-card" id="fd-card">
-            <div class="op-card-head">
-              <div class="op-card-icon" style="background:#EEF2FF;color:#5B6BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></div>
-              <div>
-                <div class="op-card-title">Conexión con la DIAN</div>
-                <div class="op-card-sub" id="fd-sub">Todavía no has pedido la facturación electrónica.</div>
-              </div>
-              <div class="op-state off" id="fd-state" style="margin-left:auto">Sin solicitar</div>
-            </div>
+        <div class="cf-gridpanel op-panel">
+          <div class="op-acc-grupo">Para poder facturar</div>
 
-            <!-- ── Ya conectada: quién factura ── -->
-            <div class="is-hidden" id="fd-conectada">
-              <div class="fd-empresa">
-                <div>
-                  <div class="fd-empresa-lbl">Tus facturas salen a nombre de</div>
-                  <div class="fd-empresa-nom" id="fd-emp-nombre">—</div>
-                  <div class="fd-empresa-nit" id="fd-emp-nit">—</div>
-                </div>
-                <div class="fd-amb" id="fd-amb">—</div>
-              </div>
-            </div>
-
-            <!-- ── Todavía no: los papeles ── -->
-            <div id="fd-papeles">
+          <!-- 1 · LOS PAPELES -->
+          <div class="op-acc" data-acc="papeles">
+            <button type="button" class="op-acc-h" onclick="opAcc('papeles')">
+              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+              <span class="op-acc-t">1 &middot; Tus papeles</span>
+              <span class="op-acc-sum" id="fd-sum-papeles">&mdash;</span>
+              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+            </button>
+            <div class="op-acc-b">
               <div class="fd-intro">
                 Para facturar electrónicamente hay que activar tu negocio ante la DIAN.
                 Tú subes estos papeles y <b>nosotros hacemos el trámite</b>.
@@ -1438,7 +1425,7 @@
 
               <div class="fd-tipo">
                 <div class="iv-field-label">¿Cómo está registrado tu negocio?</div>
-                <div class="cc-seg" id="fd-seg">
+                <div class="cc-seg">
                   <button type="button" class="on" id="fd-seg-natural" onclick="fdTipo('natural')">Persona natural</button>
                   <button type="button" id="fd-seg-empresa" onclick="fdTipo('empresa')">Empresa (SAS, LTDA…)</button>
                 </div>
@@ -1448,58 +1435,54 @@
               </div>
 
               <div class="fd-papeles-lista">
-              <div class="fd-papel" id="fd-fila-rut">
-                <div class="fd-papel-txt">
-                  <div class="fd-papel-nom">RUT actualizado</div>
-                  <div class="fd-papel-ayuda" id="fd-ayuda-rut">En PDF, como te lo da la DIAN.</div>
-                </div>
-                <div class="fd-papel-est" id="fd-est-rut">Falta</div>
-                <label class="lm-btn-ghost sm fd-papel-btn">
-                  <span id="fd-btn-rut">Subir</span>
-                  <input type="file" class="is-hidden" id="fd-file-rut"
-                         accept=".pdf,.png,.jpg,.jpeg,.webp"
-                         onchange="fdSubir('rut', this)">
-                </label>
+            <div class="fd-papel" id="fd-fila-rut">
+              <div class="fd-papel-txt">
+                <div class="fd-papel-nom">RUT actualizado</div>
+                <div class="fd-papel-ayuda">En PDF, como te lo da la DIAN.</div>
               </div>
-              <div class="fd-papel" id="fd-fila-camara">
-                <div class="fd-papel-txt">
-                  <div class="fd-papel-nom">Cámara de comercio</div>
-                  <div class="fd-papel-ayuda" id="fd-ayuda-camara">Con menos de 30 días de expedida.</div>
-                </div>
-                <div class="fd-papel-est" id="fd-est-camara">Falta</div>
-                <label class="lm-btn-ghost sm fd-papel-btn">
-                  <span id="fd-btn-camara">Subir</span>
-                  <input type="file" class="is-hidden" id="fd-file-camara"
-                         accept=".pdf,.png,.jpg,.jpeg,.webp"
-                         onchange="fdSubir('camara', this)">
-                </label>
+              <div class="fd-papel-est" id="fd-est-rut">Falta</div>
+              <label class="lm-btn-ghost sm fd-papel-btn">
+                <span id="fd-btn-rut">Subir</span>
+                <input type="file" class="is-hidden" id="fd-file-rut"
+                       accept=".pdf,.png,.jpg,.jpeg,.webp" onchange="fdSubir('rut', this)">
+              </label>
+            </div>
+            <div class="fd-papel" id="fd-fila-camara">
+              <div class="fd-papel-txt">
+                <div class="fd-papel-nom">Cámara de comercio</div>
+                <div class="fd-papel-ayuda">Con menos de 30 días de expedida.</div>
               </div>
-              <div class="fd-papel" id="fd-fila-cedula">
-                <div class="fd-papel-txt">
-                  <div class="fd-papel-nom">Cédula del representante</div>
-                  <div class="fd-papel-ayuda" id="fd-ayuda-cedula">Foto o PDF, por ambos lados.</div>
-                </div>
-                <div class="fd-papel-est" id="fd-est-cedula">Falta</div>
-                <label class="lm-btn-ghost sm fd-papel-btn">
-                  <span id="fd-btn-cedula">Subir</span>
-                  <input type="file" class="is-hidden" id="fd-file-cedula"
-                         accept=".pdf,.png,.jpg,.jpeg,.webp"
-                         onchange="fdSubir('cedula', this)">
-                </label>
+              <div class="fd-papel-est" id="fd-est-camara">Falta</div>
+              <label class="lm-btn-ghost sm fd-papel-btn">
+                <span id="fd-btn-camara">Subir</span>
+                <input type="file" class="is-hidden" id="fd-file-camara"
+                       accept=".pdf,.png,.jpg,.jpeg,.webp" onchange="fdSubir('camara', this)">
+              </label>
+            </div>
+            <div class="fd-papel" id="fd-fila-cedula">
+              <div class="fd-papel-txt">
+                <div class="fd-papel-nom">Cédula del representante</div>
+                <div class="fd-papel-ayuda">Foto o PDF, por ambos lados.</div>
               </div>
-              <div class="fd-papel" id="fd-fila-logo">
-                <div class="fd-papel-txt">
-                  <div class="fd-papel-nom">Tu logo</div>
-                  <div class="fd-papel-ayuda" id="fd-ayuda-logo">PNG o JPG. Va impreso en la factura.</div>
-                </div>
-                <div class="fd-papel-est" id="fd-est-logo">Falta</div>
-                <label class="lm-btn-ghost sm fd-papel-btn">
-                  <span id="fd-btn-logo">Subir</span>
-                  <input type="file" class="is-hidden" id="fd-file-logo"
-                         accept=".pdf,.png,.jpg,.jpeg,.webp"
-                         onchange="fdSubir('logo', this)">
-                </label>
+              <div class="fd-papel-est" id="fd-est-cedula">Falta</div>
+              <label class="lm-btn-ghost sm fd-papel-btn">
+                <span id="fd-btn-cedula">Subir</span>
+                <input type="file" class="is-hidden" id="fd-file-cedula"
+                       accept=".pdf,.png,.jpg,.jpeg,.webp" onchange="fdSubir('cedula', this)">
+              </label>
+            </div>
+            <div class="fd-papel" id="fd-fila-logo">
+              <div class="fd-papel-txt">
+                <div class="fd-papel-nom">Tu logo</div>
+                <div class="fd-papel-ayuda">PNG o JPG. Va impreso en la factura.</div>
               </div>
+              <div class="fd-papel-est" id="fd-est-logo">Falta</div>
+              <label class="lm-btn-ghost sm fd-papel-btn">
+                <span id="fd-btn-logo">Subir</span>
+                <input type="file" class="is-hidden" id="fd-file-logo"
+                       accept=".pdf,.png,.jpg,.jpeg,.webp" onchange="fdSubir('logo', this)">
+              </label>
+            </div>
               </div>
 
               <div class="fd-pie">
@@ -1509,32 +1492,66 @@
             </div>
           </div>
 
-          <!-- ══ ESTADO: cuántas facturas quedan ══
-               Va ARRIBA y en grande a propósito: quedarse sin números para
-               tra un viernes en la noche es el peor momento para enterarse,
-               y pedirle otra resolución a la DIAN toma días. -->
-          <div class="op-card" id="dian-estado-card">
-            <div class="op-card-head">
-              <div class="op-card-icon" style="background:#EEF2FF;color:#5B6BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
-              <div>
-                <div class="op-card-title">Tu resolución</div>
-                <div class="op-card-sub" id="dian-estado-sub">La leemos de la DIAN. No tienes que escribir nada.</div>
+          <!-- 2 · LA CONEXIÓN -->
+          <div class="op-acc" data-acc="conexion">
+            <button type="button" class="op-acc-h" onclick="opAcc('conexion')">
+              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></span>
+              <span class="op-acc-t">2 &middot; Tu conexión con la DIAN</span>
+              <span class="op-acc-sum" id="fd-sum-conexion">&mdash;</span>
+              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+            </button>
+            <div class="op-acc-b">
+              <div class="is-hidden" id="fd-conectada">
+                <div class="fd-empresa">
+                  <div>
+                    <div class="fd-empresa-lbl">Tus facturas salen a nombre de</div>
+                    <div class="fd-empresa-nom" id="fd-emp-nombre">—</div>
+                    <div class="fd-empresa-nit" id="fd-emp-nit">—</div>
+                  </div>
+                  <div class="fd-amb" id="fd-amb">—</div>
+                </div>
               </div>
-              <div class="op-state off" id="dian-state" style="margin-left:auto">Sin configurar</div>
-            </div>
-            <div id="dian-barra-wrap" class="is-hidden" style="padding:4px 2px 2px">
-              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px">
-                <span style="font-size:22px;font-weight:800;letter-spacing:-.02em" id="dian-quedan">—</span>
-                <span style="font-size:12px;color:#64748B" id="dian-usados">—</span>
+              <div class="fd-intro" id="fd-conexion-nota">
+                Esta parte la hacemos nosotros con tus papeles. No tienes que hacer nada.
               </div>
-              <div style="height:9px;border-radius:999px;background:#F1F5F9;overflow:hidden">
-                <i id="dian-barra" style="display:block;height:100%;width:0%;background:#5B6BFF;border-radius:999px;transition:width .3s"></i>
-              </div>
-              <div class="is-hidden" id="dian-alerta" style="margin-top:11px;padding:10px 13px;border-radius:10px;background:#FFFBEB;border:1px solid #FDE68A;font-size:12.5px;color:#92400E;line-height:1.5"></div>
             </div>
           </div>
 
+          <!-- 3 · LA RESOLUCIÓN -->
+          <div class="op-acc" data-acc="resolucion">
+            <button type="button" class="op-acc-h" onclick="opAcc('resolucion')">
+              <span class="op-acc-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg></span>
+              <span class="op-acc-t">3 &middot; Tu resolución</span>
+              <span class="op-acc-sum" id="fd-sum-resolucion">&mdash;</span>
+              <span class="op-acc-chv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+            </button>
+            <div class="op-acc-b">
+              <div id="dian-barra-wrap" class="is-hidden">
+                <div class="fd-contador">
+                  <span class="fd-contador-n" id="dian-quedan">—</span>
+                  <span class="fd-contador-s" id="dian-usados">—</span>
+                </div>
+                <div class="fd-barra"><i id="dian-barra"></i></div>
+                <div class="is-hidden" id="dian-alerta"></div>
+              </div>
+              <div class="fd-intro" id="dian-nota">
+                La leemos de la DIAN cuando quede conectada tu facturación.
+                No tienes que escribir nada.
+              </div>
+            </div>
+          </div>
         </div>
+
+        <aside class="cf-rail">
+          <div class="cf-rail-head">
+            <div>
+              <div class="cf-eyebrow">Resumen</div>
+              <div class="cf-rail-title">Cómo vas</div>
+            </div>
+          </div>
+          <div class="cf-rail-body" id="fd-resumen"></div>
+        </aside>
+
       </section>
     </div>
 

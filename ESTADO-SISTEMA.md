@@ -3,6 +3,45 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 La pantalla de facturacion, con el patron de Operacion — 4-sep-2026
+
+Sergio: *"se ve muy desorganizada, no se entiende absolutamente nada, y ese era
+el problema que teniamos con todas las pestanas de configuracion; una a una las
+fuimos mejorando"*.
+
+**No se invento nada**: se uso el mismo patron que ya se aprobo en Operacion y
+en Metodos de pago.
+
+- **Secciones plegables a la izquierda**, cada una con SU ESTADO a la vista, para
+  saber como va todo **sin abrir ninguna**.
+- **Rail de Resumen a la derecha** con lo que importa de un vistazo.
+- Se reusa `opAcc()` tal cual — es generica, funciona sobre cualquier
+  `.op-acc[data-acc]` dentro de un `.op-panel`.
+
+### Los tres pasos, y por que van numerados
+
+| | Sin empezar | En tramite | Ya facturando |
+|---|---|---|---|
+| **1 · Tus papeles** | `0 de 3` | `Enviados` | `Enviados` |
+| **2 · Tu conexion con la DIAN** | `Sin conectar` | `En tramite` | `Conectada` |
+| **3 · Tu resolucion** | `Aun no` | `Aun no` | `4.982.194 disponibles` |
+
+Aqui la numeracion **si significa algo**: hay orden real y no se puede tener
+resolucion sin haber conectado. En Operacion no van numeradas porque alla el
+orden da igual — numerar por decorar habria sido ruido.
+
+### Dos cosas que solo se vieron mirandola
+
+**El paso 3 mostraba "4.982.194 disponibles" a un restaurante SIN conectar.** Era
+el ultimo dato que dijo el proveedor, guardado. Ensenarle facturas disponibles a
+quien todavia no puede facturar es mentirle. El dato se conserva —sirve cuando
+vuelva a conectarse— pero no se pinta.
+
+**El rail decia "Papeles: 0 de 3" a un restaurante que ya factura.** Ahi eso ya
+no le dice nada y encima asusta. Los papeles solo salen mientras se tramita.
+
+---
+
 ## 🟢 Fuera el formulario de la resolucion: la lee el proveedor — 4-sep-2026 (`facturar` v22)
 
 Sergio, mirando la pantalla: *"los campos no son claros, creo que ningun dueno

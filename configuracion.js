@@ -4381,77 +4381,122 @@ async function fdCargar() {
 }
 
 function fdPintar() {
-  var card = $('fd-card'); if (!card) return;
+  if (!$('fd-sum-papeles')) return;
   var conectada = !!(FD.cuenta && FD.cuenta.activo);
   var pedida    = !!(FD.cuenta && FD.cuenta.solicitada_at);
-
-  var st = $('fd-state'), sub = $('fd-sub');
-  var wrapCon = $('fd-conectada'), wrapPap = $('fd-papeles');
-
-  if (conectada) {
-    if (st)  { st.className = 'op-state lista'; st.textContent = 'Conectada'; }
-    if (sub) sub.textContent = 'Tu facturaci\u00f3n electr\u00f3nica est\u00e1 activa.';
-    if (wrapCon) wrapCon.classList.remove('is-hidden');
-    if (wrapPap) wrapPap.classList.add('is-hidden');
-    var nom = $('fd-emp-nombre'), nit = $('fd-emp-nit'), amb = $('fd-amb');
-    if (nom) nom.textContent = FD.cuenta.emp_nombre || 'Tu negocio';
-    if (nit) nit.textContent = FD.cuenta.emp_nit ? ('NIT ' + FD.cuenta.emp_nit) : '';
-    if (amb) {
-      var pruebas = FD.cuenta.ambiente !== 'produccion';
-      amb.className = 'fd-amb' + (pruebas ? ' pruebas' : '');
-      amb.textContent = pruebas ? 'En pruebas' : 'Facturando de verdad';
-    }
-    return;
-  }
-
-  if (wrapCon) wrapCon.classList.add('is-hidden');
-  if (wrapPap) wrapPap.classList.remove('is-hidden');
-
-  var req = fdRequeridos();
+  var req    = fdRequeridos();
   var faltan = req.filter(function (k) { return !FD.docs[k]; });
 
-  if (pedida) {
-    if (st)  { st.className = 'op-state espera'; st.textContent = 'En tr\u00e1mite'; }
-    if (sub) sub.textContent = 'Recibimos tus papeles. Estamos activando tu facturaci\u00f3n.';
-  } else if (faltan.length === 0) {
-    /*  Estaban TODOS y aun asi decia "faltan papeles: te falta 0 de 3",
-        que es de las frases que hacen dudar de si el sistema entendio. */
-    if (st)  { st.className = 'op-state espera'; st.textContent = 'Listo para enviar'; }
-    if (sub) sub.textContent = 'Ya tenemos todo. Envía la solicitud y nos encargamos del trámite.';
-  } else if (faltan.length < req.length) {
-    if (st)  { st.className = 'op-state off'; st.textContent = 'Faltan papeles'; }
-    if (sub) sub.textContent = (faltan.length === 1)
-      ? 'Te falta uno de los ' + req.length + '.'
-      : 'Te faltan ' + faltan.length + ' de ' + req.length + '.';
-  } else {
-    if (st)  { st.className = 'op-state off'; st.textContent = 'Sin solicitar'; }
-    if (sub) sub.textContent = 'Todav\u00eda no has pedido la facturaci\u00f3n electr\u00f3nica.';
-  }
-
+  /* ── Paso 1: los papeles ─────────────────────────────────────── */
   ['rut', 'camara', 'cedula', 'logo'].forEach(function (k) {
     var fila = $('fd-fila-' + k), est = $('fd-est-' + k), btn = $('fd-btn-' + k);
     if (!fila || !est) return;
     var toca = req.indexOf(k) >= 0;
     fila.className = 'fd-papel' + (toca ? '' : ' no-va');
-    if (!toca) { est.className = 'fd-papel-est'; est.textContent = 'No te aplica'; }
-    else if (FD.subiendo === k) { est.className = 'fd-papel-est sube'; est.textContent = 'Subiendo\u2026'; }
+    if (!toca)                  { est.className = 'fd-papel-est';      est.textContent = 'No te aplica'; }
+    else if (FD.subiendo === k) { est.className = 'fd-papel-est sube'; est.textContent = 'Subiendo…'; }
     else if (FD.docs[k])        { est.className = 'fd-papel-est ok';   est.textContent = 'Listo'; }
     else                        { est.className = 'fd-papel-est';      est.textContent = 'Falta'; }
     if (btn) btn.textContent = FD.docs[k] ? 'Cambiar' : 'Subir';
   });
 
+  var s1 = $('fd-sum-papeles');
+  if (s1) {
+    if (pedida || conectada) { s1.className = 'op-acc-sum si'; s1.textContent = 'Enviados'; }
+    else if (faltan.length === 0) { s1.className = 'op-acc-sum si'; s1.textContent = 'Listos para enviar'; }
+    else { s1.className = 'op-acc-sum no';
+           s1.textContent = (req.length - faltan.length) + ' de ' + req.length; }
+  }
+
   var env = $('fd-enviar');
   if (env) {
-    env.disabled = faltan.length > 0 || pedida;
-    env.textContent = pedida ? 'Solicitud enviada' : 'Enviar solicitud';
+    env.disabled = faltan.length > 0 || pedida || conectada;
+    env.textContent = (pedida || conectada) ? 'Solicitud enviada' : 'Enviar solicitud';
   }
   var nota = $('fd-pie-nota');
   if (nota) {
-    nota.textContent = pedida
-      ? 'Si te falt\u00f3 algo o mandaste el papel equivocado, s\u00fabelo otra vez y nos llega.'
+    nota.textContent = (pedida || conectada)
+      ? 'Si mandaste un papel equivocado, súbelo otra vez y nos llega.'
       : (faltan.length ? 'Suben cifrados y solo los vemos nosotros.'
-                       : 'Ya est\u00e1n todos. Env\u00eda la solicitud y nos encargamos.');
+                       : 'Ya están todos. Envía la solicitud y nos encargamos.');
   }
+
+  /* ── Paso 2: la conexión ─────────────────────────────────────── */
+  var s2 = $('fd-sum-conexion'), wCon = $('fd-conectada'), notaCon = $('fd-conexion-nota');
+  if (conectada) {
+    if (wCon) wCon.classList.remove('is-hidden');
+    var nom = $('fd-emp-nombre'), nit = $('fd-emp-nit'), amb = $('fd-amb');
+    if (nom) nom.textContent = FD.cuenta.emp_nombre || 'Tu negocio';
+    if (nit) nit.textContent = FD.cuenta.emp_nit ? ('NIT ' + FD.cuenta.emp_nit) : '';
+    var pruebas = FD.cuenta.ambiente !== 'produccion';
+    if (amb) { amb.className = 'fd-amb' + (pruebas ? ' pruebas' : '');
+               amb.textContent = pruebas ? 'En pruebas' : 'Facturando de verdad'; }
+    if (notaCon) notaCon.textContent = 'Ya está lista. Si algún dato no cuadra, avísanos.';
+    if (s2) { s2.className = 'op-acc-sum si'; s2.textContent = 'Conectada'; }
+  } else {
+    if (wCon) wCon.classList.add('is-hidden');
+    if (notaCon) notaCon.textContent = pedida
+      ? 'Estamos activando tu negocio ante la DIAN con los papeles que enviaste. Te avisamos.'
+      : 'Esta parte la hacemos nosotros con tus papeles. Primero súbelos en el paso 1.';
+    if (s2) { s2.className = 'op-acc-sum no'; s2.textContent = pedida ? 'En trámite' : 'Sin conectar'; }
+  }
+
+  fdResumen(conectada, pedida, req, faltan);
+}
+
+/*  El rail: cómo va todo sin abrir ningún paso. Es la mitad del patrón
+    que Sergio aprobó en Operación — la otra mitad son los resúmenes de
+    cada sección.                                                        */
+function fdResumen(conectada, pedida, req, faltan) {
+  var el = $('fd-resumen');
+  if (!el) return;
+  var esc = function (x) { return String(x == null ? '' : x).replace(/[&<>"]/g, function (ch) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]; }); };
+
+  var punto = conectada ? 'list' : (pedida ? 'va' : '');
+  var titulo = conectada ? 'Ya puedes facturar' : (pedida ? 'En trámite' : 'Sin empezar');
+  var sub = conectada
+    ? 'Tu facturación electrónica está activa.'
+    : (pedida ? 'Recibimos tus papeles. Nosotros seguimos.'
+              : (faltan.length === 0 ? 'Solo falta que envíes la solicitud.'
+                                     : 'Sube tus papeles en el paso 1.'));
+
+  var h = '<div class="fd-res-estado">'
+        + '<span class="fd-res-punto ' + punto + '"></span>'
+        + '<div><div class="fd-res-estado-t">' + esc(titulo) + '</div>'
+        + '<div class="fd-res-estado-s">' + esc(sub) + '</div></div></div>';
+
+  /*  Los papeles solo importan MIENTRAS se está tramitando. A un
+      restaurante que ya factura, "papeles 0 de 3" no le dice nada y
+      encima asusta. Cuando ya está conectado, desaparecen.            */
+  if (!conectada) {
+    h += '<div class="cf-rail-sublabel">Papeles</div>'
+       + '<div class="op-res-l"><span>Subidos</span><b>'
+       + (req.length - faltan.length) + ' de ' + req.length + '</b></div>';
+  }
+
+  if (conectada) {
+    h += '<div class="cf-rail-sublabel">Facturas a nombre de</div>'
+       + '<div class="op-res-l"><span>' + esc(FD.cuenta.emp_nombre || 'Tu negocio') + '</span></div>';
+    if (FD.cuenta.emp_nit) {
+      h += '<div class="op-res-l"><span>NIT</span><b>' + esc(FD.cuenta.emp_nit) + '</b></div>';
+    }
+    h += '<div class="op-res-l"><span>Modo</span><b>'
+       + (FD.cuenta.ambiente === 'produccion' ? 'De verdad' : 'Pruebas') + '</b></div>';
+
+    /*  El dato que de verdad se mira de vez en cuando: cuántas quedan.
+        Sale del rango que ya trajimos del proveedor.                  */
+    var d = _dianRango;
+    if (d) {
+      var quedan = Math.max(0, Number(d.hasta) - Number(d.actual));
+      h += '<div class="cf-rail-sublabel">Facturas disponibles</div>'
+         + '<div class="fd-res-num">' + quedan.toLocaleString('es-CO') + '</div>';
+      if (d.vence_at) {
+        h += '<div class="op-res-l"><span>Vence</span><b>' + esc(dianFecha(d.vence_at)) + '</b></div>';
+      }
+    }
+  }
+  el.innerHTML = h;
 }
 
 async function fdSubir(clave, input) {
@@ -4577,6 +4622,10 @@ async function dianRefrescar() {
   } catch (e) { console.error('[dian] refrescar:', e); }
 }
 
+/*  Tras pintar la resolución se repinta el rail: el número de facturas
+    disponibles vive ahí y sale de este mismo dato.                     */
+function dianPintarYResumen() { dianPintar(); fdPintar(); }
+
 async function dianCargar() {
   try {
     var r = await sb.from('pos_facturacion_rangos')
@@ -4584,19 +4633,26 @@ async function dianCargar() {
       .eq('tenant_id', dianTenant()).eq('activo', true).limit(1);
     _dianRango = (r.data && r.data[0]) || null;
   } catch (e) { console.error('[dian] cargar:', e); _dianRango = null; }
-  dianPintar();
+  dianPintarYResumen();
 }
 
 function dianPintar() {
-  var d = _dianRango;
-  var estado = $('dian-state'), sub = $('dian-estado-sub'), wrap = $('dian-barra-wrap');
+  /*  Si la cuenta no está conectada, la resolución guardada NO se
+      muestra: es lo último que dijo el proveedor, y enseñarle "4.982.194
+      disponibles" a alguien que todavía no puede facturar es mentirle.
+      El dato se conserva —sirve cuando vuelva a conectarse— pero no se
+      pinta.                                                            */
+  var conectada = !!(FD.cuenta && FD.cuenta.activo);
+  var d = conectada ? _dianRango : null;
+  var sum = $('fd-sum-resolucion'), wrap = $('dian-barra-wrap'), notaR = $('dian-nota');
   if (!d) {
     /*  Ya NO hay formulario que llenar: la resolución la trae el
         proveedor. Si no hay, es que todavía no está conectada la cuenta,
-        y eso se arregla en la tarjeta de arriba — no aquí.             */
-    if (estado) { estado.textContent = 'Aún no'; estado.className = 'op-state off'; }
-    if (sub) sub.textContent = 'Aparece sola cuando quede conectada tu facturación.';
+        y eso se arregla en el paso 2 — no aquí.                        */
+    if (sum) { sum.className = 'op-acc-sum no'; sum.textContent = 'Aún no'; }
     if (wrap) wrap.classList.add('is-hidden');
+    if (notaR) notaR.textContent =
+      'La leemos de la DIAN cuando quede conectada tu facturación. No tienes que escribir nada.';
     return;
   }
   var total   = (Number(d.hasta) - Number(d.desde) + 1) || 0;
@@ -4604,10 +4660,10 @@ function dianPintar() {
   var quedan  = Math.max(0, Number(d.hasta) - Number(d.actual));
   var pct     = total > 0 ? Math.min(100, Math.round((usados / total) * 100)) : 0;
 
-  if (estado) { estado.textContent = 'Activa'; estado.className = 'op-state on'; }
+  if (sum) { sum.className = 'op-acc-sum si'; sum.textContent = quedan.toLocaleString('es-CO') + ' disponibles'; }
   /*  Lo que el dueño necesita saber es hasta cuándo puede facturar. El
       número de resolución va al final: le sirve al contador, no a él.  */
-  if (sub) sub.textContent =
+  if (notaR) notaR.textContent =
     (d.vence_at ? 'Vence el ' + dianFecha(d.vence_at) : 'Sin fecha de vencimiento')
     + ' · la leemos de la DIAN, no tienes que escribir nada'
     + (d.resolucion ? ' · resolución ' + d.resolucion : '');
