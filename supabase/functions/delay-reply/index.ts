@@ -2113,7 +2113,7 @@ INTENCION, no las palabras exactas.` },
     const clienteHist = await sbGet(
       /* Se busca por el numero local Y por el completo: hay bases con los dos
          formatos y no se puede dar por hecho cual usa cada restaurante. */
-      `/rest/v1/pos_clientes?telefono=in.(${encodeURIComponent(telLocal(telefonoCleanWa))},${encodeURIComponent(telefonoCleanWa)})&tenant_id=eq.${tenantId}&select=nombre,direccion,barrio&order=id.desc&limit=1`
+      `/rest/v1/pos_clientes?telefono=in.(${encodeURIComponent(telLocal(telefonoCleanWa))},${encodeURIComponent(telefonoCleanWa)})&tenant_id=eq.${tenantId}&select=id,nombre,direccion,barrio&order=id.desc&limit=1`
     ) as Array<Record<string, unknown>> | null;
     if (!clienteHist || clienteHist.length === 0) {
       console.log(`[cliente] NO reconocido — tel ${telefonoCleanWa} (local ${telLocal(telefonoCleanWa)}), tenant ${tenantId}`);
@@ -2135,6 +2135,46 @@ INTENCION, no las palabras exactas.` },
       dirKnown    = String(clienteHist[0].direccion);
       barrioKnown = clienteHist[0].barrio ? String(clienteHist[0].barrio) : null;
       console.log(`[cliente] su direccion guardada: "${dirKnown}"${barrioKnown ? ` (${barrioKnown})` : ""}`);
+    }
+
+    /*  ══ Y LA PRINCIPAL MANDA SOBRE LA ULTIMA (4-sep-2026) ═════════════
+        La de la ficha es la del ULTIMO pedido. Si alguien pide ocho veces a
+        su casa y una a la de su mama, la ficha se queda con la de la mama y
+        Paco le pregunta por esa.
+
+        `fn_cliente_direccion_principal` devuelve la que MAS pedidos tiene y,
+        con empate, la mas reciente — la regla de Sergio.
+
+        Se espera sola: con una sola direccion devuelve esa, y mientras no
+        haya pedidos con direccion guardada no devuelve nada y manda la
+        ficha. Por eso puede estar desde el primer dia.                  */
+    const idCliente = clienteHist?.[0]?.id ? String(clienteHist[0].id) : null;
+    if (idCliente) {
+      try {
+        /*  Se llama directo y no con `sbPost`: aquella no devuelve la
+            respuesta, y aqui lo que interesa es justo lo que contesta.  */
+        const rp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/fn_cliente_direccion_principal`, {
+          method: "POST",
+          headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`,
+                     "Content-Type": "application/json" },
+          body: JSON.stringify({ p_cliente: idCliente }),
+        });
+        /*  `fetch` no lanza con un 403 ni con un 404: se mira `ok` a mano o
+            el fallo pasaria por "este cliente no tiene direccion".      */
+        if (!rp.ok) throw new Error(`HTTP ${rp.status}`);
+        const princ = await rp.json() as Array<Record<string, unknown>> | null;
+        const d0 = princ?.[0];
+        if (d0?.direccion) {
+          dirKnown    = String(d0.direccion);
+          barrioKnown = d0.barrio ? String(d0.barrio) : barrioKnown;
+          console.log(`[cliente] su direccion PRINCIPAL: "${dirKnown}" (${d0.pedidos} pedidos)`);
+        }
+      } catch (e) {
+        /*  Si falla se sigue con la de la ficha. Preguntar por la direccion
+            de la vez pasada es peor que preguntar por la habitual, pero es
+            muchisimo mejor que no preguntar por ninguna.                */
+        console.error("[cliente] no se pudo mirar su direccion principal:", String(e).slice(0, 120));
+      }
     }
   } catch (_) { /* no bloquear si falla */ }
 

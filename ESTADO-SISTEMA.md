@@ -17233,6 +17233,36 @@ Los pedidos viejos quedan en null y **no se pueden recuperar**: lo que hay en
 `notes` es texto libre, y sacarlo de ahi con regex es justo lo que se esta
 quitando del sistema.
 
-Con el ritmo de El Parche, en dos o tres semanas habra con que responder la
-pregunta de Sergio. Falta el ultimo paso: que Paco use
-`fn_cliente_direccion_principal` en vez de `pos_clientes.direccion`.
+### Paco ya la usa, desde el primer dia
+
+Yo habia dejado la llamada pendiente "para cuando el dato este maduro". Sergio
+lo corrigio: *"la funcion deberia funcionar desde ya... esa funcion esperara a
+los clientes que tengan varias direcciones para etiquetar la principal. No
+entiendo que hay que esperar"*.
+
+Y tenia razon. **La funcion se espera sola:**
+
+| Situacion | Devuelve |
+|---|---|
+| Una sola direccion | esa |
+| Varias | la que mas pedidos tiene |
+| Sin pedidos contados todavia | nada, y manda `pos_clientes.direccion` |
+
+Ninguno de los tres es un error, asi que puede estar puesta desde el primer
+dia y va acertando mas sola segun entran pedidos. **Nadie tiene que volver a
+tocar nada.**
+
+Lo que yo llamaba "esperar" era otra cosa: que YO no podia demostrar que
+acierta sin datos. Eso es una limitacion para probarlo, no una razon para
+dejar el trabajo a medias — y encima obligaba a acordarse despues, que es como
+se pierden las cosas.
+
+Se resolvio de otra forma: **la regla se probo con datos inventados en una
+consulta suelta, sin escribir nada**. Con tres pedidos a Casa B7, tres a la
+Oficina y uno —el mas reciente de todos— a Bellavista, gana Casa B7: empata en
+cantidad con la Oficina y desempata por ser mas reciente, y Bellavista pierde
+aunque sea la ultima. Exactamente la regla pedida.
+
+`delay-reply` llama a la funcion; si no contesta o falla, sigue con la ficha.
+El respaldo no es adorno: hoy es el camino normal, y lo seguira siendo para
+quien pide por primera vez.
