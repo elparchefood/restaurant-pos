@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="admin-reg.css?v=1792080000">
+  <link rel="stylesheet" href="admin-reg.css?v=1799200000">
 </head>
 <body>
 <div class="a-shell" id="app">
@@ -47,6 +47,11 @@
           <button class="sh-nav" id="nav-clientes" data-view="clientes" onclick="setView('clientes')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg>
             <span class="sh-nav-flex">Clientes</span>
+          </button>
+          <button class="sh-nav" id="nav-facturacion" data-view="facturacion" onclick="setView('facturacion')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+            <span class="sh-nav-flex">Facturación</span>
+            <span class="sh-nav-badge" id="fac-badge" style="display:none">0</span>
           </button>
         </div>
       </div>
@@ -240,6 +245,30 @@
           </div>
         </div>
 
+        <!-- ── VISTA FACTURACIÓN ──
+             Los papeles que suben los restaurantes y las llaves que
+             devuelve el proveedor. Las llaves NUNCA pasan por el
+             restaurante: llegan a Cobra y se pegan aquí. -->
+        <div class="a-view" id="view-facturacion">
+          <div>
+            <h1 class="pg-h1">Facturación electrónica</h1>
+            <p class="pg-lead">Los restaurantes suben sus papeles; tú los activas ante Factus y pegas aquí las llaves que te devuelvan. El restaurante nunca ve una llave.</p>
+          </div>
+          <div class="a-toolbar">
+            <div class="a-seg" id="fac-seg">
+              <button class="on" onclick="setFacFilter('pendientes')">Por activar<span class="a-seg-count" id="fac-cnt-pendientes">0</span></button>
+              <button onclick="setFacFilter('activas')">Activas<span class="a-seg-count" id="fac-cnt-activas">0</span></button>
+              <button onclick="setFacFilter('todos')">Todas<span class="a-seg-count" id="fac-cnt-todos">0</span></button>
+            </div>
+          </div>
+          <div class="a-card a-table-wrap">
+            <table class="a-table">
+              <thead><tr><th>Negocio</th><th>Papeles</th><th>Pidió</th><th>Estado</th><th class="th-right">Acciones</th></tr></thead>
+              <tbody id="fac-tbody"><tr><td colspan="5" class="a-empty">Cargando…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- ── VISTA EQUIPO ── -->
         <div class="a-view" id="view-equipo">
           <div class="pg-head-split">
@@ -395,6 +424,52 @@
 </div>
 
 <!-- MODAL COMPROBANTE -->
+<!-- Activar la facturación de un restaurante: sus papeles a la izquierda
+     y las llaves de Factus a la derecha. -->
+<div class="a-overlay" id="modal-facturacion">
+  <div class="a-modal a-modal--wide">
+    <div class="a-modal-title" id="fac-mod-title">Activar facturación</div>
+    <div class="fac-mod-cols">
+
+      <div class="fac-mod-col">
+        <div class="fac-mod-lbl">Sus papeles</div>
+        <div id="fac-mod-docs" class="fac-docs"></div>
+        <div class="fac-mod-nota">
+          Los enlaces se abren firmados y vencen en 5 minutos. No hay copias
+          públicas de un RUT ni de una cédula.
+        </div>
+      </div>
+
+      <div class="fac-mod-col">
+        <div class="fac-mod-lbl">Llaves que te dio Factus</div>
+        <div class="fac-campos">
+          <label class="fac-campo"><span>Client ID</span>
+            <input class="a-inp" id="fac-k-id" autocomplete="off" spellcheck="false"></label>
+          <label class="fac-campo"><span>Client secret</span>
+            <input class="a-inp" id="fac-k-secret" autocomplete="off" spellcheck="false"></label>
+          <label class="fac-campo"><span>Usuario</span>
+            <input class="a-inp" id="fac-k-user" autocomplete="off" spellcheck="false"></label>
+          <label class="fac-campo"><span>Contraseña</span>
+            <input class="a-inp" id="fac-k-pass" type="password" autocomplete="new-password"></label>
+          <label class="fac-campo"><span>Ambiente</span>
+            <select class="a-inp" id="fac-k-amb">
+              <option value="sandbox">Pruebas (sandbox)</option>
+              <option value="produccion">De verdad (producción)</option>
+            </select></label>
+        </div>
+        <div class="fac-mod-nota" id="fac-mod-msg">
+          Antes de guardarlas se prueban contra Factus. Si no sirven, no se guardan.
+        </div>
+      </div>
+
+    </div>
+    <div class="a-modal-foot">
+      <button class="a-btn a-btn--ghost a-btn--md" onclick="facCerrar()">Cancelar</button>
+      <button class="a-btn a-btn--primary a-btn--md" id="fac-mod-ok" onclick="facConectar()">Probar y conectar</button>
+    </div>
+  </div>
+</div>
+
 <div class="a-overlay" id="modal-comprobante">
   <div class="a-modal">
     <div class="a-modal-title" id="modal-comp-title">Comprobante</div>
@@ -431,7 +506,7 @@
 
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <script src="pos-nucleo.js?v=1798911000"></script>
-<script src="admin-reg.js?v=1798945000"></script>
+<script src="admin-reg.js?v=1799200000"></script>
   <script src="admin-tutoriales.js?v=1789830000"></script>
   <!-- Editor de módulo / video. Panel propio y no el modal de confirmar, que
        es de una sola pregunta. -->

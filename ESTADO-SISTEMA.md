@@ -3,6 +3,56 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 La consola: donde llegan los papeles y se pegan las llaves — 4-sep-2026
+
+Nueva vista **Facturacion** en la Consola de Plataforma, entre Clientes y
+Administracion, con aviso en el menu de cuantas hay por activar.
+
+### Por que las llaves se pegan AQUI y no en el restaurante
+
+Factus le manda las llaves a **Cobra**, no al restaurante. Si las tuviera que
+pegar el dueno, habria que hacerselas llegar por correo o WhatsApp — que es por
+donde se pierden y por donde las ve quien no debe. Van de Factus a Cobra y de
+Cobra a la caja fuerte, **sin escalas**. El dueno sube papeles y nada mas.
+
+### Los papeles no se abren a lo bruto
+
+El deposito es privado. Cada papel se abre con un **enlace firmado que vence en
+5 minutos**, generado en el momento. No hay URLs publicas de un RUT ni de una
+cedula rodando por ahi. Comprobado: el enlace devuelve el PDF y es
+`/storage/v1/object/sign/`, no `/public/`.
+
+### La tabla
+
+`Negocio | Papeles | Pidio | Estado | Acciones`, con filtros **Por activar /
+Activas / Todas**. El aviso del menu cuenta solo las que **ya pidieron**: una
+cuenta a medio crear no es trabajo pendiente para nadie.
+
+Al abrir una: sus papeles a la izquierda y las cuatro llaves a la derecha, mas
+el ambiente (pruebas / de verdad). **Se prueban contra Factus antes de
+guardarlas**, y si no sirven no se guardan — y no pisan las que ya estaban.
+
+### Dos cosas que solo se vieron mirandola
+
+**El nombre del negocio salia como "Restaurante".** Lo estaba sacando de
+`S.tenants`, que esta vacia. Tampoco vale `S.registrations`: ahi solo estan los
+que entraron por el formulario, asi que un cliente dado de alta a mano habria
+salido generico. Se lee de `tenants` directamente.
+
+**El JS no se actualizaba.** `admin-reg.html` y `configuracion.html` traen la
+version en el `?v=` del script, y llevaba sin subir todo el dia. O sea que los
+cambios ya publicados **podian no llegar al ejecutable**. Subidas las cuatro.
+Es la misma leccion de [[feedback_recargar_tras_publicar]]: publicar no basta.
+
+### Como se comprobo
+
+La consola pide ser administrador de plataforma. Se elevo la cuenta de juguete
+**unos minutos** y se revoco al terminar — comprobado despues: solo queda el
+correo de Sergio como admin. Sin eso, la vista se habria entregado sin haberla
+visto nunca funcionando.
+
+---
+
 ## 🟢 La pantalla de facturacion, con el patron de Operacion — 4-sep-2026
 
 Sergio: *"se ve muy desorganizada, no se entiende absolutamente nada, y ese era

@@ -166,7 +166,8 @@ var PAGE_META = {
   equipo:      {kicker:'Administración',  crumb:'Gestión de equipo'},
   planes:      {kicker:'Administración',  crumb:'Configuración de planes'},
   tutoriales:  {kicker:'Administración',  crumb:'Tutoriales'},
-  cobro:       {kicker:'Administración',  crumb:'Cuenta de cobro'}
+  cobro:       {kicker:'Administración',  crumb:'Cuenta de cobro'},
+  facturacion: {kicker:'Plataforma',      crumb:'Facturación electrónica'}
 };
 
 // ── VIEW SWITCHING ──
@@ -1132,6 +1133,9 @@ document.addEventListener('DOMContentLoaded', async function() {
   await cargarCuentaCobro();   // y la marca roja si nadie la ha confirmado
   await cargarCorreoPlataforma();
   await loadRegistrations();
+  /*  Después de loadRegistrations a propósito: la lista de facturación
+      saca el nombre del negocio de `S.tenants`, que se llena ahí.      */
+  await loadFacturacion();
 });
 
 
@@ -1579,3 +1583,242 @@ function desconectarCorreoPlataforma() {
     history.replaceState({}, '', location.pathname);
   }
 })();
+
+/* ══ FACTURACIÓN ELECTRÓNICA ═════════════════════════════════════════
+   Aquí llegan los papeles que sube el dueño del restaurante y aquí se
+   pegan las llaves que devuelve Factus.
+
+   POR QUÉ LAS LLAVES SE PEGAN AQUÍ Y NO EN EL RESTAURANTE: Factus se las
+   manda a Cobra. Si las tuviera que pegar el dueño, habría que
+   hacérselas llegar por correo o WhatsApp — que es por donde se pierden
+   y por donde las ve quien no debe. Van de Factus a Cobra y de Cobra a
+   la caja fuerte, sin escalas.                                        */
+
+var FAC = { filas: [], filtro: 'pendientes', abierta: null };
+
+function setFacFilter(f) {
+  FAC.filtro = f;
+  var seg = document.getElementById('fac-seg');
+  if (seg) [].forEach.call(seg.children, function (b) {
+    b.classList.toggle('on', b.getAttribute('onclick').indexOf("'" + f + "'") >= 0);
+  });
+  renderFacturacion();
+}
+
+async function loadFacturacion() {
+  try {
+    /*  Una consulta por tabla y se cruzan aquí: son pocas filas y así no
+        dependemos de que exista una relación declarada entre ellas.   */
+    var c = await sb.from('pos_facturacion_cuentas')
+      .select('id,tenant_id,branch_id,ambiente,activo,solicitada_at,emp_nit,emp_nombre,ultimo_error');
+    if (c.error) throw c.error;
+    var d = await sb.from('pos_facturacion_docs').select('branch_id,tipo,ruta,nombre,subido_at');
+    if (d.error) throw d.error;
+
+    var porSede = {};
+    (d.data || []).forEach(function (x) {
+      (porSede[x.branch_id] = porSede[x.branch_id] || []).push(x);
+    });
+
+    /*  El nombre del negocio se lee de `tenants`, no de `S.tenants` —que
+        está vacía— ni de `S.registrations`, que solo tiene a los que
+        entraron por el formulario de registro. Un cliente dado de alta a
+        mano no aparecería ahí y saldría como "Restaurante".           */
+    var ids = (c.data || []).map(function (x) { return x.tenant_id; })
+      .filter(function (v, i, a) { return v && a.indexOf(v) === i; });
+    var nombres = {};
+    if (ids.length) {
+      var tn = await sb.from('tenants').select('id,name').in('id', ids);
+      if (tn.error) throw tn.error;
+      (tn.data || []).forEach(function (t) { nombres[t.id] = t.name; });
+    }
+
+    FAC.filas = (c.data || []).map(function (x) {
+      return {
+        cuenta: x,
+        negocio: nombres[x.tenant_id] || 'Restaurante',
+        docs: porSede[x.branch_id] || [],
+      };
+    });
+  } catch (e) {
+    console.error('[facturacion] cargar:', e);
+    FAC.filas = null;          /* null = no se pudo, distinto de vacío */
+  }
+  renderFacturacion();
+}
+
+function renderFacturacion() {
+  var tb = document.getElementById('fac-tbody');
+  if (!tb) return;
+
+  /*  «No pude leer» y «no hay ninguna» son cosas distintas: si se
+      pintaran igual, un fallo de permisos se vería como una lista vacía
+      y nadie se enteraría. */
+  if (FAC.filas === null) {
+    tb.innerHTML = '<tr><td colspan="5" class="a-empty">No se pudo leer la facturación. Recarga la página.</td></tr>';
+    return;
+  }
+
+  var todas = FAC.filas;
+  var pend  = todas.filter(function (f) { return !f.cuenta.activo; });
+  var act   = todas.filter(function (f) { return f.cuenta.activo; });
+  var cnt = function (id, n) { var e = document.getElementById(id); if (e) e.textContent = n; };
+  cnt('fac-cnt-pendientes', pend.length);
+  cnt('fac-cnt-activas', act.length);
+  cnt('fac-cnt-todos', todas.length);
+
+  /*  El aviso del menú cuenta solo las que YA pidieron: una cuenta a
+      medio crear no es trabajo pendiente para nadie. */
+  var porHacer = pend.filter(function (f) { return !!f.cuenta.solicitada_at; }).length;
+  var badge = document.getElementById('fac-badge');
+  if (badge) { badge.textContent = porHacer; badge.style.display = porHacer ? '' : 'none'; }
+
+  var lista = FAC.filtro === 'activas' ? act : (FAC.filtro === 'todos' ? todas : pend);
+  if (!lista.length) {
+    tb.innerHTML = '<tr><td colspan="5" class="a-empty">Nada por aquí todavía.</td></tr>';
+    return;
+  }
+
+  tb.innerHTML = lista.map(function (f) {
+    var c = f.cuenta;
+    var estado = c.activo
+      ? '<span class="a-badge a-badge--green"><i class="a-badge-dot"></i>Activa</span>'
+      : (c.solicitada_at
+          ? '<span class="a-badge a-badge--amber"><i class="a-badge-dot"></i>Por activar</span>'
+          : '<span class="a-badge a-badge--gray"><i class="a-badge-dot"></i>Sin pedir</span>');
+    var amb = c.activo && c.ambiente !== 'produccion'
+      ? ' <span class="a-badge a-badge--amber">Pruebas</span>' : '';
+    return '<tr>'
+      + '<td><b>' + facEsc(f.negocio) + '</b>'
+        + (c.emp_nombre ? '<div class="a-sub">' + facEsc(c.emp_nombre)
+             + (c.emp_nit ? ' · NIT ' + facEsc(c.emp_nit) : '') + '</div>' : '')
+      + '</td>'
+      + '<td>' + f.docs.length + '</td>'
+      + '<td>' + (c.solicitada_at ? facFecha(c.solicitada_at) : '—') + '</td>'
+      + '<td>' + estado + amb + '</td>'
+      + '<td class="th-right"><button class="a-act" onclick="facAbrir(\'' + c.id + '\')">'
+        + (c.activo ? 'Ver' : 'Activar') + '</button></td>'
+      + '</tr>';
+  }).join('');
+}
+
+function facEsc(x) {
+  return String(x == null ? '' : x).replace(/[&<>"']/g, function (ch) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+  });
+}
+function facFecha(iso) {
+  try { return new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }); }
+  catch (e) { return '—'; }
+}
+
+var FAC_PAPELES = [
+  { k: 'rut',    n: 'RUT' },
+  { k: 'camara', n: 'Cámara de comercio' },
+  { k: 'cedula', n: 'Cédula del representante' },
+  { k: 'logo',   n: 'Logo' },
+];
+
+async function facAbrir(id) {
+  var f = (FAC.filas || []).find(function (x) { return x.cuenta.id === id; });
+  if (!f) return;
+  FAC.abierta = f;
+
+  document.getElementById('fac-mod-title').textContent =
+    (f.cuenta.activo ? 'Facturación de ' : 'Activar facturación de ') + f.negocio;
+
+  /*  Los enlaces se firman en el momento y vencen en 5 minutos: el
+      depósito es privado y no debe haber URLs de un RUT ni de una cédula
+      rodando por ahí.                                                 */
+  var cont = document.getElementById('fac-mod-docs');
+  cont.innerHTML = '<div class="fac-doc">Preparando los enlaces…</div>';
+  var partes = [];
+  for (var i = 0; i < FAC_PAPELES.length; i++) {
+    var pa = FAC_PAPELES[i];
+    var doc = f.docs.find(function (d) { return d.tipo === pa.k; });
+    if (!doc) {
+      partes.push('<div class="fac-doc falta"><span class="fac-doc-n">' + pa.n
+        + '</span><span class="fac-doc-falta">No lo subió</span></div>');
+      continue;
+    }
+    var url = null;
+    try {
+      var r = await sb.storage.from('facturacion-docs').createSignedUrl(doc.ruta, 300);
+      if (r.error) throw r.error;
+      url = r.data && r.data.signedUrl;
+    } catch (e) { console.error('[facturacion] enlace de ' + pa.k + ':', e); }
+    partes.push('<div class="fac-doc"><span class="fac-doc-n">' + pa.n + '</span>'
+      + '<span class="fac-doc-f">' + facEsc(doc.nombre || '') + '</span>'
+      + (url ? '<a class="fac-doc-v" href="' + facEsc(url) + '" target="_blank" rel="noopener">Abrir</a>'
+             : '<span class="fac-doc-falta">Sin enlace</span>') + '</div>');
+  }
+  cont.innerHTML = partes.join('');
+
+  ['id', 'secret', 'user', 'pass'].forEach(function (k) {
+    var e = document.getElementById('fac-k-' + k); if (e) e.value = '';
+  });
+  document.getElementById('fac-k-amb').value = f.cuenta.ambiente || 'sandbox';
+  var msg = document.getElementById('fac-mod-msg');
+  msg.className = 'fac-mod-nota';
+  msg.textContent = f.cuenta.activo
+    ? 'Ya está conectada. Si pegas llaves nuevas, reemplazan a las de ahora.'
+    : 'Antes de guardarlas se prueban contra Factus. Si no sirven, no se guardan.';
+  document.getElementById('modal-facturacion').classList.add('show');
+}
+
+function facCerrar() {
+  document.getElementById('modal-facturacion').classList.remove('show');
+  FAC.abierta = null;
+}
+
+async function facConectar() {
+  var f = FAC.abierta;
+  if (!f) return;
+  var v = function (k) { return (document.getElementById('fac-k-' + k).value || '').trim(); };
+  var msg = document.getElementById('fac-mod-msg');
+  var btn = document.getElementById('fac-mod-ok');
+
+  if (!v('id') || !v('secret') || !v('user') || !v('pass')) {
+    msg.className = 'fac-mod-nota mal';
+    msg.textContent = 'Faltan datos: las cuatro llaves son obligatorias.';
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Probando…';
+  msg.className = 'fac-mod-nota';
+  msg.textContent = 'Pidiéndole un permiso a Factus con esas llaves…';
+  try {
+    var ses = await sb.auth.getSession();
+    var tok = ses && ses.data && ses.data.session && ses.data.session.access_token;
+    if (!tok) throw new Error('Tu sesión se venció. Vuelve a entrar.');
+
+    var r = await fetch(SUPABASE_URL + '/functions/v1/facturar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+      body: JSON.stringify({ conectar: {
+        branch_id: f.cuenta.branch_id,
+        client_id: v('id'), client_secret: v('secret'),
+        username: v('user'), password: v('pass'),
+        ambiente: document.getElementById('fac-k-amb').value,
+      } }),
+    });
+    /*  `fetch` no lanza con un 400: sin mirar el cuerpo, unas llaves
+        rechazadas se verían como un éxito. */
+    var d = await r.json().catch(function () { return null; });
+    if (!r.ok || !d || !d.conectada) {
+      throw new Error((d && d.error) || ('El servidor contestó ' + r.status));
+    }
+
+    msg.className = 'fac-mod-nota bien';
+    msg.textContent = 'Conectada a nombre de ' + ((d.empresa && d.empresa.nombre) || 'su negocio')
+      + ((d.empresa && d.empresa.nit) ? ' · NIT ' + d.empresa.nit : '') + '.';
+    btn.textContent = 'Conectada';
+    await loadFacturacion();
+    setTimeout(facCerrar, 2200);
+  } catch (e) {
+    console.error('[facturacion] conectar:', e);
+    msg.className = 'fac-mod-nota mal';
+    msg.textContent = e.message || 'No se pudo conectar.';
+    btn.disabled = false; btn.textContent = 'Probar y conectar';
+  }
+}
