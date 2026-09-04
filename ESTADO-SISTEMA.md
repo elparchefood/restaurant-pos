@@ -3,6 +3,108 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 LA PRIMERA FACTURA ELECTRONICA, y que una atascada no apague la caja — 4-sep-2026 (`facturar` v8)
+
+**Cobra emitio su primera factura electronica real:** `SETP990017772`, estado
+`aceptada`, con CUFE. Contra el **Restaurante de Prueba** y el sandbox de
+Factus. Al volver a llamar contesta `ya_estaba: true` sin volver a emitir: **una
+sola fila** en `pos_facturas`.
+
+### El 409, y por que importa mas de lo que parece
+
+Factus **se niega a crear facturas mientras tenga una a medio enviar** y
+contesta 409. Lo que habia borraba la del pedido que se esta facturando en ese
+momento — pero la atascada es **otra**, la de antes, asi que no se alcanzaba
+nunca.
+
+En un restaurante de verdad: se cae el internet en mitad de un envio un sabado
+por la noche, una queda colgada, y **a partir de ahi no sale ninguna factura
+mas**. La caja sigue vendiendo y nadie se entera.
+
+Ahora, si el 409 persiste, se le **pregunta** a Factus cuales tiene sin enviar
+y se quitan.
+
+### Los candados, que aqui son lo importante
+
+Esto BORRA en la cuenta del restaurante y no se deshace:
+
+1. Solo lo que Factus marca **no validado**. Si el campo no viene, no se toca.
+2. **Y ademas** que nuestra propia tabla no la tenga por `aceptada`. Dos fuentes
+   tienen que coincidir; una sola no basta para borrar.
+3. **Tope de 5.** Mas que eso ya no es un envio cortado: es otra cosa, y la mira
+   una persona, no un reintento automatico.
+4. Cada borrado queda anotado con su referencia y su numero.
+
+⚠️ **Supuesto que hay que tener presente:** quita todo lo que la cuenta tenga
+sin validar, no solo lo nuestro. Es correcto **si cada restaurante tiene su
+propia cuenta de Factus** — que es como va a ser, porque su API no permite crear
+empresas desde fuera. En el sandbox compartido de hoy hay facturas de ejemplo
+de ellos.
+
+### Tres cosas que solo se supieron probando
+
+**1. `numero` no es un numero.** Factus devuelve `SETP990017772`: prefijo y
+consecutivo juntos. La columna era `bigint` y reventaba con `22P02`. **La
+factura se emitia y no se podia guardar** — peor que no emitirla: el documento
+existe ante el proveedor y en casa no queda rastro. Ahora es `text`.
+
+El identificador de un documento ante la DIAN **no es una cantidad**: no se
+suma, y el cero de la izquierda cuenta. Un telefono tampoco es un numero. El
+contador nuestro (`pos_facturacion_rangos.actual`) sigue siendo `bigint`, y esta
+bien: **ese si cuenta, el otro identifica**.
+
+**2. v1 no existe para esta cuenta.** La primera version del listado usaba
+`/v1/bills?filter[status]=0`, sacado de una busqueda y **no comprobado**. Factus
+contesta `403 "Version de API no disponible para esta empresa"`. La buena es
+**`/v2/bills?filter[status]=0`**. Comprobado probando diez direcciones:
+
+```
+/v1/bills                     403  Version de API no disponible para esta empresa
+/v2/bills                     200  lista + paginacion
+/v2/bills?filter[status]=0    200  las NO validadas   <- las atascadas
+/v2/bills?filter[status]=1    200  las validadas      <- el contraste que lo prueba
+/v1/invoices  /v2/invoices    404
+/v2/bills/show                404  "No se encontro el documento show"
+```
+
+Forma de la respuesta: `{status, message, data:{data:[...], pagination:{...}}}`,
+y cada factura trae `reference_code`, `number` e `is_validated`.
+
+**3. Y el fallo estaba escondido en mi propio codigo, del mismo dia.** Yo habia
+escrito `if (!r.ok) return [];`. Una lista vacia dice *"no hay nada atascado"*;
+un fallo dice *"no se"*. Al devolver lo mismo para las dos cosas, el 403 se veia
+**exactamente igual que una cuenta limpia**: `destrabar` no borraba nada,
+contestaba cero, y el restaurante se quedaba sin facturar mientras el registro
+decia que todo bien.
+
+Se destapo **en el segundo en que se separo "no hay" de "no pude preguntar"**.
+Es la misma regla del `res.ok` y la del `r.data || []`, por tercera vez en el
+dia. Ahora `sinEnviar()` devuelve `{pude, status, lista}` y quien llama decide.
+
+### Lo que queda para mirar sin tocar
+
+`{"order_id": ..., "revisar": true}` contesta que tiene el proveedor sin enviar
+y **no borra nada**. Pide el `order_id` a proposito: es lo que demuestra que
+quien pregunta es de ese restaurante. Lo va a necesitar el panel del gerente.
+
+### Que esta comprobado y que no
+
+| | |
+|---|---|
+| Emitir de punta a punta | ✅ `SETP990017772`, `aceptada`, con CUFE |
+| No duplicar al reintentar | ✅ `ya_estaba: true`, una sola fila |
+| Guardar un rechazo entero | ✅ se guardo el 409 con su respuesta |
+| Preguntar el listado | ✅ 200, y se distingue de un fallo |
+| Que significa el filtro | ✅ por contraste `=0` vs `=1` |
+| Borrar una atascada | ✅ es lo que quito la nuestra hoy |
+| **Las cuatro juntas, con una atascada de OTRO pedido** | ❌ no reproducido |
+
+Lo ultimo no se forzo **a proposito**: habria que dejar una factura colgada en
+el sandbox, que es compartido y tiene documentos de ejemplo de Factus. Cada
+eslabon esta comprobado por separado; la cadena entera, no.
+
+---
+
 ## 🟢 PASO 0 del repaso de intenciones: la pregunta cerrada la lee el modelo — 4-sep-2026 (`delay-reply` v403)
 
 **Y de paso, la correccion del mapa: el paso 0 estaba mal escrito por mi.**

@@ -206,6 +206,63 @@ const FACTUS = {
     return r.ok;
   },
 
+  /*  ══ DESTRABAR LA CUENTA (4-sep-2026) ═══════════════════
+      Factus se niega a crear facturas mientras tenga una a medio enviar, y
+      contesta 409. `borrarPendiente` solo alcanza la del pedido en curso,
+      pero la atascada es OTRA: la de antes. Sin esto, un envio cortado deja
+      al restaurante SIN FACTURAR hasta que alguien entre a mirar.
+
+      Aqui se le PREGUNTA cuales tiene sin enviar en vez de suponerlo.
+
+      ⚠️ Esto BORRA en la cuenta del restaurante, asi que los candados no
+      son adorno: solo lo NO validado, solo si nuestra propia tabla esta de
+      acuerdo, tope de 5, y todo queda anotado. Ver `destrabar()` abajo.  */
+  async sinEnviar(): Promise<{
+    pude: boolean;
+    status: number;
+    lista: Array<{ referencia: string; numero: string | null }>;
+  }> {
+    const tok = await tokenFactus();
+    /*  v2 Y NO v1, COMPROBADO CONTRA SU API (4-sep-2026):
+          /v1/bills -> 403 "Version de API no disponible para esta empresa"
+          /v2/bills -> 200 con paginacion
+        La version anterior usaba v1 —sacada de una busqueda, no probada— y
+        contestaba 403 siempre. Los docs de Factus tampoco se dejan leer
+        desde fuera, asi que la unica fuente fiable es la propia API.
+
+        `filter[status]=0` son las NO validadas, o sea las atascadas.
+        Comprobado por contraste: con `=1` salen las validadas.        */
+    const r = await fetch(`${FACTUS_URL}/v2/bills?filter[status]=0`, {
+      method: "GET",
+      headers: { Accept: "application/json", Authorization: `Bearer ${tok}` },
+    });
+    const d = await r.json().catch(() => null);
+    console.log("[destrabar] listado:", r.status, JSON.stringify(d).slice(0, 900));
+    /*  ⚠️ NO se devuelve lista vacia cuando falla. «No hay atascadas» y
+        «no pude preguntar» son cosas distintas, y confundirlas deja al
+        restaurante sin facturar mientras el registro dice que todo bien. */
+    if (!r.ok) {
+      console.error("[destrabar] NO se pudo preguntar el listado:", r.status);
+      return { pude: false, status: r.status, lista: [] };
+    }
+    /*  Se busca el array donde este, sin casarse con una sola forma: unas
+        APIs devuelven `data`, otras `data.data` con la paginacion.      */
+    const cand = (Array.isArray(d?.data) ? d.data
+      : Array.isArray(d?.data?.data) ? d.data.data
+      : Array.isArray(d) ? d : []) as Array<Record<string, unknown>>;
+    const lista = cand
+      /*  CANDADO 1: solo lo que Factus marca como NO validado. Si el campo
+          no viene, NO se asume que se puede borrar.                     */
+      .filter(b => b.is_validated === false || b.is_validated === 0
+                || b.is_validated === "0" || String(b.status) === "0")
+      .map(b => ({
+        referencia: String(b.reference_code ?? ""),
+        numero: b.number != null ? String(b.number) : null,
+      }))
+      .filter(b => b.referencia.length > 0);
+    return { pude: true, status: r.status, lista };
+  },
+
   /*  Lo que nos interesa guardar de su respuesta, con nombres nuestros: asi
       la tabla no cambia cuando cambie el proveedor.                      */
   leer(d: any) {
@@ -225,6 +282,75 @@ const FACTUS = {
   },
 };
 
+/*  ══ QUITAR LO ATASCADO, CON CANDADOS ══════════════════════
+    Borrar en la cuenta del restaurante no se deshace. Los cuatro candados:
+
+      1. Solo lo que Factus marca como NO validado (lo filtra `sinEnviar`).
+      2. Y ademas, que NUESTRA tabla no la tenga por `aceptada`. Dos fuentes
+         tienen que coincidir; una sola no basta para borrar.
+      3. Tope de 5 por vez. Mas que eso ya no es un envio cortado, es otra
+         cosa — y esa la mira una persona, no un reintento automatico.
+      4. Cada borrado queda anotado con su referencia y su numero.
+
+    Devuelve cuantas se quitaron: si son cero, no tiene sentido reintentar
+    y el 409 se guarda tal cual para que se vea.                          */
+const TOPE_DESTRABAR = 5;
+
+async function destrabar(tenantId: string): Promise<number> {
+  let atascadas: Array<{ referencia: string; numero: string | null }>;
+  try {
+    const r = await FACTUS.sinEnviar();
+    /*  Si no se pudo preguntar, NO se sigue como si no hubiera nada: se
+        dice. Callarlo aqui es dejar al restaurante sin facturar sin que
+        nadie se entere.                                                */
+    if (!r.pude) {
+      console.error(`[destrabar] el proveedor dice 409 pero el listado contesto ${r.status}: NO se sabe que hay atascado`);
+      return 0;
+    }
+    atascadas = r.lista;
+  } catch (e) {
+    console.error("[destrabar] no se pudo preguntar:", String(e).slice(0, 200));
+    return 0;
+  }
+  if (!atascadas.length) {
+    console.log("[destrabar] Factus dice 409 pero no lista ninguna sin enviar");
+    return 0;
+  }
+  if (atascadas.length > TOPE_DESTRABAR) {
+    console.error(`[destrabar] hay ${atascadas.length} atascadas (tope ${TOPE_DESTRABAR}). NO se toca ninguna: esto lo mira una persona`);
+    return 0;
+  }
+
+  /*  CANDADO 2: lo que nosotros tengamos por aceptada no se toca, diga lo
+      que diga el listado. Una factura aceptada esta ante la DIAN.       */
+  const refs = atascadas.map(a => a.referencia);
+  let aceptadas = new Set<string>();
+  try {
+    const filas = await db(
+      `pos_facturas?tenant_id=eq.${tenantId}&estado=eq.aceptada&select=order_id`,
+    ) as Array<{ order_id?: string }> | null;
+    aceptadas = new Set((filas || []).map(f => String(f.order_id)));
+  } catch (e) {
+    /*  Si no se puede comprobar, NO se borra nada. El candado que no se
+        puede verificar se comporta como si estuviera cerrado.           */
+    console.error("[destrabar] no se pudo comprobar contra la tabla, no se toca nada:", String(e).slice(0, 150));
+    return 0;
+  }
+
+  let quitadas = 0;
+  for (const a of atascadas) {
+    if (aceptadas.has(a.referencia)) {
+      console.error(`[destrabar] ${a.referencia} figura ACEPTADA en nuestra tabla: NO se toca`);
+      continue;
+    }
+    const ok = await FACTUS.borrarPendiente(a.referencia);
+    console.log(`[destrabar] ${ok ? "quitada" : "NO se pudo quitar"} ${a.referencia}${a.numero ? " (" + a.numero + ")" : ""}`);
+    if (ok) quitadas++;
+  }
+  console.log(`[destrabar] quedaron quitadas ${quitadas} de ${atascadas.length}`);
+  return quitadas;
+}
+
 // ══════════════════════════════════════════════════════════════════════
 //  LA FUNCION
 // ══════════════════════════════════════════════════════════════════════
@@ -232,7 +358,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   try {
-    const { order_id } = await req.json();
+    const { order_id, revisar } = await req.json();
     if (!order_id) return json({ error: "Falta el pedido" }, 400);
 
     /*  ── QUIEN LLAMA TIENE QUE PODER VER ESE PEDIDO ─────────────────
@@ -251,6 +377,22 @@ Deno.serve(async (req) => {
     if (!((await suyo.json())?.length)) return json({ error: "Ese pedido no es tuyo" }, 403);
 
     // ── el pedido y sus renglones ────────────────────────────────────
+    /*  SOLO MIRAR: que tiene el proveedor sin enviar. No borra nada.
+        Va aqui —despues de comprobar que el pedido es de quien pregunta—
+        para no dejar abierta la cuenta de facturacion de otro.         */
+    if (revisar === true) {
+      const r = await FACTUS.sinEnviar();
+      /*  `pude` es lo primero que hay que mirar: sin el, una respuesta
+          vacia se lee como «esta todo limpio» cuando puede ser «no
+          conteste».                                                    */
+      return json({
+        proveedor: FACTUS.nombre,
+        pude_preguntar: r.pude,
+        respuesta_del_proveedor: r.status,
+        sin_enviar: r.lista,
+      });
+    }
+
     const pedidos = await db(
       `pos_orders?id=eq.${order_id}&select=id,tenant_id,branch_id,total,total_final,status`);
     const pedido = pedidos?.[0];
@@ -283,8 +425,18 @@ Deno.serve(async (req) => {
     /*  409 = quedo una a medio enviar. Se borra y se reintenta UNA vez: si
         vuelve a fallar, es otra cosa y repetir no la arregla.          */
     if (res.status === 409) {
+      /*  Primero la nuestra: si esto es un reintento del MISMO pedido, la
+          atascada es la suya y se quita sin salir a preguntar nada.     */
       await FACTUS.borrarPendiente(String(pedido.id));
       res = await FACTUS.emitir(cuerpo);
+
+      /*  Sigue en 409 = la atascada es de OTRO pedido. Ahora si se le
+          pregunta a Factus cual es. Este es el caso que dejaba al
+          restaurante sin facturar.                                     */
+      if (res.status === 409) {
+        const quitadas = await destrabar(pedido.tenant_id);
+        if (quitadas > 0) res = await FACTUS.emitir(cuerpo);
+      }
     }
 
     const leido = FACTUS.leer(res.cuerpo);
