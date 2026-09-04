@@ -2106,11 +2106,14 @@ INTENCION, no las palabras exactas.` },
   // Lookup de cliente recurrente — nombre verificado de pedidos anteriores
   const telefonoCleanWa = fromPhone.replace(/\D/g, "");
   let nombreKnown: string | null = null;
+  /*  Su direccion de la ficha, para no volver a pedirsela. */
+  let dirKnown: string | null = null;
+  let barrioKnown: string | null = null;
   try {
     const clienteHist = await sbGet(
       /* Se busca por el numero local Y por el completo: hay bases con los dos
          formatos y no se puede dar por hecho cual usa cada restaurante. */
-      `/rest/v1/pos_clientes?telefono=in.(${encodeURIComponent(telLocal(telefonoCleanWa))},${encodeURIComponent(telefonoCleanWa)})&tenant_id=eq.${tenantId}&select=nombre&order=id.desc&limit=1`
+      `/rest/v1/pos_clientes?telefono=in.(${encodeURIComponent(telLocal(telefonoCleanWa))},${encodeURIComponent(telefonoCleanWa)})&tenant_id=eq.${tenantId}&select=nombre,direccion,barrio&order=id.desc&limit=1`
     ) as Array<Record<string, unknown>> | null;
     if (!clienteHist || clienteHist.length === 0) {
       console.log(`[cliente] NO reconocido — tel ${telefonoCleanWa} (local ${telLocal(telefonoCleanWa)}), tenant ${tenantId}`);
@@ -2118,6 +2121,20 @@ INTENCION, no las palabras exactas.` },
     if (clienteHist && clienteHist.length > 0 && clienteHist[0].nombre) {
       nombreKnown = String(clienteHist[0].nombre);
       console.log(`[cliente] reconocido: "${nombreKnown}" (tel ${telefonoCleanWa} -> ${telLocal(telefonoCleanWa)})`);
+    }
+    /*  ══ Y SU DIRECCION (4-sep-2026, pedido de Sergio) ══════════════════
+        `pos_clientes.direccion` es la ULTIMA que se le guardo, o sea la del
+        ultimo pedido. Con esto Paco puede preguntar "¿va para la misma
+        direccion?" en vez de pedirsela desde cero a alguien que ya pidio.
+
+        OJO: NO es "la direccion con mas pedidos", que es lo que Sergio
+        querria. Eso hoy no se puede: `pos_orders` no guarda a que direccion
+        fue el pedido. Lo que si se cumple es su regla de desempate — la del
+        ultimo pedido.                                                    */
+    if (clienteHist && clienteHist.length > 0 && clienteHist[0].direccion) {
+      dirKnown    = String(clienteHist[0].direccion);
+      barrioKnown = clienteHist[0].barrio ? String(clienteHist[0].barrio) : null;
+      console.log(`[cliente] su direccion guardada: "${dirKnown}"${barrioKnown ? ` (${barrioKnown})` : ""}`);
     }
   } catch (_) { /* no bloquear si falla */ }
 
@@ -2526,6 +2543,21 @@ INTENCION, no las palabras exactas.` },
     } else {
       state = rawState;
     }
+  }
+
+  /*  ══ SI NO SE HEREDO NINGUNA, VA LA DE SU FICHA ══════════════════════
+      Hasta hoy la direccion solo se heredaba del estado de la conversacion
+      anterior, y ese estado SE BORRA al crear el pedido. O sea que al cliente
+      que ya pidio y vuelve dias despues —justo el caso de Sergio— se le
+      preguntaba desde cero, teniendo su direccion guardada.
+
+      El paso `confirmar_dir` ya existia y ya sabia ensenarla; lo unico que le
+      faltaba era que alguien encendiera la bandera.                      */
+  if (!state.direccion && dirKnown) {
+    state.direccion = dirKnown;
+    if (barrioKnown && !state.barrio) state.barrio = barrioKnown;
+    state.direccion_heredada = true;
+    console.log(`[cliente] se le preguntara por su direccion guardada: "${dirKnown}"`);
   }
 
   /*  Y AQUI SE APLICA lo que marco la persona en el banner. Va en cuanto el
@@ -2938,8 +2970,13 @@ INTENCION, no las palabras exactas.` },
 
   if ((esGaludo || saludoImplicito) && sesionExpirada) {
     const prevDir = (!state.resumen_enviado && state.direccion) ? state.direccion : null;
+    /*  EL BARRIO VIAJA CON LA DIRECCION. Se rescataba solo la direccion, y la
+        pregunta de confirmar salia a medias ("Casa B7" en vez de "Okavango
+        Casa B7"). Sin el barrio tampoco se puede cobrar el domicilio.     */
+    const prevBarrio = (!state.resumen_enviado && state.barrio) ? state.barrio : null;
     state = newPacoState();
     if (prevDir) { state.direccion = prevDir; state.direccion_heredada = true; }
+    if (prevBarrio) state.barrio = prevBarrio;
     /*  `order_id: null` por lo mismo de arriba: el cliente esta empezando de
         nuevo, el pedido anterior ya no es el de esta conversacion.        */
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state, pago_pendiente: false, recordar_at: null, order_id: null });
@@ -7423,8 +7460,46 @@ function runExtractors(
     const nuevaDir = extractDireccion(text, true, productData);
     // PRIORIDAD: si el mensaje TRAE la nueva dirección ("No, mándala a la Calle 5..."),
     // se usa esa — el "no" del inicio no puede borrarla
-    if (nuevaDir && !confirmaDir) { result.direccion = limpiarPrefijoDireccion(nuevaDir); result.direccion_heredada = false; }
-    else if (rechazaDir) { result.direccion = null; result.direccion_heredada = false; }
+    /*  ══ EL BARRIO VIEJO NO VALE PARA LA DIRECCION NUEVA ═══════════════
+        Desde que se siembra la direccion guardada del cliente, tambien se
+        siembra su barrio. Si contesta "no, esta vez es para Bellavista", la
+        direccion cambiaba y **el barrio se quedaba en el anterior**.
+
+        No es un detalle: el precio del domicilio sale de la zona. Se le
+        cobraria la zona equivocada y el domiciliario iria al barrio
+        equivocado.
+
+        Y LA DIRECCION LA DA EL LECTOR, no el recorte de texto. Con
+        `extractDireccion` quedaba la frase entera —"esta vez es para el
+        barrio Bellavista, carrera 9b"— porque su lista de prefijos no cubre
+        esa forma, y ninguna lista la va a cubrir. El lector ya separa
+        direccion y barrio en campos distintos.                          */
+    const dirLeida    = String((leido as PedidoLeido).direccion || "").trim();
+    const barrioLeido = String((leido as PedidoLeido).barrio || "").trim();
+
+    if ((nuevaDir || dirLeida) && !confirmaDir) {
+      result.direccion = dirLeida || limpiarPrefijoDireccion(nuevaDir as string);
+      result.direccion_heredada = false;
+      /*  Si el mensaje trae barrio, ese; si no, se BORRA el viejo para que el
+          flujo lo pregunte. Dejarlo seria peor que no tenerlo.          */
+      result.barrio = barrioLeido || null;
+      /*  Y TODO LO DEMAS QUE DESCRIBIA LA VIEJA. Una direccion no es un
+          campo, son cinco que van juntos. La sembrada era un conjunto
+          ("Torres de San Eduardo"); el cliente dio una calle normal y
+          `es_conjunto` se quedo en true: Paco preguntaba "¿en que casa o
+          apartamento?" sin parar, y la respuesta siguiente se le pegaba a la
+          direccion. Si se cambia uno, se sueltan los demas.             */
+      result.conjunto = (leido as PedidoLeido).conjunto || null;
+      result.es_conjunto = (leido as PedidoLeido).es_conjunto === true;
+      result.complemento_dir_pendiente = null;
+    }
+    else if (rechazaDir) {
+      result.direccion = null; result.direccion_heredada = false;
+      result.barrio = null;   // sin direccion no hay barrio que valga
+      result.conjunto = null;
+      result.es_conjunto = false;
+      result.complemento_dir_pendiente = null;
+    }
     else if (confirmaDir) { result.direccion_heredada = false; }
     // No early return: los demás extractores corren siempre para capturar pago, nombre, etc.
     // del mismo mensaje. Cada paso es independiente del resto.
@@ -7952,7 +8027,7 @@ function procesarFlujoCanvas(
       out.push({
         id: "confirmar_dir", campo: "direccion", modo: "fija",
         texto: getFraseTexto(frasesCfg.confirmar_direccion) ||
-          "¿Te lo enviamos a la misma dirección de la vez pasada? 📍\n{{direccion}}\nConfírmame o escríbeme la nueva dirección 😊",
+          "¿Te lo enviamos a la misma dirección de la vez pasada? 📍\n{{direccion_completa}}\nConfírmame o escríbeme la nueva dirección 😊",
       });
       out.push({
         id: "direccion", campo: "direccion", modo,
@@ -8468,6 +8543,12 @@ function resolverDato(
     case "cantidad":  return String(state.cantidad || 1);
     case "adiciones": return (state.adiciones && state.adiciones.length > 0) ? state.adiciones : "";
     case "direccion": return state.direccion || "";
+    /*  Barrio Y direccion, como lo escribe la gente: "Okavango Casa B7".
+        `{{direccion}}` se queda como estaba —la usan el resumen, la
+        comanda y el recibo— y esta se agrega al lado. Usa la misma
+        funcion que ya arma la ubicacion en el resto del motor, para que
+        no haya dos formas de escribir lo mismo.                      */
+    case "direccion_completa": return ubicacionPedido(state) || state.direccion || "";
     case "pago":      return state.pago || "";
     case "nombre":    return state.nombre || "";
     case "precio_domi":

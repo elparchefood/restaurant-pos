@@ -17112,3 +17112,69 @@ rota.
    lineas eso no es paranoia.
 2. **Nunca escribir barras invertidas a traves de la consola.** `chr(92)`.
 3. **Ninguna comprobacion de forma sustituye al banco.** Desplegar y ver.
+
+## La direccion guardada del cliente (4-sep-2026)
+
+Pedido de Sergio: *"cuando pida un cliente que ya esta registrado, en lugar de
+preguntar la direccion le podemos decir: ¿el pedido va para asturias casa 32b?
+El cliente puede decir si, o dar una nueva, y esa queda guardada"*.
+
+### Ya existia entero, y nadie lo encendia
+
+El paso `confirmar_dir` estaba hecho, con su frase configurable y su logica de
+confirmar-o-reemplazar. Pero solo se enciende con `direccion_heredada`, y esa
+bandera se ponia **unicamente heredando el estado de la conversacion
+anterior** — que **se borra al crear el pedido**.
+
+Resultado: al cliente que ya pidio y vuelve dias despues —justo el caso— se le
+preguntaba desde cero. A Maicol le paso: reconocia su nombre y no su
+direccion.
+
+**El dato estaba en `pos_clientes` y nadie lo leia.** Ahora la misma consulta
+que reconoce al cliente trae su direccion y su barrio.
+
+### Tres fallos encadenados, todos de limpiar a medias
+
+Cada uno aparecio al arreglar el anterior, y ninguno se veia en el chat:
+
+1. **El barrio no viajaba.** Con "Buenas noches" se entra por el camino del
+   saludo, que arranca estado nuevo y rescata a mano lo que vale; rescataba
+   `direccion` y no `barrio`. La pregunta salia "Casa B7" en vez de "Okavango
+   Casa B7" — y **sin barrio no se puede cobrar el domicilio**.
+
+2. **El barrio viejo se pegaba a la direccion nueva.** El cliente decia "no,
+   es para Bellavista" y quedaba `direccion: Bellavista carrera 9b` con
+   `barrio: Okavango`. Se le habria cobrado la zona equivocada.
+
+3. **`es_conjunto` sobrevivia.** La sembrada era un conjunto; al cambiarla por
+   una calle, Paco seguia pidiendo el numero de apartamento **en bucle**, y se
+   tragaba las respuestas siguientes: la direccion acabo siendo *"Carrera 9 b
+   # 63 n 58, A nombre de Carolina"*.
+
+> **Una direccion no es un campo, son CINCO que van juntos**: direccion,
+> barrio, conjunto, es_conjunto y el complemento pendiente. Cambiar uno y
+> dejar los otros produce un Frankenstein con trozos de dos sitios.
+
+Y de paso: la direccion nueva la da ahora **el lector**, no el recorte de
+texto. Con `extractDireccion` quedaba la frase entera —"esta vez es para el
+barrio Bellavista, carrera 9b"— porque su lista de prefijos no cubria esa
+forma. Ninguna lista la va a cubrir; el lector ya separa los dos campos.
+
+### Lo que NO se puede todavia
+
+Sergio pidio preguntar por **la direccion con mas pedidos**. Hoy no se puede:
+`pos_orders` **no guarda a que direccion fue el pedido**, y no hay fichas
+duplicadas por direccion de donde deducirlo (comprobado: cero telefonos con
+mas de una ficha).
+
+Lo que si se cumple es su regla de desempate: `pos_clientes.direccion` es la
+ultima guardada, o sea la del ultimo pedido.
+
+Para lo otro habria que guardar la direccion en cada pedido. **Solo sirve
+hacia adelante** y esta pendiente de decision.
+
+### El banco creaba fichas de cliente
+
+Aparecieron tres "Ana" con telefonos `30010000xx` en la lista real. El
+blindaje cubria las ventas y no `pos_clientes`. Borradas, y `blindar_banco.py`
+ampliado para que tampoco las cree.
