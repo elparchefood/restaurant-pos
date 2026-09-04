@@ -3985,6 +3985,39 @@ INTENCION, no las palabras exactas.` },
     pagosCfg, MODS_CACHE?.grupos || [], histLector,
   );
 
+  /* ── EL LECTOR TIENE LA ULTIMA PALABRA SOBRE LA COLA (3-sep-2026) ─────
+     La cola de "los demas platos del mensaje" se arma mas arriba RASTREANDO
+     EL TEXTO en busca de nombres de la carta. Eso es lo que metio un
+     "1x Hamburguesa Pollo" en el pedido de Ana Alban: la palabra "pollo" era
+     del segundo plato ("salchi maicitos especial POLLO") y engendro un
+     tercero. Son ya SEIS parches de regex en ese sitio por el mismo motivo.
+
+     Aqui el rastreo pasa a PROPONER y el lector DECIDE: lo que se encolo y
+     el lector no reconoce como pedido, se cae. Manda la intencion, no las
+     palabras sueltas.
+
+     Si el lector no contesto esa parte, la cola se queda como estaba: mejor
+     el comportamiento de hoy que perder un plato que si se pidio.        */
+  if (!relectura && Array.isArray((leidoPedido as PedidoLeido).otros)) {
+    const dijo = new Set(
+      ((leidoPedido as PedidoLeido).otros || [])
+        .map(o => normalizarTexto(String(o?.nombre || "")))
+        .filter(Boolean),
+    );
+    const antes = (state.cola || []).length;
+    if (antes) {
+      state.cola = (state.cola || []).filter(c => {
+        const n = normalizarTexto(c.nombre);
+        /* Vale que el lector lo diga con mas o menos alcance ("Maicitos
+           Especial" contra "Maicitos"): es el mismo plato nombrado distinto.
+           Lo que NO puede pasar es que el lector no lo haya nombrado. */
+        for (const d of dijo) if (d === n || d.includes(n) || n.includes(d)) return true;
+        console.log("[cola] el lector NO lo reconocio, se cae: " + c.nombre);
+        return false;
+      });
+    }
+  }
+
   /* ── QUITAR VALE EN CUALQUIER MOMENTO (18-ago) ────────────────────────
      "quitame la tocineta" solo se atendia DESPUES del resumen. Dicho antes
      —que es cuando mas se dice, mientras se arma el pedido— no pasaba nada: la
@@ -6271,6 +6304,15 @@ type PedidoLeido = {
      no es una adicion de ese plato — es un producto suelto de la categoria
      Adiciones, que existe justo para eso. */
   adicion_otro_tamano?: { nombre?: string; tamano?: string } | null;
+  /*  LOS DEMAS PLATOS DEL MISMO MENSAJE (3-sep-2026, caso de Ana Alban).
+      "una hamburguesa doble carne Y una salchi maicitos especial pollo" son
+      dos platos en una frase. El primero va en `producto`; los otros, aqui.
+
+      Existe para que el LECTOR decida cuales son, en vez de rastrear el
+      texto buscando nombres de la carta — que es como se colaba un plato
+      que nadie pidio: las palabras del segundo plato engendraban un
+      tercero.                                                            */
+  otros?: Array<{ nombre?: string; cantidad?: number }> | null;
   /*  EL PEDIDO SE DEJA EN LA PORTERIA (30-ago-2026, regla de Sergio).
       Un conjunto sin casa ni apartamento esta incompleto — salvo que el
       cliente diga que se lo dejen en la porteria: ahi ya dijo a donde va
@@ -6366,6 +6408,7 @@ Devuelve SOLO este JSON con lo que ESTE mensaje aporta (omite lo que no diga):
  "adicion_otro_tamano":{"nombre":string,"tamano":string}|null,
  "porteria":bool,
  "producto_desconocido":string|null,
+ "otros":[{"nombre":string,"cantidad":number}],
  "nota":string|null}
 
 REGLAS:
@@ -6495,6 +6538,19 @@ REGLAS:
   el método de TRANSFERENCIA. El saldo prepagado y los puntos SOLO si el cliente los
   nombra ("con mi saldo", "con los puntos"). Devuelve el nombre del método SIN el
   paréntesis explicativo.
+- "otros": los DEMÁS platos que el cliente pide en ESTE mismo mensaje, aparte
+  del que va en "producto". PRIMERO PARTE LA FRASE: el cliente separa lo que
+  pide con "y", "más", "también" o comas. Cada trozo es UN plato, y las
+  palabras de un trozo NO sirven para elegir el plato de otro.
+    · "una hamburguesa doble carne Y una salchi maicitos especial pollo"
+      -> producto: "Doble carne" (de [HAMBURGUESAS])
+      -> otros: [{"nombre":"Maicitos Especial","cantidad":1}]
+      ⚠️ "maicitos" y "pollo" son del SEGUNDO plato. NO son la variante de la
+      hamburguesa NI un tercer plato. Aquí salían tres platos y el cliente
+      pidió dos: le cobramos $28.000 de más y tocó que entrara una persona.
+    · Si en el mensaje solo pide una cosa, "otros": [].
+  Pon SOLO lo que el cliente pidió de verdad. Es mucho mejor dejar "otros"
+  vacío y que Paco pregunte, que agregar un plato que nadie pidió.
 - Usa los nombres EXACTOS de las listas de arriba. Si algo no está en las listas,
   déjalo fuera.
 
