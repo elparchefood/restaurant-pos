@@ -8667,7 +8667,37 @@ async function buildConversationResponse(
        le decía "responde naturalmente": se inventó "¿me envías el comprobante
        de pago?" sin haberle preguntado nunca al cliente CÓMO iba a pagar.
        La caja existía, estaba bien configurada, y su pregunta no salía. */
-    nextStepLine = "El resumen ya fue enviado. Responde naturalmente al cliente. Si confirma el pedido, exprésalo positivamente. Si quiere corregir algo, confirma el cambio.";
+    /*  ── DECIRLE COMO VA A PAGAR, NO SOLO "RESPONDE NATURALMENTE" ──────
+        3-sep-2026, caso de Maicol: dijo "Efectivo" y pregunto cuanto se
+        demoraba. Paco contesto bien lo del tiempo y anadio "¿me puedes
+        enviar el comprobante de pago?". Toco que entrara una persona a
+        disculparse.
+
+        La prohibicion YA estaba escrita mas abajo en el prompt ("si el pago
+        es en EFECTIVO, JAMAS pidas comprobante") y ya habia fallado el
+        18-ago. Repetir la regla no sirve: el modelo la desobedece.
+
+        Lo que faltaba es el DATO. Aqui se le decia solo "responde
+        naturalmente", sin contarle como paga este cliente, y con un pedido
+        cerrado delante el modelo improvisa lo que suele venir despues.
+
+        Se lee `state.pago` —el metodo que el sistema ya resolvio— no lo que
+        escribio el cliente.                                              */
+    const pagoElegido = String(state.pago || "").trim();
+    /*  Sin la configuracion a mano, `esMetodoDigital` cae a su respaldo, que
+        reconoce transferencia/nequi/daviplata. Todo lo demas —efectivo,
+        billetera, puntos— no lleva comprobante, que es justo lo que hay que
+        saber aqui.                                                        */
+    const llevaComprobante = pagoElegido ? esMetodoDigital(pagoElegido, null) : false;
+    const lineaPago = !pagoElegido
+      ? "Todavía NO ha dicho cómo va a pagar: si hace falta, pregúntaselo."
+      : (llevaComprobante
+          ? `Va a pagar por ${pagoElegido}, que SÍ lleva comprobante.`
+          : `⚠️ Va a pagar en ${pagoElegido.toUpperCase()}. NO existe comprobante en este pedido: `
+            + `no lo menciones, no lo pidas y no digas que queda pendiente. Paga al recibir.`);
+    nextStepLine = "El resumen ya fue enviado. Responde naturalmente al cliente. "
+      + "Si confirma el pedido, exprésalo positivamente. Si quiere corregir algo, confirma el cambio.\n"
+      + "CÓMO PAGA ESTE CLIENTE: " + lineaPago;
   } else if (nextStep) {
     const modo = nextStep.modo || "fija";
     // Pregunta de desbloqueo del barrio (cuando una variable de precio lo necesita)
