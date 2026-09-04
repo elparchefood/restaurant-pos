@@ -16870,3 +16870,62 @@ compartidos, y la **interaccion sobre las vistas**, que es la cifra que de
 verdad dice si un video funciono: 40 mil vistas con 20 me gusta y 40 mil con
 6.000 no son lo mismo. Al pie se dice que eso es TODO lo que TikTok entrega
 por publicacion, para que no parezca que falta algo por pereza.
+
+---
+
+# PACO: EL MAPA DE LO QUE COMPARA TEXTO (4-sep-2026)
+
+Sergio, 3-sep: *"ya te he dicho como 20 veces lo mismo. Paco debe reconocer
+intenciones y no comparar texto. **Siempre que hay un error es por lo mismo.**
+Manana corregimos todo lo que compare texto."*
+
+Esto es el mapa levantado antes de empezar, para no ir a ciegas por un archivo
+de 11.686 lineas.
+
+## Lo que se midio
+
+**81 sitios** en `delay-reply/index.ts` donde un regex o un `includes` mira lo
+que ESCRIBIO EL CLIENTE para decidir algo. (No cuenta normalizar para mostrar,
+ni comparar nombres del catalogo entre si, ni leer lo que dijo Paco.)
+
+## ⭐ EL HALLAZGO: el lector YA SABE casi todo esto
+
+| Lo que se decide comparando texto | Sitios | Campo que **ya tiene** el lector |
+|---|---:|---|
+| Como paga | 10 | `pago` |
+| Como se llama | 10 | `nombre` |
+| Que plato pide | 9 | `producto` / `otros` |
+| Esta preguntando algo | 8 | (intencion) |
+| Donde vive | 2 | `direccion` / `barrio` / `conjunto` |
+| Quiere corregir o quitar | 2 | `quitar` |
+| Cortesia o cierre | 2 | (intencion) |
+| Adiciones | 1 | `adiciones` |
+| **Sin clasificar** | **37** | mirar a mano |
+
+**El trabajo NO es ensenarle a Paco a entender. Ya entiende.** El trabajo es
+**quitar el camino paralelo que le pisa la respuesta**: para casi todo hay un
+campo del lector Y ademas un regex que decide por su cuenta, y cuando los dos
+no coinciden gana el regex.
+
+Es exactamente lo que paso con Ana Alban: el lector leyo bien los dos platos y
+un rastreo de texto metio un tercero.
+
+## Ya hay precedente de como se ve bien
+
+`L4215`: `intenciones.entrega === "recoger"` — ahi se pregunta por la
+intencion, no por las palabras. Ese es el patron a repetir.
+
+## Por donde empezar
+
+1. **Como paga (10 sitios, L5502-5549).** Es el mas cerrado —los metodos son
+   una lista corta y configurada— y ya causo un fallo real (Maicol, 3-sep).
+2. **Como se llama (10, L6117-6123).** Son cinco regex seguidos que solo
+   sirven para DESCARTAR ("esto no es un nombre"). El lector ya lo sabe.
+3. **Que plato pide (9).** El mas delicado: es el corazon del pedido. Ahi
+   estan `mencionesClasificadas` y los seis parches de platos fantasma.
+4. **Los 37 sin clasificar**, a mano.
+
+## Como se levanto
+
+`inventario_texto.py` y `clasificar_texto.py` en el scratchpad. Se pueden
+volver a correr cuando cambie el archivo.
