@@ -1037,3 +1037,45 @@ body.pg-abriendo .pg-velo {
 /* Quien pidio no ver animaciones no ve el giro; el velo y su red de seguridad
    siguen funcionando igual. */
 @media (prefers-reduced-motion: reduce) { .pg-velo-giro { animation: none; } }
+
+
+/* ══ DATOS PARA LA FACTURA ELECTRÓNICA (4-sep-2026) ══════════════════
+   Se piden SOLO cuando el cliente pide factura. La venta normal no toca
+   nada de esto: meterle un paso al 90% para servir al 10% es donde se
+   pierde la velocidad. */
+.fe-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.42); backdrop-filter: blur(2px);
+  z-index: 300; display: none; align-items: center; justify-content: center; padding: 24px; }
+.fe-overlay.show { display: flex; }
+.fe-modal { background: #fff; border-radius: 18px; width: 460px; max-width: 96vw;
+  box-shadow: 0 30px 70px -20px rgba(15,23,42,.4); overflow: hidden;
+  display: flex; flex-direction: column; }
+.fe-head { padding: 20px 22px 14px; border-bottom: 1px solid #ECEEF2; }
+.fe-title { font-size: 18px; font-weight: 800; color: #0F172A; letter-spacing: -.02em; }
+.fe-sub { font-size: 12.5px; color: #64748B; margin-top: 3px; }
+.fe-body { padding: 18px 22px; display: flex; flex-direction: column; gap: 14px; }
+
+.fe-seg { display: inline-flex; background: #F1F5F9; border-radius: 9px; padding: 3px; gap: 2px; align-self: flex-start; }
+.fe-seg button { border: none; background: transparent; font-family: inherit; font-size: 12.5px;
+  font-weight: 600; color: #64748B; padding: 7px 14px; border-radius: 7px; cursor: pointer; }
+.fe-seg button.on { background: #fff; color: #0F172A; box-shadow: 0 1px 2px rgba(15,23,42,.1); font-weight: 700; }
+
+.fe-campo { display: flex; flex-direction: column; gap: 6px; }
+.fe-campo > span { font-size: 12px; font-weight: 700; color: #475569; }
+.fe-campo > span i { font-style: normal; font-weight: 500; color: #94A3B8; }
+/* Los campos van GRANDES: esto se llena de pie, con el cliente enfrente
+   y a veces desde una pantalla táctil. */
+.fe-inp { height: 46px; padding: 0 14px; background: #fff; border: 1px solid #ECEEF2;
+  border-radius: 11px; font-family: inherit; font-size: 15px; color: #0F172A; outline: none; width: 100%; }
+.fe-inp:focus { border-color: #5B6BFF; box-shadow: 0 0 0 3px rgba(91,107,255,.12); }
+.fe-inp::placeholder { color: #94A3B8; font-size: 13.5px; }
+
+.fe-aviso { padding: 11px 14px; border-radius: 11px; background: #FFFBEB; border: 1px solid #FDE68A;
+  font-size: 12.5px; color: #92400E; line-height: 1.55; }
+.fe-aviso.mal { background: #FEF2F2; border-color: #FECACA; color: #B91C1C; }
+.fe-aviso.is-hidden { display: none; }
+
+.fe-foot { display: flex; gap: 10px; justify-content: flex-end; align-items: center;
+  padding: 16px 22px; border-top: 1px solid #ECEEF2; background: #FBFBFD; }
+
+/* Cuando ya hay datos, el botón lo dice sin tener que abrirlo. */
+#btn-factura.tiene { color: #16A34A; border-color: #BBF7D0; background: #F0FDF4; }

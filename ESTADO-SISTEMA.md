@@ -3,6 +3,78 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 El boton de facturar en la caja — 4-sep-2026 (`facturar` v28)
+
+En **Cobrar**, junto a "Finalizar pago". Es el unico sitio de todo Cobra donde
+una venta queda pagada — mesas, domicilios y venta rapida pasan por ahi.
+
+### Las tres reglas
+
+1. **La venta normal no cambia.** Si el cajero no toca el boton, no pasa nada
+   distinto. Meterle un paso al 90% para servir al 10% es donde se pierde la
+   velocidad.
+2. **No se tranca la caja, nunca.** Ni por el tope legal —se avisa y se deja
+   cerrar— ni porque el proveedor no conteste. Un sabado con cola, trancar por
+   un NIT es peor que el problema; y la venta YA OCURRIO: no cerrarla no la
+   deshace.
+3. **La factura se pide despues de cobrar y sin esperarla.** Cobrar es lo que no
+   puede fallar; facturar es una consecuencia. Esperarla dejaria al cajero
+   mirando un boton girando con la plata ya en el cajon.
+
+Y el boton **no existe** si el restaurante no tiene la facturacion conectada y
+encendida. Un boton apagado estorba y hay que explicarlo.
+
+### El fallo de fondo que aparecio al probarlo
+
+Factus rechazo la primera factura de verdad:
+
+```
+"La suma de todos los detalles de pago no es igual al total de la factura.
+ Esperado: 72,000.00 - Enviado: 77,000.00"
+```
+
+Los 5.000 eran el **empaque**: el cliente lo paga, pero no iba en la factura.
+Una factura que dice 72.000 cuando el cliente pago 77.000 no es un detalle de
+formato — es un documento que no refleja la venta.
+
+**La regla que lo evita para siempre:** el monto del pago NO sale de ninguna
+columna, **se calcula sumando las lineas que se van a mandar**. Si algo se
+cobra tiene linea, y si tiene linea entra en el monto. Asi no puede descuadrar
+ni aunque manana aparezca otro concepto.
+
+| Concepto | ¿Va en la factura? |
+|---|---|
+| Productos | si |
+| Empaque | **si** — lo paga el cliente |
+| Domicilio | si, **pero solo si se le cobro**: `delivery_fee` es lo que VALE, no lo que se cobro |
+| Propina | **no** — es voluntaria y no es base de la venta |
+
+### Y los nombres de los campos del cliente estaban mal
+
+Con consumidor final colaba porque el proveedor rellena lo que falta. En cuanto
+se manda un cliente de verdad, lo rechaza. Los buenos, de su documentacion:
+
+- `identification_document_code` (no `..._id`) — **13** = cedula, **31** = NIT
+- `legal_organization_code` (no `..._id`) — 1 = juridica, 2 = natural
+- `tribute_code` (no `tribute_id`) — ZZ = no aplica
+- el nombre va en `company` si es NIT y en `names` si es cedula: **cada uno es
+  obligatorio en su caso**
+
+Yo habia puesto 3, 6 y 21 a ojo. Los tres mal.
+
+### Comprobado de punta a punta, con una venta real
+
+Boton → datos → cobro → factura **SETP990017816 aceptada** a nombre de Juan
+Esteban Rojas, con su cedula y su correo, y con el empaque como linea: 77.000
+facturados = 77.000 cobrados.
+
+### Queda pendiente
+
+La **propina** cuando la haya: Factus tiene un ejemplo especifico para eso y se
+hace con el, no a ojo.
+
+---
+
 ## 🟢 La consola: donde llegan los papeles y se pegan las llaves — 4-sep-2026
 
 Nueva vista **Facturacion** en la Consola de Plataforma, entre Clientes y

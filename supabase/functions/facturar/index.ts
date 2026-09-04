@@ -145,12 +145,72 @@ const COD_IMPUESTO: Record<string, string> = { iva: "01", inc: "04", otro: "01" 
 /*  Consumidor final: el adquiriente generico que la DIAN acepta cuando no se
     identifica al comprador. Es el caso de casi todas las ventas de un
     restaurante.                                                            */
+/*  ══ EL COMPRADOR ═══════════════════════════════════════════════════
+    Si el cliente dio sus datos, la factura sale a su nombre; si no, a
+    consumidor final. Una factura a consumidor final no le sirve a nadie
+    para descontar, asi que cuando la piden hay que ponerle sus datos.
+
+    LOS CODIGOS son los de la DIAN, de la tabla de Factus (4-sep-2026):
+      identification_document_code  13 = cedula · 31 = NIT
+      legal_organization_code        1 = juridica · 2 = natural
+      tribute_code                  ZZ = no aplica
+
+    ⚠️ Yo los habia puesto a ojo (3, 6, 21) y estaban mal los tres. Un
+    comentario que documenta codigos equivocados es peor que no tenerlo:
+    el siguiente que lo lea se fia.
+
+    ⚠️ Un NIT lleva persona JURIDICA; una cedula, natural. Mandar un NIT
+    como persona natural es un documento mal formado, y la DIAN lo nota. */
+function comprador(datos: Record<string, unknown> | null | undefined) {
+  /*  El NIT va SIN digito de verificacion ni guion: el dv tiene su propio
+      campo y si no se manda, el proveedor lo calcula. Como la gente lo
+      escribe "900123456-7", se parte por el guion antes de limpiar.   */
+  const crudo = String(datos?.documento ?? "").trim();
+  const doc = crudo.split("-")[0].replace(/[^0-9]/g, "");
+  const nombre = String(datos?.nombre ?? "").trim();
+  if (!doc || !nombre) return CONSUMIDOR_FINAL;
+
+  const esNit = String(datos?.tipo ?? "cc").toLowerCase() === "nit";
+  const correo = String(datos?.correo ?? "").trim();
+  const out: Record<string, unknown> = {
+    identification: doc,
+    identification_document_code: esNit ? "31" : "13",
+    legal_organization_code: esNit ? "1" : "2",
+    tribute_code: "ZZ",
+  };
+  /*  El nombre va en un campo u otro segun quien sea, y NO es opcional:
+      `company` es obligatorio para persona juridica y `names` para
+      natural. Mandarlo en el que no toca es un documento incompleto.  */
+  if (esNit) out.company = nombre; else out.names = nombre;
+  /*  El correo solo si lo hay: un campo vacio aqui hace que el proveedor
+      intente mandar la factura a ninguna parte.                       */
+  if (correo) out.email = correo;
+  return out;
+}
+
+/*  ⚠️ LOS NOMBRES DE LOS CAMPOS Y LOS CODIGOS, sacados de la
+    documentacion de Factus el 4-sep y NO adivinados. Los que habia estaban
+    mal en los dos sitios:
+
+      · va `identification_document_code`, no `..._id`
+      · va `legal_organization_code`,      no `..._id`
+      · va `tribute_code`,                 no `tribute_id`
+
+    Y los codigos son los de la DIAN, no numeros correlativos:
+      13 = cedula de ciudadania · 31 = NIT
+       1 = persona juridica     ·  2 = persona natural
+      ZZ = tributo no aplica
+
+    Con consumidor final colaba porque el proveedor rellena lo que falta;
+    en cuanto se manda un cliente de verdad, lo rechaza:
+      "El campo codigo de documento de identidad es obligatorio cuando
+       customer esta presente".                                        */
 const CONSUMIDOR_FINAL = {
   identification: "222222222222",
   names: "Consumidor final",
-  legal_organization_id: "2",     // persona natural
-  tribute_id: "21",               // no aplica
-  identification_document_id: "3", // cedula de ciudadania
+  identification_document_code: "13",   // cedula de ciudadania
+  legal_organization_code: "2",         // persona natural
+  tribute_code: "ZZ",                   // no aplica
 };
 
 /*  Fabrica y no objeto suelto: el adaptador nace sabiendo con que llaves
@@ -196,6 +256,44 @@ function crearFactus(c: CuentaFactus) {
       };
     });
 
+    /*  ══ LO QUE SE COBRA Y NO ES UN PRODUCTO ═══════════════════════════
+        El empaque lo paga el cliente: si no va en la factura, la factura
+        dice menos de lo que se cobró. Y el domicilio va solo si se le
+        cobró — `delivery_fee` es lo que VALE, no lo que se cobró: hay
+        pedidos donde lo asume el restaurante.
+
+        Lo cobrado por domicilio se saca de la diferencia entre lo que
+        pagó y el total de la venta, que es como se guarda: `total_final`
+        son las ventas sin domicilio y `paid_amount` es todo lo que puso
+        el cliente.                                                     */
+    const linea = (code: string, nombre: string, valor: number) => ({
+      code_reference: code,
+      name: nombre,
+      quantity: 1,
+      price: Number(valor.toFixed(2)),
+      unit_measure_code: "94",
+      standard_code: "1",
+      /*  Sin impuesto: ni el empaque ni el domicilio lo llevan en un
+          restaurante no responsable, que es el caso normal.          */
+      taxes: [{ code: "01", rate: "0.00", is_excluded: true }],
+      withholding_taxes: [] as unknown[],
+    });
+
+    const empaque = Math.round(Number(pedido?.packaging_fee) || 0);
+    if (empaque > 0) items.push(linea("EMPAQUE", "Empaque", empaque));
+
+    const pagado = Math.round(Number(pedido?.paid_amount) || 0);
+    const venta  = Math.round(Number(pedido?.total_final ?? pedido?.total) || 0);
+    const domiCobrado = Math.max(0, pagado - venta);
+    if (domiCobrado > 0) items.push(linea("DOMICILIO", "Domicilio", domiCobrado));
+
+    /*  ⚠️ EL MONTO SALE DE SUMAR LAS LÍNEAS, no de una columna. Asi no
+        puede volver a descuadrar ni aunque manana aparezca otro
+        concepto: si algo se cobra tiene linea, y si tiene linea entra en
+        el monto. Tomarlo de `total_final` fue justo el fallo.        */
+    const totalFacturado = items.reduce(
+      (a, it) => a + (Number(it.price) || 0) * (Number(it.quantity) || 1), 0);
+
     return {
       /*  LA IDEMPOTENCIA. El id del pedido: si dos cajas tocan "facturar" a
           la vez, Factus devuelve la misma factura en vez de crear dos.   */
@@ -206,9 +304,13 @@ function crearFactus(c: CuentaFactus) {
       payment_details: [{
         payment_form: "1",          // de contado
         payment_method_code: "10",  // efectivo
-        amount: Math.round(Number(pedido.total_final ?? pedido.total) || 0),
+        amount: Number(totalFacturado.toFixed(2)),
       }],
-      customer: CONSUMIDOR_FINAL,
+      customer: comprador(pedido?.factura_cliente),
+      /*  Que el proveedor se la mande al cliente. Solo si dio correo:
+          decirle que envie sin destinatario no envia nada y ensucia la
+          respuesta.                                                    */
+      send_email: !!(pedido?.factura_cliente?.correo),
       items,
     };
   },
@@ -770,7 +872,9 @@ Deno.serve(async (req) => {
 
     // ── el pedido y sus renglones ────────────────────────────────────
     const pedidos = await db(
-      `pos_orders?id=eq.${order_id}&select=id,tenant_id,branch_id,total,total_final,status`);
+      `pos_orders?id=eq.${order_id}`
+      + `&select=id,tenant_id,branch_id,total,total_final,paid_amount,packaging_fee,`
+      + `status,factura_cliente`);
     const pedido = pedidos?.[0];
     if (!pedido) return json({ error: "El pedido no existe" }, 404);
 

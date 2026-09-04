@@ -26,6 +26,11 @@ const SP = {
   domicilio: 0,        // valor del domicilio (delivery_fee)
   cobrarDomicilio: false, // si true, se suma el domicilio al total a cobrar
   channel: 'salon',
+  /*  Facturación electrónica. `feOn` sale de la configuración del
+      restaurante; `feCliente` son los datos que dio el cliente, si los
+      dio. Nulo = venta normal, que es el caso de casi siempre.        */
+  feOn: false,
+  feCliente: null,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -1004,6 +1009,10 @@ async function cobrarDespues() {
     // 1. Marcar pedido como pagado con todos los datos financieros
     await _writeYa('pos_orders', 'update', {
       status:          'paid',
+      /*  Los datos del cliente van EN LA MISMA escritura que el cobro, no
+          en una aparte: si fueran dos, una podria quedarse a medias y la
+          factura saldria a consumidor final sin que nadie lo note.    */
+      factura_cliente: SP.feCliente || null,
       payment_method:  payMethod,
       closed_at:       now,
       // "Las ventas son las ventas": total_final = SOLO comida+empaque, SIN domicilio.
@@ -1022,6 +1031,12 @@ async function cobrarDespues() {
       vuelto_total:    vueltoTotal,
       ...(_tax ? { tax_total: _tax.impuesto, tax_base: _tax.base, tax_detail: _tax.porTarifa } : {}),
     }, { id: SP.orderId });
+
+    /*  Y se pide la factura. DESPUES de que el pedido quedo pagado —para
+        que el servidor lea el total y el cliente definitivos— y SIN
+        esperarla: cobrar es lo que no puede fallar, facturar es una
+        consecuencia. Si falla, queda en la cola.                      */
+    feEmitir(SP.orderId);
 
     // 2. Insertar desglose de pagos — SOLO los nuevos (los abonos ya guardados
     // y las transferencias verificadas por el bot ya están en pos_payments)
@@ -1234,6 +1249,9 @@ document.addEventListener('click', e => {
       break;
     case 'remove-payment':
       removePayment(el.dataset.id);
+      break;
+    case 'factura':
+      feAbrir();
       break;
     case 'finish':
       finalizarPago();
@@ -1629,6 +1647,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       cambio. Y el candado del dinero: `SP.confirmadoPorRed` solo lo pone la
       red — el boton Finalizar no se habilita con datos del equipo, porque
       cobrar con un total viejo es peor que esperar un segundo. */
+  /*  El boton de factura, POR DETRAS. Es una consulta mas y no puede
+      retrasar el pintado del pedido: si tarda, el boton aparece medio
+      segundo despues y no pasa nada. Al reves si pasaria.            */
+  feInit();
+
   SP.confirmadoPorRed = false;
   try {
     const _snap = window.posCache && posCache.leer('pago.' + SP.orderId);
@@ -2415,3 +2438,167 @@ async function ptVerificarTransferencia() {
     try { renderTotals(); } catch (e) {}
   });
 })();
+
+
+/* ══ FACTURA ELECTRÓNICA ═════════════════════════════════════════════
+   El botón solo aparece si el restaurante la tiene conectada Y encendida.
+   Si no la toca nadie, la venta sigue exactamente igual que siempre. */
+
+/*  El tope de la DIAN: por encima de 5 UVT hay que facturar aunque el
+    cliente no la pida. El UVT lo fija la DIAN cada año, así que vive en
+    la configuración del restaurante y no escrito aquí — un número
+    quemado en el código se queda viejo el 1 de enero.
+    Mientras no esté puesto, no se avisa: es peor avisar con un tope
+    inventado que no avisar.                                           */
+var FE_UVT = null;
+
+async function feInit() {
+  try {
+    var r = await sb.from('pos_facturacion_cuentas')
+      .select('activo,emitiendo').eq('branch_id', SP.branchId).limit(1);
+    /*  Si la consulta falla NO se enciende el botón: mostrarlo y que al
+        cobrar no salga factura es peor que no mostrarlo.              */
+    if (r.error) { console.error('[factura] estado:', r.error.message); return; }
+    var c = r.data && r.data[0];
+    SP.feOn = !!(c && c.activo && c.emitiendo !== false);
+  } catch (e) { console.error('[factura] estado:', e); return; }
+
+  var b = document.getElementById('btn-factura');
+  if (b) b.style.display = SP.feOn ? '' : 'none';
+  if (SP.feOn) fePintarBoton();
+}
+
+function fePintarBoton() {
+  var b = document.getElementById('btn-factura');
+  var t = document.getElementById('btn-factura-txt');
+  if (!b || !t) return;
+  if (SP.feCliente) {
+    b.className = 'lm-btn-ghost tiene';
+    t.textContent = 'Factura a ' + (SP.feCliente.nombre || '').split(' ')[0];
+  } else {
+    b.className = 'lm-btn-ghost';
+    t.textContent = 'Necesita factura';
+  }
+}
+
+function feAbrir() {
+  var ov = document.getElementById('fe-overlay');
+  if (!ov) return;
+  var c = SP.feCliente || {};
+  feTipo(c.tipo || 'cc');
+  document.getElementById('fe-doc').value  = c.documento || '';
+  document.getElementById('fe-nom').value  = c.nombre || '';
+  /*  Si el pedido vino de WhatsApp o de la web ya sabemos cómo se llama:
+      no se le pregunta dos veces lo que ya dijo.                       */
+  if (!document.getElementById('fe-nom').value && SP.order && SP.order.customer_name) {
+    document.getElementById('fe-nom').value = SP.order.customer_name;
+  }
+  document.getElementById('fe-mail').value = c.correo || '';
+  feAviso('');
+  document.getElementById('fe-quitar').style.display = SP.feCliente ? '' : 'none';
+  ov.classList.add('show');
+  setTimeout(function () { document.getElementById('fe-doc').focus(); }, 60);
+}
+
+function feCerrar() { document.getElementById('fe-overlay').classList.remove('show'); }
+
+function feTipo(t) {
+  var seg = document.getElementById('fe-seg');
+  [].forEach.call(seg.children, function (b) { b.classList.toggle('on', b.dataset.tipo === t); });
+  var esNit = t === 'nit';
+  document.getElementById('fe-lbl-doc').textContent = esNit ? 'NIT (sin dígito de verificación)' : 'Número de cédula';
+  document.getElementById('fe-lbl-nom').textContent = esNit ? 'Razón social' : 'Nombre completo';
+  document.getElementById('fe-nom').placeholder = esNit ? 'Como aparece en el RUT' : 'Como aparece en el documento';
+}
+
+function feAviso(txt, tono) {
+  var a = document.getElementById('fe-aviso');
+  if (!a) return;
+  a.textContent = txt || '';
+  a.className = 'fe-aviso' + (tono === 'mal' ? ' mal' : '') + (txt ? '' : ' is-hidden');
+}
+
+function feGuardar() {
+  var tipo = document.querySelector('#fe-seg button.on').dataset.tipo;
+  var doc = (document.getElementById('fe-doc').value || '').replace(/[^0-9\-]/g, '').trim();
+  var nom = (document.getElementById('fe-nom').value || '').trim();
+  var mail = (document.getElementById('fe-mail').value || '').trim();
+
+  if (!doc || !nom) { feAviso('Falta el documento o el nombre. Sin eso la factura no sirve.', 'mal'); return; }
+  /*  Un correo mal escrito no tumba la factura, pero sí hace que no
+      llegue — y el cliente cree que la tiene. Mejor avisar ahora.     */
+  if (mail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) {
+    feAviso('Ese correo no se ve bien. Revísalo o déjalo vacío.', 'mal'); return;
+  }
+
+  SP.feCliente = { tipo: tipo, documento: doc, nombre: nom, correo: mail };
+  fePintarBoton();
+  feCerrar();
+}
+
+function feQuitar() {
+  SP.feCliente = null;
+  fePintarBoton();
+  feCerrar();
+}
+
+/*  ⚠️ AVISA, PERO NO TRANCA. Por encima del tope la DIAN exige factura
+    aunque no la pidan. Trancar el cierre un sábado con cola es peor que
+    el problema que resuelve, y además la venta YA OCURRIÓ: no cerrarla no
+    la deshace. Se avisa una vez y se deja seguir; el pedido queda
+    marcado para resolverlo después.                                    */
+function feAvisarTope(total) {
+  if (!SP.feOn || SP.feCliente || !FE_UVT) return true;
+  var tope = FE_UVT * 5;
+  if (total <= tope) return true;
+  var msg = 'Esta venta pasa de ' + (typeof COPF === 'function' ? COPF(tope) : tope)
+    + ', y por encima de eso la DIAN pide factura aunque el cliente no la haya pedido. '
+    + 'Puedes cobrar igual y arreglarlo después desde el historial.';
+  if (typeof showToast === 'function') showToast(msg, 'amber');
+  else console.warn('[factura] ' + msg);
+  return true;
+}
+
+/*  Se llama DESPUÉS de cobrar y NO se espera. Cobrar es lo que no puede
+    fallar; facturar es una consecuencia. Si se esperara, una caída del
+    proveedor dejaría al cajero mirando un botón girando con la plata ya
+    en el cajón.                                                        */
+function feEmitir(orderId) {
+  if (!SP.feOn || !orderId) return;
+  (async function () {
+    try {
+      var ses = await sb.auth.getSession();
+      var tok = ses && ses.data && ses.data.session && ses.data.session.access_token;
+      if (!tok) return;
+      var r = await fetch(SUPABASE_URL + '/functions/v1/facturar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+        body: JSON.stringify({ order_id: orderId }),
+      });
+      var d = await r.json().catch(function () { return null; });
+      /*  Que falle NO se le grita al cajero: la venta ya está cobrada y
+          él no puede hacer nada. Queda en la cola y se reintenta sola.
+          Se anota para que se vea en el historial.                    */
+      if (!r.ok || !d || !d.factura) {
+        console.error('[factura] no salió todavía:', (d && d.error) || r.status);
+        return;
+      }
+      console.log('[factura] emitida:', d.factura.numero || d.factura.estado);
+    } catch (e) { console.error('[factura] emitir:', e); }
+  })();
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  var ok = document.getElementById('fe-ok');
+  if (ok) ok.onclick = feGuardar;
+  var ca = document.getElementById('fe-cancel');
+  if (ca) ca.onclick = feCerrar;
+  var qu = document.getElementById('fe-quitar');
+  if (qu) qu.onclick = feQuitar;
+  var seg = document.getElementById('fe-seg');
+  if (seg) [].forEach.call(seg.children, function (b) {
+    b.onclick = function () { feTipo(b.dataset.tipo); };
+  });
+  var ov = document.getElementById('fe-overlay');
+  if (ov) ov.onclick = function (e) { if (e.target === ov) feCerrar(); };
+});

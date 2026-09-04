@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="pagos.css?v=1792170000">
+<link rel="stylesheet" href="pagos.css?v=1799400001">
 </head>
 <body class="pg-abriendo">
 <!-- ⚠️ EL VELO. Pedido de Sergio, 24-ago-2026: "cuando abro la pantalla de pago
@@ -307,6 +307,13 @@ setTimeout(function () {
           <button class="lm-btn-ghost" id="btn-abono" data-action="guardar-abono" disabled style="padding:0 20px;height:48px;font-size:14px;font-weight:600;border-radius:12px;white-space:nowrap;color:#C2410C">
             Guardar abono
           </button>
+          <!-- Solo aparece si el restaurante tiene la facturación encendida.
+               Un botón apagado estorba y hay que explicarlo. -->
+          <button class="lm-btn-ghost" id="btn-factura" data-action="factura"
+                  style="display:none;padding:0 18px;height:48px;font-size:14px;font-weight:600;border-radius:12px;white-space:nowrap;gap:7px">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span id="btn-factura-txt">Necesita factura</span>
+          </button>
           <button class="lm-finish" id="btn-finish" data-action="finish" disabled>
             Finalizar pago <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
           </button>
@@ -345,7 +352,7 @@ setTimeout(function () {
 <script src="pos-cliente-picker.js?v=1788280000"></script>
 <script src="pos-puntos.js?v=1798895000"></script>
 <script src="pos-nfc.js?v=1791470000"></script>
-<script src="pagos.js?v=1798802000"></script>
+<script src="pagos.js?v=1799400001"></script>
 
   <!-- ════ MODAL: DESCUENTO ════ -->
   <div class="pg-overlay" id="discount-modal" hidden>
@@ -466,5 +473,41 @@ setTimeout(function () {
       }
     })();
   </script>
+
+<!-- ══ DATOS PARA LA FACTURA ELECTRÓNICA ══
+     Se piden solo cuando el cliente la pide. Lo mínimo que exige la DIAN
+     para que la factura sirva: documento y nombre. El correo no es
+     obligatorio, pero sin él la factura no le llega a ninguna parte. -->
+<div class="fe-overlay" id="fe-overlay">
+  <div class="fe-modal">
+    <div class="fe-head">
+      <div class="fe-title">Datos para la factura</div>
+      <div class="fe-sub" id="fe-sub">Se la enviamos al correo apenas cobres.</div>
+    </div>
+
+    <div class="fe-body">
+      <div class="fe-seg" id="fe-seg">
+        <button type="button" class="on" data-tipo="cc">Cédula</button>
+        <button type="button" data-tipo="nit">NIT (empresa)</button>
+      </div>
+
+      <label class="fe-campo"><span id="fe-lbl-doc">Número de cédula</span>
+        <input class="fe-inp" id="fe-doc" inputmode="numeric" autocomplete="off" placeholder="Sin puntos ni guiones"></label>
+      <label class="fe-campo"><span id="fe-lbl-nom">Nombre completo</span>
+        <input class="fe-inp" id="fe-nom" autocomplete="off" placeholder="Como aparece en el documento"></label>
+      <label class="fe-campo"><span>Correo <i>(para enviársela)</i></span>
+        <input class="fe-inp" id="fe-mail" type="email" autocomplete="off" placeholder="cliente@correo.com"></label>
+
+      <div class="fe-aviso is-hidden" id="fe-aviso"></div>
+    </div>
+
+    <div class="fe-foot">
+      <button class="lm-btn-ghost" id="fe-quitar" style="margin-right:auto">Sin factura</button>
+      <button class="lm-btn-ghost" id="fe-cancel">Cancelar</button>
+      <button class="lm-btn-primary" id="fe-ok">Guardar</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
