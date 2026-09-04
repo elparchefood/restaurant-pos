@@ -17266,3 +17266,54 @@ aunque sea la ultima. Exactamente la regla pedida.
 `delay-reply` llama a la funcion; si no contesta o falla, sigue con la ficha.
 El respaldo no es adorno: hoy es el camino normal, y lo seguira siendo para
 quien pide por primera vez.
+
+## Familias 3 y 4: la cuenta de 81 estaba mal (4-sep-2026)
+
+Al entrar en detalle, las familias 3 y 4 **no eran lo mismo** que la 1. Hay que
+corregir el mapa.
+
+### Tres cosas distintas que yo habia contado juntas
+
+| | Que es | Ejemplo | Que se hace |
+|---|---|---|---|
+| **Inversion real** | el texto se consulta PRIMERO y gana | `extractPago(txt) \|\| pagoPorIntencion()` | **invertir** (familia 1, hecho) |
+| **Respaldo que amplia** | la intencion ya manda; el texto solo anade | `intenciones.precio === true \|\| REGEX.test(txt)` | **medir**, no quitar |
+| **El diseno correcto** | dentro de `runExtractors`: primero el lector, el texto rellena lo vacio | `validarLeido()` y despues los extractores | **no tocar** |
+
+De las 81 que conte, **la unica de verdad invertida era el pago**.
+
+### Por que la familia 3 NO se quita
+
+    const pidePrecio = intenciones.precio === true      <- la intencion va primero
+      || /(cuanto|cuanto)\s+(vale|cuesta|sale)/.test(clienteTexto);
+
+La intencion ya manda cuando dice que si. El regex solo atrapa lo que el
+clasificador se perdio, y esta ahi porque se perdio de verdad — los
+comentarios del archivo cuentan cada caso.
+
+**Quitarlo hoy seria perder esos casos**: empeorar el sistema para cumplir una
+regla, que es lo contrario de lo que se busca.
+
+### Lo que se hizo: medir
+
+Tres rastros que se anotan **solo cuando el texto atrapa algo que el lector
+dijo que NO era** — precio, la cuenta y la carta. Es el unico dato que decide:
+
+- si el rastro se llena, el regex se gana el sitio y **lo que hay que arreglar
+  es el clasificador**, ensenandole esos casos;
+- si se queda vacio unos dias, se borra **con datos**.
+
+Se buscan en el registro por `[familia3]`.
+
+### La familia 4 ya estaba medida
+
+El veto de la cola —el arreglo del plato fantasma de Ana— ya anota cada vez
+que el rastreo propone un plato que el lector no vio (`[cola] el lector NO lo
+reconocio`). Mismo dato, ya corriendo.
+
+### Lo que de verdad queda
+
+**El paso 0: que el lector corra antes que las decisiones.** El lector esta en
+la linea 4012 y las decisiones empiezan en la 182. Mientras eso no cambie,
+cada regex que se quite volvera a aparecer con otro nombre — porque cuando
+hace falta, el lector todavia no ha contestado.

@@ -1835,6 +1835,11 @@ INTENCION, no las palabras exactas.` },
       const k = kw.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
       return combinedLower.includes(k);
     }));
+    /*  FAMILIA 3: se anota cuando la carta la pide el TEXTO y el lector no lo
+        vio. Si no aparece en unos dias, sobran cuatro heuristicas.      */
+    if (wantsMenu && intenciones.carta !== true) {
+      console.log(`[familia3] carta: la vio el TEXTO y no el lector | ${clienteTexto.slice(0, 90)}`);
+    }
     await cargarCombos(branchId);
   /* ══ PIDIO UN COMBO ══════════════════════════════════════════════════════
      Paco sabe que existen y cuanto valen (van en la carta que lee), pero no
@@ -4551,8 +4556,17 @@ INTENCION, no las palabras exactas.` },
      cuenta). Si el texto no nombra nada del catálogo, precioPuntual devuelve
      null y "¿cuánto es?" sigue siendo la cuenta, como siempre. */
   {
-    const pidePrecio = intenciones.precio === true
-      || /(cuanto|cuánto)\s+(vale|cuesta|sale)|qu[eé]\s+precio|de\s+a\s+c[oó]mo/i.test(clienteTexto);
+    /*  FAMILIA 3 del repaso: aqui la intencion YA va primero y el regex
+        solo anade lo que el clasificador se perdio. No se quita a ciegas —
+        se mide. Ver el rastro `[familia3]` mas abajo.                   */
+    const precioPorTexto = /(cuanto|cuánto)\s+(vale|cuesta|sale)|qu[eé]\s+precio|de\s+a\s+c[oó]mo/i.test(clienteTexto);
+    const pidePrecio = intenciones.precio === true || precioPorTexto;
+    /*  Solo interesa el caso en que el regex atrapa algo que la intencion
+        dijo que NO era: es lo unico que dice si el regex se sigue ganando el
+        sitio. Si esto no aparece en unos dias, se borra con datos.      */
+    if (precioPorTexto && intenciones.precio !== true) {
+      console.log(`[familia3] precio: lo vio el TEXTO y no el lector | ${clienteTexto.slice(0, 90)}`);
+    }
     if (pidePrecio && !relectura && !state.resumen_enviado) {
       const puntual = await precioPuntual(clienteTexto, branchId, frasesCfg);
       if (puntual) {
@@ -4579,8 +4593,14 @@ INTENCION, no las palabras exactas.` },
     // la IA respondía "no puedo darte el total hasta que pagues"). El total
     // SIEMPRE se informa antes de pagar.
     const CUANTO_RE = /(cu[aá]nto\s+(es|sale|vale|cuesta|queda|ser[ií]a|cobran?)|qu[eé]\s+precio|precio\s+total|el\s+total|cuanto\s+te\s+debo|la\s+cuenta\s+para\s+pagar|dame\s+la\s+cuenta)/i;
+    /*  Mismo rastro que arriba: se anota cuando lo caza el texto y el lector
+        no habia dicho que fuera una pregunta.                           */
+    const cuantoPorTexto = CUANTO_RE.test(clienteTexto);
+    if (cuantoPorTexto && intenciones.pregunta !== true && intenciones.precio !== true) {
+      console.log(`[familia3] la cuenta: lo vio el TEXTO y no el lector | ${clienteTexto.slice(0, 90)}`);
+    }
     if (state.producto && !state.resumen_enviado &&
-        CUANTO_RE.test(clienteTexto) && !comoPagaEsteMensaje()) {
+        cuantoPorTexto && !comoPagaEsteMensaje()) {
       const stepAhora = findNextStep(state, pasos, false, domiciliosCfg);
       if (stepAhora) {
         const precios = await calcularPreciosPedido(state, branchId, domiciliosCfg, cfg._operacion as Record<string, unknown> | null);
