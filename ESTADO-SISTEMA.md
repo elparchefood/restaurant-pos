@@ -1,7 +1,148 @@
 # ESTADO DEL SISTEMA — Cobra POS
-> Última actualización: 2026-08-30
+> Última actualización: 2026-09-04
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
+
+## 🟢 PASO 0 del repaso de intenciones: la pregunta cerrada la lee el modelo — 4-sep-2026 (`delay-reply` v403)
+
+**Y de paso, la correccion del mapa: el paso 0 estaba mal escrito por mi.**
+
+Yo lo habia anotado como *"el lector corre en la 4012 y las decisiones empiezan
+en la 182; mientras eso no cambie, cada regex que se quite volvera a aparecer"*.
+Al medirlo, no es asi:
+
+- la **182 son definiciones de funciones**, no orden de ejecucion;
+- el **clasificador de intenciones ya corre en la 1380**, o sea antes de casi
+  todas las decisiones. Eso ya estaba bien y yo lo estaba contando como roto;
+- lo que corre tarde es `leerPedido` (4094), que es otra cosa distinta: el
+  lector del **pedido** (que plato, que tamano, que adiciones).
+
+### Por que subir el lector habria sido un error
+
+Entre la 1380 y la 4094 hay **ocho salidas** de `processConversation`: pidio un
+humano, hay humano al mando, mando una foto, el restaurante esta cerrado, mando
+un comprobante (dos caminos), pregunto por la carta o el precio, y la respuesta
+de espera. **Ninguna necesita saber que plato quiere.**
+
+Subir el lector les cobraria a todas una llamada al modelo que no usan — justo
+contra la regla numero uno, que es la velocidad. La conclusion no se saco
+leyendo: se saco contando las salidas una por una.
+
+### Lo que SI era el paso 0
+
+De las decisiones que corren antes del lector, la que duele es la
+**desambiguacion de categoria**. Un plato puede existir en dos categorias (una
+*Mixta* es hamburguesa **y** salchipapa tradicional), Paco pregunta de cual — y
+**la respuesta se resolvia con `categoriaMencionada`**, o sea buscando el nombre
+de la categoria dentro de lo que escribio el cliente.
+
+Es el peor sitio posible para comparar texto, porque es una **pregunta cerrada**:
+la gente contesta *"la de papa"*, *"la segunda"*, *"salchi"*, *"esa"*. El nombre
+completo casi nunca aparece.
+
+`elegirEntreCategorias(texto, opciones, plato)` le pasa al modelo la pregunta
+que se hizo y las opciones que se ofrecieron, y contesta **cual escogio**. El
+texto queda de respaldo por si OpenAI no contesta.
+
+**Devuelve nada cuando la respuesta no escoge ninguna, y eso es a proposito**: el
+caso real del 23-ago fue un cliente que contesto *"personal"* —un tamano, no una
+eleccion— y Paco siguio con el pedido vacio. Ante la duda se vuelve a preguntar.
+
+### El campo que NO se reuso, y por que
+
+La primera idea fue reusar `intenciones.categoria`, que ya viene del
+clasificador. **Es una trampa:** ese campo significa otra cosa —*"¿que hay en
+bebidas?"*— y su propio prompt dice que preguntar por un producto concreto
+devuelve null. Habria sido coger un campo porque el **nombre** encaja, que es
+exactamente el error que este repaso viene a quitar.
+
+### Costo
+
+La llamada corre **solo** cuando hay una desambiguacion pendiente, o sea en el
+turno siguiente a que Paco pregunte "¿de cual?". En un mensaje normal no se
+gasta nada.
+
+### Comprobado en el banco (v329), no deducido
+
+| El cliente dice | Antes | Ahora |
+|---|---|---|
+| *"una mixta"* → *"la de papa"* | `categoriaMencionada` devuelve **null** — vuelve a preguntar | **Salchipapas Tradicionales**, sigue a "¿familiar o personal?" |
+| *"una mixta"* → *"personal"* | avanzaba con el pedido vacio | no escoge ninguna: **vuelve a preguntar** |
+
+Comprobado **en el estado guardado**, no solo en el chat: `producto: Mixta`,
+`producto_categoria: Salchipapas Tradicionales`, `producto_ambiguo` borrado.
+
+Y se comprobo que el caso **discrimina**: `palabrasCategoria("Salchipapas
+Tradicionales")` da `salchipapa / salchipapas / salchi / tradicionale`, El
+Parche no tiene sinonimos propios puestos, y **ninguna esta dentro de "la de
+papa"**. O sea que el codigo viejo fallaba de verdad ahi.
+
+### Rastros
+
+`[categoria] lector=... texto=... -> gana el lector` cuando los dos contestan y
+no coinciden, y `[categoria] lo entendio el LECTOR y el texto no` cuando solo
+acierta el modelo. Lo mismo que la familia 1 y la 3: **medir antes de quitar**.
+
+⚠️ Los registros de funciones de este proyecto vienen MUY recortados (3 lineas
+en una corrida entera). No sirven para contar: para comprobar hay que mirar el
+estado en la base.
+
+---
+
+## 🔴→🟢 La facturacion no emitia NADA desde el 21-ago — 4-sep-2026
+
+Al ir a montar el boton de facturar: **cero facturas en toda la base**. No se
+habia notado porque nadie habia llamado a la funcion todavia. Dos causas, las
+dos en la base y ninguna en el codigo.
+
+### 1. Las tablas se crearon sin permisos
+
+`pos_facturas` y `pos_facturacion_rangos` tenian RLS y su politica de tenant,
+pero **el rol de servicio no tenia ni SELECT**. Son dos cosas distintas que se
+confunden con facilidad:
+
+- el **GRANT** dice si el rol puede tocar la tabla;
+- la **POLITICA** dice cuales filas puede tocar.
+
+Sin grant no se llega ni a mirar la politica. Postgres devuelve 42501 y PostgREST
+lo entrega como **403** — el error que `fetch` no lanza. Por eso parecia falta de
+datos y no de permisos.
+
+Los registros de la funcion lo decian con todas las letras:
+
+```
+base: pos_facturas?... 403 {"code":"42501",
+  "hint":"GRANT SELECT ON public.pos_facturas TO service_role;"}
+```
+
+De paso quedan puestos los **permisos por defecto del esquema**, para que las
+tablas que se creen desde ahora no nazcan con el mismo agujero. (No arregla las
+de hoy: `alter default privileges` solo aplica a las futuras.)
+
+### 2. Una factura rechazada no cabia en la tabla
+
+`numero` era `NOT NULL`, y un documento rechazado **no trae numero**: el
+proveedor no gasta uno en algo que no acepto. Al guardar el rechazo saltaba
+23502 y la funcion moria — se perdia el rechazo justo cuando mas falta hace, que
+es lo contrario de la **regla 7** del adaptador (*"un rechazo siempre se ve"*).
+
+Ahora `numero` es opcional, con dos candados nuevos que si son duros y los
+sostiene la base: **si el estado es `aceptada`, el numero y el CUFE son
+obligatorios**.
+
+### Queda abierto
+
+Factus contesta **409 "se encontro una factura pendiente por enviar a la DIAN"**.
+Es una atascada en la cuenta del sandbox, de las pruebas del 3-sep. `borrarPendiente`
+borra por NUESTRA referencia, y la atascada tiene otra, asi que no la alcanza.
+
+**Importa mas de lo que parece:** si a un restaurante se le atasca una, se le
+para TODA la facturacion. Hay que resolverlo preguntandole a la API cual esta
+atascada, no a mano.
+
+Probado contra el **Restaurante de Prueba**, no contra El Parche.
+
+---
 
 ## 📊 El desglose de ventas sale de los métodos del restaurante — 30-ago-2026
 

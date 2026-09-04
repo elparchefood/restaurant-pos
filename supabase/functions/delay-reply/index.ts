@@ -3776,7 +3776,26 @@ INTENCION, no las palabras exactas.` },
       // manda: el flujo normal decide y la pregunta de categoría queda atrás.
       const matchesTxt = matchProductosEnTexto(clienteTexto);
       const otroProducto = matchesTxt.some(m => normalizarTexto(m.name) !== normalizarTexto(amb.nombre));
-      const catElegida = otroProducto ? null : categoriaMencionada(clienteTexto, amb.cats);
+      /*  PASO 0: manda el lector, el texto queda de respaldo.
+
+          El respaldo no sobra: si OpenAI no contesta, "las tradicionales"
+          escrito tal cual todavia se reconoce, y perder eso seria cambiar
+          un fallo por otro.
+
+          Y el rastro no es adorno: cuando los dos contestan y no coinciden
+          queda anotado. Dentro de unos dias eso dice si el texto acertaba
+          alguna vez donde el lector falla — y se borra con datos, no por
+          corazonada. Se busca por [categoria].                          */
+      const catPorTexto = otroProducto ? null : categoriaMencionada(clienteTexto, amb.cats);
+      const catPorLector = otroProducto ? null
+        : await elegirEntreCategorias(clienteTexto, amb.cats, amb.nombre);
+      if (catPorLector && catPorTexto && catPorLector !== catPorTexto) {
+        console.log(`[categoria] lector="${catPorLector}" texto="${catPorTexto}" -> gana el lector | ${clienteTexto.slice(0, 80)}`);
+      }
+      if (catPorLector && !catPorTexto) {
+        console.log(`[categoria] lo entendio el LECTOR y el texto no: "${catPorLector}" | ${clienteTexto.slice(0, 80)}`);
+      }
+      const catElegida = catPorLector || catPorTexto;
       if (otroProducto) {
         delete stAmb.producto_ambiguo;   // pidió otra cosa — flujo normal decide
       } else if (catElegida) {
@@ -6379,6 +6398,76 @@ async function extractProducto(
     } catch (err) { console.error("extractProducto attempt error:", err); }
   }
   return { producto: null, cantidad: 1 };
+}
+
+/* ══ LA RESPUESTA A UNA PREGUNTA CERRADA LA LEE EL MODELO (4-sep-2026) ═
+   PASO 0 del repaso de intenciones.
+
+   Cuando un plato existe en dos categorias, Paco pregunta de cual. Hasta
+   hoy la respuesta se resolvia con `categoriaMencionada`, o sea buscando el
+   nombre de la categoria DENTRO de lo que escribio el cliente.
+
+   Nadie contesta asi. A "¿la Hamburguesa o la Salchipapa Tradicional?" la
+   gente dice "la de papa", "la segunda", "salchi", "las tradicionales". El
+   nombre completo casi nunca aparece, y entonces no se reconocia la
+   respuesta y Paco volvia a preguntar lo mismo.
+
+   Aqui se le pasa al modelo la pregunta que se hizo y las opciones que se
+   ofrecieron, y contesta CUAL escogio. Es lo que ya se hace con la
+   direccion y con el pedido: entender, no comparar.
+
+   DEVUELVE null CUANDO LA RESPUESTA NO ESCOGE NINGUNA, y eso es a
+   proposito: el caso real del 23-ago fue un cliente que contesto "personal"
+   —un tamano, no una eleccion— y Paco siguio con el pedido vacio. Ante la
+   duda, volver a preguntar; servirle lo que no pidio no se arregla despues.
+
+   SOLO CORRE si hay una desambiguacion pendiente. En un mensaje normal no
+   se gasta nada.                                                        */
+async function elegirEntreCategorias(
+  texto: string,
+  opciones: string[],
+  nombrePlato: string,
+): Promise<string | null> {
+  if (!texto.trim() || opciones.length < 2) return null;
+  const lista = opciones.map((o, i) => `${i + 1}. ${o}`).join("\n");
+  const prompt = `En un restaurante colombiano por WhatsApp se le pregunto al cliente de cual "${nombrePlato}" quiere, entre estas:
+${lista}
+
+El cliente contesto: "${texto}"
+
+¿Cual escogio? Devuelve SOLO este JSON:
+{"opcion": <el numero de la lista, o null>}
+
+Reglas:
+- Vale por lo que QUISO DECIR, no por las palabras. "la de papa", "la
+  segunda", "esa", "salchi", "las tradicionales", "la primera" -> la que
+  corresponda.
+- Si su respuesta NO escoge ninguna —contesta un tamano ("personal"), una
+  variante ("de carne"), saluda, pregunta otra cosa o pide otro plato—
+  devuelve null. Preferimos volver a preguntar antes que servirle algo que
+  no pidio.`;
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-4o-mini", messages: [{ role: "user", content: prompt }],
+        max_tokens: 20, temperature: 0, response_format: { type: "json_object" },
+      }),
+    });
+    /*  Un 4xx no lanza: si no se mira `ok`, el fallo pasa por "no escogio
+        ninguna" y Paco vuelve a preguntar sin que nadie sepa por que.  */
+    if (!res.ok) { console.error("[elegir] OpenAI", res.status); return null; }
+    const data = await res.json() as Record<string, unknown>;
+    const cont = String(((data.choices as Array<Record<string, unknown>>)?.[0]
+      ?.message as Record<string, unknown>)?.content || "{}");
+    const n = (JSON.parse(cont) as { opcion?: number | null }).opcion;
+    if (typeof n !== "number" || n < 1 || n > opciones.length) return null;
+    return opciones[n - 1];
+  } catch (e) {
+    console.error("[elegir] fallo, se usa el texto:", String(e).slice(0, 150));
+    return null;
+  }
 }
 
 // ── runExtractors ─────────────────────────────────────────────────────────────
