@@ -774,6 +774,26 @@ Deno.serve(async (req) => {
     const pedido = pedidos?.[0];
     if (!pedido) return json({ error: "El pedido no existe" }, 404);
 
+    /*  ══ EL INTERRUPTOR DEL RESTAURANTE ══════════════════════════════
+        Sergio: *"al desactivarla simplemente se corta cualquier flujo de
+        datos"*. El corte va AQUI, en el servidor, no en la pantalla: un
+        botón escondido en el navegador no corta nada — basta con llamar a
+        la función desde otro sitio. Aquí no hay vuelta.
+
+        Se lee de la tabla y no de las llaves, porque apagar no borra la
+        conexión: se puede estar conectado y en pausa.                  */
+    const cuentaSede = await db(
+      `pos_facturacion_cuentas?branch_id=eq.${pedido.branch_id}&proveedor=eq.factus`
+      + `&select=activo,emitiendo&limit=1`,
+    ) as Array<{ activo?: boolean; emitiendo?: boolean }> | null;
+    if (cuentaSede?.[0] && cuentaSede[0].emitiendo === false) {
+      console.log("[cuenta] la sede", pedido.branch_id, "tiene la facturacion APAGADA");
+      return json({
+        error: "Este restaurante tiene apagada la facturación electrónica",
+        apagada: true,
+      }, 409);
+    }
+
     /*  Las llaves salen del Vault y solo las puede pedir el rol de
         servicio. Aqui no se guardan ni se registran jamas.             */
     const llaves = await db("rpc/fn_facturacion_llaves", {

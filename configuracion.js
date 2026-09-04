@@ -4361,7 +4361,7 @@ async function fdCargar() {
   if (!br) return;
   try {
     var c = await sb.from('pos_facturacion_cuentas')
-      .select('id,ambiente,activo,solicitada_at,emp_nit,emp_nombre')
+      .select('id,ambiente,activo,emitiendo,solicitada_at,emp_nit,emp_nombre')
       .eq('branch_id', br).limit(1);
     /*  Si la consulta se rechaza NO se sigue como si no hubiera cuenta:
         eso pintaria "sin solicitar" a un restaurante ya conectado, y lo
@@ -4432,9 +4432,30 @@ function fdPintar() {
     if (amb) { amb.className = 'fd-amb' + (pruebas ? ' pruebas' : '');
                amb.textContent = pruebas ? 'En pruebas' : 'Facturando de verdad'; }
     if (notaCon) notaCon.textContent = 'Ya está lista. Si algún dato no cuadra, avísanos.';
-    if (s2) { s2.className = 'op-acc-sum si'; s2.textContent = 'Conectada'; }
+    /*  El interruptor solo existe cuando ya hay algo que encender. */
+    var sw = $('fd-sw'), swWrap = $('fd-sw-wrap');
+    if (swWrap) swWrap.classList.remove('is-hidden');
+    var emite = FD.cuenta.emitiendo !== false;
+    if (sw) { sw.className = 'cc-switch' + (emite ? ' on' : ''); sw.setAttribute('aria-checked', emite ? 'true' : 'false'); }
+    var swSub = $('fd-sw-sub');
+    if (swSub) swSub.textContent = emite
+      ? 'Cuando un cliente pida factura, se emite y se le envía.'
+      : 'Apagada. No se emite ninguna factura, aunque el cliente la pida.';
+    var swAv = $('fd-sw-aviso');
+    if (swAv) {
+      /*  Se avisa SOLO cuando está apagada, y una vez. Apagarlo no quita
+          la obligación ante la DIAN: la decisión es del restaurante, pero
+          que sepa qué apagó.                                            */
+      swAv.classList.toggle('is-hidden', emite);
+      swAv.textContent = 'Ojo: si tu negocio está registrado ante la DIAN como facturador '
+        + 'electrónico, la obligación sigue aunque Cobra deje de enviar. Apágala solo si sabes por qué.';
+    }
+    if (s2) { s2.className = emite ? 'op-acc-sum si' : 'op-acc-sum no';
+              s2.textContent = emite ? 'Conectada' : 'Apagada'; }
   } else {
     if (wCon) wCon.classList.add('is-hidden');
+    var swWrap0 = $('fd-sw-wrap');
+    if (swWrap0) swWrap0.classList.add('is-hidden');
     if (notaCon) notaCon.textContent = pedida
       ? 'Estamos activando tu negocio ante la DIAN con los papeles que enviaste. Te avisamos.'
       : 'Esta parte la hacemos nosotros con tus papeles. Primero súbelos en el paso 1.';
@@ -4453,10 +4474,17 @@ function fdResumen(conectada, pedida, req, faltan) {
   var esc = function (x) { return String(x == null ? '' : x).replace(/[&<>"]/g, function (ch) {
     return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]; }); };
 
-  var punto = conectada ? 'list' : (pedida ? 'va' : '');
-  var titulo = conectada ? 'Ya puedes facturar' : (pedida ? 'En trámite' : 'Sin empezar');
-  var sub = conectada
+  /*  Estar conectado y estar emitiendo son cosas distintas: si el rail
+      dijera "ya puedes facturar" con el interruptor apagado, estaría
+      mintiendo justo en el sitio donde se mira para saber cómo va.    */
+  var emitiendo = conectada && (FD.cuenta.emitiendo !== false);
+  var punto = emitiendo ? 'list' : (conectada || pedida ? 'va' : '');
+  var titulo = emitiendo ? 'Ya puedes facturar'
+    : (conectada ? 'Apagada' : (pedida ? 'En trámite' : 'Sin empezar'));
+  var sub = emitiendo
     ? 'Tu facturación electrónica está activa.'
+    : conectada
+    ? 'Está conectada, pero no se está emitiendo nada.'
     : (pedida ? 'Recibimos tus papeles. Nosotros seguimos.'
               : (faltan.length === 0 ? 'Solo falta que envíes la solicitud.'
                                      : 'Sube tus papeles en el paso 1.'));
@@ -4497,6 +4525,29 @@ function fdResumen(conectada, pedida, req, faltan) {
     }
   }
   el.innerHTML = h;
+}
+
+/*  Encender y apagar. Se guarda ANTES de repintar y se mira `.error`:
+    si el guardado falla y la pantalla ya cambió, el dueño se queda
+    creyendo que apagó algo que sigue encendido.                        */
+async function fdEmitirToggle() {
+  if (!FD.cuenta || !FD.cuenta.activo) return;
+  var nuevo = !(FD.cuenta.emitiendo !== false);
+  var sw = $('fd-sw');
+  if (sw) sw.disabled = true;
+  try {
+    var r = await sb.from('pos_facturacion_cuentas')
+      .update({ emitiendo: nuevo, apagada_at: nuevo ? null : new Date().toISOString() })
+      .eq('id', FD.cuenta.id).select('id,ambiente,activo,emitiendo,solicitada_at,emp_nit,emp_nombre');
+    if (r.error) throw r.error;
+    FD.cuenta = (r.data && r.data[0]) || FD.cuenta;
+    fdPintar();
+    showToast(nuevo ? 'Facturación encendida 👍' : 'Facturación apagada');
+  } catch (e) {
+    console.error('[alta] interruptor:', e);
+    cfgAviso('No se pudo cambiar: ' + (e.message || e), 'mal');
+  }
+  if (sw) sw.disabled = false;
 }
 
 async function fdSubir(clave, input) {
@@ -4557,13 +4608,13 @@ async function fdEnviar() {
     if (FD.cuenta && FD.cuenta.id) {
       r = await sb.from('pos_facturacion_cuentas')
         .update({ solicitada_at: new Date().toISOString() })
-        .eq('id', FD.cuenta.id).select('id,ambiente,activo,solicitada_at,emp_nit,emp_nombre');
+        .eq('id', FD.cuenta.id).select('id,ambiente,activo,emitiendo,solicitada_at,emp_nit,emp_nombre');
     } else {
       r = await sb.from('pos_facturacion_cuentas')
         .insert({ tenant_id: tn, branch_id: br, proveedor: 'factus',
                   ambiente: 'sandbox', activo: false,
                   solicitada_at: new Date().toISOString() })
-        .select('id,ambiente,activo,solicitada_at,emp_nit,emp_nombre');
+        .select('id,ambiente,activo,emitiendo,solicitada_at,emp_nit,emp_nombre');
     }
     if (r.error) throw r.error;
     FD.cuenta = (r.data && r.data[0]) || FD.cuenta;
