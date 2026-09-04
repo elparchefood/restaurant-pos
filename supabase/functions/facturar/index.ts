@@ -313,9 +313,24 @@ function crearFactus(c: CuentaFactus) {
     if (!r.ok) return null;
     const d = await r.json().catch(() => null);
     const e = d?.data ?? d ?? {};
+    /*  ⚠️ `??` NO sirve aqui, y eso costo un rato: Factus manda cadenas
+        VACIAS, no nulos. `e.company ?? otra` se queda con "" y el nombre
+        nunca llegaba. Se necesita "vacio tambien cuenta como que no hay". */
+    const algo = (...xs: unknown[]) =>
+      xs.map(x => String(x ?? "").trim()).find(x => x.length > 0) || null;
+
+    /*  Comprobado contra /v2/companies (4-sep): una EMPRESA trae `company`;
+        una PERSONA NATURAL lo trae vacio y el nombre vive en
+        `graphic_representation_name`, o en `names` + `surnames`.       */
     return {
-      nit:    e.identification ?? e.nit ?? null,
-      nombre: e.company ?? e.graphic_representation_name ?? e.name ?? null,
+      nit: algo(e.identification, e.nit),
+      /*  El digito de verificacion va con el NIT: sin el, el numero esta
+          incompleto en una factura.                                    */
+      dv:  algo(e.dv),
+      nombre: algo(
+        e.company, e.trade_name, e.graphic_representation_name,
+        [e.names, e.surnames].filter(Boolean).join(" "),
+      ),
     };
   },
 
@@ -457,16 +472,42 @@ Deno.serve(async (req) => {
         headers: { apikey: ANON_KEY, Authorization: auth },
       });
       if (!quien.ok) return json({ error: "No se pudo comprobar la sesi\u00f3n" }, 401);
-      const meta = (await quien.json())?.user_metadata || {};
+      const usuario = await quien.json();
+      const meta = usuario?.user_metadata || {};
       const rol = String(meta.role || "").toLowerCase();
-      /*  ⚠️ LA SEDE SALE DE LA SESION, NO DE UN PEDIDO. Un restaurante
-          recien instalado no tiene ni un pedido, y conectar la
-          facturacion es de las primeras cosas que va a hacer. Atarlo a un
-          pedido habria funcionado en las pruebas —donde hay 46— y habria
-          fallado con el primer cliente de verdad.                      */
-      const sesionTenant = String(meta.tenant_id || "");
-      const sesionBranch = String(meta.branch_id || "");
-      if (rol !== "gerente" && rol !== "admin" && rol !== "dueno" && rol !== "owner") {
+
+      /*  ══ QUIEN CONECTA, Y POR QUE HAY DOS CAMINOS ══════════════
+          Las llaves las manda Factus a COBRA, no al restaurante: el dueno
+          sube papeles y nunca ve una llave. Asi que quien las pega es el
+          administrador de la plataforma, y su sesion es de otro tenant.
+
+          Por eso, cuando viene `branch_id` es el camino del administrador
+          —y solo suyo—. Sin `branch_id`, manda la sesion: la sede sale de
+          ahi y no de un pedido, porque un restaurante recien instalado no
+          tiene ni un pedido y esto es de lo primero que hara.          */
+      let sesionTenant = String(meta.tenant_id || "");
+      let sesionBranch = String(meta.branch_id || "");
+
+      const sedePedida = String((conectar as Record<string, string>).branch_id || "");
+      if (sedePedida) {
+        const perfil = await db(
+          `user_profiles?id=eq.${usuario.id}&select=role&limit=1`,
+        ) as Array<{ role?: string }> | null;
+        if (perfil?.[0]?.role !== "admin") {
+          return json({ error: "Solo el administrador de la plataforma puede conectar la cuenta de otro restaurante" }, 403);
+        }
+        /*  El tenant NO se cree lo que venga en la peticion: se lee de la
+            sede. Creerselo dejaria escribir llaves en la cuenta de
+            cualquier restaurante mandando otro id.                     */
+        const sede = await db(
+          `branches?id=eq.${sedePedida}&select=id,tenant_id&limit=1`,
+        ) as Array<{ id?: string; tenant_id?: string }> | null;
+        if (!sede?.[0]?.tenant_id) return json({ error: "Esa sede no existe" }, 404);
+        sesionBranch = String(sede[0].id);
+        sesionTenant = String(sede[0].tenant_id);
+      }
+      if (!sedePedida
+          && rol !== "gerente" && rol !== "admin" && rol !== "dueno" && rol !== "owner") {
         return json({ error: "Solo el due\u00f1o o el gerente puede conectar la facturaci\u00f3n" }, 403);
       }
 
@@ -512,6 +553,18 @@ Deno.serve(async (req) => {
         }),
       });
 
+      /*  El NIT y la razon social se guardan para que la pantalla del
+          restaurante pueda decir A NOMBRE DE QUIEN salen sus facturas.
+          Verlo escrito es lo que deja notar que se conecto la cuenta
+          equivocada — y eso solo se nota mirandolo.                    */
+      await db(`pos_facturacion_cuentas?branch_id=eq.${sesionBranch}&proveedor=eq.factus`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          emp_nit: empresa.dv ? (empresa.nit + "-" + empresa.dv) : empresa.nit,
+          emp_nombre: empresa.nombre,
+        }),
+      });
+
       /*  Vuelve el nombre de la empresa, NUNCA las llaves. */
       console.log("[cuenta] conectada la sede", sesionBranch, "ambiente", ambiente);
       return json({ conectada: true, ambiente, empresa });
@@ -554,6 +607,22 @@ Deno.serve(async (req) => {
         Va aqui —despues de comprobar que el pedido es de quien pregunta—
         para no dejar abierta la cuenta de facturacion de otro.         */
     if (revisar === true) {
+      /*  De paso se refresca A NOMBRE DE QUIEN esta conectada. Si en el
+          proveedor cambian la razon social, la pantalla del restaurante
+          no se queda diciendo el nombre viejo.                         */
+      try {
+        const emp = await FACTUS.empresa();
+        if (emp && (emp.nit || emp.nombre)) {
+          await db(`pos_facturacion_cuentas?branch_id=eq.${pedido.branch_id}&proveedor=eq.factus`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              emp_nit: emp.dv ? (emp.nit + "-" + emp.dv) : emp.nit,
+              emp_nombre: emp.nombre,
+            }),
+          });
+        }
+      } catch (_e) { /* mirar no puede tumbar nada */ }
+
       const r = await FACTUS.sinEnviar();
       /*  `pude` es lo primero que hay que mirar: sin el, una respuesta
           vacia se lee como «esta todo limpio» cuando puede ser «no

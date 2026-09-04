@@ -1403,6 +1403,113 @@
       <section class="cf-body">
         <div class="cf-gen-main">
 
+          <!-- ══ CONECTAR LA FACTURACIÓN — va PRIMERA a propósito ══
+               Antes de estar conectado, el contador de facturas y la
+               resolución están vacíos: lo único que importa es esto. Una
+               vez conectado, el contador vuelve arriba (dianPintar). -->
+          <div class="op-card" id="fd-card">
+            <div class="op-card-head">
+              <div class="op-card-icon" style="background:#EEF2FF;color:#5B6BFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></div>
+              <div>
+                <div class="op-card-title">Conexión con la DIAN</div>
+                <div class="op-card-sub" id="fd-sub">Todavía no has pedido la facturación electrónica.</div>
+              </div>
+              <div class="op-state off" id="fd-state" style="margin-left:auto">Sin solicitar</div>
+            </div>
+
+            <!-- ── Ya conectada: quién factura ── -->
+            <div class="is-hidden" id="fd-conectada">
+              <div class="fd-empresa">
+                <div>
+                  <div class="fd-empresa-lbl">Tus facturas salen a nombre de</div>
+                  <div class="fd-empresa-nom" id="fd-emp-nombre">—</div>
+                  <div class="fd-empresa-nit" id="fd-emp-nit">—</div>
+                </div>
+                <div class="fd-amb" id="fd-amb">—</div>
+              </div>
+            </div>
+
+            <!-- ── Todavía no: los papeles ── -->
+            <div id="fd-papeles">
+              <div class="fd-intro">
+                Para facturar electrónicamente hay que activar tu negocio ante la DIAN.
+                Tú subes estos papeles y <b>nosotros hacemos el trámite</b>.
+                No tienes que entrar a ningún portal ni manejar claves.
+              </div>
+
+              <div class="fd-tipo">
+                <div class="iv-field-label">¿Cómo está registrado tu negocio?</div>
+                <div class="cc-seg" id="fd-seg">
+                  <button type="button" class="on" id="fd-seg-natural" onclick="fdTipo('natural')">Persona natural</button>
+                  <button type="button" id="fd-seg-empresa" onclick="fdTipo('empresa')">Empresa (SAS, LTDA…)</button>
+                </div>
+                <div class="fd-tipo-nota" id="fd-tipo-nota">
+                  Si es persona natural no te piden cámara de comercio.
+                </div>
+              </div>
+
+              <div class="fd-papeles-lista">
+              <div class="fd-papel" id="fd-fila-rut">
+                <div class="fd-papel-txt">
+                  <div class="fd-papel-nom">RUT actualizado</div>
+                  <div class="fd-papel-ayuda" id="fd-ayuda-rut">En PDF, como te lo da la DIAN.</div>
+                </div>
+                <div class="fd-papel-est" id="fd-est-rut">Falta</div>
+                <label class="lm-btn-ghost sm fd-papel-btn">
+                  <span id="fd-btn-rut">Subir</span>
+                  <input type="file" class="is-hidden" id="fd-file-rut"
+                         accept=".pdf,.png,.jpg,.jpeg,.webp"
+                         onchange="fdSubir('rut', this)">
+                </label>
+              </div>
+              <div class="fd-papel" id="fd-fila-camara">
+                <div class="fd-papel-txt">
+                  <div class="fd-papel-nom">Cámara de comercio</div>
+                  <div class="fd-papel-ayuda" id="fd-ayuda-camara">Con menos de 30 días de expedida.</div>
+                </div>
+                <div class="fd-papel-est" id="fd-est-camara">Falta</div>
+                <label class="lm-btn-ghost sm fd-papel-btn">
+                  <span id="fd-btn-camara">Subir</span>
+                  <input type="file" class="is-hidden" id="fd-file-camara"
+                         accept=".pdf,.png,.jpg,.jpeg,.webp"
+                         onchange="fdSubir('camara', this)">
+                </label>
+              </div>
+              <div class="fd-papel" id="fd-fila-cedula">
+                <div class="fd-papel-txt">
+                  <div class="fd-papel-nom">Cédula del representante</div>
+                  <div class="fd-papel-ayuda" id="fd-ayuda-cedula">Foto o PDF, por ambos lados.</div>
+                </div>
+                <div class="fd-papel-est" id="fd-est-cedula">Falta</div>
+                <label class="lm-btn-ghost sm fd-papel-btn">
+                  <span id="fd-btn-cedula">Subir</span>
+                  <input type="file" class="is-hidden" id="fd-file-cedula"
+                         accept=".pdf,.png,.jpg,.jpeg,.webp"
+                         onchange="fdSubir('cedula', this)">
+                </label>
+              </div>
+              <div class="fd-papel" id="fd-fila-logo">
+                <div class="fd-papel-txt">
+                  <div class="fd-papel-nom">Tu logo</div>
+                  <div class="fd-papel-ayuda" id="fd-ayuda-logo">PNG o JPG. Va impreso en la factura.</div>
+                </div>
+                <div class="fd-papel-est" id="fd-est-logo">Falta</div>
+                <label class="lm-btn-ghost sm fd-papel-btn">
+                  <span id="fd-btn-logo">Subir</span>
+                  <input type="file" class="is-hidden" id="fd-file-logo"
+                         accept=".pdf,.png,.jpg,.jpeg,.webp"
+                         onchange="fdSubir('logo', this)">
+                </label>
+              </div>
+              </div>
+
+              <div class="fd-pie">
+                <button class="lm-btn-primary" id="fd-enviar" disabled onclick="fdEnviar()">Enviar solicitud</button>
+                <span class="fd-pie-nota" id="fd-pie-nota">Suben cifrados y solo los vemos nosotros.</span>
+              </div>
+            </div>
+          </div>
+
           <!-- ══ ESTADO: cuántas facturas quedan ══
                Va ARRIBA y en grande a propósito: quedarse sin números para
                tra un viernes en la noche es el peor momento para enterarse,
@@ -1475,23 +1582,6 @@
                   <span style="font-size:12px;color:#64748B">Este número lo lleva el sistema. No se puede editar: repetir o saltar un consecutivo es un problema con la DIAN.</span>
                 </div>
               </div>
-            </div>
-          </div>
-
-          <!-- ══ EL PROVEEDOR (todavía no conectado) ══ -->
-          <div class="op-card">
-            <div class="op-card-head">
-              <div class="op-card-icon" style="background:#F1F5F9;color:#64748B"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></div>
-              <div>
-                <div class="op-card-title">Conexión con la DIAN</div>
-                <div class="op-card-sub">Quién manda tus facturas a la DIAN por ti.</div>
-              </div>
-              <div class="op-state off" id="dian-prov-state" style="margin-left:auto">Sin conectar</div>
-            </div>
-            <div style="padding:2px;font-size:12.5px;color:#475569;line-height:1.55">
-              Las facturas no se le mandan a la DIAN directamente: se envían a través de un
-              <b>proveedor autorizado</b>, que las firma y las radica. Esta parte se conecta
-              cuando tengas tu proveedor contratado — te guiamos en el paso a paso.
             </div>
           </div>
 

@@ -4320,6 +4320,217 @@ async function crGuardar() {
 
 // ── Impuestos y propina ───────────────────────────────────────────────
 // Comparte _opDraft / _opSaved con Operación (mismo blob operacion_config).
+/* ══ CONECTAR LA FACTURACION — los papeles del dueno (4-sep-2026) ════
+   El dueno sube RUT, camara, cedula y logo. Nada mas. Las llaves del
+   proveedor NUNCA pasan por aqui: llegan a Cobra y las carga el
+   administrador desde su consola, para que no viajen por el correo ni el
+   WhatsApp del restaurante — que es por donde se pierden.
+
+   LOS CUATRO ESTADOS que ve el dueno:
+     sin solicitar → papeles enviados → conectada
+   (y "faltan papeles" mientras no estan los que le tocan). */
+
+var FD = { tipo: 'natural', docs: {}, cuenta: null, subiendo: null };
+
+/* Que papeles le tocan segun como este registrado. Lo dice el propio
+   correo de Factus: al facturador persona natural NO le piden camara de
+   comercio. En Colombia media panaderia es persona natural, asi que
+   pedirsela a todos seria mandarlos a un tramite que no les toca. */
+function fdRequeridos() {
+  return FD.tipo === 'empresa'
+    ? ['rut', 'camara', 'cedula', 'logo']
+    : ['rut', 'cedula', 'logo'];
+}
+
+function fdTipo(t) {
+  FD.tipo = (t === 'empresa') ? 'empresa' : 'natural';
+  var bn = $('fd-seg-natural'), be = $('fd-seg-empresa');
+  if (bn) bn.className = (FD.tipo === 'natural') ? 'on' : '';
+  if (be) be.className = (FD.tipo === 'empresa') ? 'on' : '';
+  var nota = $('fd-tipo-nota');
+  if (nota) {
+    nota.textContent = (FD.tipo === 'empresa')
+      ? 'A las empresas s\u00ed les piden el certificado de c\u00e1mara de comercio, con menos de 30 d\u00edas.'
+      : 'Si es persona natural no te piden c\u00e1mara de comercio.';
+  }
+  fdPintar();
+}
+
+async function fdCargar() {
+  var br = dianBranch();
+  if (!br) return;
+  try {
+    var c = await sb.from('pos_facturacion_cuentas')
+      .select('id,ambiente,activo,solicitada_at,emp_nit,emp_nombre')
+      .eq('branch_id', br).limit(1);
+    /*  Si la consulta se rechaza NO se sigue como si no hubiera cuenta:
+        eso pintaria "sin solicitar" a un restaurante ya conectado, y lo
+        mandaria a subir papeles que ya mando.                          */
+    if (c.error) { console.error('[alta] cuenta:', c.error.message); return; }
+    FD.cuenta = (c.data && c.data[0]) || null;
+
+    var d = await sb.from('pos_facturacion_docs')
+      .select('tipo,nombre,subido_at').eq('branch_id', br);
+    if (d.error) { console.error('[alta] papeles:', d.error.message); return; }
+    FD.docs = {};
+    (d.data || []).forEach(function (x) { FD.docs[x.tipo] = x; });
+    /*  Si ya subio camara, es que es empresa: se recuerda sin preguntar. */
+    if (FD.docs.camara) FD.tipo = 'empresa';
+  } catch (e) { console.error('[alta] cargar:', e); return; }
+  fdTipo(FD.tipo);
+}
+
+function fdPintar() {
+  var card = $('fd-card'); if (!card) return;
+  var conectada = !!(FD.cuenta && FD.cuenta.activo);
+  var pedida    = !!(FD.cuenta && FD.cuenta.solicitada_at);
+
+  var st = $('fd-state'), sub = $('fd-sub');
+  var wrapCon = $('fd-conectada'), wrapPap = $('fd-papeles');
+
+  if (conectada) {
+    if (st)  { st.className = 'op-state lista'; st.textContent = 'Conectada'; }
+    if (sub) sub.textContent = 'Tu facturaci\u00f3n electr\u00f3nica est\u00e1 activa.';
+    if (wrapCon) wrapCon.classList.remove('is-hidden');
+    if (wrapPap) wrapPap.classList.add('is-hidden');
+    var nom = $('fd-emp-nombre'), nit = $('fd-emp-nit'), amb = $('fd-amb');
+    if (nom) nom.textContent = FD.cuenta.emp_nombre || 'Tu negocio';
+    if (nit) nit.textContent = FD.cuenta.emp_nit ? ('NIT ' + FD.cuenta.emp_nit) : '';
+    if (amb) {
+      var pruebas = FD.cuenta.ambiente !== 'produccion';
+      amb.className = 'fd-amb' + (pruebas ? ' pruebas' : '');
+      amb.textContent = pruebas ? 'En pruebas' : 'Facturando de verdad';
+    }
+    return;
+  }
+
+  if (wrapCon) wrapCon.classList.add('is-hidden');
+  if (wrapPap) wrapPap.classList.remove('is-hidden');
+
+  var req = fdRequeridos();
+  var faltan = req.filter(function (k) { return !FD.docs[k]; });
+
+  if (pedida) {
+    if (st)  { st.className = 'op-state espera'; st.textContent = 'En tr\u00e1mite'; }
+    if (sub) sub.textContent = 'Recibimos tus papeles. Estamos activando tu facturaci\u00f3n.';
+  } else if (faltan.length === 0) {
+    /*  Estaban TODOS y aun asi decia "faltan papeles: te falta 0 de 3",
+        que es de las frases que hacen dudar de si el sistema entendio. */
+    if (st)  { st.className = 'op-state espera'; st.textContent = 'Listo para enviar'; }
+    if (sub) sub.textContent = 'Ya tenemos todo. Envía la solicitud y nos encargamos del trámite.';
+  } else if (faltan.length < req.length) {
+    if (st)  { st.className = 'op-state off'; st.textContent = 'Faltan papeles'; }
+    if (sub) sub.textContent = (faltan.length === 1)
+      ? 'Te falta uno de los ' + req.length + '.'
+      : 'Te faltan ' + faltan.length + ' de ' + req.length + '.';
+  } else {
+    if (st)  { st.className = 'op-state off'; st.textContent = 'Sin solicitar'; }
+    if (sub) sub.textContent = 'Todav\u00eda no has pedido la facturaci\u00f3n electr\u00f3nica.';
+  }
+
+  ['rut', 'camara', 'cedula', 'logo'].forEach(function (k) {
+    var fila = $('fd-fila-' + k), est = $('fd-est-' + k), btn = $('fd-btn-' + k);
+    if (!fila || !est) return;
+    var toca = req.indexOf(k) >= 0;
+    fila.className = 'fd-papel' + (toca ? '' : ' no-va');
+    if (!toca) { est.className = 'fd-papel-est'; est.textContent = 'No te aplica'; }
+    else if (FD.subiendo === k) { est.className = 'fd-papel-est sube'; est.textContent = 'Subiendo\u2026'; }
+    else if (FD.docs[k])        { est.className = 'fd-papel-est ok';   est.textContent = 'Listo'; }
+    else                        { est.className = 'fd-papel-est';      est.textContent = 'Falta'; }
+    if (btn) btn.textContent = FD.docs[k] ? 'Cambiar' : 'Subir';
+  });
+
+  var env = $('fd-enviar');
+  if (env) {
+    env.disabled = faltan.length > 0 || pedida;
+    env.textContent = pedida ? 'Solicitud enviada' : 'Enviar solicitud';
+  }
+  var nota = $('fd-pie-nota');
+  if (nota) {
+    nota.textContent = pedida
+      ? 'Si te falt\u00f3 algo o mandaste el papel equivocado, s\u00fabelo otra vez y nos llega.'
+      : (faltan.length ? 'Suben cifrados y solo los vemos nosotros.'
+                       : 'Ya est\u00e1n todos. Env\u00eda la solicitud y nos encargamos.');
+  }
+}
+
+async function fdSubir(clave, input) {
+  var file = input && input.files && input.files[0];
+  if (!file) return;
+  input.value = '';                       /* para poder subir el mismo dos veces */
+  var tn = dianTenant(), br = dianBranch();
+  if (!tn || !br) { cfgAviso('No se pudo identificar tu sede.', 'mal'); return; }
+  if (file.size > 10 * 1024 * 1024) {
+    cfgAviso('Ese archivo pesa m\u00e1s de 10 MB. Env\u00eda uno m\u00e1s liviano.', 'mal'); return;
+  }
+
+  FD.subiendo = clave; fdPintar();
+  var ext  = (file.name.split('.').pop() || 'pdf').toLowerCase();
+  /*  La ruta empieza por el tenant a proposito: ES el candado de la base.
+      Un restaurante solo puede tocar lo que cuelga de su propio id.    */
+  var ruta = tn + '/' + br + '/' + clave + '.' + ext;
+  try {
+    var up = await sb.storage.from('facturacion-docs')
+      .upload(ruta, file, { upsert: true, contentType: file.type || undefined });
+    if (up.error) throw up.error;
+
+    /*  Si el mismo papel se sube con otra extension, la fila apunta a la
+        ruta nueva: se borra la vieja para no dejar dos y que alguien
+        adivine cual vale.                                              */
+    var antes = FD.docs[clave];
+    if (antes && antes.ruta && antes.ruta !== ruta) {
+      await sb.storage.from('facturacion-docs').remove([antes.ruta]);
+    }
+
+    var reg = await sb.from('pos_facturacion_docs')
+      .upsert({ tenant_id: tn, branch_id: br, tipo: clave, ruta: ruta,
+                nombre: file.name, subido_at: new Date().toISOString() },
+              { onConflict: 'branch_id,tipo' })
+      .select('tipo,nombre,subido_at,ruta');
+    if (reg.error) throw reg.error;
+
+    FD.docs[clave] = (reg.data && reg.data[0]) || { tipo: clave, ruta: ruta };
+    FD.subiendo = null; fdPintar();
+    showToast('Listo, recibimos tu ' + (clave === 'rut' ? 'RUT' : clave) + ' \ud83d\udc4d');
+  } catch (e) {
+    FD.subiendo = null; fdPintar();
+    console.error('[alta] subir ' + clave + ':', e);
+    cfgAviso('No se pudo subir el archivo: ' + (e.message || e), 'mal');
+  }
+}
+
+async function fdEnviar() {
+  var tn = dianTenant(), br = dianBranch();
+  if (!tn || !br) return;
+  var b = $('fd-enviar');
+  if (b) { b.disabled = true; b.textContent = 'Enviando\u2026'; }
+  try {
+    /*  Si ya hay fila (por ejemplo de un intento anterior) se actualiza;
+        si no, se crea. `activo` se queda en false: conectarla es cosa del
+        administrador, no de este boton.                                */
+    var r;
+    if (FD.cuenta && FD.cuenta.id) {
+      r = await sb.from('pos_facturacion_cuentas')
+        .update({ solicitada_at: new Date().toISOString() })
+        .eq('id', FD.cuenta.id).select('id,ambiente,activo,solicitada_at,emp_nit,emp_nombre');
+    } else {
+      r = await sb.from('pos_facturacion_cuentas')
+        .insert({ tenant_id: tn, branch_id: br, proveedor: 'factus',
+                  ambiente: 'sandbox', activo: false,
+                  solicitada_at: new Date().toISOString() })
+        .select('id,ambiente,activo,solicitada_at,emp_nit,emp_nombre');
+    }
+    if (r.error) throw r.error;
+    FD.cuenta = (r.data && r.data[0]) || FD.cuenta;
+    fdPintar();
+    showToast('Solicitud enviada. Te avisamos cuando quede activa \ud83d\udc4d');
+  } catch (e) {
+    console.error('[alta] enviar:', e);
+    if (b) { b.disabled = false; b.textContent = 'Enviar solicitud'; }
+    cfgAviso('No se pudo enviar la solicitud: ' + (e.message || e), 'mal');
+  }
+}
+
 /* ══ FACTURACION ELECTRONICA — la resolucion de la DIAN (21-ago-2026) ══
    Aqui SOLO se cargan los datos de la resolucion. El consecutivo (el
    numero de cada factura) NO se toca desde aqui a proposito: lo lleva la
@@ -4341,6 +4552,7 @@ function dianTocar() {
 async function dianInit() {
   var b = $('dian-btn-save');
   if (b) b.onclick = dianGuardar;
+  await fdCargar();            /* la conexion primero: sin ella lo demas no sirve */
   await dianCargar();
 }
 
