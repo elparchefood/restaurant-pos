@@ -3,6 +3,118 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Cada restaurante factura con SUS llaves — 4-sep-2026 (`facturar` v11)
+
+Hasta hoy habia **una sola llave de Factus para todo Cobra**. Con eso no se le
+puede activar la facturacion a nadie: una factura sale a nombre de un NIT, y
+todas habrian salido a nombre del mismo. Este es el trabajo que desbloquea
+vender la facturacion.
+
+### Las llaves no van en una columna
+
+Con las llaves de un restaurante se emiten facturas a su nombre **ante la
+DIAN**. Eso no es la contrasena de una pantalla: es poder tributario. Van al
+**Vault de Supabase**, cifradas con una llave que no vive en la tabla.
+
+`pos_facturacion_cuentas` guarda solo un **puntero** (`secreto_id`), mas el
+ambiente (`sandbox` / `produccion`), si esta activa y cuando se conecto. Ningun
+secreto.
+
+### Quien puede ver que — comprobado, no supuesto
+
+| Quien | La tabla | Las llaves |
+|---|---|---|
+| El restaurante (navegador) | ✅ lo suyo, sin secretos | ❌ `42501 permission denied` |
+| `anon` | ❌ | ❌ |
+| La Edge Function | ✅ | ✅ |
+
+Una funcion nace **ejecutable por todo el mundo**: sin el `revoke`, cualquiera
+con sesion de cajero pediria las llaves desde el navegador. La migracion lo
+revoca y ademas **se falla a si misma** si el candado no quedo puesto.
+
+Doble candado, y las dos mitades comprobadas contra la base:
+
+- `vault` no esta expuesto a PostgREST — `PGRST106 Invalid schema: vault`;
+- `authenticated` no tiene ni USAGE sobre el esquema ni SELECT sobre la vista.
+
+Por eso ver el `secreto_id` desde el navegador no sirve de nada.
+
+### El fallo que esto evita, y que no era obvio
+
+El token de Factus vivia en **una variable del modulo**:
+
+```ts
+let _token = null;
+```
+
+Con una cuenta esta bien. Con varias es grave: la funcion sigue viva entre
+llamadas, asi que **el token del restaurante A se reutilizaria para la factura
+del restaurante B** — y saldria a nombre del NIT equivocado ante la DIAN. Una
+factura emitida no se deshace.
+
+Ahora hay un mapa con una llave por cuenta (`url|client_id|usuario`: la misma
+cuenta en sandbox y en produccion son dos cosas distintas). Y el adaptador paso
+de objeto suelto a **fabrica**: `crearFactus(cuenta)` nace sabiendo con que
+llaves habla, asi que ningun sitio puede olvidarse de pasarlas.
+
+### Sin cuenta NO se emite
+
+Si el restaurante no tiene llaves, la funcion **no cae de vuelta a las de
+Cobra**. Ese respaldo seria comodo y seria un desastre: la factura saldria a
+nombre de otro. Contesta `sin_cuenta: true` y un mensaje que se entiende.
+
+### Conectar: se comprueba ANTES de guardar
+
+`{"conectar": {client_id, client_secret, username, password, ambiente}}`:
+
+1. **Solo el dueno o el gerente.** Que el pedido sea suyo demuestra que es de
+   ese restaurante, no que mande en el.
+2. **Se piden un token con esas llaves y se lee la empresa.** Si no sirven, no
+   se guardan. Es el requisito del diseno: hoy mismo se vio que se puede tener
+   todo escrito en pantalla y no emitir nada.
+3. Vuelve el **NIT y la razon social** que dice Factus, para que el restaurante
+   no los escriba dos veces ni los copie mal — un NIT equivocado invalida el
+   documento.
+
+Las llaves suben una vez y **no vuelven a bajar**: la respuesta trae el nombre
+de la empresa, nunca las llaves. Comprobado tambien que unas llaves malas **no
+pisan la cuenta que ya funcionaba**.
+
+### Un fallo de diseno que se corrigio antes de que mordiera
+
+`conectar` se apoyaba en el `order_id` para saber de que sede era. Funciona…
+salvo el dia que importa: **un restaurante recien instalado no tiene ni un
+pedido**, y conectar la facturacion es de las primeras cosas que hara.
+
+Habria pasado la prueba en el Restaurante de Prueba —que tiene 46 pedidos— y
+habria fallado con el primer cliente de verdad. Ahora la sede sale de la
+**sesion** de quien conecta, que ademas es la misma consulta que ya hacia falta
+para mirar el rol.
+
+Y son dos caminos con dos fuentes distintas, a proposito:
+
+| | De donde sale la sede |
+|---|---|
+| **Guardar** las llaves | de la **sesion** — todavia no hay pedidos |
+| **Leer** las llaves para emitir | del **pedido** que se esta facturando |
+
+### Comprobado de punta a punta
+
+- Sin cuenta → se niega a emitir, con mensaje claro.
+- Con su cuenta → **`SETP990017779`, aceptada, con CUFE**. Segunda factura real,
+  esta ya por la cuenta del restaurante y no por la de Cobra.
+- Repetir → `ya_estaba`, una sola fila.
+- Llaves malas → rechazadas, y la cuenta buena intacta.
+- Navegador pidiendo llaves → `42501 permission denied`.
+
+### Lo que sigue
+
+La **pantalla de alta** que recoja los documentos y llame a `conectar`; cargar
+la resolucion por API (`crear-rango`); el interruptor con sus cuatro
+requisitos; y el boton en ventas con el QR en el tiquete.
+
+---
+
 ## 🟢 LA PRIMERA FACTURA ELECTRONICA, y que una atascada no apague la caja — 4-sep-2026 (`facturar` v8)
 
 **Cobra emitio su primera factura electronica real:** `SETP990017772`, estado

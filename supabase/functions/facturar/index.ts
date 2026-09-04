@@ -37,11 +37,27 @@ const ANON_KEY     = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 /*  La URL tambien es un secreto y no una constante: el dia que se pase a
     produccion se cambia el secreto, sin tocar ni desplegar codigo.      */
-const FACTUS_URL    = Deno.env.get("FACTUS_URL") ?? "https://api-sandbox.factus.com.co";
-const FACTUS_ID     = Deno.env.get("FACTUS_CLIENT_ID")!;
-const FACTUS_SECRET = Deno.env.get("FACTUS_CLIENT_SECRET")!;
-const FACTUS_USER   = Deno.env.get("FACTUS_USERNAME")!;
-const FACTUS_PASS   = Deno.env.get("FACTUS_PASSWORD")!;
+/*  ══ LAS LLAVES SON DE CADA RESTAURANTE, NO DE COBRA (4-sep-2026) ══
+    Una factura sale a nombre del NIT del restaurante. Si todos facturaran
+    con la misma cuenta, todas saldrian a nombre de uno solo.
+
+    Las llaves de cada uno viven CIFRADAS en el Vault de Supabase y se
+    sacan con `fn_facturacion_llaves`, que solo puede ejecutar el rol de
+    servicio. Aqui no se guarda ninguna.                                 */
+type CuentaFactus = {
+  url:    string;
+  id:     string;
+  secret: string;
+  user:   string;
+  pass:   string;
+};
+
+/*  Lo unico que queda del entorno es la direccion por defecto, y solo
+    como respaldo: cada cuenta guarda la suya, porque un restaurante puede
+    estar probando en el sandbox mientras otro ya factura de verdad.
+
+    Las llaves NO estan aqui. Estan en el Vault, una por restaurante.   */
+const URL_POR_DEFECTO = Deno.env.get("FACTUS_URL") ?? "https://api-sandbox.factus.com.co";
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
@@ -83,19 +99,31 @@ async function db(ruta: string, init: RequestInit = {}) {
 
     Se renueva 5 minutos ANTES de vencer. Apurarlo hasta el ultimo segundo
     hace que una factura caiga justo en el cambio y falle por nada.        */
-let _token: { valor: string; vence: number } | null = null;
+/*  ⚠️ UN TOKEN POR CUENTA, Y ESTE ES EL PUNTO DELICADO.
 
-async function tokenFactus(): Promise<string> {
-  if (_token && Date.now() < _token.vence) return _token.valor;
+    Antes esto era UNA variable: `let _token`. Con una sola cuenta estaba
+    bien; con varias es un fallo serio. La funcion sigue viva entre
+    llamadas, asi que el token del restaurante A se reutilizaria para la
+    factura del restaurante B — y saldria a nombre del NIT equivocado ante
+    la DIAN. Una factura emitida no se deshace.
+
+    La llave del mapa lleva la URL ademas del usuario: la misma cuenta en
+    sandbox y en produccion son dos cosas distintas.                     */
+const _tokens = new Map<string, { valor: string; vence: number }>();
+
+async function tokenFactus(c: CuentaFactus): Promise<string> {
+  const llave = c.url + "|" + c.id + "|" + c.user;
+  const guardado = _tokens.get(llave);
+  if (guardado && Date.now() < guardado.vence) return guardado.valor;
 
   const cuerpo = new FormData();
   cuerpo.append("grant_type", "password");
-  cuerpo.append("client_id", FACTUS_ID);
-  cuerpo.append("client_secret", FACTUS_SECRET);
-  cuerpo.append("username", FACTUS_USER);
-  cuerpo.append("password", FACTUS_PASS);
+  cuerpo.append("client_id", c.id);
+  cuerpo.append("client_secret", c.secret);
+  cuerpo.append("username", c.user);
+  cuerpo.append("password", c.pass);
 
-  const r = await fetch(`${FACTUS_URL}/oauth/token`, {
+  const r = await fetch(`${c.url}/oauth/token`, {
     method: "POST", headers: { Accept: "application/json" }, body: cuerpo,
   });
   const d = await r.json().catch(() => null);
@@ -103,8 +131,10 @@ async function tokenFactus(): Promise<string> {
     console.error("Factus no dio token:", r.status, JSON.stringify(d).slice(0, 300));
     throw new Error("No se pudo entrar al proveedor de facturacion");
   }
-  _token = { valor: d.access_token, vence: Date.now() + (d.expires_in - 300) * 1000 };
-  return _token.valor;
+  const nuevo = { valor: d.access_token as string,
+                  vence: Date.now() + (d.expires_in - 300) * 1000 };
+  _tokens.set(llave, nuevo);
+  return nuevo.valor;
 }
 
 /*  Codigos de impuesto de la DIAN. El restaurante pequeno colombiano suele ser
@@ -123,7 +153,10 @@ const CONSUMIDOR_FINAL = {
   identification_document_id: "3", // cedula de ciudadania
 };
 
-const FACTUS = {
+/*  Fabrica y no objeto suelto: el adaptador nace sabiendo con que llaves
+    habla, asi que ningun sitio tiene que acordarse de pasarlas.        */
+function crearFactus(c: CuentaFactus) {
+ return {
   nombre: "factus",
 
   /*  Arma el cuerpo que espera Factus a partir de NUESTRO pedido.
@@ -181,8 +214,8 @@ const FACTUS = {
   },
 
   async emitir(cuerpo: unknown) {
-    const tok = await tokenFactus();
-    const r = await fetch(`${FACTUS_URL}/v2/bills/validate`, {
+    const tok = await tokenFactus(c);
+    const r = await fetch(`${c.url}/v2/bills/validate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json", Accept: "application/json",
@@ -198,8 +231,8 @@ const FACTUS = {
       borrarla por su referencia antes de reintentar. Sin esto, el pedido se
       queda atascado para siempre repitiendo el mismo 409.               */
   async borrarPendiente(referencia: string) {
-    const tok = await tokenFactus();
-    const r = await fetch(`${FACTUS_URL}/v2/bills/${encodeURIComponent(referencia)}`, {
+    const tok = await tokenFactus(c);
+    const r = await fetch(`${c.url}/v2/bills/${encodeURIComponent(referencia)}`, {
       method: "DELETE",
       headers: { Accept: "application/json", Authorization: `Bearer ${tok}` },
     });
@@ -222,7 +255,7 @@ const FACTUS = {
     status: number;
     lista: Array<{ referencia: string; numero: string | null }>;
   }> {
-    const tok = await tokenFactus();
+    const tok = await tokenFactus(c);
     /*  v2 Y NO v1, COMPROBADO CONTRA SU API (4-sep-2026):
           /v1/bills -> 403 "Version de API no disponible para esta empresa"
           /v2/bills -> 200 con paginacion
@@ -232,7 +265,7 @@ const FACTUS = {
 
         `filter[status]=0` son las NO validadas, o sea las atascadas.
         Comprobado por contraste: con `=1` salen las validadas.        */
-    const r = await fetch(`${FACTUS_URL}/v2/bills?filter[status]=0`, {
+    const r = await fetch(`${c.url}/v2/bills?filter[status]=0`, {
       method: "GET",
       headers: { Accept: "application/json", Authorization: `Bearer ${tok}` },
     });
@@ -263,6 +296,29 @@ const FACTUS = {
     return { pude: true, status: r.status, lista };
   },
 
+  /*  Los datos de la empresa segun el proveedor: NIT y razon social. Se
+      leen al conectar para que el restaurante no los escriba dos veces —
+      y sobre todo para que no los escriba MAL, que en una factura
+      electronica el NIT equivocado es un documento invalido.
+
+      Comprobado que existe: GET /v2/companies devuelve la empresa del
+      usuario del token. Es «la empresa», en singular: cada cuenta es un
+      facturador. Eso es justo lo que obliga a tener una cuenta por
+      restaurante.                                                       */
+  async empresa() {
+    const tok = await tokenFactus(c);
+    const r = await fetch(`${c.url}/v2/companies`, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${tok}` },
+    });
+    if (!r.ok) return null;
+    const d = await r.json().catch(() => null);
+    const e = d?.data ?? d ?? {};
+    return {
+      nit:    e.identification ?? e.nit ?? null,
+      nombre: e.company ?? e.graphic_representation_name ?? e.name ?? null,
+    };
+  },
+
   /*  Lo que nos interesa guardar de su respuesta, con nombres nuestros: asi
       la tabla no cambia cuando cambie el proveedor.                      */
   leer(d: any) {
@@ -280,7 +336,9 @@ const FACTUS = {
       pdf:    b.links?.public_url ?? null,
     };
   },
-};
+ };
+}
+type Factus = ReturnType<typeof crearFactus>;
 
 /*  ══ QUITAR LO ATASCADO, CON CANDADOS ══════════════════════
     Borrar en la cuenta del restaurante no se deshace. Los cuatro candados:
@@ -296,7 +354,7 @@ const FACTUS = {
     y el 409 se guarda tal cual para que se vea.                          */
 const TOPE_DESTRABAR = 5;
 
-async function destrabar(tenantId: string): Promise<number> {
+async function destrabar(FACTUS: Factus, tenantId: string): Promise<number> {
   let atascadas: Array<{ referencia: string; numero: string | null }>;
   try {
     const r = await FACTUS.sinEnviar();
@@ -358,8 +416,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   try {
-    const { order_id, revisar } = await req.json();
-    if (!order_id) return json({ error: "Falta el pedido" }, 400);
+    const { order_id, revisar, conectar } = await req.json();
+    /*  Para conectar la cuenta NO hace falta un pedido: la sede sale de
+        la sesion. Para todo lo demas si, porque es lo que demuestra que
+        el pedido es de quien pregunta.                                 */
+    if (!order_id && !conectar) return json({ error: "Falta el pedido" }, 400);
 
     /*  ── QUIEN LLAMA TIENE QUE PODER VER ESE PEDIDO ─────────────────
         Abajo se usa la llave de servicio, que se salta las politicas de la
@@ -369,14 +430,126 @@ Deno.serve(async (req) => {
     const auth = req.headers.get("Authorization") || "";
     if (!auth.startsWith("Bearer ")) return json({ error: "Sin sesion" }, 401);
 
+    /*  Al conectar no hay pedido que comprobar: manda el rol de la
+        sesion, que se mira dentro del bloque de arriba.                */
+    if (!conectar) {
     const suyo = await fetch(
       `${SUPABASE_URL}/rest/v1/pos_orders?id=eq.${order_id}&select=id`,
       { headers: { apikey: ANON_KEY, Authorization: auth } },
     );
     if (!suyo.ok) return json({ error: "No se pudo comprobar la sesion" }, 401);
     if (!((await suyo.json())?.length)) return json({ error: "Ese pedido no es tuyo" }, 403);
+    }
+
+    /*  ══ CONECTAR LA CUENTA DE ESTE RESTAURANTE ════════════════
+        Las llaves que Factus le dio a ESTE restaurante. Suben una vez y
+        no vuelven a bajar nunca.                                       */
+    if (conectar) {
+      const k = conectar as Record<string, string>;
+      if (!k.client_id || !k.client_secret || !k.username || !k.password) {
+        return json({ error: "Faltan datos de la cuenta de facturaci\u00f3n" }, 400);
+      }
+
+      /*  QUIEN CONECTA. Que el pedido sea suyo demuestra que es de este
+          restaurante, no que mande en el. Conectar la cuenta de
+          facturacion no es tarea de un cajero.                         */
+      const quien = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        headers: { apikey: ANON_KEY, Authorization: auth },
+      });
+      if (!quien.ok) return json({ error: "No se pudo comprobar la sesi\u00f3n" }, 401);
+      const meta = (await quien.json())?.user_metadata || {};
+      const rol = String(meta.role || "").toLowerCase();
+      /*  ⚠️ LA SEDE SALE DE LA SESION, NO DE UN PEDIDO. Un restaurante
+          recien instalado no tiene ni un pedido, y conectar la
+          facturacion es de las primeras cosas que va a hacer. Atarlo a un
+          pedido habria funcionado en las pruebas —donde hay 46— y habria
+          fallado con el primer cliente de verdad.                      */
+      const sesionTenant = String(meta.tenant_id || "");
+      const sesionBranch = String(meta.branch_id || "");
+      if (rol !== "gerente" && rol !== "admin" && rol !== "dueno" && rol !== "owner") {
+        return json({ error: "Solo el due\u00f1o o el gerente puede conectar la facturaci\u00f3n" }, 403);
+      }
+
+      if (!sesionTenant || !sesionBranch) {
+        return json({ error: "Tu usuario no tiene sede asignada" }, 400);
+      }
+
+      const ambiente = k.ambiente === "produccion" ? "produccion" : "sandbox";
+      const cuenta = {
+        url: k.url || (ambiente === "produccion"
+          ? "https://api.factus.com.co" : "https://api-sandbox.factus.com.co"),
+        id: k.client_id, secret: k.client_secret,
+        user: k.username, pass: k.password,
+      };
+
+      /*  ⚠️ SE COMPRUEBAN ANTES DE GUARDARLAS. Guardar unas llaves sin
+          probarlas es dejar al restaurante creyendo que factura. Hoy
+          mismo se vio: todo escrito en pantalla y cero facturas.      */
+      const prueba = crearFactus(cuenta);
+      let empresa: { nit: string | null; nombre: string | null } | null = null;
+      try {
+        empresa = await prueba.empresa();
+      } catch (e) {
+        console.error("[cuenta] las llaves no sirven:", String(e).slice(0, 150));
+        empresa = null;
+      }
+      if (!empresa) {
+        return json({
+          error: "Esas llaves no sirven: el proveedor no las acept\u00f3. Rev\u00edsalas y vuelve a intentarlo.",
+          conectada: false,
+        }, 400);
+      }
+
+      await db("rpc/fn_facturacion_guardar_llaves", {
+        method: "POST",
+        body: JSON.stringify({
+          p_tenant: sesionTenant, p_branch: sesionBranch,
+          p_llaves: {
+            url: cuenta.url, client_id: cuenta.id, client_secret: cuenta.secret,
+            username: cuenta.user, password: cuenta.pass,
+          },
+          p_ambiente: ambiente,
+        }),
+      });
+
+      /*  Vuelve el nombre de la empresa, NUNCA las llaves. */
+      console.log("[cuenta] conectada la sede", sesionBranch, "ambiente", ambiente);
+      return json({ conectada: true, ambiente, empresa });
+    }
 
     // ── el pedido y sus renglones ────────────────────────────────────
+    const pedidos = await db(
+      `pos_orders?id=eq.${order_id}&select=id,tenant_id,branch_id,total,total_final,status`);
+    const pedido = pedidos?.[0];
+    if (!pedido) return json({ error: "El pedido no existe" }, 404);
+
+    /*  Las llaves salen del Vault y solo las puede pedir el rol de
+        servicio. Aqui no se guardan ni se registran jamas.             */
+    const llaves = await db("rpc/fn_facturacion_llaves", {
+      method: "POST",
+      body: JSON.stringify({ p_branch: pedido.branch_id }),
+    }) as Record<string, string> | null;
+
+    /*  ⚠️ SIN CUENTA NO SE EMITE, y NO se cae de vuelta a las llaves de
+        Cobra. El respaldo seria comodo y seria un desastre: la factura
+        saldria a nombre del NIT de otro restaurante ante la DIAN, y una
+        factura emitida no se deshace.                                  */
+    if (!llaves || !llaves.client_id) {
+      console.error("[cuenta] la sede", pedido.branch_id, "no tiene cuenta de facturacion");
+      return json({
+        error: "Este restaurante todav\u00eda no tiene conectada su cuenta de facturaci\u00f3n electr\u00f3nica",
+        sin_cuenta: true,
+      }, 409);
+    }
+
+    const FACTUS = crearFactus({
+      url:    llaves.url || URL_POR_DEFECTO,
+      id:     llaves.client_id,
+      secret: llaves.client_secret,
+      user:   llaves.username,
+      pass:   llaves.password,
+    });
+
     /*  SOLO MIRAR: que tiene el proveedor sin enviar. No borra nada.
         Va aqui —despues de comprobar que el pedido es de quien pregunta—
         para no dejar abierta la cuenta de facturacion de otro.         */
@@ -393,10 +566,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const pedidos = await db(
-      `pos_orders?id=eq.${order_id}&select=id,tenant_id,branch_id,total,total_final,status`);
-    const pedido = pedidos?.[0];
-    if (!pedido) return json({ error: "El pedido no existe" }, 404);
     if (pedido.status === "cancelled") {
       return json({ error: "Un pedido anulado no se factura" }, 400);
     }
@@ -434,7 +603,7 @@ Deno.serve(async (req) => {
           pregunta a Factus cual es. Este es el caso que dejaba al
           restaurante sin facturar.                                     */
       if (res.status === 409) {
-        const quitadas = await destrabar(pedido.tenant_id);
+        const quitadas = await destrabar(FACTUS, pedido.tenant_id);
         if (quitadas > 0) res = await FACTUS.emitir(cuerpo);
       }
     }
