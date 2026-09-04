@@ -3,6 +3,68 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Fuera el formulario de la resolucion: la lee el proveedor — 4-sep-2026 (`facturar` v22)
+
+Sergio, mirando la pantalla: *"los campos no son claros, creo que ningun dueno
+de restaurante sabe que es resolucion ni prefijo ni nada de eso"*.
+
+Tiene razon, **y la salida no era explicarlo mejor: era no preguntarlo.**
+
+### El proveedor ya la tiene
+
+Factus carga la resolucion al activar al facturador, y `GET /v2/numbering-ranges`
+la devuelve entera. Comprobado contra la cuenta de prueba:
+
+| | |
+|---|---|
+| Resolucion | 18760000001 |
+| Rango | SETP 990000000 a 995000000 |
+| Va por | 990017799 |
+| Vence | 19-01-2030 |
+
+Es **exactamente** lo que el formulario le estaba pidiendo al dueno que copiara
+de un PDF de la DIAN. Y no era solo incomodo: un digito mal copiado en el rango
+deja facturas emitidas fuera de la resolucion.
+
+Asi que la tarjeta «Datos de la resolucion DIAN» se borro entera, y con ella el
+boton **Guardar cambios** — ya no hay nada que guardar. Queda lo que el dueno si
+entiende: **cuantas facturas le quedan y hasta cuando**.
+
+### Cual de todos los rangos es el de facturas
+
+Tres intentos, y los dos primeros habrian fallado:
+
+1. **Por la forma** («el que tenga resolucion con desde y hasta»): al mirarlo con
+   datos, la cuenta trae **dos** asi — la factura (SETP) y el documento soporte
+   (SEDS). Acerto de suerte, porque la factura venia primero.
+2. **Por el filtro del proveedor** (`filter[document]=01`, el codigo DIAN de la
+   factura): devuelve **cero**. Ese parametro no toma el codigo de la DIAN.
+3. **Forma Y nombre**: que tenga resolucion con rango, y que el nombre hable de
+   factura sin ser soporte ni nota. Y queda anotado cual se eligio — si algun
+   dia elige mal, se ve.
+
+### Y otra vez el permiso que faltaba
+
+`grant insert on pos_facturacion_rangos to service_role`. Cuando escribi esos
+permisos, nada del servidor insertaba resoluciones; desde que la lee el
+proveedor, si. **Tercera vez en el dia** con el mismo 42501 — que `fetch` no
+lanza. La regla no es «acordarse»: es que **al dar permisos hay que pensar en
+quien va a escribir manana**, no solo hoy.
+
+### `revisar` tampoco puede pedir un pedido
+
+Mismo fallo que ya habia corregido en `conectar`, y se me colo otra vez: la
+pantalla de Configuracion no tiene ningun pedido a mano, y un restaurante recien
+instalado no tiene ninguno. La sede sale de la **sesion**.
+
+### Velocidad
+
+La pantalla pinta al instante con lo guardado y le pregunta al proveedor **por
+detras** (`dianRefrescar`). Preguntar antes de pintar le meteria medio segundo a
+una pantalla que hoy es inmediata, por un dato que casi nunca cambia.
+
+---
+
 ## 🟢 Cada restaurante factura con SUS llaves — 4-sep-2026 (`facturar` v11)
 
 Hasta hoy habia **una sola llave de Factus para todo Cobra**. Con eso no se le

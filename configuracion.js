@@ -4544,16 +4544,37 @@ function dianBranch() {
   return (window._pos && window._pos.state && window._pos.state.branchId) || null;
 }
 
-function dianTocar() {
-  var b = $('dian-btn-save');
-  if (b) b.disabled = false;
-}
-
 async function dianInit() {
-  var b = $('dian-btn-save');
-  if (b) b.onclick = dianGuardar;
   await fdCargar();            /* la conexion primero: sin ella lo demas no sirve */
   await dianCargar();
+  /*  Y se refresca contra el proveedor POR DETRAS. La pantalla ya se
+      pinto: preguntar antes le meteria medio segundo a algo que hoy es
+      inmediato, y por un dato que casi nunca cambia.                  */
+  dianRefrescar();
+}
+
+/*  Le pregunta al proveedor por la resolución y la guarda. Corre POR
+    DETRÁS: si tarda o falla, la pantalla ya está pintada con lo último
+    que sabíamos y el dueño no se entera de nada.                       */
+async function dianRefrescar() {
+  try {
+    var ses = await sb.auth.getSession();
+    var tok = ses && ses.data && ses.data.session && ses.data.session.access_token;
+    if (!tok) return;
+    var r = await fetch(SB_URL + '/functions/v1/facturar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+      body: JSON.stringify({ revisar: true }),
+    });
+    /*  `fetch` NO lanza con un 403: si no se mira `ok`, el fallo pasa por
+        "no hay nada que refrescar" y la resolución se queda vieja para
+        siempre sin que nadie lo sepa.                                  */
+    if (!r.ok) { console.error('[dian] refrescar:', r.status); return; }
+    var d = await r.json();
+    if (d && d.sin_cuenta) return;      /* todavía no la han conectado */
+    if (!d || !d.pude_leer_rangos) return;
+    await dianCargar();                 /* vuelve a leer lo que se guardó */
+  } catch (e) { console.error('[dian] refrescar:', e); }
 }
 
 async function dianCargar() {
@@ -4568,20 +4589,14 @@ async function dianCargar() {
 
 function dianPintar() {
   var d = _dianRango;
-  var set = function (id, v) { var el = $(id); if (el) el.value = v == null ? '' : v; };
-  set('dian-resolucion', d && d.resolucion);
-  set('dian-prefijo',    d && d.prefijo);
-  set('dian-desde',      d && d.desde);
-  set('dian-hasta',      d && d.hasta);
-  set('dian-vence',      d && d.vence_at);
-
   var estado = $('dian-state'), sub = $('dian-estado-sub'), wrap = $('dian-barra-wrap');
-  var actualEl = $('dian-actual');
   if (!d) {
-    if (estado) { estado.textContent = 'Sin configurar'; estado.className = 'op-state off'; }
-    if (sub) sub.textContent = 'Todavía no has cargado ninguna.';
+    /*  Ya NO hay formulario que llenar: la resolución la trae el
+        proveedor. Si no hay, es que todavía no está conectada la cuenta,
+        y eso se arregla en la tarjeta de arriba — no aquí.             */
+    if (estado) { estado.textContent = 'Aún no'; estado.className = 'op-state off'; }
+    if (sub) sub.textContent = 'Aparece sola cuando quede conectada tu facturación.';
     if (wrap) wrap.classList.add('is-hidden');
-    if (actualEl) actualEl.textContent = '—';
     return;
   }
   var total   = (Number(d.hasta) - Number(d.desde) + 1) || 0;
@@ -4590,11 +4605,13 @@ function dianPintar() {
   var pct     = total > 0 ? Math.min(100, Math.round((usados / total) * 100)) : 0;
 
   if (estado) { estado.textContent = 'Activa'; estado.className = 'op-state on'; }
-  if (sub) sub.textContent = 'Resolución ' + (d.resolucion || '—') +
-    (d.vence_at ? ' · vence el ' + dianFecha(d.vence_at) : '');
+  /*  Lo que el dueño necesita saber es hasta cuándo puede facturar. El
+      número de resolución va al final: le sirve al contador, no a él.  */
+  if (sub) sub.textContent =
+    (d.vence_at ? 'Vence el ' + dianFecha(d.vence_at) : 'Sin fecha de vencimiento')
+    + ' · la leemos de la DIAN, no tienes que escribir nada'
+    + (d.resolucion ? ' · resolución ' + d.resolucion : '');
   if (wrap) wrap.classList.remove('is-hidden');
-  if (actualEl) actualEl.textContent = Number(d.actual) < Number(d.desde)
-    ? 'Ninguna todavía' : (d.prefijo || '') + d.actual;
 
   var q = $('dian-quedan');
   if (q) q.textContent = quedan.toLocaleString('es-CO') + (quedan === 1 ? ' factura disponible' : ' facturas disponibles');
@@ -4641,55 +4658,6 @@ function dianDiasPara(f) {
   if (!f) return null;
   var hoy = new Date(); hoy.setHours(0, 0, 0, 0);
   return Math.round((new Date(String(f).slice(0, 10) + 'T00:00:00') - hoy) / 86400000);
-}
-
-async function dianGuardar() {
-  var res    = ($('dian-resolucion').value || '').trim();
-  var pref   = ($('dian-prefijo').value || '').trim().toUpperCase();
-  var desde  = parseInt($('dian-desde').value, 10);
-  var hasta  = parseInt($('dian-hasta').value, 10);
-  var vence  = ($('dian-vence').value || '') || null;
-  var b = $('dian-btn-save');
-
-  if (!res) return showToast('Escribe el número de la resolución.');
-  if (!(desde > 0) || !(hasta > 0)) return showToast('Escribe el rango: desde qué número hasta cuál.');
-  if (hasta < desde) return showToast('El "hasta" no puede ser menor que el "desde".');
-
-  b.disabled = true; b.textContent = 'Guardando…';
-  try {
-    if (_dianRango) {
-      /* CAMBIAR EL RANGO DE UNA RESOLUCION EN USO ES DELICADO: si ya se
-         emitieron facturas, el nuevo rango tiene que seguir cubriendo el
-         ultimo numero usado. Si no, se rechaza — mover el piso debajo de
-         una factura ya emitida la deja fuera de la resolucion. */
-      if (Number(_dianRango.actual) >= Number(_dianRango.desde) &&
-          (desde > Number(_dianRango.actual) || hasta < Number(_dianRango.actual))) {
-        b.disabled = false; b.textContent = 'Guardar cambios';
-        return showToast('Ya emitiste la factura ' + (_dianRango.prefijo || '') + _dianRango.actual +
-          ' con esta resolución, así que el rango tiene que seguir incluyéndola. ' +
-          'Si es una resolución NUEVA, primero desactiva la actual.');
-      }
-      var up = await sb.from('pos_facturacion_rangos')
-        .update({ resolucion: res, prefijo: pref, desde: desde, hasta: hasta, vence_at: vence })
-        .eq('id', _dianRango.id).select('id');
-      if (up.error) throw up.error;
-    } else {
-      var ins = await sb.from('pos_facturacion_rangos').insert({
-        tenant_id: dianTenant(), branch_id: dianBranch(),
-        resolucion: res, prefijo: pref, desde: desde, hasta: hasta,
-        /* `actual` arranca en desde-1: aun no se ha emitido ninguna. */
-        actual: desde - 1, vence_at: vence, activo: true,
-      }).select('id');
-      if (ins.error) throw ins.error;
-    }
-    await dianCargar();
-    b.textContent = 'Guardar cambios';
-    showToast('Resolución guardada 👍');
-  } catch (e) {
-    console.error('[dian] guardar:', e);
-    b.disabled = false; b.textContent = 'Guardar cambios';
-    showToast('No se pudo guardar: ' + (e.message || e));
-  }
 }
 
 /* ══ LA REGLA DE PUNTOS DE ESTE RESTAURANTE (21-ago-2026) ═════════════

@@ -38,7 +38,12 @@ grant select                 on public.pos_facturas to authenticated;
 --  Al reves: los escribe el gerente desde Configuracion, y el servidor
 --  solo necesita leerlos y adelantar el consecutivo.
 grant select, insert, update on public.pos_facturacion_rangos to authenticated;
-grant select, update          on public.pos_facturacion_rangos to service_role;
+--  INSERT tambien para el servidor (agregado el 4-sep, mismo dia): desde
+--  que la resolucion se LEE DEL PROVEEDOR en vez de escribirla el dueno,
+--  quien crea la fila es la Edge Function. Se me paso justo por lo mismo
+--  de agosto: se dan los permisos de lo que hace falta HOY y el dia que
+--  algo nuevo escribe, revienta con 42501 — que `fetch` no lanza.
+grant select, insert, update on public.pos_facturacion_rangos to service_role;
 
 --  Tampoco DELETE: la resolucion vencida no se borra, se desactiva
 --  (`activo = false`). Hay que poder decir con que resolucion se emitio

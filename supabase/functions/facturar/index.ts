@@ -296,6 +296,54 @@ function crearFactus(c: CuentaFactus) {
     return { pude: true, status: r.status, lista };
   },
 
+  /*  LA RESOLUCION, LEIDA DEL PROVEEDOR (4-sep-2026).
+
+      Sergio, mirando la pantalla: *"ningun dueno de restaurante sabe que
+      es resolucion ni prefijo ni nada de eso"*. Tiene razon, y la salida
+      no es explicarlo mejor: es NO PREGUNTARLO.
+
+      Factus ya tiene la resolucion cargada —se la meten al habilitar al
+      facturador— y la devuelve entera: prefijo, desde, hasta, numero de
+      resolucion, vencimiento y por cual va. Todo lo que el formulario le
+      estaba pidiendo al dueno que transcribiera de un PDF de la DIAN.
+
+      Transcribir eso a mano no solo es incomodo: un digito mal copiado en
+      el rango deja facturas emitidas fuera de la resolucion.            */
+  async rangos() {
+    const tok = await tokenFactus(c);
+    /*  Se piden TODOS los activos y se escoge aqui. Probado: el filtro
+        `filter[document]=01` devuelve cero — ese parametro no toma el
+        codigo de la DIAN—, y adivinar valores de uno en uno sale caro. */
+    const r = await fetch(`${c.url}/v2/numbering-ranges?filter[is_active]=1`, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${tok}` },
+    });
+    const d = await r.json().catch(() => null);
+    /*  Igual que con el listado: «no hay» y «no pude preguntar» son cosas
+        distintas, y confundirlas hace que la pantalla mienta.          */
+    if (!r.ok) {
+      console.error("[rangos] el proveedor contesto", r.status);
+      return { pude: false, status: r.status, lista: [] };
+    }
+    const arr = (Array.isArray(d?.data) ? d.data
+      : Array.isArray(d?.data?.data) ? d.data.data
+      : Array.isArray(d) ? d : []) as Array<Record<string, unknown>>;
+    return {
+      pude: true, status: r.status,
+      lista: arr.map(x => ({
+        id:        x.id ?? null,
+        documento: x.document ?? null,
+        prefijo:   x.prefix ?? "",
+        desde:     x.from ?? null,
+        hasta:     x.to ?? null,
+        actual:    x.current ?? null,
+        resolucion: x.resolution_number ?? null,
+        desde_fecha: x.start_date ?? null,
+        vence:     x.end_date ?? null,
+        vencido:   x.is_expired === 1 || x.is_expired === true,
+      })),
+    };
+  },
+
   /*  Los datos de la empresa segun el proveedor: NIT y razon social. Se
       leen al conectar para que el restaurante no los escriba dos veces —
       y sobre todo para que no los escriba MAL, que en una factura
@@ -367,6 +415,82 @@ type Factus = ReturnType<typeof crearFactus>;
 
     Devuelve cuantas se quitaron: si son cero, no tiene sentido reintentar
     y el 409 se guarda tal cual para que se vea.                          */
+/*  ══ GUARDAR LA RESOLUCION QUE DICE EL PROVEEDOR ══════════════
+    El dueno ya no transcribe la resolucion de un PDF de la DIAN: el
+    proveedor la tiene cargada y la devuelve entera. Aqui se copia a
+    nuestra tabla para que la pantalla no tenga que salir a internet cada
+    vez que alguien abre Configuracion.
+
+    ⚠️ CUAL DE TODOS ES EL DE FACTURAS: no se busca por el nombre. La
+    cuenta trae seis rangos y el nombre es texto del proveedor, que puede
+    cambiar. Se escoge por la FORMA: el unico con numero de resolucion Y
+    con desde y hasta es el de facturas; las notas los traen vacios. Es un
+    hecho de la estructura, no una coincidencia de palabras.            */
+type RangoLeido = {
+  prefijo?: unknown; desde?: unknown; hasta?: unknown; actual?: unknown;
+  resolucion?: unknown; vence?: unknown; vencido?: boolean;
+};
+
+async function guardarRango(
+  tenantId: string, branchId: string, lista: unknown[],
+): Promise<void> {
+  const rs = (lista || []) as RangoLeido[];
+  /*  ⚠️ LA ELECCION, Y POR QUE NO BASTA UNA SOLA SENAL.
+
+      Primero use solo la FORMA —"el que tenga resolucion con desde y
+      hasta"— por no fiarme de un nombre que manda el proveedor. Al
+      mirarlo con datos, la cuenta trae DOS asi: la factura (SETP) y el
+      documento soporte (SEDS). Acerto de suerte, porque la factura venia
+      primero en la lista.
+
+      Asi que se piden las dos cosas: la forma Y que el nombre hable de
+      factura sin ser documento soporte ni nota. Y se ANOTA cual se
+      escogio, para que si algun dia elige mal, se vea.                 */
+  const norm = (x: unknown) => String(x ?? "")
+    .toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+  const tieneForma = (x: RangoLeido) =>
+    String(x.resolucion ?? "").trim().length > 0
+    && x.desde != null && x.hasta != null;
+
+  const esDeFacturas = (x: RangoLeido) => {
+    if (!tieneForma(x)) return false;
+    const n = norm((x as Record<string, unknown>).documento);
+    return n.includes("factura") && !n.includes("soporte") && !n.includes("nota");
+  };
+
+  const f = rs.find(esDeFacturas);
+  if (f) {
+    console.log(`[rangos] elegido: ${norm((f as Record<string, unknown>).documento)} | de ${rs.filter(tieneForma).length} con forma de resolucion`);
+  }
+  if (!f) { console.log("[rangos] el proveedor no tiene ningun rango de facturas"); return; }
+
+  const fila = {
+    tenant_id: tenantId, branch_id: branchId,
+    resolucion: String(f.resolucion),
+    prefijo: String(f.prefijo ?? ""),
+    desde: Number(f.desde), hasta: Number(f.hasta),
+    /*  `current` es el SIGUIENTE numero libre; nuestra columna guarda el
+        ULTIMO emitido. Copiarlo tal cual mostraria una factura de mas.  */
+    actual: Math.max(Number(f.desde) - 1, Number(f.actual ?? 0) - 1),
+    vence_at: f.vence ? String(f.vence).slice(0, 10) : null,
+    activo: !f.vencido,
+  };
+
+  const previas = await db(
+    `pos_facturacion_rangos?branch_id=eq.${branchId}&select=id&limit=1`,
+  ) as Array<{ id?: string }> | null;
+
+  if (previas?.[0]?.id) {
+    await db(`pos_facturacion_rangos?id=eq.${previas[0].id}`,
+      { method: "PATCH", body: JSON.stringify(fila) });
+  } else {
+    await db("pos_facturacion_rangos",
+      { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(fila) });
+  }
+  console.log(`[rangos] guardada la resolucion ${fila.resolucion} (${fila.prefijo}${fila.desde}-${fila.hasta}), va por ${fila.actual}`);
+}
+
 const TOPE_DESTRABAR = 5;
 
 async function destrabar(FACTUS: Factus, tenantId: string): Promise<number> {
@@ -435,7 +559,7 @@ Deno.serve(async (req) => {
     /*  Para conectar la cuenta NO hace falta un pedido: la sede sale de
         la sesion. Para todo lo demas si, porque es lo que demuestra que
         el pedido es de quien pregunta.                                 */
-    if (!order_id && !conectar) return json({ error: "Falta el pedido" }, 400);
+    if (!order_id && !conectar && revisar !== true) return json({ error: "Falta el pedido" }, 400);
 
     /*  ── QUIEN LLAMA TIENE QUE PODER VER ESE PEDIDO ─────────────────
         Abajo se usa la llave de servicio, que se salta las politicas de la
@@ -447,13 +571,87 @@ Deno.serve(async (req) => {
 
     /*  Al conectar no hay pedido que comprobar: manda el rol de la
         sesion, que se mira dentro del bloque de arriba.                */
-    if (!conectar) {
+    if (!conectar && revisar !== true) {
     const suyo = await fetch(
       `${SUPABASE_URL}/rest/v1/pos_orders?id=eq.${order_id}&select=id`,
       { headers: { apikey: ANON_KEY, Authorization: auth } },
     );
     if (!suyo.ok) return json({ error: "No se pudo comprobar la sesion" }, 401);
     if (!((await suyo.json())?.length)) return json({ error: "Ese pedido no es tuyo" }, 403);
+    }
+
+    /*  ══ MIRAR SIN TOCAR — que tiene el proveedor de MI restaurante ══
+        La sede sale de la SESION y no de un pedido: la pantalla de
+        Configuracion no tiene ninguno a mano, y un restaurante recien
+        instalado no tiene ninguno en absoluto. Mismo fallo que ya se
+        corrigio en `conectar`, y se me colo otra vez aqui.
+
+        No borra nada: lee lo que hay sin enviar y la resolucion cargada,
+        y guarda esa resolucion para que la pantalla no salga a internet
+        cada vez que alguien abre Configuracion.                        */
+    if (revisar === true) {
+      const q = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        headers: { apikey: ANON_KEY, Authorization: auth },
+      });
+      if (!q.ok) return json({ error: "No se pudo comprobar la sesi\u00f3n" }, 401);
+      const m = (await q.json())?.user_metadata || {};
+      const miTenant = String(m.tenant_id || ""), miBranch = String(m.branch_id || "");
+      if (!miTenant || !miBranch) return json({ error: "Tu usuario no tiene sede asignada" }, 400);
+
+      const kk = await db("rpc/fn_facturacion_llaves", {
+        method: "POST", body: JSON.stringify({ p_branch: miBranch }),
+      }) as Record<string, string> | null;
+      if (!kk || !kk.client_id) {
+        return json({ sin_cuenta: true, pude_preguntar: false, rangos: null }, 200);
+      }
+      const FACTUS = crearFactus({
+        url: kk.url || URL_POR_DEFECTO, id: kk.client_id, secret: kk.client_secret,
+        user: kk.username, pass: kk.password,
+      });
+
+
+      /*  De paso se refresca A NOMBRE DE QUIEN esta conectada. Si en el
+          proveedor cambian la razon social, la pantalla del restaurante
+          no se queda diciendo el nombre viejo.                         */
+      try {
+        const emp = await FACTUS.empresa();
+        if (emp && (emp.nit || emp.nombre)) {
+          await db(`pos_facturacion_cuentas?branch_id=eq.${miBranch}&proveedor=eq.factus`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              emp_nit: emp.dv ? (emp.nit + "-" + emp.dv) : emp.nit,
+              emp_nombre: emp.nombre,
+            }),
+          });
+        }
+      } catch (_e) { /* mirar no puede tumbar nada */ }
+
+      /*  Y la resolucion que ya tiene cargada, para no pedirsela al
+          dueno. Ver el comentario de `rangos()`.                       */
+      let rg: { pude: boolean; lista: unknown[] } = { pude: false, lista: [] };
+      try { rg = await FACTUS.rangos(); }
+      catch (e) { console.error("[rangos] fallo:", String(e).slice(0, 120)); }
+
+      /*  Y se guarda el de FACTURAS en nuestra tabla, para que la
+          pantalla del restaurante pinte al instante sin salir a
+          internet. Ver `guardarRango`.                                 */
+      if (rg.pude) {
+        try { await guardarRango(miTenant, miBranch, rg.lista); }
+        catch (e) { console.error("[rangos] no se pudo guardar:", String(e).slice(0, 120)); }
+      }
+
+      const r = await FACTUS.sinEnviar();
+      /*  `pude` es lo primero que hay que mirar: sin el, una respuesta
+          vacia se lee como «esta todo limpio» cuando puede ser «no
+          conteste».                                                    */
+      return json({
+        proveedor: FACTUS.nombre,
+        rangos: rg.pude ? rg.lista : null,
+        pude_leer_rangos: rg.pude,
+        pude_preguntar: r.pude,
+        respuesta_del_proveedor: r.status,
+        sin_enviar: r.lista,
+      });
     }
 
     /*  ══ CONECTAR LA CUENTA DE ESTE RESTAURANTE ════════════════
@@ -602,38 +800,6 @@ Deno.serve(async (req) => {
       user:   llaves.username,
       pass:   llaves.password,
     });
-
-    /*  SOLO MIRAR: que tiene el proveedor sin enviar. No borra nada.
-        Va aqui —despues de comprobar que el pedido es de quien pregunta—
-        para no dejar abierta la cuenta de facturacion de otro.         */
-    if (revisar === true) {
-      /*  De paso se refresca A NOMBRE DE QUIEN esta conectada. Si en el
-          proveedor cambian la razon social, la pantalla del restaurante
-          no se queda diciendo el nombre viejo.                         */
-      try {
-        const emp = await FACTUS.empresa();
-        if (emp && (emp.nit || emp.nombre)) {
-          await db(`pos_facturacion_cuentas?branch_id=eq.${pedido.branch_id}&proveedor=eq.factus`, {
-            method: "PATCH",
-            body: JSON.stringify({
-              emp_nit: emp.dv ? (emp.nit + "-" + emp.dv) : emp.nit,
-              emp_nombre: emp.nombre,
-            }),
-          });
-        }
-      } catch (_e) { /* mirar no puede tumbar nada */ }
-
-      const r = await FACTUS.sinEnviar();
-      /*  `pude` es lo primero que hay que mirar: sin el, una respuesta
-          vacia se lee como «esta todo limpio» cuando puede ser «no
-          conteste».                                                    */
-      return json({
-        proveedor: FACTUS.nombre,
-        pude_preguntar: r.pude,
-        respuesta_del_proveedor: r.status,
-        sin_enviar: r.lista,
-      });
-    }
 
     if (pedido.status === "cancelled") {
       return json({ error: "Un pedido anulado no se factura" }, 400);
