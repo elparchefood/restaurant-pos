@@ -16929,3 +16929,98 @@ intencion, no por las palabras. Ese es el patron a repetir.
 
 `inventario_texto.py` y `clasificar_texto.py` en el scratchpad. Se pueden
 volver a correr cuando cambie el archivo.
+
+---
+
+# PLAN: DE COMPARAR TEXTO A ENTENDER INTENCIONES (4-sep-2026)
+
+Sergio lo ha pedido ~20 veces y cada fallo de Paco sale de lo mismo. Este es el
+plan para hacerlo de verdad, no un parche mas.
+
+## 1. Lo que hay que entender antes de empezar
+
+**No hay que ensenarle a Paco a entender: ya entiende.** El lector
+(`leerPedido`) devuelve `producto`, `otros`, `pago`, `nombre`, `direccion`,
+`barrio`, `conjunto`, `adiciones`, `tamano`, `variantes`, `quitar`, `nota`,
+`porteria`... y recibe el catalogo real.
+
+El problema es que **al lado de cada uno de esos campos hay un regex que decide
+por su cuenta, y cuando no coinciden gana el regex.** Son 81 sitios.
+
+Asi que el trabajo no es agregar inteligencia. Es **quitar el camino paralelo
+que le pisa la respuesta.**
+
+## 2. LA CAUSA DE FONDO, que explica por que hay tantos
+
+**El lector corre en la linea 3983. Las decisiones empiezan en la 182.**
+
+Casi todos esos regex existen porque, cuando hacen falta, el lector todavia no
+ha corrido. No se pusieron por pereza: se pusieron porque no habia otra cosa a
+mano.
+
+> **Mientras el lector siga corriendo tarde, cada regex que se quite va a
+> volver a aparecer con otro nombre.**
+
+Por eso el plan tiene un paso 0 que no es opcional.
+
+## 3. Las tres reglas del repaso
+
+1. **El lector DECIDE, el texto solo PROPONE.** No se borra el regex de
+   entrada: se le quita la ultima palabra. Es lo que se hizo con la cola de
+   platos el 3-sep, y es reversible.
+2. **Una familia por vez, y cada una con su caso REAL en el banco.** Casos
+   sacados de conversaciones que fallaron de verdad, no inventados.
+3. **Nunca dos familias en el mismo despliegue.** Si algo se rompe en servicio,
+   hay que poder saber cual fue en un minuto.
+
+## 4. La receta, igual para cada sitio
+
+1. Buscar el campo del lector que ya cubre esa decision.
+2. Que el sitio lea **primero** ese campo.
+3. El regex se queda **solo como respaldo**, para cuando el lector no contesto.
+4. **Dejar rastro cuando no coincidan** (`console.log`). No se borra a ciegas.
+5. Al cabo de unos dias, mirar el rastro: si el regex nunca acerto donde el
+   lector fallaba, se borra. Si acerto, ahi hay algo que ensenarle al lector.
+
+El paso 4 es el que evita repetir la historia: **medir antes de quitar.**
+
+## 5. El orden, y por que ese
+
+| # | Familia | Sitios | Por que va ahi |
+|---|---|---:|---|
+| **0** | **Que el lector corra ANTES** | — | Sin esto, todo lo demas vuelve a crecer |
+| 1 | Como paga | 10 | Lista corta y configurada; ya causo un fallo real (Maicol) |
+| 2 | Como se llama | 10 | Son 5 regex que solo DESCARTAN; el lector ya tiene `nombre` |
+| 3 | Esta preguntando | 8 | Intencion pura: es lo que peor hace un regex |
+| 4 | Que plato pide | 9 | El corazon del pedido. Va cuando ya haya rodaje |
+| 5 | Los 37 sin clasificar | 37 | A mano, ya con criterio |
+
+Se empieza por el pago **no** porque sea el mas grave, sino porque es el mas
+**cerrado**: los metodos son una lista corta que el restaurante configura, se
+prueba facil y si sale mal se ve enseguida.
+
+Se deja el plato para el cuarto lugar **a proposito**: es donde mas duele
+equivocarse, y conviene llegar con tres familias de experiencia.
+
+## 6. Lo que NO se toca
+
+- Comparar nombres del **catalogo** entre si: eso es dato nuestro, no
+  adivinanza sobre el cliente.
+- Normalizar para **mostrar** o para buscar en la carta.
+- Leer lo que dijo **Paco** (para saber que pregunto).
+
+La regla no es "prohibido usar texto". Es **prohibido adivinar la intencion del
+cliente con texto cuando el lector ya la sabe**.
+
+## 7. Cuanto es
+
+No es una sesion. Son varias, y el paso 0 es el mas delicado de todos porque
+mueve el orden de un motor de 11.686 lineas por el que pasa cada pedido.
+
+Lo honesto: hacerlo bien y despacio sale mas barato que el septimo parche.
+
+## 8. Como se mide que sirvio
+
+Hoy no hay numero. Antes de empezar conviene contar, sobre las conversaciones
+de una semana, **cuantas veces tuvo que entrar una persona a corregir a Paco**.
+Ese numero es el que tiene que bajar; lo demas es opinion.

@@ -8695,8 +8695,27 @@ async function buildConversationResponse(
           ? `Va a pagar por ${pagoElegido}, que SÍ lleva comprobante.`
           : `⚠️ Va a pagar en ${pagoElegido.toUpperCase()}. NO existe comprobante en este pedido: `
             + `no lo menciones, no lo pidas y no digas que queda pendiente. Paga al recibir.`);
-    nextStepLine = "El resumen ya fue enviado. Responde naturalmente al cliente. "
-      + "Si confirma el pedido, exprésalo positivamente. Si quiere corregir algo, confirma el cambio.\n"
+    /*  EN QUE PUNTO VA, dicho como un hecho.
+
+        Si el cliente hubiera confirmado, el pedido ya estaria creado y este
+        estado borrado (`pending_order_data: null`): o sea que si se llega
+        aqui, el resumen salio y TODAVIA no ha dicho que si.
+
+        Se le dice para evitar el error caro, que no es preguntar de mas sino
+        lo contrario: dar por hecho que el pedido ya va en camino cuando nadie
+        lo ha mandado a cocina. Ahi el cliente se queda esperando una comida
+        que no existe.                                                     */
+    nextStepLine = "El resumen ya fue enviado y el cliente TODAVÍA NO lo ha confirmado. "
+      + "Responde naturalmente a lo que te diga. Si en este mensaje lo confirma, exprésalo "
+      + "positivamente; si quiere corregir algo, confirma el cambio.\n"
+      + "⚠️ NO digas ni des a entender que el pedido ya está en preparación, en camino o "
+      + "enviado a cocina: todavía no lo está.\n"
+      /*  La frase para pedir la confirmacion va DADA, no improvisada.
+          Suelto, el modelo saco "¿Aún necesitas tu pedido?", que suena a que
+          el restaurante duda de que el cliente lo quiera — justo lo
+          contrario de lo que hace falta cuando ya dio todos sus datos.   */
+      + "Si el cliente pregunta otra cosa (cuánto demora, el precio…), contéstale y "
+      + "cierra con estas palabras EXACTAS, sin cambiarlas: \"¿Confirmamos tu pedido?\"\n"
       + "CÓMO PAGA ESTE CLIENTE: " + lineaPago;
   } else if (nextStep) {
     const modo = nextStep.modo || "fija";
