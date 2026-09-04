@@ -17178,3 +17178,61 @@ hacia adelante** y esta pendiente de decision.
 Aparecieron tres "Ana" con telefonos `30010000xx` en la lista real. El
 blindaje cubria las ventas y no `pos_clientes`. Borradas, y `blindar_banco.py`
 ampliado para que tampoco las cree.
+
+## La direccion de cada pedido, en su columna (4-sep-2026)
+
+Para poder preguntarle al cliente por **la direccion a la que mas pide** —no
+solo por la ultima— hace falta saber a donde fue cada pedido. No se sabia.
+
+### El dato estaba, mal guardado
+
+Viajaba dentro de `notes`, como texto libre para la comanda:
+
+    "carrera 9b #63n58 [barrio:Bellavista] [tel:3105489093]"
+
+Ese formato existe por una buena razon —el domiciliario lo lee de un vistazo
+en el papel— y **no se toca**. Lo que no sirve es para contar: habria que
+sacar la direccion con expresiones regulares de un campo pensado para leerse,
+y cualquier cambio de formato rompe la cuenta **en silencio**.
+
+### Lo que se monto
+
+`supabase/sql/2026-09-04-pedidos-direccion.sql`:
+
+- `pos_orders.direccion` y `pos_orders.barrio`, columnas propias.
+- Un indice parcial `(cliente_id, direccion)` — las filas viejas van en null y
+  no tienen por que ocupar sitio.
+- **`fn_cliente_direccion_principal(cliente)`**, con la regla de Sergio: la
+  que mas pedidos tiene y, con empate, la del pedido mas reciente. Va como
+  funcion y no como consulta suelta porque la usan dos sitios y **la regla
+  debe ser una**: si manana se decide mirar solo los ultimos seis meses, se
+  cambia ahi y cambia en los dos.
+
+### Los CUATRO sitios que crean pedidos, no solo Paco
+
+`delay-reply`, `crear-pedido-chat`, `confirm-payment` y `verify-transfer`.
+
+Si solo lo hiciera Paco, la cuenta saldria **sesgada**: faltarian los pedidos
+que entran por la pagina, por el comprobante y por el chat manual. Y un sesgo
+asi es peor que no tener el dato, porque no se nota.
+
+### La trampa de `verify-transfer`
+
+Alli la variable `direccion` **ya lleva el barrio pegado**:
+
+    const direccion = [pendingData.direccion, pendingData.barrio].join(" ")
+
+Se arma asi a proposito, porque se usa para buscar la zona del domicilio.
+Guardarla tal cual habria partido la cuenta: el mismo sitio contaria como dos
+direcciones distintas en cuanto cambiara el nombre del barrio. Se usan los
+campos separados.
+
+### Solo cuenta hacia adelante
+
+Los pedidos viejos quedan en null y **no se pueden recuperar**: lo que hay en
+`notes` es texto libre, y sacarlo de ahi con regex es justo lo que se esta
+quitando del sistema.
+
+Con el ritmo de El Parche, en dos o tres semanas habra con que responder la
+pregunta de Sergio. Falta el ultimo paso: que Paco use
+`fn_cliente_direccion_principal` en vez de `pos_clientes.direccion`.

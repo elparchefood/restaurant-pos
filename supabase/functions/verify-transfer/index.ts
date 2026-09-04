@@ -961,6 +961,15 @@ async function crearPedido(
     tenant_id:      tenantId || null,
     channel:        esLlevarOrden ? "rapido" : "domicilio",
     customer_name:  pedido.nombreCliente,
+    /*  A donde fue el pedido, en su columna: `notes` es la comanda
+        del domiciliario y no sirve para contar. Ver la migracion
+        2026-09-04-pedidos-direccion.sql.                */
+    /*  Los campos SEPARADOS, no la variable `direccion` de arriba: esa
+        lleva el barrio pegado porque se usa para buscar la zona. Guardarla
+        asi partiria la cuenta por direccion — el mismo sitio contaria como
+        dos si alguna vez cambia el nombre del barrio.                   */
+    direccion:      String(pendingData.direccion || "") || null,
+    barrio:         String(pendingData.barrio || "") || null,
     notes:          notasPedido || null,
     audit_pago:     auditPago || null,
     payment_method: mixtoCP ? "multiple" : (String(pendingData.pago || "") || null),

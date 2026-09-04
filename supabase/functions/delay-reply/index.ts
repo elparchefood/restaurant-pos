@@ -10023,6 +10023,16 @@ async function createWhatsappOrder(
     notes: [direccion, barrioPedido ? `[barrio:${barrioPedido}]` : "",
             fromPhone ? `[tel:${telLocal(fromPhone)}]` : ""]
       .filter(Boolean).join(" ") || null,
+    /*  A DONDE FUE ESTE PEDIDO, en su propia columna (4-sep-2026).
+        La direccion ya viajaba dentro de `notes`, pero ese campo es la
+        comanda del domiciliario: sacarla de ahi con expresiones regulares
+        para poder contarla se rompe en cuanto cambie el formato.
+
+        Con columna propia se puede saber a que direccion pide mas cada
+        cliente, que es lo que Paco necesita para preguntar por la correcta.
+        `notes` se queda igual para la cocina.                          */
+    direccion: direccion || null,
+    barrio: barrioPedido || null,
     payment_method: pago || null,
     status: "open",
     total: totalConEmpaque + domiOrden,   // lo que el cliente paga, todo incluido

@@ -210,6 +210,11 @@ Deno.serve(async (req) => {
       branch_id: branchId, tenant_id: tenantId || null,
       session_id: String(openSession.id),        // enlazado al turno actual → cuenta en la caja
       channel, customer_name: cliente,
+      /*  A donde fue el pedido, en su columna: `notes` es la comanda
+          del domiciliario y no sirve para contar. Ver la migracion
+          2026-09-04-pedidos-direccion.sql.                        */
+      direccion: direccion || null,
+      barrio: barrio || null,
       notes: orderNotes, payment_method: pago || null,
       status: "open", subtotal, total, total_final: foodTotal,
       delivery_fee: domi || null, packaging_fee: empaque || null,

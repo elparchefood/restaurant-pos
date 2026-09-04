@@ -53,6 +53,11 @@ Deno.serve(async (req: Request) => {
       tenant_id:      tenantId || null,
       channel:        "domicilio",
       customer_name:  String(pendingData.cliente || "Cliente WhatsApp"),
+      /*  A donde fue el pedido, en su columna: `notes` es la comanda
+          del domiciliario y no sirve para contar. Ver la migracion
+          2026-09-04-pedidos-direccion.sql.                        */
+      direccion:      String(pendingData.direccion || "") || null,
+      barrio:         String(pendingData.barrio || "") || null,
       notes:          String(pendingData.direccion || "") || null,
       payment_method: String(pendingData.pago || "") || null,
       status:         "open",
