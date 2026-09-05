@@ -712,7 +712,27 @@ async function loadClientes() {
     S.clientesPorId  = porId;
   } catch (e) { console.warn('loadClientes:', e && e.message); }
 }
-function clienteDe(conv) {
+/*  ══ LA LISTA NO SALE A PREGUNTAR, FILA POR FILA ═════════════════
+    `buscarSiFalta` lo pide SOLO la cabecera de la conversacion abierta. Es
+    una, no cuatrocientas.
+
+    Antes lo hacia tambien la lista, y ahi se rompia: en El Parche hay 468
+    conversaciones y 249 de esos telefonos no tienen ficha de cliente
+    guardada. O sea **249 consultas sueltas cada vez que se abre el chat**,
+    y si la carga de clientes fallaba, 468.
+
+    Y lo peor no era la red: cada respuesta llamaba a `renderConvList()`,
+    que vuelve a pintar la lista ENTERA. 249 respuestas = 249 repintados de
+    468 filas. Eso no se siente como "va lento", se siente como que la
+    pantalla se congelo — que es justo lo que le paso a Sergio el 5-sep:
+    uno o dos minutos, y el aviso de que no cargaron ni las conversaciones,
+    ni el asistente, ni las etiquetas, ni los clientes.
+
+    Lo que se conserva es el motivo por el que esto existia (15-ago): un
+    cliente que Paco acaba de crear no esta en el mapa. Al ABRIR su
+    conversacion se busca, se guarda en el mapa y se repinta — asi la lista
+    tambien queda al dia, pero con una consulta y no con cientos.       */
+function clienteDe(conv, buscarSiFalta) {
   if (!conv) return null;
   /* SI LA CONVERSACION YA SABE DE QUE CLIENTE ES, esa es la respuesta. En
      Instagram y Messenger el `contact_handle` es un id de Meta y buscar por
@@ -728,8 +748,8 @@ function clienteDe(conv) {
      recargar — Sergio los veia "no guardados" estando guardados. Si el
      telefono no esta en el mapa, se consulta UNA vez esa ficha y se repinta.
      `_noEs` evita preguntar en bucle por numeros que de verdad no son clientes. */
-  if (!hit && t.length === 10 && !S._clienteBuscado) S._clienteBuscado = {};
-  if (!hit && t.length === 10 && !S._clienteBuscado[t]) {
+  if (!hit && buscarSiFalta && t.length === 10 && !S._clienteBuscado) S._clienteBuscado = {};
+  if (!hit && buscarSiFalta && t.length === 10 && !S._clienteBuscado[t]) {
     S._clienteBuscado[t] = true;
     sb.from('pos_clientes').select('nombre,telefono,barrio')
       .eq('tenant_id', S.tenantId).like('telefono', '%' + t).limit(1)
@@ -1803,7 +1823,7 @@ function renderChatHeader(conv) {
   checkBlacklist(conv);   // ⚠️ avisar si el contacto está en lista negra
   const meta     = CHANNELS[conv.channel] || {};
   const tint     = TINTS[(conv.contact_avatar_tint||0) % TINTS.length];
-  const _cli     = clienteDe(conv);
+  const _cli     = clienteDe(conv, true);
   const label    = (_cli && _cli.nombre) || conv.contact_name || conv.contact_handle || '?';
   const initials = avatarInitials(label);
 

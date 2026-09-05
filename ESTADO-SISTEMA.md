@@ -3,6 +3,60 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 El chat tardaba uno o dos minutos en abrir — 5-sep-2026
+
+Sergio: *"intento entrar al chat pero se demora en cargar y aparece como si
+todo estuviera desconectado"*, y despues el aviso rojo: **"no cargo las
+conversaciones, el modo del asistente, las respuestas rapidas, las etiquetas,
+los clientes"** — cinco de las seis cargas pasandose del plazo de 15 segundos.
+
+### No era la conexion ni la base
+
+Medido por la misma ruta que usa el navegador: la bandeja entera son 517 kB en
+0,9 s, los clientes 46 kB en 0,4 s, los canales 4 kB. La base, tranquila: dos
+conexiones activas y ninguna consulta lenta.
+
+### Era una consulta POR CADA FILA de la lista
+
+`clienteDe(conv)` buscaba la ficha del cliente por telefono, y si no estaba en
+el mapa salia a preguntarla. Se llama al pintar **cada fila**.
+
+En El Parche hay **468 conversaciones abiertas y 249 de esos telefonos no
+tienen ficha de cliente**: 249 consultas sueltas cada vez que se abre el chat.
+Y si la carga de clientes fallaba — lo que pasa justo cuando la red va mal —
+el mapa quedaba vacio y eran **468**.
+
+**Y lo peor no era la red.** Cada respuesta llamaba a `renderConvList()`, que
+vuelve a pintar la lista ENTERA. 249 respuestas = 249 repintados de 468 filas.
+Eso no se siente como "va lento": se siente como que la pantalla se congelo.
+
+Es un problema que crece solo: cuantas mas conversaciones acumula el
+restaurante, peor. Por eso *"siempre habia cargado rapido"* — hasta que dejo
+de hacerlo.
+
+### El arreglo
+
+`clienteDe(conv, buscarSiFalta)`: solo la **cabecera de la conversacion
+abierta** pide la ficha que falta. Una, no cuatrocientas. La lista se pinta con
+lo que ya trajo la bandeja.
+
+Se conserva el motivo por el que esto existia (15-ago: un cliente que Paco
+acaba de crear no esta en el mapa y se veia "sin guardar"): al abrir su
+conversacion se busca, se guarda en el mapa y se repinta, con lo que la lista
+tambien queda al dia — con una consulta.
+
+Comprobado ademas que ni `renderConvList`, ni `convRowHTML`, ni `renderBadges`
+llevan otra consulta dentro.
+
+### Lo que si fue mio, y conviene saberlo
+
+El cambio de permisos de esa misma tarde subio el `?v=` de `pos-nucleo.js`
+(335 kB) en las 25 pantallas e invalido lo guardado en el equipo, asi que el
+ejecutable tuvo que bajarlo todo otra vez. Eso no CAUSO la lentitud — estaba
+ahi desde antes y crecia sola — pero cayo encima el mismo dia y remato la
+carga. Vale la pena tenerlo presente: **cada publicacion que toca el nucleo le
+cuesta al restaurante una recarga completa**.
+
 ## 🔴→🟢 Un empleado heredaba los permisos del dueNo — 5-sep-2026
 
 Sergio: *"cree un rol de mi mismo pero como cajero, ingrese y tengo acceso
