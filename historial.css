@@ -350,51 +350,120 @@
 }
 .btn-hs-primary:hover { background: #4F5BE3; border-color: #4F5BE3; }
 
-/* ══ LO QUE FALTABA DEL DETALLE (5-sep-2026) ═══════════════════════════
-   Este archivo estaba CORTADO A MEDIA LINEA — se veía el corte en
-   `.btn-hs-primary:hover { background: #` — y nació así en su primer
-   commit. Con el corte se perdieron los estilos de TODO el panel de
-   detalle: los cuatro números de arriba, los títulos de sección, la
-   tabla de productos y la cronología. En pantalla salían apilados como
-   texto plano.
+/* ══ EL PANEL DE DETALLE (5-sep-2026) ═══════════════════════════════════
+   Sergio: "se ve muy plana, los datos se ven en texto puro, no se entiende
+   absolutamente nada". Tres decisiones, ninguna toca los datos:
 
-   Y había una segunda consecuencia, peor: una llave sin cerrar se traga
-   todo lo que venga después, así que cualquier estilo añadido al final
-   del archivo no se aplicaba nunca.
-
-   Los valores son los del sistema del producto, no inventados: superficie
-   #fff, borde #ECEEF2, tinta #0F172A / #64748B / #94A3B8, acento #5B6BFF.
+   1. El TOTAL manda. Antes era una de cuatro cajas idénticas, del mismo
+      tamaño que "Canal" — y cuando alguien abre un pedido, casi siempre
+      va por el total.
+   2. Los productos se leen como una cuenta, no como una tabla: cantidad
+      en un cuadro, producto en negrita, presentación y precio unitario
+      debajo en gris, total a la derecha con cifras de ancho fijo.
+   3. La cronología tiene columna de horas propia, para ver de un golpe
+      cuánto tardó cada paso.
    ─────────────────────────────────────────────────────────────────── */
 
-/* Los cuatro números de arriba */
-.hs-kpis {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
-  margin-bottom: 18px;
-}
-.hs-kpi {
+/* La cabecera: etiquetas arriba, nombre grande, y quién y cuándo debajo */
+.hs-dchips { display: flex; gap: 6px; margin-bottom: 7px; flex-wrap: wrap; }
+.hs-dhead-l { min-width: 0; }
+
+/* La banda de resumen. El total ocupa más y pesa más, a propósito. */
+.hs-resumen {
+  display: flex;
+  align-items: center;
+  gap: 22px;
   background: #fff;
   border: 1px solid #ECEEF2;
-  border-radius: 12px;
-  padding: 12px 14px;
-  min-width: 0;
+  border-radius: 14px;
+  padding: 15px 20px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
 }
-.hs-kpi-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: #94A3B8;
-  text-transform: uppercase;
-  letter-spacing: .09em;
-  margin-bottom: 5px;
+.hs-res-total { flex: 1.4 1 150px; min-width: 0; }
+.hs-res-dato  { flex: 1 1 105px; min-width: 0; }
+.hs-res-lbl {
+  font-size: 10px; font-weight: 700; color: #94A3B8;
+  text-transform: uppercase; letter-spacing: .09em;
 }
-.hs-kpi-value {
-  font-size: 17px;
-  font-weight: 800;
-  color: #0F172A;
-  letter-spacing: -.02em;
+.hs-res-big {
+  font-size: 29px; font-weight: 800; color: #0F172A;
+  letter-spacing: -.03em; line-height: 1.15; margin-top: 2px;
   font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
+}
+.hs-res-val {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 14px; font-weight: 700; color: #0F172A; margin-top: 5px;
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.hs-res-val.flojo { color: #94A3B8; font-weight: 600; }
+.hs-res-val svg { flex-shrink: 0; }
+
+/* Los productos */
+.hs-prods {
+  background: #fff; border: 1px solid #ECEEF2; border-radius: 14px;
+  padding: 4px 18px 0; overflow: hidden;
+}
+.hs-prod {
+  display: flex; align-items: center; gap: 13px;
+  padding: 11px 0; border-bottom: 1px solid #F1F5F9;
+}
+.hs-prod:last-of-type { border-bottom: none; }
+.hs-prod-qty {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  background: #F1F5F9; color: #475569;
+  font-size: 12.5px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+.hs-prod-nom { flex: 1; min-width: 0; }
+.hs-prod-n { font-size: 14px; font-weight: 700; color: #0F172A; line-height: 1.3; overflow-wrap: anywhere; }
+.hs-prod-d { font-size: 11.5px; color: #94A3B8; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.hs-prod-t {
+  font-size: 14.5px; font-weight: 700; color: #0F172A;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.hs-prod-total {
+  display: flex; justify-content: space-between; align-items: center;
+  margin: 0 -18px; padding: 12px 18px;
+  background: #F8FAFC; border-top: 1px solid #ECEEF2;
+}
+.hs-prod-total span:first-child { font-size: 12.5px; font-weight: 700; color: #64748B; }
+.hs-prod-total span:last-child {
+  font-size: 16px; font-weight: 800; color: #0F172A;
+  font-variant-numeric: tabular-nums;
+}
+.hs-prods-vacio { color: #94A3B8; font-size: 13px; }
+
+/* La cronología: hora, punto, evento */
+.hs-timeline {
+  background: #fff; border: 1px solid #ECEEF2; border-radius: 14px;
+  padding: 15px 18px 4px;
+}
+.hs-tl-item { display: flex; gap: 12px; }
+.hs-tl-hora {
+  width: 74px; flex-shrink: 0; text-align: right;
+  font-size: 11.5px; font-weight: 600; color: #94A3B8;
+  font-variant-numeric: tabular-nums; padding-top: 1px;
+}
+.hs-tl-left { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.hs-tl-dot {
+  width: 10px; height: 10px; border-radius: 999px;
+  background: #CBD5E1; margin-top: 4px; flex-shrink: 0;
+}
+.hs-tl-dot.gris  { background: #CBD5E1; }
+.hs-tl-dot.ambar { background: #F59E0B; }
+.hs-tl-dot.azul  { background: #5B6BFF; }
+.hs-tl-dot.verde { background: #16A34A; }
+.hs-tl-dot.rojo  { background: #DC2626; }
+.hs-tl-line { width: 2px; flex: 1; background: #F1F5F9; margin: 3px 0; min-height: 8px; }
+.hs-tl-item:last-child .hs-tl-line { background: transparent; }
+.hs-tl-txt { min-width: 0; padding-bottom: 14px; }
+.hs-tl-item:last-child .hs-tl-txt { padding-bottom: 8px; }
+.hs-tl-event { font-size: 13.5px; font-weight: 700; color: #0F172A; line-height: 1.3; }
+.hs-tl-detalle {
+  font-size: 12px; color: #64748B; margin-top: 2px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Cada bloque del detalle */
@@ -407,73 +476,6 @@
   letter-spacing: .09em;
   margin-bottom: 9px;
 }
-
-/* La tabla de productos. Las cifras a la derecha y con cifras de igual
-   ancho: una columna de precios que no alinea no se puede leer de un
-   vistazo, que es justo para lo que se abre esta pantalla. */
-.hs-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-  border: 1px solid #ECEEF2;
-  border-radius: 12px;
-  overflow: hidden;
-  font-size: 13px;
-}
-.hs-table th {
-  text-align: left;
-  font-size: 10px;
-  font-weight: 700;
-  color: #94A3B8;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  padding: 9px 14px;
-  background: #F8FAFC;
-  border-bottom: 1px solid #ECEEF2;
-  white-space: nowrap;
-}
-.hs-table td {
-  padding: 10px 14px;
-  color: #0F172A;
-  border-bottom: 1px solid #F1F5F9;
-}
-.hs-table tbody tr:last-child td { border-bottom: none; }
-.hs-table th:not(:first-child),
-.hs-table td:not(:first-child) {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.hs-table tfoot td {
-  background: #F8FAFC;
-  border-top: 1px solid #ECEEF2;
-  font-weight: 800;
-  color: #0F172A;
-}
-.hs-table tfoot td:first-child { text-align: right; color: #64748B; font-weight: 700; }
-
-/* La cronología: un punto por paso, unidos por una línea. */
-.hs-timeline {
-  background: #fff;
-  border: 1px solid #ECEEF2;
-  border-radius: 12px;
-  padding: 14px 16px 4px;
-}
-.hs-tl-item { display: flex; gap: 12px; }
-.hs-tl-left { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
-.hs-tl-dot {
-  width: 9px; height: 9px; border-radius: 999px;
-  background: #E2E8F0; margin-top: 4px; flex-shrink: 0;
-}
-.hs-tl-dot.done { background: #16A34A; }
-.hs-tl-dot.current { background: #5B6BFF; box-shadow: 0 0 0 3px rgba(91,107,255,.16); }
-.hs-tl-line { width: 2px; flex: 1; background: #F1F5F9; margin: 3px 0; min-height: 10px; }
-.hs-tl-item:last-child .hs-tl-line { background: transparent; }
-.hs-tl-event { font-size: 13px; font-weight: 700; color: #0F172A; }
-.hs-tl-time { font-size: 11.5px; color: #94A3B8; margin-top: 1px; padding-bottom: 14px; }
-.hs-tl-item:last-child .hs-tl-time { padding-bottom: 8px; }
-
-
 
 /* ══ LA FACTURA ELECTRONICA DEL PEDIDO (5-sep-2026) ══════════════
    Va en el panel grande, NUNCA en la tarjeta de la lista: la chiquita

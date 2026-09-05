@@ -224,35 +224,46 @@ async function selectOrder(id) {
   renderDetail(o);
 }
 
+/*  El nombre llega como «Personal · Premium · Mixta»: el PRIMER trozo es
+    siempre la presentación (Personal, Familiar, 1.5 Litros, Litro, Único),
+    y el resto es el producto. Comprobado contra los 22 nombres más
+    vendidos de El Parche, no supuesto.
+
+    Puesto todo en una línea no se lee: la presentación pesa igual que el
+    producto y hay que leer la frase entera para saber qué se vendió. Con
+    el producto arriba y la presentación abajo, la columna se barre de un
+    vistazo.
+
+    Si un nombre no trae «·» se muestra tal cual: nunca se inventa nada. */
+function splitProducto(nombre) {
+  const partes = String(nombre || '').split('·').map(p => p.trim()).filter(Boolean);
+  if (partes.length < 2) return { nombre: partes[0] || '—', presentacion: '' };
+  return { nombre: partes.slice(1).join(' · '), presentacion: partes[0] };
+}
+
 function renderDetail(o) {
   const table  = HS.tables[o.table_id];
-  const waiter = HS.users[o.waiter_id] || '—';
+  const waiter = HS.users[o.waiter_id] || '';
   const label  = orderLabel(o, table);
   const items  = HS.items[o.id] || [];
-  const itemsTotal = items.reduce((s, i) => s + (i.total || 0), 0);
 
   const canal  = o.channel === 'rapido' ? 'Venta rápida' : o.channel === 'domicilio' ? 'Domicilio' : 'Salón';
   const payMethod = o.payment_method ? fmtPayMethod(o.payment_method) : '—';
   const discount  = o.discount || 0;
+  const unidades  = items.reduce((s, i) => s + (Number(i.quantity) || 1), 0);
 
   const dateLabel = HS.range === 'today' ? 'Hoy' : fmtDate(o.created_at);
-
-  /* Cronología */
   const tl = buildTimeline(o);
 
   document.getElementById('hs-detail').innerHTML = `
     <div class="hs-dhead">
-      <div>
+      <div class="hs-dhead-l">
+        <div class="hs-dchips">${canalBadge(o.channel)}${statusBadge(o.status)}</div>
         <div class="hs-dtitle">${label}</div>
         <div class="hs-dsub">
           <span>${dateLabel} ${fmtTime(o.created_at)}</span>
-          <span class="hs-dsub-sep">·</span>
-          <span>${waiter}</span>
-          <span class="hs-dsub-sep">·</span>
-          <span>${canal}</span>
+          ${waiter ? `<span class="hs-dsub-sep">·</span><span>${waiter}</span>` : ''}
           ${o.domi_movil ? `<span class="hs-dsub-sep">·</span><span style="color:#0F766E;font-weight:700">Móvil ${o.domi_movil}</span>` : ''}
-          ${canalBadge(o.channel)}
-          ${statusBadge(o.status)}
         </div>
       </div>
       <div class="hs-dactions">
@@ -267,28 +278,49 @@ function renderDetail(o) {
       </div>
     </div>
 
-    <div class="hs-kpis">
-      <div class="hs-kpi"><div class="hs-kpi-label">Total cobrado</div><div class="hs-kpi-value">${COPF(o.total)}</div></div>
-      <div class="hs-kpi"><div class="hs-kpi-label">Método de pago</div><div class="hs-kpi-value">${payMethod}</div></div>
-      <div class="hs-kpi"><div class="hs-kpi-label">Descuento</div><div class="hs-kpi-value">${COPF(discount)}</div></div>
-      <div class="hs-kpi"><div class="hs-kpi-label">Canal</div><div class="hs-kpi-value">${canal}</div></div>
+    <div class="hs-resumen">
+      <div class="hs-res-total">
+        <div class="hs-res-lbl">Total cobrado</div>
+        <div class="hs-res-big">${COPF(o.total)}</div>
+      </div>
+      <div class="hs-res-dato">
+        <div class="hs-res-lbl">Pago</div>
+        <div class="hs-res-val">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6BFF" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          ${payMethod}
+        </div>
+      </div>
+      <div class="hs-res-dato">
+        <div class="hs-res-lbl">Descuento</div>
+        <div class="hs-res-val${discount > 0 ? '' : ' flojo'}">${discount > 0 ? COPF(discount) : 'Sin descuento'}</div>
+      </div>
+      <div class="hs-res-dato">
+        <div class="hs-res-lbl">Unidades</div>
+        <div class="hs-res-val">${unidades || '—'}</div>
+      </div>
     </div>
 
     <div class="hs-section">
-      <div class="hs-section-title">Ítems pedidos</div>
+      <div class="hs-section-title">Productos</div>
       ${items.length ? `
-      <table class="hs-table">
-        <thead><tr><th>Producto</th><th>Cant.</th><th>Precio unit.</th><th>Total</th></tr></thead>
-        <tbody>${items.map(i => `
-          <tr>
-            <td>${i.product_name || '—'}</td>
-            <td>${i.quantity || 1}</td>
-            <td>${COPF(i.unit_price || i.product_price || 0)}</td>
-            <td>${COPF(i.total || 0)}</td>
-          </tr>`).join('')}
-        </tbody>
-        <tfoot><tr><td colspan="3">Total</td><td>${COPF(o.total)}</td></tr></tfoot>
-      </table>` : '<div style="color:#94A3B8;font-size:13px">Sin ítems registrados</div>'}
+      <div class="hs-prods">
+        ${items.map(i => {
+          const p = splitProducto(i.product_name || i.name);
+          const unit = Number(i.unit_price || i.product_price || 0);
+          const cant = Number(i.quantity) || 1;
+          const pie = [p.presentacion, unit ? COPF(unit) + ' c/u' : ''].filter(Boolean).join(' · ');
+          return `
+          <div class="hs-prod">
+            <div class="hs-prod-qty">${cant}</div>
+            <div class="hs-prod-nom">
+              <div class="hs-prod-n">${p.nombre}</div>
+              ${pie ? `<div class="hs-prod-d">${pie}</div>` : ''}
+            </div>
+            <div class="hs-prod-t">${COPF(i.total || 0)}</div>
+          </div>`;
+        }).join('')}
+        <div class="hs-prod-total"><span>Total</span><span>${COPF(o.total)}</span></div>
+      </div>` : '<div class="hs-prods-vacio">Sin ítems registrados</div>'}
     </div>
 
     ${hsFacHTML(o)}
@@ -300,18 +332,30 @@ function renderDetail(o) {
   `;
 }
 
+/*  Los pasos son los MISMOS de siempre y en el mismo orden. Lo único que
+    cambia es que la hora se guarda aparte del texto: con las horas en su
+    propia columna se ve de un golpe cuánto tardó cada paso, que antes
+    había que ir leyendo línea por línea.                                */
 function buildTimeline(o) {
   const steps = [];
 
-  steps.push({ done: true, event: 'Pedido creado', time: fmtTime(o.created_at) + (HS.users[o.waiter_id] ? ' · ' + HS.users[o.waiter_id] : '') });
+  steps.push({
+    tono: 'gris', evento: 'Pedido creado',
+    hora: fmtTime(o.created_at),
+    detalle: HS.users[o.waiter_id] || '',
+  });
 
   if (o.visible_cocina) {
-    steps.push({ done: true, event: 'Enviado a cocina', time: fmtTime(o.created_at) });
+    steps.push({ tono: 'ambar', evento: 'Enviado a cocina', hora: fmtTime(o.created_at), detalle: '' });
   }
 
   if (o.delivered_at) {
     const min = Math.round((new Date(o.delivered_at) - new Date(o.created_at)) / 60000);
-    steps.push({ done: true, event: 'Entregado al cliente', time: fmtTime(o.delivered_at) + (min > 0 ? ' · ' + min + ' min de preparación' : '') });
+    steps.push({
+      tono: 'azul', evento: 'Entregado al cliente',
+      hora: fmtTime(o.delivered_at),
+      detalle: min > 0 ? min + ' min de preparación' : '',
+    });
   }
 
   const isPaid = o.status === 'paid' || o.status === 'completed';
@@ -319,26 +363,33 @@ function buildTimeline(o) {
   if (!isPaid && abonado > 0 && o.status !== 'cancelled') {
     // Sin el domicilio: es lo que de verdad falta por cobrar.
     const faltaAb = Math.max(0, (Number(o.total) || 0) - (Number(o.delivery_fee) || 0) - abonado);
-    steps.push({ done: true, event: 'Abono recibido · ' + COPF(abonado) + (faltaAb > 0 ? ' (faltan ' + COPF(faltaAb) + ')' : ''), time: '' });
+    steps.push({
+      tono: 'verde', evento: 'Abono recibido', hora: '',
+      detalle: COPF(abonado) + (faltaAb > 0 ? ' · faltan ' + COPF(faltaAb) : ''),
+    });
   }
   if (isPaid) {
-    const payMethod = o.payment_method ? ' · ' + fmtPayMethod(o.payment_method) + ' ' + COPF(o.total) : '';
-    steps.push({ done: true, event: 'Pago recibido' + payMethod, time: fmtTime(o.updated_at || o.created_at) });
+    steps.push({
+      tono: 'verde', evento: 'Pago recibido',
+      hora: fmtTime(o.updated_at || o.created_at),
+      detalle: o.payment_method ? fmtPayMethod(o.payment_method) + ' · ' + COPF(o.total) : COPF(o.total),
+    });
   } else if (o.status === 'pendiente_pago') {
-    steps.push({ done: false, current: true, event: 'Pendiente de pago', time: 'En espera de cobro' });
+    steps.push({ tono: 'ambar', evento: 'Pendiente de pago', hora: '', detalle: 'En espera de cobro' });
   } else if (o.status === 'cancelled') {
-    steps.push({ done: false, event: 'Pedido anulado', time: fmtTime(o.updated_at || o.created_at) });
+    steps.push({ tono: 'rojo', evento: 'Pedido anulado', hora: fmtTime(o.updated_at || o.created_at), detalle: '' });
   }
 
   return steps.map(s => `
     <div class="hs-tl-item">
+      <div class="hs-tl-hora">${s.hora || ''}</div>
       <div class="hs-tl-left">
-        <div class="hs-tl-dot${s.done ? ' done' : s.current ? ' current' : ''}"></div>
+        <div class="hs-tl-dot ${s.tono}"></div>
         <div class="hs-tl-line"></div>
       </div>
-      <div>
-        <div class="hs-tl-event">${s.event}</div>
-        <div class="hs-tl-time">${s.time}</div>
+      <div class="hs-tl-txt">
+        <div class="hs-tl-event">${s.evento}</div>
+        ${s.detalle ? `<div class="hs-tl-detalle">${s.detalle}</div>` : ''}
       </div>
     </div>`).join('');
 }
