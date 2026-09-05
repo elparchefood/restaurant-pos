@@ -3329,7 +3329,39 @@ INTENCION, no las palabras exactas.` },
        mensaje — la misma comprobacion determinista que usa la correccion. */
     const platosNuevosPost = productosNuevosEnTexto(clienteTexto, state, currentProductData, intenciones);
     const nombraPlatoNuevo = !!leidoCorr.producto || platosNuevosPost.length > 0;
-    if ((nombraPlatoNuevo && (AGREGA_RE.test(clienteTexto) || intenciones.pedir === true)) || corrNombraProducto) {
+
+    /*  ══ «Y UNA COCA-COLA» TAMBIEN ES AGREGAR (5-sep-2026) ═════════════
+        Caso real de Daniela Martinez. Tras el resumen escribio «Y una
+        Coca-Cola» y Paco le repitio «quedo pendiente el comprobante»,
+        ignorando la gaseosa entera. Tuvo que entrar una persona a dar el
+        total a mano — y lo dio mal.
+
+        La puerta exigia un VERBO de una lista escrita a mano (agregar,
+        anade, tambien, otra, dame, quiero...). «Y una Coca-Cola» no tiene
+        ninguno, y es la forma mas natural de anadir algo. Es justo lo que
+        Sergio lleva reclamando: comparar texto en vez de entender.
+
+        AHORA: un plato del catalogo que NO esta en el pedido, nombrado
+        despues del resumen, ES un anadido. `productosNuevosEnTexto` ya
+        descarta el plato en curso, los ya pedidos y las opciones del
+        producto — por eso «Personal» no cuenta como plato nuevo.
+
+        Lo unico que se respeta es la PREGUNTA: «cuanto vale la Coca Cola»
+        nombra un plato y no lo esta pidiendo. Y eso lo dice el
+        clasificador, no otra lista de palabras.
+
+        La lista de verbos NO se borra: sigue valiendo cuando el LECTOR vio
+        un producto que el catalogo no reconocio. Se le quita el veto, no
+        el voto.                                                          */
+    const preguntaNoPide = intenciones.pregunta === true
+      || intenciones.precio === true || intenciones.carta === true;
+    const agregaSinVerbo = platosNuevosPost.length > 0 && !preguntaNoPide;
+    if (agregaSinVerbo && !(AGREGA_RE.test(clienteTexto) || intenciones.pedir === true)) {
+      console.log(`[resumen] plato nuevo SIN verbo de agregar: "${clienteTexto.slice(0, 60)}" -> ${JSON.stringify(platosNuevosPost.map(x => x.name))}`);
+    }
+
+    if ((nombraPlatoNuevo && (AGREGA_RE.test(clienteTexto) || intenciones.pedir === true))
+        || agregaSinVerbo || corrNombraProducto) {
       console.log("[resumen] agrega otro plato:",
         JSON.stringify(leidoCorr.producto || platosNuevosPost.map(p => p.name)), "— sigue al flujo normal");
       state.resumen_enviado = false;

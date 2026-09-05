@@ -3,6 +3,83 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 «Y una Coca-Cola» tras el resumen — 5-sep-2026 (`delay-reply` v404)
+
+### El caso, de Daniela Martinez (5-sep, 01:01)
+
+```
+01:01:27  PACO     Listo! Tu pedido queda asi: 1x Mixta Personal… Total: $31.000
+01:01:47  PACO     Quedo pendiente del comprobante…
+01:01:52  CLIENTE  Y una Coca-Cola
+01:02:07  CLIENTE  Personal
+01:02:14  PACO     Quedo pendiente del comprobante…        <- ignoro la gaseosa
+```
+
+Tuvo que entrar una persona a dar el total a mano. Y lo dio con el desglose
+equivocado: dijo *"$31.000 de tu pedido y $5.000 del domicilio"*, cuando los
+$31.000 **ya llevaban** el domicilio.
+
+### Por que
+
+La puerta que reconoce «esta agregando» exigia **dos** cosas:
+
+```js
+nombraPlatoNuevo && (AGREGA_RE.test(texto) || intenciones.pedir)
+```
+
+`AGREGA_RE` es una lista escrita a mano: *agregar, anade, sumale, tambien,
+otra, ademas, dame, quiero…* **«Y una Coca-Cola» no tiene ninguna** — y es la
+forma mas natural de anadir algo.
+
+Es exactamente lo que Sergio lleva reclamando: **comparar texto en vez de
+entender la intencion**.
+
+### El arreglo
+
+Un plato del catalogo que **no esta en el pedido**, nombrado despues del
+resumen, **es un anadido** — diga «agregame» o no.
+`productosNuevosEnTexto` ya descarta el plato en curso, los ya pedidos y las
+opciones del producto (por eso «Personal» no cuenta como plato nuevo).
+
+Lo unico que sigue cerrando la puerta es **la pregunta**: «cuanto vale la Coca
+Cola» nombra un plato y no lo esta pidiendo. Y eso lo dice el clasificador, no
+otra lista de palabras.
+
+**La lista de verbos NO se borro:** sigue valiendo cuando el LECTOR vio un
+producto que el catalogo no reconocio. Se le quito el veto, no el voto.
+
+### Comprobado en el banco con la conversacion de Daniela, tal cual
+
+```
+CLIENTE  Y una Coca-Cola
+PACO     Sobre la *COCA COLA* ¿La quieres 1.5 litros o personal?
+CLIENTE  Personal
+PACO     Listo! … 1x Mixta Personal · 1x COCA COLA Personal
+         Pedido: $31.000 · Domicilio: $5.000 · Total: $36.000
+         ¿Lo confirmamos o hay algo que cambiar?
+```
+
+Reconoce el anadido, pregunta el tamano, **rearma el resumen con el precio
+nuevo** y queda esperando la confirmacion — que es lo que Sergio pidio.
+
+Y el caso contrario tambien: *«Cuanto vale la coca cola?»* tras el resumen
+**no** la agrega; contesta el precio y sigue con el pago.
+
+### ⚠️ En la misma conversacion se ve OTRO fallo, sin arreglar
+
+```
+01:00:25  PACO     ¿La quieres familiar o personal?
+01:00:43  CLIENTE  Personal
+01:00:44  PACO     Solo me falta este dato… ¿La quieres familiar o personal?
+```
+
+Un segundo despues de que ella contesto. Hay candado contra respuestas dobles
+desde el 23-ago, asi que **es de otra naturaleza** y necesita su propia
+investigacion con las filas de la cola — que ya no estan. Queda anotado: es el
+«Paco pierde respuestas y vuelve a preguntar» de la lista.
+
+---
+
 ## 🔴→🟢 La tablet no se enteraba de los cambios — 4-sep-2026
 
 Sergio: *"en el computador esta muy bien, pero en la tablet sigue apareciendo
