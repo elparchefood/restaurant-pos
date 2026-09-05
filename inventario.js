@@ -236,17 +236,42 @@ function isPausado(prod, opt) {
   }
   return prod.receta.some(l => {
     if (!lineaAplica(l, opt)) return false;
-    const ins = insumos.find(i => i.id === l.insId);
-    return ins && ins.prep && ins.stock <= 0;
+    return insBloquea(insumos.find(i => i.id === l.insId));
   });
+}
+
+/*  ══ LA REGLA, EN UN SOLO SITIO ═══════════════════════════════════════
+    Antes esto estaba escrito aquí como `ins.prep && ins.stock <= 0`, sin
+    mirar si el insumo agota el producto ni si es de control manual. O sea
+    que el inventario decía "pausado" y la caja lo vendía igual — dos
+    pantallas del mismo programa contradiciéndose sobre el mismo plato.
+
+    Ahora dice lo mismo que `pos-stock.js`, que es quien manda en la
+    venta. Dos copias de una decisión siempre acaban separándose: aquí ya
+    pasó, se arregló una en agosto y la otra no se enteró.               */
+const IV_NADA = 0.000001;   // el polvo de restar fracciones no es "hay"
+
+function insBloquea(ins) {
+  if (!ins || !ins.prep) return false;
+  /*  El insumo que no agota el producto NO bloquea — la salsa barbecue.
+      Se sigue descontando y saliendo en rojo; solo no frena la venta.  */
+  if (ins.agota === false) return false;
+  /*  Control manual: no depende de la cantidad. Solo si alguien avisó a
+      mano que se acabó. La carne y el pollo son de estos.              */
+  if (ins.controlManual) return !!ins.agotadoManual;
+  if (ins.sub) {
+    if (ins.servicio > IV_NADA) return false;
+    if (ins.stock > IV_NADA && ins.venderBodega) return false;
+    return true;
+  }
+  return ins.stock <= IV_NADA;
 }
 // Insumo faltante de una combinacion, para el mensaje de la tarjeta.
 // Sin opcion (undefined) → cualquier insumo agotado del producto (base o variante).
 function insumoFaltante(prod, opt) {
   const l = prod.receta.find(x => {
     if (opt !== undefined && !lineaAplica(x, opt)) return false;
-    const i = insumos.find(y => y.id === x.insId);
-    return i && i.prep && i.stock <= 0;
+    return insBloquea(insumos.find(y => y.id === x.insId));
   });
   return l ? (insumos.find(y => y.id === l.insId) || {}).nombre || '—' : '—';
 }
