@@ -59,6 +59,12 @@ type CuentaFactus = {
     Las llaves NO estan aqui. Estan en el Vault, una por restaurante.   */
 const URL_POR_DEFECTO = Deno.env.get("FACTUS_URL") ?? "https://api-sandbox.factus.com.co";
 
+/*  El secreto con el que el reloj pide procesar la cola. No es la llave
+    de servicio a proposito: aquella abre toda la base de todos los
+    restaurantes, y el cron vive DENTRO de la base — quedaria escrita en
+    una tabla. Esta solo sirve para decir "procesa lo vencido".        */
+const COLA_SECRETO = Deno.env.get("COLA_SECRETO") ?? "";
+
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -86,7 +92,15 @@ async function db(ruta: string, init: RequestInit = {}) {
     console.error("base:", ruta, r.status, t.slice(0, 300));
     throw new Error("No se pudo hablar con la base");
   }
-  return r.status === 204 ? null : await r.json();
+  /*  Una respuesta SIN CUERPO no es un error: PostgREST contesta 201 y
+      cuerpo vacio cuando se le pide `return=minimal`, y 204 al borrar.
+      Leerla como JSON revienta DESPUES de que el cambio ya se hizo, asi
+      que quien llamaba veia una excepcion de algo que si funciono — me
+      acaba de pasar con el barrido: creaba las filas y decia que no habia
+      recogido ninguna.                                                 */
+  const texto = await r.text();
+  if (!texto.trim()) return null;
+  return JSON.parse(texto);
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -740,6 +754,404 @@ async function destrabar(FACTUS: Factus, tenantId: string): Promise<number> {
   return quitadas;
 }
 
+/*  ══ EMITIR — UNA sola vez, para la caja y para la cola ══════════
+    La cola reintenta EXACTAMENTE lo mismo que hace la caja: los mismos
+    candados, el mismo cuerpo, la misma idempotencia, el mismo correo.
+    Escribirlo dos veces seria repetir el error de hoy — dos copias de la
+    misma decision que se separan sin que nadie lo note.
+
+    Lo unico que NO esta aqui es el permiso, porque es lo unico distinto:
+      · la caja: el token de quien cobra, y la base decide si el pedido es
+        suyo;
+      · la cola: no hay nadie, y la fila salio de nuestra propia tabla.
+    Y el REENVIO tampoco: es del manejador, no de emitir.              */
+type ResultadoEmitir = {
+  ok: boolean;
+  factura?: unknown;
+  numero?: unknown;
+  error?: string;
+  detalle?: unknown;
+  ya_estaba?: boolean;
+  sin_cuenta?: boolean;
+  apagada?: boolean;
+  no_existe?: boolean;
+  anulado?: boolean;
+};
+
+async function emitirPedido(order_id: string): Promise<ResultadoEmitir> {
+    // ── el pedido y sus renglones ────────────────────────────────────
+    const pedidos = await db(
+      `pos_orders?id=eq.${order_id}`
+      + `&select=id,tenant_id,branch_id,total,total_final,paid_amount,packaging_fee,`
+      + `tip_amount,discount_amount,`
+      + `status,factura_cliente`);
+    const pedido = pedidos?.[0];
+    if (!pedido) return { ok: false, no_existe: true, error: "El pedido no existe" };
+
+    /*  ══ EL INTERRUPTOR DEL RESTAURANTE ══════════════════════════════
+        Sergio: *"al desactivarla simplemente se corta cualquier flujo de
+        datos"*. El corte va AQUI, en el servidor, no en la pantalla: un
+        botón escondido en el navegador no corta nada — basta con llamar a
+        la función desde otro sitio. Aquí no hay vuelta.
+
+        Se lee de la tabla y no de las llaves, porque apagar no borra la
+        conexión: se puede estar conectado y en pausa.                  */
+    const cuentaSede = await db(
+      `pos_facturacion_cuentas?branch_id=eq.${pedido.branch_id}&proveedor=eq.factus`
+      + `&select=activo,emitiendo&limit=1`,
+    ) as Array<{ activo?: boolean; emitiendo?: boolean }> | null;
+    if (cuentaSede?.[0] && cuentaSede[0].emitiendo === false) {
+      console.log("[cuenta] la sede", pedido.branch_id, "tiene la facturacion APAGADA");
+      return { ok: false, apagada: true,
+               error: "Este restaurante tiene apagada la facturación electrónica" };
+    }
+
+    /*  Las llaves salen del Vault y solo las puede pedir el rol de
+        servicio. Aqui no se guardan ni se registran jamas.             */
+    const llaves = await db("rpc/fn_facturacion_llaves", {
+      method: "POST",
+      body: JSON.stringify({ p_branch: pedido.branch_id }),
+    }) as Record<string, string> | null;
+
+    /*  ⚠️ SIN CUENTA NO SE EMITE, y NO se cae de vuelta a las llaves de
+        Cobra. El respaldo seria comodo y seria un desastre: la factura
+        saldria a nombre del NIT de otro restaurante ante la DIAN, y una
+        factura emitida no se deshace.                                  */
+    if (!llaves || !llaves.client_id) {
+      console.error("[cuenta] la sede", pedido.branch_id, "no tiene cuenta de facturacion");
+      return { ok: false, sin_cuenta: true,
+               error: "Este restaurante todav\u00eda no tiene conectada su cuenta de facturaci\u00f3n electr\u00f3nica" };
+    }
+
+    const FACTUS = crearFactus({
+      url:    llaves.url || URL_POR_DEFECTO,
+      id:     llaves.client_id,
+      secret: llaves.client_secret,
+      user:   llaves.username,
+      pass:   llaves.password,
+    });
+
+    if (pedido.status === "cancelled") {
+      return { ok: false, anulado: true, error: "Un pedido anulado no se factura" };
+    }
+
+    /*  ── YA FACTURADO: SE DEVUELVE LA QUE HAY ──────────────────────
+        Primera barrera de la idempotencia, antes de salir a internet. La
+        segunda es el `reference_code` del proveedor.                  */
+    const previas = await db(
+      `pos_facturas?order_id=eq.${order_id}&tipo=eq.factura&estado=neq.anulada`
+      + `&select=id,estado,numero,cufe,prefijo`);
+    const previa = previas?.[0];
+    if (previa && previa.estado === "aceptada") {
+      return { ok: true, ya_estaba: true, factura: previa };
+    }
+
+    const renglones = await db(
+      `pos_order_items?order_id=eq.${order_id}`
+      + `&select=id,product_id,name,product_name,quantity,unit_price,product_price,`
+      + `total,tax_pct,tax_base,tax_amount`);
+    if (!renglones?.length) return { ok: false, anulado: true, error: "El pedido no tiene productos" };
+
+    // ── se emite ─────────────────────────────────────────────────────
+    const cuerpo = FACTUS.cuerpo(pedido, renglones, null);
+
+    /*  ══ SIN INTERNET NO SE PIERDE LA FACTURA ════════════════════
+        Sergio, sobre la cola: *"la factura queda en cola y se reintenta
+        sola cuando regrese el Internet"*. Pues ese caso era justo el que
+        NO llegaba a la cola.
+
+        Si el proveedor no contesta, `fetch` revienta — y pedir el token
+        revienta a proposito con un `throw`. Eso subia hasta el manejador,
+        devolvia 500 y NO GUARDABA NADA: ni factura, ni fila, ni cita. La
+        venta se quedaba sin factura y sin nadie que la volviera a
+        intentar. La cola entera no servia para el unico caso para el que
+        se hizo.
+
+        Aqui el reventon se convierte en un rechazo normal y sigue por el
+        camino de siempre: se guarda `pendiente` y se agenda. Lo que no se
+        pudo preguntar y lo que contestaron que no son cosas distintas, y
+        por eso el error guardado dice cual de las dos fue.            */
+    const emitirSeguro = async () => {
+      try {
+        return await FACTUS.emitir(cuerpo);
+      } catch (e) {
+        console.error("[emitir] no se pudo hablar con el proveedor:", String(e).slice(0, 200));
+        return {
+          ok: false, status: 0,
+          cuerpo: { message: `No se pudo hablar con el proveedor de facturacion: ${String(e).replace("Error: ", "").slice(0, 180)}` },
+        } as Awaited<ReturnType<typeof FACTUS.emitir>>;
+      }
+    };
+
+    let res = await emitirSeguro();
+
+    /*  409 = quedo una a medio enviar. Se borra y se reintenta UNA vez: si
+        vuelve a fallar, es otra cosa y repetir no la arregla.          */
+    if (res.status === 409) {
+      /*  Primero la nuestra: si esto es un reintento del MISMO pedido, la
+          atascada es la suya y se quita sin salir a preguntar nada.     */
+      try { await FACTUS.borrarPendiente(String(pedido.id)); } catch (e) {
+        console.error("[emitir] no se pudo quitar la atascada:", String(e).slice(0, 150));
+      }
+      res = await emitirSeguro();
+
+      /*  Sigue en 409 = la atascada es de OTRO pedido. Ahora si se le
+          pregunta a Factus cual es. Este es el caso que dejaba al
+          restaurante sin facturar.                                     */
+      if (res.status === 409) {
+        let quitadas = 0;
+        try { quitadas = await destrabar(FACTUS, pedido.tenant_id); } catch (e) {
+          console.error("[emitir] no se pudo destrabar:", String(e).slice(0, 150));
+        }
+        if (quitadas > 0) res = await emitirSeguro();
+      }
+    }
+
+    const leido = FACTUS.leer(res.cuerpo);
+    const fila = {
+      tenant_id: pedido.tenant_id, branch_id: pedido.branch_id, order_id: pedido.id,
+      tipo: "factura", proveedor: FACTUS.nombre, proveedor_id: leido.id,
+      numero: leido.numero, cufe: leido.cufe,
+      total: Math.round(Number(pedido.total_final ?? pedido.total) || 0),
+      estado: res.ok && leido.validada ? "aceptada" : (res.ok ? "enviada" : "pendiente"),
+      /*  Lo que contesto, TAL CUAL. Un rechazo siempre se puede leer entero
+          despues: resumirlo aqui es perder justo lo que hace falta.     */
+      respuesta: res.cuerpo,
+      error: res.ok ? null : (res.cuerpo?.message ?? `HTTP ${res.status}`),
+      emitida_at: res.ok ? new Date().toISOString() : null,
+      /*  Si salio bien, se borra la cita de la cola. La cola no la iba a
+          recoger igual (busca solo `pendiente`), pero dejar una fecha de
+          reintento en una factura ya emitida es basura que confunde al
+          que abra la tabla.                                            */
+      ...(res.ok ? { proximo_intento: null } : {}),
+    };
+
+    const guardada = await db(
+      previa ? `pos_facturas?id=eq.${previa.id}` : "pos_facturas",
+      {
+        method: previa ? "PATCH" : "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(fila),
+      },
+    );
+
+    /*  ══ Y SE LE MANDA AL CLIENTE ═══════════════════════════════════
+        Solo si salio bien y solo si dio correo. Si el envio falla NO se
+        tumba la factura: ya esta emitida y es valida. Se anota y se
+        puede reenviar.                                               */
+    const correoCliente = String(
+      (pedido?.factura_cliente as Record<string, unknown>)?.correo ?? "").trim();
+    if (res.ok && leido.numero && correoCliente) {
+      try {
+        const env = await FACTUS.enviarCorreo(String(leido.numero), correoCliente);
+        if (env.ok) {
+          await db(`pos_facturas?id=eq.${guardada?.[0]?.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ correo_enviado_at: new Date().toISOString() }),
+          });
+          console.log("[correo] enviada a", correoCliente);
+        } else {
+          /*  Se guarda POR QUE no salio, para que se lea en la pantalla
+              y no haya que entrar a los registros.                    */
+          await db(`pos_facturas?id=eq.${guardada?.[0]?.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ correo_error: env.motivo }),
+          });
+        }
+      } catch (e) { console.error("[correo] fallo:", String(e).slice(0, 150)); }
+    }
+
+    if (!res.ok) {
+      console.error("Factus rechazo:", res.status, JSON.stringify(res.cuerpo).slice(0, 600));
+
+      /*  ══ Y QUEDA AGENDADA ═══════════════════════════════════════════
+          `fn_factura_reintentar` sube los intentos, guarda el error y
+          pone `proximo_intento` con espera que se dobla (1, 2, 4, 8…
+          hasta 60 min), y a los 8 intentos se rinde y la marca
+          `rechazada` para que alguien la mire.
+
+          Existia desde el 3-sep y NADIE LA LLAMABA: la factura quedaba
+          `pendiente` con `proximo_intento` en blanco, o sea que ni con
+          un cron se habria recogido nunca. La cola estaba construida y
+          desconectada.
+
+          Si esto falla NO se tumba la respuesta: el rechazo ya quedo
+          guardado, que es lo que no se puede perder.              */
+      const idFactura = guardada?.[0]?.id;
+      if (idFactura) {
+        try {
+          await db("rpc/fn_factura_reintentar", {
+            method: "POST",
+            headers: { Prefer: "return=minimal" },
+            body: JSON.stringify({ p_factura: idFactura, p_error: String(fila.error ?? "").slice(0, 400) }),
+          });
+        } catch (e) {
+          console.error("[cola] no se pudo agendar el reintento:", String(e).slice(0, 150));
+        }
+      }
+
+      return { ok: false, error: fila.error, detalle: res.cuerpo, factura: guardada?.[0], numero: null };
+    }
+    return { ok: true, factura: guardada?.[0], numero: leido.numero };
+}
+
+/*  ══ LAS QUE NUNCA LLEGARON A PEDIRSE ═════════════════════════
+    La cola sabe reintentar lo que fallo. Pero hay un caso que ni siquiera
+    llegaba a fallar: la caja cobra, va a pedir la factura y ESA llamada se
+    cae — se fue el internet un segundo, el navegador se cerro, la tablet
+    se durmio. No hay fila, no hay error, no hay nada. Nadie sabe que ese
+    pedido tenia que facturarse, y la cola no puede reintentar algo que no
+    existe.
+
+    Aqui se recogen: pedidos COBRADOS en los que el cliente PIDIO factura
+    (`factura_cliente`) y que no tienen ninguna. Se les crea la fila y la
+    cola los toma como a cualquier otro.
+
+    Tres candados, y ninguno sobra:
+      · solo donde el cliente la pidio — Sergio: se factura a quien la
+        pide, no todo lo que se vende;
+      · solo de las ultimas 24 horas — si un restaurante enciende la
+        facturacion hoy, no se le van a emitir de golpe las ventas de
+        meses pasados;
+      · solo en sedes encendidas — el interruptor manda tambien aqui.  */
+const HORAS_ATRAS_HUERFANOS = 24;
+
+async function recogerHuerfanos(): Promise<number> {
+  const sedes = await db(
+    `pos_facturacion_cuentas?select=branch_id,tenant_id&proveedor=eq.factus`
+    + `&activo=eq.true&emitiendo=eq.true`,
+  ) as Array<{ branch_id: string; tenant_id: string }> | null;
+  if (!sedes?.length) return 0;
+
+  const desde = new Date(Date.now() - HORAS_ATRAS_HUERFANOS * 3600 * 1000).toISOString();
+  const pedidos = await db(
+    `pos_orders?select=id,tenant_id,branch_id`
+    + `&branch_id=in.(${sedes.map((s) => s.branch_id).join(",")})`
+    + `&status=in.(paid,completed)&factura_cliente=not.is.null`
+    + `&created_at=gte.${desde}&limit=50`,
+  ) as Array<{ id: string; tenant_id: string; branch_id: string }> | null;
+  if (!pedidos?.length) return 0;
+
+  /*  Se pregunta por TODAS las filas del pedido, sin filtrar por estado:
+      una rechazada tambien cuenta como "ya se intento". Recogerla otra vez
+      seria saltarse el rendirse a los 8 intentos por la puerta de atras. */
+  const yaHay = await db(
+    `pos_facturas?select=order_id&tipo=eq.factura`
+    + `&order_id=in.(${pedidos.map((p) => p.id).join(",")})`,
+  ) as Array<{ order_id: string }> | null;
+  const tiene = new Set((yaHay ?? []).map((f) => String(f.order_id)));
+
+  const faltan = pedidos.filter((p) => !tiene.has(String(p.id)));
+  if (!faltan.length) return 0;
+
+  await db("pos_facturas", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify(faltan.map((p) => ({
+      tenant_id: p.tenant_id, branch_id: p.branch_id, order_id: p.id,
+      tipo: "factura", proveedor: "factus", estado: "pendiente", intentos: 0,
+      proximo_intento: new Date().toISOString(),
+      error: "La caja no alcanzo a pedir la factura; la recogio el barrido",
+    }))),
+  });
+  console.log(`[cola] recogidas ${faltan.length} que nunca llegaron a pedirse`);
+  return faltan.length;
+}
+
+/*  ══ RECORRER LA COLA ═════════════════════════════════
+    Las facturas vencidas se reintentan por el MISMO camino de emitir, con
+    las llaves del restaurante que corresponda. Aqui no se decide nada
+    nuevo: solo se vuelve a intentar lo que ya se sabe que hay que hacer.
+
+    EL TOPE POR CORRIDA no es prudencia: sin el, con el proveedor caido se
+    intentarian cada 5 minutos TODAS las facturas atrasadas de TODOS los
+    restaurantes a la vez. Con el tope, la cola avanza y no se atropella.
+
+    NO SE TOCAN las que ya se rindieron (`rechazada` a los 8 intentos):
+    esas esperan a que una persona las mire, que es justo lo que quiere
+    decir rendirse.                                                     */
+const COLA_POR_CORRIDA = 25;
+
+async function correrCola(): Promise<Response> {
+  /*  Primero se recogen las que nunca llegaron a pedirse, para que entren
+      en ESTA corrida y no esperen cinco minutos mas.                   */
+  let recogidas = 0;
+  try {
+    recogidas = await recogerHuerfanos();
+  } catch (e) {
+    console.error("[cola] no se pudo hacer el barrido:", String(e).slice(0, 160));
+  }
+
+  const ahora = new Date().toISOString();
+  const pend = await db(
+    `pos_facturas?estado=eq.pendiente&proximo_intento=lte.${ahora}`
+    + `&select=id,order_id,branch_id,intentos&order=proximo_intento.asc&limit=${COLA_POR_CORRIDA}`,
+  ) as Array<{ id: string; order_id: string; branch_id: string; intentos: number }> | null;
+
+  if (!pend?.length) return json({ revisadas: 0, emitidas: 0, recogidas });
+
+  let emitidas = 0, fallaron = 0, cerradas = 0;
+  for (const f of pend) {
+    try {
+      /*  El interruptor del restaurante manda tambien aqui: si lo apago,
+          la cola no puede seguir emitiendo por detras.                */
+      const cuenta = await db(
+        `pos_facturacion_cuentas?branch_id=eq.${f.branch_id}&proveedor=eq.factus&select=activo,emitiendo&limit=1`,
+      ) as Array<{ activo?: boolean; emitiendo?: boolean }> | null;
+      if (!cuenta?.[0] || cuenta[0].activo === false || cuenta[0].emitiendo === false) {
+        console.log(`[cola] ${f.id}: la sede no esta emitiendo, se salta`);
+        continue;
+      }
+      const r = await emitirPedido(f.order_id);
+      if (r.ok) { emitidas++; console.log(`[cola] ${f.order_id} emitida: ${r.numero}`); }
+
+      /*  ══ LO QUE NO SE ARREGLA ESPERANDO SE CIERRA AQUI ══════════════
+          Emitir tiene salidas que no son "fallo de red": el pedido no
+          existe, lo anularon, o el restaurante se quedo sin cuenta. Esas
+          salen ANTES de guardar nada, asi que nadie las reagenda — y la
+          fila se quedaria `pendiente` con la cita vencida PARA SIEMPRE.
+
+          No es teoria: una factura falla, queda en cola, y despues anulan
+          el pedido. Esa fila se recogeria en cada corrida, y como el tope
+          es de 25, 25 fantasmas asi dejan sin sitio a las facturas de
+          verdad. La cola entera se queda parada sin que nadie lo note.
+
+          Se marcan `rechazada`, que es lo que ya significa "esto lo tiene
+          que mirar una persona", y se les quita la cita.              */
+      else if (r.no_existe || r.anulado || r.sin_cuenta) {
+        cerradas++;
+        await db(`pos_facturas?id=eq.${f.id}`, {
+          method: "PATCH",
+          headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({ estado: "rechazada", error: r.error, proximo_intento: null }),
+        });
+        console.log(`[cola] ${f.order_id} cerrada sin reintentar: ${r.error}`);
+      }
+      else {
+        fallaron++;
+        console.log(`[cola] ${f.order_id} sigue fallando (intento ${(f.intentos || 0) + 1}): ${r.error}`);
+      }
+    } catch (e) {
+      /*  Un reventon que no viene de emitir (la base, un dato raro) no
+          reagenda nada por si mismo: la cita seguiria vencida y esta fila
+          se recogeria en CADA corrida, sin doblar la espera nunca. Se
+          agenda aqui a mano para que se comporte como cualquier fallo. */
+      fallaron++;
+      console.error(`[cola] ${f.order_id} reventó:`, String(e).slice(0, 160));
+      try {
+        await db("rpc/fn_factura_reintentar", {
+          method: "POST", headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({ p_factura: f.id, p_error: String(e).slice(0, 400) }),
+        });
+      } catch (e2) {
+        console.error("[cola] tampoco se pudo agendar:", String(e2).slice(0, 120));
+      }
+    }
+  }
+  console.log(`[cola] corrida: ${pend.length} revisadas, ${emitidas} emitidas, ${fallaron} siguen pendientes, ${cerradas} cerradas`);
+  return json({ revisadas: pend.length, emitidas, fallaron, cerradas, recogidas });
+}
+
 // ══════════════════════════════════════════════════════════════════════
 //  LA FUNCION
 // ══════════════════════════════════════════════════════════════════════
@@ -747,7 +1159,33 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   try {
-    const { order_id, revisar, conectar, reenviar, correo } = await req.json();
+    const { order_id, revisar, conectar, reenviar, correo, cola } = await req.json();
+    /*  ══ LA COLA — la corre el reloj, no una persona ═══════════════════
+        Va ANTES de exigir sesion porque el reloj no tiene ninguna. Se
+        identifica con su propio secreto y no con la llave de servicio:
+        aquella abre toda la base de todos los restaurantes.
+
+        Se compara con `!==` sobre el secreto entero. Un secreto vacio no
+        vale como llave: si el entorno no lo tiene, esta puerta queda
+        cerrada en vez de abierta para todos.                          */
+    if (cola === true) {
+      const dado = req.headers.get("x-cola-secreto") || "";
+      /*  Las dos causas se cuentan APARTE. Juntas dicen "no autorizado" y
+          ya: no se distingue "el reloj mando mal el secreto" de "la
+          funcion no tiene secreto ninguno", que son problemas distintos y
+          se arreglan en sitios distintos. Es la misma leccion del 403 que
+          me tuvo el dia entero: un fallo que no sabe decir cual es.    */
+      if (!COLA_SECRETO) {
+        console.error("[cola] esta funcion NO tiene COLA_SECRETO en el entorno");
+        return json({ error: "No autorizado" }, 401);
+      }
+      if (dado !== COLA_SECRETO) {
+        console.error(`[cola] secreto que no cuadra (llegaron ${dado.length} caracteres)`);
+        return json({ error: "No autorizado" }, 401);
+      }
+      return await correrCola();
+    }
+
     /*  Para conectar la cuenta NO hace falta un pedido: la sede sale de
         la sesion. Para todo lo demas si, porque es lo que demuestra que
         el pedido es de quien pregunta.                                 */
@@ -960,180 +1398,50 @@ Deno.serve(async (req) => {
       return json({ conectada: true, ambiente, empresa });
     }
 
-    // ── el pedido y sus renglones ────────────────────────────────────
-    const pedidos = await db(
-      `pos_orders?id=eq.${order_id}`
-      + `&select=id,tenant_id,branch_id,total,total_final,paid_amount,packaging_fee,`
-      + `tip_amount,discount_amount,`
-      + `status,factura_cliente`);
-    const pedido = pedidos?.[0];
-    if (!pedido) return json({ error: "El pedido no existe" }, 404);
-
-    /*  ══ EL INTERRUPTOR DEL RESTAURANTE ══════════════════════════════
-        Sergio: *"al desactivarla simplemente se corta cualquier flujo de
-        datos"*. El corte va AQUI, en el servidor, no en la pantalla: un
-        botón escondido en el navegador no corta nada — basta con llamar a
-        la función desde otro sitio. Aquí no hay vuelta.
-
-        Se lee de la tabla y no de las llaves, porque apagar no borra la
-        conexión: se puede estar conectado y en pausa.                  */
-    const cuentaSede = await db(
-      `pos_facturacion_cuentas?branch_id=eq.${pedido.branch_id}&proveedor=eq.factus`
-      + `&select=activo,emitiendo&limit=1`,
-    ) as Array<{ activo?: boolean; emitiendo?: boolean }> | null;
-    if (cuentaSede?.[0] && cuentaSede[0].emitiendo === false) {
-      console.log("[cuenta] la sede", pedido.branch_id, "tiene la facturacion APAGADA");
-      return json({
-        error: "Este restaurante tiene apagada la facturación electrónica",
-        apagada: true,
-      }, 409);
+    /*  EL REENVIO es del manejador y no de emitir: no emite nada, solo
+        vuelve a mandar por correo una factura que ya salio.           */
+    if (reenviar === true) {
+      const prev = await db(
+        `pos_facturas?order_id=eq.${order_id}&tipo=eq.factura&estado=eq.aceptada`
+        + `&select=id,numero,estado,cufe,prefijo&limit=1`,
+      ) as Array<Record<string, unknown>> | null;
+      const ped = await db(
+        `pos_orders?id=eq.${order_id}&select=factura_cliente,branch_id&limit=1`,
+      ) as Array<Record<string, unknown>> | null;
+      const pv = prev?.[0];
+      if (!pv?.numero) return json({ error: "Ese pedido no tiene factura emitida" }, 404);
+      const dest = String(correo ?? "").trim()
+        || String((ped?.[0]?.factura_cliente as Record<string, unknown>)?.correo ?? "").trim();
+      if (!dest) return json({ error: "No hay a que correo mandarla" }, 400);
+      const llavesR = await db("rpc/fn_facturacion_llaves", {
+        method: "POST", body: JSON.stringify({ p_branch: ped?.[0]?.branch_id }),
+      }) as Record<string, string> | null;
+      if (!llavesR?.client_id) return json({ error: "Este restaurante no tiene cuenta conectada" }, 409);
+      const F = crearFactus({
+        url: llavesR.url || URL_POR_DEFECTO, id: llavesR.client_id,
+        secret: llavesR.client_secret, user: llavesR.username, pass: llavesR.password,
+      });
+      const env = await F.enviarCorreo(String(pv.numero), dest);
+      await db(`pos_facturas?id=eq.${pv.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(env.ok
+          ? { correo_enviado_at: new Date().toISOString(), correo_error: null }
+          : { correo_error: env.motivo }),
+      });
+      return json({ ya_estaba: true, factura: pv, correo_enviado: env.ok, motivo: env.motivo, a: dest });
     }
 
-    /*  Las llaves salen del Vault y solo las puede pedir el rol de
-        servicio. Aqui no se guardan ni se registran jamas.             */
-    const llaves = await db("rpc/fn_facturacion_llaves", {
-      method: "POST",
-      body: JSON.stringify({ p_branch: pedido.branch_id }),
-    }) as Record<string, string> | null;
-
-    /*  ⚠️ SIN CUENTA NO SE EMITE, y NO se cae de vuelta a las llaves de
-        Cobra. El respaldo seria comodo y seria un desastre: la factura
-        saldria a nombre del NIT de otro restaurante ante la DIAN, y una
-        factura emitida no se deshace.                                  */
-    if (!llaves || !llaves.client_id) {
-      console.error("[cuenta] la sede", pedido.branch_id, "no tiene cuenta de facturacion");
-      return json({
-        error: "Este restaurante todav\u00eda no tiene conectada su cuenta de facturaci\u00f3n electr\u00f3nica",
-        sin_cuenta: true,
-      }, 409);
-    }
-
-    const FACTUS = crearFactus({
-      url:    llaves.url || URL_POR_DEFECTO,
-      id:     llaves.client_id,
-      secret: llaves.client_secret,
-      user:   llaves.username,
-      pass:   llaves.password,
-    });
-
-    if (pedido.status === "cancelled") {
-      return json({ error: "Un pedido anulado no se factura" }, 400);
-    }
-
-    /*  ── YA FACTURADO: SE DEVUELVE LA QUE HAY ──────────────────────
-        Primera barrera de la idempotencia, antes de salir a internet. La
-        segunda es el `reference_code` del proveedor.                  */
-    const previas = await db(
-      `pos_facturas?order_id=eq.${order_id}&tipo=eq.factura&estado=neq.anulada`
-      + `&select=id,estado,numero,cufe,prefijo`);
-    const previa = previas?.[0];
-    if (previa && previa.estado === "aceptada") {
-      /*  ══ REENVIAR ═══════════════════════════════════════════════════
-          La factura ya salio y NO se vuelve a emitir. Pero el correo si
-          se puede volver a mandar: se cayo, el cliente lo borro, o dio
-          uno mal y ahora da otro. Sin esto habria que emitir otra
-          factura para reenviar un correo, que es absurdo.
-
-          Tambien vale para cambiar el destinatario: si viene `correo` en
-          la peticion, se manda a ese.                                 */
-      if (reenviar === true && previa.numero) {
-        const dest = String(correo ?? "").trim()
-          || String((pedido?.factura_cliente as Record<string, unknown>)?.correo ?? "").trim();
-        if (!dest) return json({ error: "No hay a que correo mandarla" }, 400);
-        const env = await FACTUS.enviarCorreo(String(previa.numero), dest);
-        await db(`pos_facturas?id=eq.${previa.id}`, {
-          method: "PATCH",
-          body: JSON.stringify(env.ok
-            ? { correo_enviado_at: new Date().toISOString(), correo_error: null }
-            : { correo_error: env.motivo }),
-        });
-        return json({ ya_estaba: true, factura: previa, correo_enviado: env.ok,
-                      motivo: env.motivo, a: dest });
-      }
-      return json({ ya_estaba: true, factura: previa });
-    }
-
-    const renglones = await db(
-      `pos_order_items?order_id=eq.${order_id}`
-      + `&select=id,product_id,name,product_name,quantity,unit_price,product_price,`
-      + `total,tax_pct,tax_base,tax_amount`);
-    if (!renglones?.length) return json({ error: "El pedido no tiene productos" }, 400);
-
-    // ── se emite ─────────────────────────────────────────────────────
-    const cuerpo = FACTUS.cuerpo(pedido, renglones, null);
-    let res = await FACTUS.emitir(cuerpo);
-
-    /*  409 = quedo una a medio enviar. Se borra y se reintenta UNA vez: si
-        vuelve a fallar, es otra cosa y repetir no la arregla.          */
-    if (res.status === 409) {
-      /*  Primero la nuestra: si esto es un reintento del MISMO pedido, la
-          atascada es la suya y se quita sin salir a preguntar nada.     */
-      await FACTUS.borrarPendiente(String(pedido.id));
-      res = await FACTUS.emitir(cuerpo);
-
-      /*  Sigue en 409 = la atascada es de OTRO pedido. Ahora si se le
-          pregunta a Factus cual es. Este es el caso que dejaba al
-          restaurante sin facturar.                                     */
-      if (res.status === 409) {
-        const quitadas = await destrabar(FACTUS, pedido.tenant_id);
-        if (quitadas > 0) res = await FACTUS.emitir(cuerpo);
-      }
-    }
-
-    const leido = FACTUS.leer(res.cuerpo);
-    const fila = {
-      tenant_id: pedido.tenant_id, branch_id: pedido.branch_id, order_id: pedido.id,
-      tipo: "factura", proveedor: FACTUS.nombre, proveedor_id: leido.id,
-      numero: leido.numero, cufe: leido.cufe,
-      total: Math.round(Number(pedido.total_final ?? pedido.total) || 0),
-      estado: res.ok && leido.validada ? "aceptada" : (res.ok ? "enviada" : "pendiente"),
-      /*  Lo que contesto, TAL CUAL. Un rechazo siempre se puede leer entero
-          despues: resumirlo aqui es perder justo lo que hace falta.     */
-      respuesta: res.cuerpo,
-      error: res.ok ? null : (res.cuerpo?.message ?? `HTTP ${res.status}`),
-      emitida_at: res.ok ? new Date().toISOString() : null,
-    };
-
-    const guardada = await db(
-      previa ? `pos_facturas?id=eq.${previa.id}` : "pos_facturas",
-      {
-        method: previa ? "PATCH" : "POST",
-        headers: { Prefer: "return=representation" },
-        body: JSON.stringify(fila),
-      },
-    );
-
-    /*  ══ Y SE LE MANDA AL CLIENTE ═══════════════════════════════════
-        Solo si salio bien y solo si dio correo. Si el envio falla NO se
-        tumba la factura: ya esta emitida y es valida. Se anota y se
-        puede reenviar.                                               */
-    const correoCliente = String(
-      (pedido?.factura_cliente as Record<string, unknown>)?.correo ?? "").trim();
-    if (res.ok && leido.numero && correoCliente) {
-      try {
-        const env = await FACTUS.enviarCorreo(String(leido.numero), correoCliente);
-        if (env.ok) {
-          await db(`pos_facturas?id=eq.${guardada?.[0]?.id}`, {
-            method: "PATCH",
-            body: JSON.stringify({ correo_enviado_at: new Date().toISOString() }),
-          });
-          console.log("[correo] enviada a", correoCliente);
-        } else {
-          /*  Se guarda POR QUE no salio, para que se lea en la pantalla
-              y no haya que entrar a los registros.                    */
-          await db(`pos_facturas?id=eq.${guardada?.[0]?.id}`, {
-            method: "PATCH",
-            body: JSON.stringify({ correo_error: env.motivo }),
-          });
-        }
-      } catch (e) { console.error("[correo] fallo:", String(e).slice(0, 150)); }
-    }
-
-    if (!res.ok) {
-      console.error("Factus rechazo:", res.status, JSON.stringify(res.cuerpo).slice(0, 600));
-      return json({ error: fila.error, detalle: res.cuerpo, factura: guardada?.[0] }, 200);
-    }
-    return json({ factura: guardada?.[0] });
+    /*  Emitir es lo MISMO para la caja y para la cola, asi que vive en
+        una sola funcion. Lo unico distinto es de donde sale el permiso, y
+        eso ya se resolvio arriba.                                      */
+    const r = await emitirPedido(String(order_id));
+    if (r.sin_cuenta) return json({ error: r.error, sin_cuenta: true }, 409);
+    if (r.apagada)    return json({ error: r.error, apagada: true }, 409);
+    if (r.no_existe)  return json({ error: r.error }, 404);
+    if (r.anulado)    return json({ error: r.error }, 400);
+    if (r.ya_estaba)  return json({ ya_estaba: true, factura: r.factura });
+    if (!r.ok)        return json({ error: r.error, detalle: r.detalle, factura: r.factura }, 200);
+    return json({ factura: r.factura });
   } catch (e) {
     console.error("facturar:", String(e));
     return json({ error: String(e).replace("Error: ", "") }, 500);

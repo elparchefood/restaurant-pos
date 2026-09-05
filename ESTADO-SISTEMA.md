@@ -3,6 +3,114 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 La cola de reintentos de facturacion — 5-sep-2026
+
+Sergio, al disenar el boton de facturar: *"la factura queda en cola y se
+reintenta sola cuando regrese el Internet"*. Esto es ese «sola».
+
+**La cola existia en la base desde el 3-sep y no la llamaba nadie.**
+`fn_factura_reintentar` — sube los intentos, guarda el error, agenda el
+siguiente con la espera doblada y a los 8 se rinde — estaba escrita y probada.
+Pero `facturar` guardaba el rechazo y se iba. Comprobado antes de tocar: de 8
+facturas en la base, **cero** tenian `proximo_intento`. Ni con un reloj se
+habrian recogido nunca.
+
+### Lo que se hizo
+
+**1 · Emitir es UNA sola funcion.** El bloque que emitia vivia dentro del
+manejador HTTP. La cola necesitaba lo mismo — los mismos candados, la misma
+idempotencia, el mismo correo — y escribirlo dos veces era garantizar que en
+tres meses las dos copias dijeran cosas distintas. Ahora hay `emitirPedido()`,
+que devuelve un resultado en vez de una respuesta HTTP, y cada camino lo
+traduce. Fuera quedan las dos unicas cosas que de verdad se diferencian: **el
+permiso** (la caja trae el token de quien cobra; la cola no trae a nadie) y
+**el reenvio por correo**, que no emite nada.
+
+**2 · La cola tiene puerta propia.** `{"cola": true}` con la cabecera
+`x-cola-secreto`, comprobada **antes** de exigir sesion — el reloj no tiene
+ninguna. El secreto es propio y **no** la llave de servicio: aquella abre toda
+la base de todos los restaurantes, y el reloj vive DENTRO de la base, asi que
+esa llave habria quedado escrita en una tabla. Un secreto vacio no vale como
+llave: sin el en el entorno, la puerta queda cerrada, no abierta.
+
+**3 · El reloj.** `pg_cron` cada 5 minutos llama a
+`fn_cola_facturacion_tick()`, que saca el secreto del **Vault** y hace la
+llamada. Es `SECURITY DEFINER` y con el EXECUTE quitado a `anon`,
+`authenticated` y `public`: es la unica que puede leer ese secreto, y si
+cualquiera pudiera ejecutarla cualquiera podria disparar la cola. El valor del
+secreto **no esta en el archivo SQL** — ese archivo va al repositorio.
+
+**4 · Tope de 25 por corrida.** Sin el, con el proveedor caido se intentarian
+cada 5 minutos TODAS las facturas atrasadas de TODOS los restaurantes a la vez.
+
+### Tres agujeros que apareceron al probarlo, y que eran el asunto entero
+
+**a) Sin internet no quedaba nada en cola — justo el caso para el que se hizo.**
+Si Factus no contesta, `fetch` revienta, y pedir el token revienta a proposito
+con un `throw`. Eso subia hasta el manejador, devolvia 500 y **no guardaba
+nada**: ni factura, ni fila, ni cita. La venta se quedaba sin factura y sin
+nadie que la volviera a intentar. Ahora el reventon se convierte en un rechazo
+normal y sigue el camino de siempre: se guarda `pendiente` y se agenda.
+
+**b) Lo que no se arregla esperando se quedaba dando vueltas.** Emitir tiene
+salidas que no son fallo de red: el pedido no existe, lo anularon, la sede se
+quedo sin cuenta. Esas salen antes de guardar nada, asi que nadie las
+reagendaba — y la fila se quedaba `pendiente` con la cita vencida para
+siempre. Con un tope de 25, veinticinco fantasmas asi dejan sin sitio a las
+facturas de verdad y la cola entera se para sin que nadie lo note. Ahora se
+marcan `rechazada`, que es lo que ya significa «que lo mire una persona».
+
+**c) Las que nunca llegaron a pedirse.** La caja cobra, va a pedir la factura y
+ESA llamada se cae — se fue el internet un segundo, se cerro el navegador, se
+durmio la tablet. No hay fila, no hay error, no hay nada: la cola no puede
+reintentar algo que no existe. `recogerHuerfanos()` los recoge con tres
+candados: solo donde **el cliente pidio** factura, solo de las **ultimas 24
+horas** (para que encender la facturacion hoy no emita de golpe las ventas de
+meses pasados) y solo en **sedes encendidas**.
+
+### Y un fallo mio, del mismo tipo que llevo persiguiendo todo el dia
+
+El barrido **creaba las filas y decia que no habia recogido ninguna**.
+PostgREST contesta **201 con el cuerpo vacio** cuando se le pide
+`return=minimal`, y `db()` solo perdonaba el 204: leia el vacio como JSON y
+reventaba **despues** de que el cambio ya estaba hecho. Quien llamaba veia una
+excepcion de algo que si habia funcionado. Arreglado en `db()` para todos:
+cuerpo vacio → `null`.
+
+### Medido, no deducido
+
+Con una factura que Factus rechaza de verdad, corrida a corrida:
+
+| corrida | intentos | siguiente intento |
+|---|---|---|
+| 1 | 2 | 2 min |
+| 2 | 3 | 4 min |
+| 3 | 4 | 8 min |
+| 4 | 5 | 16 min |
+| 5 | 6 | 32 min |
+| 6 | 7 | 60 min (tope) |
+| 7 | 8 | **se rinde**: `rechazada` |
+
+Y a la octava corrida ya no la recoge. Tambien probado: una fila pendiente de
+un pedido bueno se emite y queda `aceptada` con su numero; una de un pedido
+anulado se cierra sin reintentar; el reloj llama y contesta 200 con el secreto
+del Vault; y sin secreto, o con uno equivocado, la puerta responde 401 — y el
+log dice **cual de las dos cosas** fallo, que era otra distincion que faltaba.
+
+### Donde esta
+
+- `supabase/functions/facturar/index.ts` (v40) — `emitirPedido()`,
+  `correrCola()`, `recogerHuerfanos()`, la puerta de la cola.
+- `supabase/sql/2026-09-04-cola-facturacion-reloj.sql` — el reloj y su funcion.
+- Secreto: variable `COLA_SECRETO` de la funcion **y** el secreto
+  `cola_facturacion_secreto` del Vault. **Tienen que ser el mismo.**
+
+### Lo que NO se toco
+
+El boton de la caja. Ya estaba bien: no le grita al cajero cuando falla, porque
+la venta ya se cobro y el no puede hacer nada. Lo que cambio es que ahora eso
+es verdad — antes «queda en cola» era un comentario, no un hecho.
+
 ## 🔴→🟢 «Guardar abono» — 5-sep-2026
 
 Sergio: *"el boton guardar abono no sirve"*.
