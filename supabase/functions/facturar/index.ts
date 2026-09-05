@@ -90,7 +90,22 @@ async function db(ruta: string, init: RequestInit = {}) {
   if (!r.ok) {
     const t = await r.text();
     console.error("base:", ruta, r.status, t.slice(0, 300));
-    throw new Error("No se pudo hablar con la base");
+    /*  El mensaje DICE QUE FALLO. "No se pudo hablar con la base" es
+        verdad y no sirve para nada: hoy me costo tres intentos averiguar
+        que una nota de credito no cabia por un indice unico. Va la tabla y
+        el codigo; la parte de la consulta con datos no, que acaba en la
+        pantalla de alguien.                                            */
+    const tabla = String(ruta).split("?")[0];
+    /*  Y el motivo que da la base, que es lo unico que sirve para
+        arreglarlo: su `code` y su `message` — ahi va el nombre del indice
+        o de la regla que rechazo. `details` NO, que ahi vienen los datos
+        de la fila y esto acaba en la pantalla de alguien.              */
+    let porque = "";
+    try {
+      const e = JSON.parse(t);
+      porque = [e?.code, e?.message].filter(Boolean).join(" ").slice(0, 160);
+    } catch (_e) { /* no era json */ }
+    throw new Error(`La base rechazo ${tabla} (${r.status})${porque ? ": " + porque : ""}`);
   }
   /*  Una respuesta SIN CUERPO no es un error: PostgREST contesta 201 y
       cuerpo vacio cuando se le pide `return=minimal`, y 204 al borrar.
@@ -386,6 +401,78 @@ function crearFactus(c: CuentaFactus) {
     };
   },
 
+  /*  ══ EL RANGO DE LAS NOTAS DE CRÉDITO ═══════════════════════════════
+      Una nota de crédito NO sale del consecutivo de las facturas: tiene su
+      propia numeración, y la API la exige por id (`numbering_range_id`).
+
+      OJO CON ELEGIRLO: la cuenta de prueba tiene DOS rangos de Nota
+      Crédito, los dos activos y sin vencer (`NC` y `CRTE`). No hay forma
+      de saber por la forma cuál es el bueno — y hoy mismo ya me pasó con
+      los rangos de factura, donde acerté por suerte porque coincidían.
+
+      Así que: se filtra por documento activo y sin vencer, y si queda MÁS
+      DE UNO se toma el primero pero se deja dicho en el log cuáles había.
+      El id usado queda guardado en la respuesta de la nota, así que el día
+      que salga por el consecutivo equivocado se puede ver por qué.       */
+  async rangoNota() {
+    const tok = await tokenFactus(c);
+    const r = await fetch(`${c.url}/v2/numbering-ranges`, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${tok}` },
+    });
+    if (!r.ok) {
+      console.error("[nota] no se pudo pedir los rangos:", r.status);
+      return null;
+    }
+    const d = await r.json().catch(() => null);
+    const bruto = (d?.data?.data ?? d?.data ?? []) as Array<Record<string, unknown>>;
+    const sirven = bruto.filter((x) =>
+      String(x.document ?? "").toLowerCase().includes("cr")
+      && x.is_active !== false && x.is_expired !== true && !x.deleted_at);
+    if (!sirven.length) {
+      console.error("[nota] esta cuenta no tiene rango de nota credito");
+      return null;
+    }
+    if (sirven.length > 1) {
+      console.warn("[nota] hay %d rangos de nota credito; se usa el primero:",
+        sirven.length, sirven.map((x) => `${x.id}:${x.prefix}`).join(", "));
+    }
+    return { id: sirven[0].id, prefijo: String(sirven[0].prefix ?? "") };
+  },
+
+  /*  El cuerpo es EL MISMO de la factura —los mismos productos, el mismo
+      cliente, el mismo valor— más las cuatro cosas que la convierten en
+      nota: qué factura corrige, por qué, y con qué numeración.
+
+      `correction_concept_code` 2 = «Anulación de factura electrónica».
+      Los códigos válidos son del 1 al 6 (comprobado probándolos uno a uno
+      contra la API; el 7 lo rechaza). Aquí solo se usa el 2: anular el
+      pedido entero. Una devolución parcial es otra cosa y no se pide.   */
+  async notaCredito(cuerpoFactura: Record<string, unknown>, numeroFactura: string,
+                    rangoId: unknown, motivo: string) {
+    const tok = await tokenFactus(c);
+    const cuerpo = {
+      ...cuerpoFactura,
+      /*  Referencia PROPIA: si llevara la del pedido, Factus devolvería la
+          factura ya emitida en vez de crear la nota.                    */
+      reference_code: `${cuerpoFactura.reference_code}-NC`,
+      bill_number: numeroFactura,
+      correction_concept_code: "2",
+      numbering_range_id: rangoId,
+      observation: String(motivo || "").slice(0, 200),
+    };
+    delete (cuerpo as Record<string, unknown>).send_email;
+    const r = await fetch(`${c.url}/v2/credit-notes/validate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json", Accept: "application/json",
+        Authorization: `Bearer ${tok}`,
+      },
+      body: JSON.stringify(cuerpo),
+    });
+    const d = await r.json().catch(() => null);
+    return { ok: r.ok, status: r.status, cuerpo: d };
+  },
+
   async emitir(cuerpo: unknown) {
     const tok = await tokenFactus(c);
     const r = await fetch(`${c.url}/v2/bills/validate`, {
@@ -591,10 +678,26 @@ function crearFactus(c: CuentaFactus) {
   /*  Lo que nos interesa guardar de su respuesta, con nombres nuestros: asi
       la tabla no cambia cuando cambie el proveedor.                      */
   leer(d: any) {
-    const b = d?.data?.bill ?? d?.data ?? {};
+    /*  ⚠️ UNA NOTA TRAE TAMBIEN LA FACTURA QUE CORRIGE, bajo `bill`.
+        Mirar `bill` primero — que es lo que hice — guarda la nota con el
+        NUMERO DE LA FACTURA. No se ve: la nota queda emitida y bien en el
+        proveedor, y en nuestra tabla con el numero equivocado.
+
+        Lo caza `ux_factura_numero`, que rechaza el duplicado. Si ese
+        indice no existiera, el dato se habria guardado mal y en silencio.
+
+        Una nota se reconoce por su `cude` (el CUFE de las notas). Se mira
+        eso, no la forma.                                                */
+    const raiz = d?.data ?? {};
+    const b = raiz.credit_note ?? (raiz.cude ? raiz : (raiz.bill ?? raiz));
     return {
       numero: b.number ?? null,
-      cufe:   b.cufe ?? null,
+      /*  El codigo unico de una nota se llama CUDE, no CUFE — es el mismo
+          concepto con otro nombre. Se guarda en la misma columna: la base
+          exige que una fila `aceptada` lo tenga, y sin esto el INSERT de la
+          nota reventaba con «No se pudo hablar con la base», que no dice
+          nada. Comprobado emitiendo una de verdad.                      */
+      cufe:   b.cufe ?? b.cude ?? null,
       /*  Factus no devuelve un id propio: la referencia ES la llave con la
           que se le consulta despues (`/v2/bills/show/<referencia>`).    */
       id:     b.reference_code ?? null,
@@ -1044,6 +1147,148 @@ async function emitirPedido(order_id: string, desdeCola = false): Promise<Result
     return { ok: true, factura: guardada?.[0], numero: leido.numero };
 }
 
+/*  ══ ANULAR UNA FACTURA — CON NOTA DE CRÉDITO ═══════════════════════════
+    Una factura electrónica emitida NO SE BORRA. Ya está en la DIAN y a
+    nombre de un NIT: la única forma legal de dejarla sin efecto es emitir
+    una nota de crédito que la corrija. Por eso anular un pedido facturado
+    no puede ser simplemente marcarlo `cancelled`, que es lo que hacía.
+
+    La nota lleva lo MISMO que la factura —los mismos productos, el mismo
+    cliente, el mismo valor— más qué factura corrige y por qué. Se reusa el
+    cuerpo que arma `FACTUS.cuerpo`: si mañana cambia cómo se factura (un
+    impuesto, el empaque), la nota cambia con él sola. Escribirlo aparte
+    sería garantizar que en tres meses digan cosas distintas.
+
+    ── LO QUE NO HACE ──────────────────────────────────────────────────
+    No anula el pedido ni devuelve la plata: eso es de la caja y ya existe.
+    Aquí solo se deja sin efecto el documento ante la DIAN.              */
+type ResultadoNota = {
+  ok: boolean;
+  nota?: unknown;
+  numero?: unknown;
+  error?: string;
+  detalle?: unknown;
+  ya_estaba?: boolean;
+  sin_factura?: boolean;
+  sin_cuenta?: boolean;
+  sin_rango?: boolean;
+};
+
+async function anularFactura(order_id: string, motivo: string): Promise<ResultadoNota> {
+  const pedidos = await db(
+    `pos_orders?id=eq.${order_id}`
+    + `&select=id,tenant_id,branch_id,total,total_final,paid_amount,packaging_fee,`
+    + `tip_amount,discount_amount,status,factura_cliente`);
+  const pedido = pedidos?.[0];
+  if (!pedido) return { ok: false, sin_factura: true, error: "El pedido no existe" };
+
+  /*  ¿YA SE ANULÓ? Esto se pregunta PRIMERO, antes de buscar la factura.
+      Al anular, la factura queda en `anulada`; si se buscara la factura
+      antes, el segundo intento no encontraría ninguna aceptada y diría
+      «este pedido no tiene factura que anular» — que es falso y además
+      asusta: la tiene, y ya está anulada.
+
+      Y lo importante: dos notas de crédito por la misma factura es un
+      problema con la DIAN. Se contesta la que hay.                     */
+  const notas = await db(
+    `pos_facturas?order_id=eq.${order_id}&tipo=eq.nota_credito&estado=eq.aceptada`
+    + `&select=id,numero,cufe,estado&limit=1`);
+  if (notas?.[0]) return { ok: true, ya_estaba: true, nota: notas[0] };
+
+  /*  La factura que se va a anular tiene que estar ACEPTADA. Una que no
+      salió no hay que anularla: hay que dejar de reintentarla, que es
+      otra cosa y ya la hace la cola.                                   */
+  const previas = await db(
+    `pos_facturas?order_id=eq.${order_id}&tipo=eq.factura`
+    + `&select=id,estado,numero,cufe,prefijo,total&order=created_at.desc`);
+  const factura = previas?.find((f: Record<string, unknown>) => f.estado === "aceptada");
+  if (!factura) {
+    return { ok: false, sin_factura: true,
+             error: "Este pedido no tiene una factura emitida que anular" };
+  }
+
+  const llaves = await db("rpc/fn_facturacion_llaves", {
+    method: "POST", body: JSON.stringify({ p_branch: pedido.branch_id }),
+  }) as Record<string, string> | null;
+  if (!llaves?.client_id) {
+    return { ok: false, sin_cuenta: true,
+             error: "Este restaurante no tiene conectada su cuenta de facturacion" };
+  }
+  const FACTUS = crearFactus({
+    url: llaves.url || URL_POR_DEFECTO, id: llaves.client_id,
+    secret: llaves.client_secret, user: llaves.username, pass: llaves.password,
+  });
+
+  const renglones = await db(
+    `pos_order_items?order_id=eq.${order_id}`
+    + `&select=id,product_id,name,product_name,quantity,unit_price,product_price,`
+    + `total,tax_pct,tax_base,tax_amount`);
+  if (!renglones?.length) {
+    return { ok: false, error: "El pedido no tiene productos: la nota quedaria vacia" };
+  }
+
+  let rango: { id: unknown; prefijo: string } | null = null;
+  try {
+    rango = await FACTUS.rangoNota();
+  } catch (e) {
+    console.error("[nota] no se pudo pedir el rango:", String(e).slice(0, 150));
+  }
+  if (!rango) {
+    return { ok: false, sin_rango: true,
+             error: "El proveedor no tiene numeracion de notas credito para este restaurante" };
+  }
+
+  const cuerpo = FACTUS.cuerpo(pedido, renglones, null);
+  let res;
+  try {
+    res = await FACTUS.notaCredito(cuerpo, String(factura.numero), rango.id, motivo);
+  } catch (e) {
+    /*  Igual que al emitir: que el proveedor no conteste no puede perder
+        la anulacion. Se guarda como pendiente y queda el rastro.       */
+    console.error("[nota] no se pudo hablar con el proveedor:", String(e).slice(0, 200));
+    res = { ok: false, status: 0,
+            cuerpo: { message: `No se pudo hablar con el proveedor: ${String(e).replace("Error: ", "").slice(0, 160)}` } };
+  }
+
+  const leido = FACTUS.leer(res.cuerpo);
+  const fila = {
+    tenant_id: pedido.tenant_id, branch_id: pedido.branch_id, order_id: pedido.id,
+    tipo: "nota_credito",
+    nota_de: factura.id,
+    motivo: String(motivo || "").slice(0, 300),
+    proveedor: FACTUS.nombre, proveedor_id: leido.id,
+    numero: leido.numero, cufe: leido.cufe,
+    total: Math.round(Number(factura.total) || 0),
+    estado: res.ok && leido.validada ? "aceptada" : (res.ok ? "enviada" : "pendiente"),
+    respuesta: res.cuerpo,
+    error: res.ok ? null : (res.cuerpo?.message ?? `HTTP ${res.status}`),
+    emitida_at: res.ok ? new Date().toISOString() : null,
+  };
+  const guardada = await db("pos_facturas", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify(fila),
+  }) as Array<Record<string, unknown>> | null;
+
+  if (!res.ok) {
+    console.error("[nota] Factus rechazo:", res.status,
+      JSON.stringify(res.cuerpo).slice(0, 600));
+    return { ok: false, error: String(fila.error), detalle: res.cuerpo, nota: guardada?.[0] };
+  }
+
+  /*  Y la factura queda marcada como anulada. Se hace DESPUES de que la
+      nota salio: marcarla antes dejaria una factura "anulada" sin nada que
+      la anule si el proveedor rechaza.                                  */
+  await db(`pos_facturas?id=eq.${factura.id}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ estado: "anulada" }),
+  });
+
+  console.log(`[nota] ${order_id}: ${factura.numero} anulada con ${leido.numero}`);
+  return { ok: true, nota: guardada?.[0], numero: leido.numero };
+}
+
 /*  ══ LAS QUE NUNCA LLEGARON A PEDIRSE ═════════════════════════
     La cola sabe reintentar lo que fallo. Pero hay un caso que ni siquiera
     llegaba a fallar: la caja cobra, va a pedir la factura y ESA llamada se
@@ -1205,7 +1450,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   try {
-    const { order_id, revisar, conectar, reenviar, correo, cola } = await req.json();
+    const { order_id, revisar, conectar, reenviar, correo, cola, anular, motivo } = await req.json();
     /*  ══ LA COLA — la corre el reloj, no una persona ═══════════════════
         Va ANTES de exigir sesion porque el reloj no tiene ninguna. Se
         identifica con su propio secreto y no con la llave de servicio:
@@ -1442,6 +1687,18 @@ Deno.serve(async (req) => {
       /*  Vuelve el nombre de la empresa, NUNCA las llaves. */
       console.log("[cuenta] conectada la sede", sesionBranch, "ambiente", ambiente);
       return json({ conectada: true, ambiente, empresa });
+    }
+
+    /*  ANULAR es su propio camino: no emite una factura, emite una NOTA
+        que deja sin efecto la que ya salio.                           */
+    if (anular === true) {
+      const r = await anularFactura(String(order_id), String(motivo ?? ""));
+      if (r.sin_factura) return json({ error: r.error, sin_factura: true }, 404);
+      if (r.sin_cuenta)  return json({ error: r.error, sin_cuenta: true }, 409);
+      if (r.sin_rango)   return json({ error: r.error, sin_rango: true }, 409);
+      if (r.ya_estaba)   return json({ ya_estaba: true, nota: r.nota });
+      if (!r.ok)         return json({ error: r.error, detalle: r.detalle, nota: r.nota }, 200);
+      return json({ nota: r.nota, numero: r.numero });
     }
 
     /*  EL REENVIO es del manejador y no de emitir: no emite nada, solo

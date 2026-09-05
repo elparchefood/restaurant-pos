@@ -3,6 +3,82 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Notas de credito: anular una factura ya emitida — 5-sep-2026
+
+Una factura electronica **no se borra**. Ya esta en la DIAN y a nombre de un
+NIT: la unica forma legal de dejarla sin efecto es emitir una **nota de
+credito** que la corrija. Hasta hoy anular un pedido solo lo marcaba
+`cancelled` y la factura seguia viva ante la DIAN.
+
+### Lo que se descubrio preguntandole a la API, no a la documentacion
+
+La documentacion de Factus no se puede leer automaticamente (su Cloudflare
+contesta 403). Asi que todo esto salio de probar contra el sandbox:
+
+| | |
+|---|---|
+| Ruta | `POST /v2/credit-notes/validate` (la v1 no esta habilitada) |
+| Campos | `correction_concept_code`, `bill_number`, `reference_code`, `numbering_range_id`, `payment_details`, `customer`, `items` |
+| Motivos | del **1 al 6**; el 7 lo rechaza. El nuestro es el **2, anulacion** |
+| `payment_details` | LISTA, y el campo se llama `payment_form` — igual que en la factura |
+| Codigo unico | se llama **CUDE**, no CUFE |
+| Numeracion | **propia**: la nota NO sale del consecutivo de las facturas |
+
+### Tres cosas que solo se ven probando
+
+**1. La nota no cabia en la tabla.** `ux_factura_pedido` era UNIQUE sobre
+`order_id` para toda fila no anulada — pensado para que dos cajas no emitan
+dos facturas del mismo pedido. Pero la nota es una SEGUNDA fila del mismo
+pedido, y la rechazaba. Ahora el indice mira solo `tipo = 'factura'`: la
+idempotencia queda igual de firme (lo comprueba una guarda que intenta meter
+dos facturas y exige que la base lo rechace), y las notas ya tenian su propio
+candado, `facturas_una_nota_por_factura`.
+
+**2. Yo leia el numero equivocado.** La respuesta de una nota trae TAMBIEN la
+factura que corrige, bajo `bill`. Mi lector miraba `bill` primero, asi que
+guardaba la nota **con el numero de la factura**. No se ve: la nota queda bien
+en el proveedor y mal en nuestra tabla. Lo cazó `ux_factura_numero` al
+rechazar el duplicado — sin ese indice, el dato se habria guardado mal y en
+silencio. Ahora una nota se reconoce por su `cude`, no por la forma.
+
+**3. Dos rangos de nota credito, los dos activos** (`NC` y `CRTE`), y ninguna
+forma de saber por la forma cual es el bueno. Se toma el primero activo y se
+deja dicho en el log cuales habia; el id usado queda en la respuesta guardada.
+**Con las credenciales de produccion hay que confirmar cual es.**
+
+### Y una mejora que salio de sufrirlo
+
+`db()` decia «No se pudo hablar con la base» para cualquier fallo. Con eso
+tarde tres intentos en descubrir que era un indice unico. Ahora dice la tabla,
+el codigo y el mensaje de la base — que es donde viene el nombre del indice.
+El `details` NO se incluye a proposito: ahi vienen los datos de la fila y esto
+acaba en la pantalla de alguien.
+
+### La pantalla
+
+En la tarjeta de factura del historial, junto a «Enviar por correo», un boton
+**Anular** en gris con borde rojo — no es la accion principal. Pide el motivo
+(obligatorio: es lo que queda escrito explicando por que se anulo una venta) y
+avisa de lo que de verdad pasa: *"la factura no se borra: sale una nota
+credito que la deja sin efecto; las dos quedan en la DIAN"*.
+
+Despues, la tarjeta dice **Factura anulada** con el numero de la nota y el
+motivo.
+
+### Probado de punta a punta
+
+Emitir → anular → la factura queda `anulada`, la nota `aceptada` con su CUDE y
+su motivo, y volver a pedirlo contesta «ya estaba» sin emitir una segunda —
+dos notas por la misma factura es un problema con la DIAN. La comprobacion de
+«ya esta anulada» va ANTES de buscar la factura: si no, el segundo intento
+decia «este pedido no tiene factura que anular», que es falso y asusta.
+
+### Lo que NO hace
+
+No anula el pedido ni devuelve la plata: eso es de la caja y ya existe. Aqui
+solo se deja sin efecto el documento ante la DIAN. Y no hace devoluciones
+parciales (motivo 1): eso es otra cosa y no se ha pedido.
+
 ## 🔴→🟢 El chat tardaba uno o dos minutos en abrir — 5-sep-2026
 
 Sergio: *"intento entrar al chat pero se demora en cargar y aparece como si

@@ -572,6 +572,18 @@
 }
 .hs-fac-motivo.ojo { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }
 
+/* Anular una factura no se puede deshacer: el boton lo dice, pero en
+   gris con borde rojo, no en rojo lleno. No es la accion principal de
+   la tarjeta, es la que casi nunca se usa. */
+.btn-hs-peligro {
+  background: #fff;
+  border: 1px solid #FECACA;
+  color: #B91C1C;
+}
+.btn-hs-peligro:hover { background: #FEF2F2; border-color: #FCA5A5; }
+.fe-foot .btn-hs-peligro { background: #DC2626; border-color: #DC2626; color: #fff; }
+.fe-foot .btn-hs-peligro:hover { background: #B91C1C; border-color: #B91C1C; }
+
 .btn-hs[disabled] { opacity: .55; cursor: default; }
 
 /* El aviso de esta pantalla. Nada de alert(): en el ejecutable no sale y

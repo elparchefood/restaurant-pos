@@ -15,6 +15,7 @@ const HS = {
   branchId:   null,
   feOn:       false,   //  esta sede emite factura electronica
   fac:        null,    //  la factura del pedido abierto
+  nota:       null,    //  y su nota de credito, si la anularon
   facPudo:    false,   //  se pudo PREGUNTAR (distinto de "no tiene")
   hfPedido:   null,
   hfModo:     null,
@@ -722,15 +723,21 @@ async function hsFacturacionOn() {
     sin que nadie se enterara.                                           */
 async function hsFacCargar(orderId) {
   HS.fac = null;
+  HS.nota = null;
   HS.facPudo = false;
   try {
+    /*  Se traen los DOS documentos del pedido de una vez: la factura y,
+        si la anularon, su nota de credito. Dos consultas para pintar una
+        tarjeta seria pagar un viaje de mas por nada.                   */
     const r = await sb.from('pos_facturas')
-      .select('id,estado,numero,prefijo,cufe,error,intentos,proximo_intento,correo_enviado_at,correo_error,emitida_at')
-      .eq('order_id', orderId).eq('tipo', 'factura')
-      .order('created_at', { ascending: false }).limit(1);
+      .select('id,tipo,estado,numero,prefijo,cufe,error,intentos,proximo_intento,correo_enviado_at,correo_error,emitida_at,motivo')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false });
     if (r.error) { console.error('[factura] no se pudo leer:', r.error.message); return; }
     HS.facPudo = true;
-    HS.fac = (r.data && r.data[0]) || null;
+    const filas = r.data || [];
+    HS.fac  = filas.find(function (f) { return f.tipo === 'factura'; }) || null;
+    HS.nota = filas.find(function (f) { return f.tipo === 'nota_credito'; }) || null;
   } catch (e) { console.error('[factura] no se pudo leer:', e); }
 }
 
@@ -781,7 +788,11 @@ function hsFacHTML(o) {
     titulo = 'Factura emitida';
     dice = 'La DIAN ya la aceptó. Esta venta está en regla.';
     acciones = `<button class="btn-hs btn-hs-ghost" onclick="hsFacAbrir('${o.id}','correo')">`
-      + (f.correo_enviado_at ? 'Volver a enviarla' : 'Enviar por correo') + '</button>';
+      + (f.correo_enviado_at ? 'Volver a enviarla' : 'Enviar por correo') + '</button>'
+      /*  Anular NO se borra ni se esconde: es la unica forma legal de
+          dejar sin efecto una factura que ya salio. Va en gris y a la
+          izquierda del correo, no como accion principal.              */
+      + `<button class="btn-hs btn-hs-peligro" onclick="hsFacAbrir('${o.id}','anular')">Anular</button>`;
   } else if (f.estado === 'enviada') {
     clase = 'espera';
     titulo = 'En la DIAN';
@@ -802,8 +813,14 @@ function hsFacHTML(o) {
     acciones = `<button class="btn-hs btn-hs-primary" onclick="hsFacReintentar('${o.id}',this)">Intentar de nuevo</button>`;
     if (f.error) motivo = '<div class="hs-fac-motivo"><b>Motivo:</b> ' + hsEsc(f.error) + '</div>';
   } else if (f.estado === 'anulada') {
+    /*  Una factura electronica no se borra: se deja sin efecto con una
+        nota de credito. Aqui se dice con cual, porque es EL documento que
+        hay que poder ensenar si alguien pregunta.                      */
     titulo = 'Factura anulada';
-    dice = 'Esta factura se anuló con una nota crédito.';
+    dice = HS.nota && HS.nota.numero
+      ? 'Se anuló con la nota crédito ' + hsEsc(HS.nota.numero) + '.'
+        + (HS.nota.motivo ? ' Motivo: ' + hsEsc(HS.nota.motivo) : '')
+      : 'Esta factura se anuló con una nota crédito.';
   } else {
     clase = 'espera';
     titulo = 'Estado: ' + hsEsc(f.estado || '—');
@@ -862,27 +879,39 @@ function hsFacAbrir(orderId, modo) {
   const o = HS.orders.find(x => x.id === orderId) || {};
   const c = o.factura_cliente || {};
   const esCorreo = modo === 'correo';
+  const esAnular = modo === 'anular';
 
-  document.getElementById('hf-title').textContent = esCorreo
-    ? 'Enviar la factura por correo' : 'Facturar esta venta';
-  document.getElementById('hf-sub').textContent = esCorreo
-    ? 'Le llega en PDF, con el código de la DIAN.'
-    : 'Si el cliente no da sus datos, sale a consumidor final.';
-  document.getElementById('hf-ok').textContent = esCorreo ? 'Enviar' : 'Facturar';
+  const num = (HS.fac && HS.fac.numero) || '';
+  document.getElementById('hf-title').textContent = esAnular
+    ? 'Anular la factura'
+    : (esCorreo ? 'Enviar la factura por correo' : 'Facturar esta venta');
+  document.getElementById('hf-sub').textContent = esAnular
+    /*  Se dice lo que de verdad pasa. «Anular» suena a borrar, y no se
+        borra nada: sale un documento NUEVO que deja sin efecto al otro, y
+        los dos quedan en la DIAN.                                      */
+    ? 'La factura ' + num + ' no se borra: sale una nota crédito que la deja sin efecto. Las dos quedan en la DIAN.'
+    : (esCorreo ? 'Le llega en PDF, con el código de la DIAN.'
+                : 'Si el cliente no da sus datos, sale a consumidor final.');
+  document.getElementById('hf-ok').textContent = esAnular
+    ? 'Anular la factura' : (esCorreo ? 'Enviar' : 'Facturar');
+  document.getElementById('hf-ok').classList.toggle('btn-hs-peligro', esAnular);
 
-  //  En modo correo sobra todo lo demas: se pregunta UNA cosa.
-  document.getElementById('hf-seg').classList.toggle('is-hidden', esCorreo);
-  document.getElementById('hf-campo-doc').classList.toggle('is-hidden', esCorreo);
-  document.getElementById('hf-campo-nom').classList.toggle('is-hidden', esCorreo);
+  //  Cada modo pregunta SOLO lo suyo.
+  document.getElementById('hf-seg').classList.toggle('is-hidden', esCorreo || esAnular);
+  document.getElementById('hf-campo-doc').classList.toggle('is-hidden', esCorreo || esAnular);
+  document.getElementById('hf-campo-nom').classList.toggle('is-hidden', esCorreo || esAnular);
+  document.getElementById('hf-campo-mail').classList.toggle('is-hidden', esAnular);
+  document.getElementById('hf-campo-motivo').classList.toggle('is-hidden', !esAnular);
 
   hsFacTipo(c.tipo || 'cc');
   document.getElementById('hf-doc').value = c.documento || '';
   document.getElementById('hf-nom').value = c.nombre || o.customer_name || '';
   document.getElementById('hf-mail').value = c.correo || '';
+  document.getElementById('hf-motivo').value = '';
   hsFacAviso('');
   ov.classList.add('show');
   setTimeout(function () {
-    const foco = document.getElementById(esCorreo ? 'hf-mail' : 'hf-doc');
+    const foco = document.getElementById(esAnular ? 'hf-motivo' : (esCorreo ? 'hf-mail' : 'hf-doc'));
     if (foco) foco.focus();
   }, 60);
 }
@@ -915,7 +944,36 @@ async function hsFacConfirmar() {
   const btn = document.getElementById('hf-ok');
   const orderId = HS.hfPedido;
   const esCorreo = HS.hfModo === 'correo';
+  const esAnular = HS.hfModo === 'anular';
   const mail = (document.getElementById('hf-mail').value || '').trim();
+
+  if (esAnular) {
+    const motivo = (document.getElementById('hf-motivo').value || '').trim();
+    /*  El motivo NO es opcional: es lo que queda escrito para explicar por
+        que se anulo una venta, y sin el la nota no dice nada.         */
+    if (motivo.length < 4) {
+      hsFacAviso('Escribe por qué se anula. Queda guardado con la nota.', 'mal');
+      return;
+    }
+    const btnA = document.getElementById('hf-ok');
+    const antesA = btnA.textContent;
+    btnA.disabled = true; btnA.textContent = 'Anulando…';
+    try {
+      const r = await hsFacLlamar({ order_id: orderId, anular: true, motivo: motivo });
+      hsFacCerrar();
+      if (r.ya_estaba) hsAviso('Esa factura ya estaba anulada.', 'ojo');
+      else if (r.numero || (r.nota && r.nota.numero)) {
+        hsAviso('Factura anulada con la nota ' + (r.numero || r.nota.numero), 'bien');
+      } else if (r.error) hsAviso('No se pudo anular: ' + r.error, 'mal');
+      else hsAviso('No se pudo anular.', 'mal');
+      await hsFacRefrescar(orderId);
+    } catch (e) {
+      hsFacAviso(String(e.message || e), 'mal');
+    } finally {
+      btnA.disabled = false; btnA.textContent = antesA;
+    }
+    return;
+  }
 
   if (esCorreo && !mail) { hsFacAviso('Falta el correo del cliente.', 'mal'); return; }
   if (mail && !HS_MAIL_RE.test(mail)) {

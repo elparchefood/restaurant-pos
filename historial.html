@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="historial.css?v=1799660000">
+<link rel="stylesheet" href="historial.css?v=1799740000">
 </head>
 <body>
 <div id="app">
@@ -201,8 +201,12 @@
         <input class="fe-inp" id="hf-doc" inputmode="numeric" autocomplete="off" placeholder="Sin puntos ni guiones"></label>
       <label class="fe-campo" id="hf-campo-nom"><span id="hf-lbl-nom">Nombre completo</span>
         <input class="fe-inp" id="hf-nom" autocomplete="off" placeholder="Como aparece en el documento"></label>
-      <label class="fe-campo"><span>Correo <i>(para enviársela)</i></span>
+      <label class="fe-campo" id="hf-campo-mail"><span>Correo <i>(para enviársela)</i></span>
         <input class="fe-inp" id="hf-mail" type="email" autocomplete="off" placeholder="cliente@correo.com"></label>
+      <!-- Solo al anular. El motivo queda guardado con la nota: es lo que
+           explica por que se dejo sin efecto una venta. -->
+      <label class="fe-campo is-hidden" id="hf-campo-motivo"><span>¿Por qué se anula?</span>
+        <input class="fe-inp" id="hf-motivo" autocomplete="off" placeholder="El cliente devolvió el pedido"></label>
 
       <div class="fe-aviso is-hidden" id="hf-aviso"></div>
     </div>
@@ -223,6 +227,6 @@
      veia todo lo vendido con solo escribir la direccion. No echa a nadie —
      al que no tenga el permiso le sale el PIN del administrador. -->
 <script>if(window.posRequirePin) posRequirePin('ventas.ver');</script>
-<script src="historial.js?v=1799660000"></script>
+<script src="historial.js?v=1799740000"></script>
 </body>
 </html>
