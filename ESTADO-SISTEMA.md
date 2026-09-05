@@ -3,6 +3,61 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 Un empleado heredaba los permisos del dueNo — 5-sep-2026
+
+Sergio: *"cree un rol de mi mismo pero como cajero, ingrese y tengo acceso
+absolutamente a todo: las configuraciones totales, el inventario, los insumos,
+incluso me aparece el desplegable. Me esta apareciendo todo absolutamente
+normal, como en mi cuenta principal"*.
+
+**No era la pantalla: era lo guardado en el equipo.**
+
+`posCache` guarda bajo `pos.cache.<TENANT>.<nombre>` — la llave lleva el
+restaurante, **no quien entro**. Para el catalogo o los metodos de pago esta
+bien: son del negocio. Para los permisos era un agujero:
+
+1. El dueNo entra en el computador del local → se guarda `dueno = true` bajo
+   la llave del restaurante.
+2. Cierra sesion — y eso **no borra nada**, comprobado.
+3. Entra el cajero, mismo restaurante → esa misma llave le dice al programa
+   que es el dueNo → `_perms = '*'` → **todo abierto**.
+
+En un restaurante el cajero usa el computador del dueNo todos los dias: es el
+caso normal, no el raro.
+
+Y no bastaba con que se corrigiera despues, cuando la base contesta: para
+entonces las pantallas ya se pintaron abiertas.
+
+### Reproducido antes de tocar nada, y comprobado despues
+
+Con un cajero de juguete en el Restaurante de Prueba, en el mismo navegador:
+
+| | antes | despues |
+|---|---|---|
+| `posEsDueno()` siendo cajero | **true** | false |
+| Bloque del plan y las sedes | **se veia** | no aparece |
+| Configuracion | **entraba** | pide el PIN de administrador |
+| Inventario | **entraba** | pide el PIN de administrador |
+| Permisos resueltos | los 12 del cajero | los 12 del cajero |
+
+Lo que ya funcionaba bien: la lista de permisos del rol se resolvia correcta
+(`config.usuarios` y `inventario` daban `false`). Lo que la anulaba era el
+`dueno` heredado.
+
+### El arreglo
+
+Las llaves de permisos llevan el id de la persona: `dueno.u.<uid>`,
+`perms.<rol>.u.<uid>`, `perms.suc.<sede>.u.<uid>`. Las demas cachas se quedan
+como estaban — esas si son del negocio.
+
+`pos-perms.js` (va empaquetado: `pos-nucleo.js` rearmado).
+
+### Lo que queda apuntado, sin tocar
+
+`pos-core.js` guarda el **contexto** (marca y sede activas) tambien por tenant.
+No lleva permisos, pero por ahi un empleado podria heredar la sede en la que
+estaba el dueNo. Es otro caso y mas raro; no se toca en el mismo cambio.
+
 ## 🔴→🟢 El plan y las marcas no eran asunto de todo el mundo — 5-sep-2026
 
 Sergio: *"la opcion para crear sucursal y para crear marca solo exclusivamente

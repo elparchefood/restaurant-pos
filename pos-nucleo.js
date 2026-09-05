@@ -3351,6 +3351,31 @@ window.posLlaveSalon = function () {
   var _dueno = false;
   var _listaReal = null;
 
+  /*  ══ LO GUARDADO ES DE UNA PERSONA, NO DE UN RESTAURANTE ══════════
+      `posCache` guarda bajo `pos.cache.<TENANT>.<nombre>`: la llave lleva el
+      restaurante, no quien entro. Para el catalogo o los metodos de pago eso
+      esta bien — son del negocio. Para los PERMISOS es un agujero.
+
+      Lo encontro Sergio el 5-sep-2026: se creo una cuenta de cajero, entro
+      en el MISMO computador donde entra como dueNo, y le salio todo:
+      configuracion, inventario, insumos. La causa era esta: al entrar el
+      dueNo se guarda `dueno = true` bajo la llave del restaurante; al
+      entrar el cajero, esa misma llave le dice al programa que es el dueNo
+      y le abre todo. En un restaurante el cajero usa el computador del
+      dueNo TODOS LOS DIAS: es el caso normal, no el raro.
+
+      Y no bastaba con que se corrigiera despues, cuando la base contesta:
+      para entonces las pantallas ya se pintaron abiertas.
+
+      Cerrar sesion tampoco lo limpiaba — comprobado.
+
+      Asi que las llaves de permisos llevan el id de la persona. Las demas
+      se quedan como estaban: esas si son del negocio.                   */
+  function _mio(nombre, user) {
+    var id = (user && user.id) || '';
+    return id ? (nombre + '.u.' + id) : (nombre + '.u.sin-cuenta');
+  }
+
   function cliente() {
     try { return (typeof sb !== 'undefined' && sb) ? sb : (window.sb || (window._pos && window._pos.sb)); }
     catch (e) { return window.sb || (window._pos && window._pos.sb); }
@@ -3400,7 +3425,7 @@ window.posLlaveSalon = function () {
          Lo guardado en el equipo evita salir a la red en cada pantalla; solo
          se guarda el SI confirmado, nunca un fallo. */
       var _cacheDueno = null;
-      try { _cacheDueno = window.posCache && posCache.leer('dueno'); } catch (e) {}
+      try { _cacheDueno = window.posCache && posCache.leer(_mio('dueno', user)); } catch (e) {}
       if (!porRed && _cacheDueno && _cacheDueno.datos && _cacheDueno.datos.dueno === true) {
         _perms = '*';
         /*  Y AQUI TAMBIEN es el dueNo: sin esto, arrancando desde lo
@@ -3418,7 +3443,7 @@ window.posLlaveSalon = function () {
                                 : await sb.rpc('es_dueno');
         if (!_rd.error && _rd.data === true) {
           _perms = '*'; _fresco = true; _dueno = true;
-          try { if (window.posCache) posCache.guardar('dueno', { dueno: true }); } catch (e) {}
+          try { if (window.posCache) posCache.guardar(_mio('dueno', user), { dueno: true }); } catch (e) {}
           _reEvaluarPuertas();
           return;
         }
@@ -3434,7 +3459,7 @@ window.posLlaveSalon = function () {
       try { _suc = (window.posContexto && window.posContexto.sucursalId()) ||
                    (window._pos && window._pos.state && window._pos.state.branchId) || null; } catch (e) {}
       if (_suc) {
-        var _llaveSuc = 'perms.suc.' + _suc;
+        var _llaveSuc = _mio('perms.suc.' + _suc, user);
         if (!porRed) {
           var gs = null;
           try { gs = window.posCache && posCache.leer(_llaveSuc); } catch (e) {}
@@ -3461,7 +3486,7 @@ window.posLlaveSalon = function () {
          un cajero, y los permisos de uno no pueden pintar los del otro. */
       if (!porRed) {
         var g = null;
-        try { g = window.posCache && posCache.leer('perms.' + role); } catch (e) {}
+        try { g = window.posCache && posCache.leer(_mio('perms.' + role, user)); } catch (e) {}
         if (g && g.datos && Array.isArray(g.datos.perms)) {
           _perms = g.datos.perms.slice();
           _readyFresco = resolver(true);   // la base confirma por detras
@@ -3508,7 +3533,7 @@ window.posLlaveSalon = function () {
         _fresco = true;
         /* Solo se guarda lo confirmado. El '*' de un fallo no se guarda
            nunca: dejaria el equipo concediendo todo en el proximo arranque. */
-        try { if (window.posCache) posCache.guardar('perms.' + role, { perms: _perms }); } catch (e) {}
+        try { if (window.posCache) posCache.guardar(_mio('perms.' + role, user), { perms: _perms }); } catch (e) {}
         _reEvaluarPuertas();
         return;
       }
