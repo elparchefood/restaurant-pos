@@ -1300,7 +1300,8 @@ var UR_PERMS = [
     { id: 'config.general',   label: 'Configuración general',     desc: 'Editar marca, sucursal y meta diaria' },
     { id: 'config.propina',   label: 'Cambiar propina obligatoria', desc: 'Activar o desactivar la propina obligatoria' },
     { id: 'config.salon',     label: 'Configurar mesas y zonas',  desc: 'Editar el plano del salón' },
-    { id: 'config.usuarios',  label: 'Gestionar usuarios y roles',desc: 'Administrar el equipo y permisos' }
+    { id: 'config.usuarios',  label: 'Gestionar usuarios y roles',desc: 'Administrar el equipo y permisos' },
+    { id: 'cuenta.plan',      label: 'Ver el plan, marcas y sedes', desc: 'Ver el plan contratado con su precio y crear o cambiar de marca y de sede' }
   ]}
 ];
 var UR_TOTAL_PERMS = UR_PERMS.reduce(function (n, g) { return n + g.items.length; }, 0);

@@ -63,6 +63,24 @@
      viejo se quedaba escondido toda la pantalla. */
   var _puertas = [];
 
+  /*  ══ PARA LOS PERMISOS QUE EL ADMINISTRADOR **SI** PUEDE PERDER ════
+      `_perms` vale '*' para el dueNo y para el rol `admin`, y con un '*' no
+      se puede saber si un permiso concreto esta o no en la lista del rol:
+      todo contesta que si.
+
+      Eso vale para casi todo, pero no para lo que Sergio pidio el 5-sep:
+      *"el unico caso en que esa informacion le puede salir a alguien es
+      cuando le dieron un rol de administrador Y le otorgaron ese permiso;
+      la persona que crea el rol podra deshabilitarlo si quiere"*. O sea
+      que al administrador SI hay que poder quitarselo — y con el atajo
+      del '*' no se podia.
+
+      Asi que aparte del '*' se guardan dos cosas mas: si es el dueNo (que
+      no pierde nada nunca) y la LISTA de verdad del rol. Solo las usa
+      `posPermEstricto`.                                                  */
+  var _dueno = false;
+  var _listaReal = null;
+
   function cliente() {
     try { return (typeof sb !== 'undefined' && sb) ? sb : (window.sb || (window._pos && window._pos.sb)); }
     catch (e) { return window.sb || (window._pos && window._pos.sb); }
@@ -115,6 +133,12 @@
       try { _cacheDueno = window.posCache && posCache.leer('dueno'); } catch (e) {}
       if (!porRed && _cacheDueno && _cacheDueno.datos && _cacheDueno.datos.dueno === true) {
         _perms = '*';
+        /*  Y AQUI TAMBIEN es el dueNo: sin esto, arrancando desde lo
+            guardado en el equipo, `posPermEstricto` contestaba que no y el
+            dueNo se quedaba sin su propio bloque hasta que la base
+            confirmara. Solo se guarda el SI confirmado, asi que no abre
+            nada de mas.                                                */
+        _dueno = true;
         _readyFresco = resolver(true);   // la base confirma por detras
         return;
       }
@@ -123,7 +147,7 @@
         var _rd = window.posUna ? await window.posUna('es_dueno', function () { return sb.rpc('es_dueno'); })
                                 : await sb.rpc('es_dueno');
         if (!_rd.error && _rd.data === true) {
-          _perms = '*'; _fresco = true;
+          _perms = '*'; _fresco = true; _dueno = true;
           try { if (window.posCache) posCache.guardar('dueno', { dueno: true }); } catch (e) {}
           _reEvaluarPuertas();
           return;
@@ -154,6 +178,7 @@
           var _rs = await sb.rpc('permisos_en_sucursal', { p_branch: _suc });
           if (!_rs.error && Array.isArray(_rs.data)) {
             _perms = _rs.data.slice(); _fresco = true;
+            _listaReal = _perms.slice();
             try { if (window.posCache) posCache.guardar(_llaveSuc, { perms: _perms }); } catch (e) {}
             _reEvaluarPuertas();
             return;
@@ -204,8 +229,12 @@
            se puedan BORRAR (admin, cajero, mesero, cocina, domiciliario).
            Dejarlo asi le habria dado acceso total a todos los meseros y
            domiciliarios del sistema. Quien manda es la clave. */
+        /*  La lista de verdad se guarda ANTES del atajo: el '*' le da acceso
+            total al administrador como siempre, pero `posPermEstricto` puede
+            seguir mirando lo que su rol tiene concedido de verdad.        */
+        _listaReal = Array.isArray(match.perms) ? match.perms.slice() : [];
         if (match.clave === 'admin') { _perms = '*'; _fresco = true; _reEvaluarPuertas(); return; }
-        _perms = Array.isArray(match.perms) ? match.perms.slice() : [];
+        _perms = _listaReal.slice();
         _fresco = true;
         /* Solo se guarda lo confirmado. El '*' de un fallo no se guarda
            nunca: dejaria el equipo concediendo todo en el proximo arranque. */
@@ -273,6 +302,23 @@
     if (_perms === '*') return true;
     if (_perms === null) return true;   // aún no carga → no bloquear de más
     return _perms.indexOf(id) >= 0;
+  };
+
+  window.posEsDueno = function () { return _dueno === true; };
+
+  /*  Como `posHasPerm`, pero SIN el comodin: pregunta si el permiso esta de
+      verdad en la lista del rol. Es para lo que el administrador tiene que
+      poder perder.
+
+      Y al reves que el resto: aqui, mientras no se sepa, se dice QUE NO. En
+      todo lo demas conceder de mas un instante no hace daNo (el boton
+      aparece y luego se esconde); aqui el problema que se esta arreglando
+      es justamente que se veia de mas, asi que ensenarlo "por si acaso" y
+      esconderlo despues seria repetirlo en pequeNo.                      */
+  window.posPermEstricto = function (id) {
+    if (_dueno) return true;
+    if (!Array.isArray(_listaReal)) return false;
+    return _listaReal.indexOf(id) >= 0;
   };
 
   window.posHasAny = function (ids) {

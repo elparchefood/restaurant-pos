@@ -351,9 +351,42 @@
       + '<div class="pm-list">' + listaHTML + '</div></div>';
   }
 
+  /*  ══ ESTO NO ES PARA TODO EL MUNDO (5-sep-2026) ═════════════════
+      Sergio: *"la opcion para crear sucursal y para crear marca solo
+      exclusivamente debe salirle al gerente, es decir la persona que creo
+      la cuenta en Cobra. Esa informacion no le debe salir a personas que
+      tengan un rol"*.
+
+      Hasta hoy este bloque se pintaba para cualquiera que abriera el
+      Escritorio: un mesero veia el plan contratado CON SU PRECIO, podia
+      cambiarse de marca y de sucursal, y tenia delante los botones de
+      crear. Nada de eso es asunto suyo.
+
+      Quien lo ve: el dueNo siempre, y cualquier rol al que le hayan
+      concedido `cuenta.plan` — pensado para el administrador, que lo trae
+      puesto de fabrica y al que el dueNo se lo puede quitar.
+
+      Se pregunta con `posPermEstricto` y no con `posHasPerm` a proposito:
+      el rol `admin` tiene comodin y con `posHasPerm` contestaria que si
+      SIEMPRE, aunque le hubieran quitado el permiso.
+
+      Y si esta pantalla no trae pos-perms, no se pinta. Antes se abria de
+      mas "por si acaso", que es justo el problema que se esta cerrando. */
+  function puedeVerlo() {
+    try {
+      if (typeof window.posPermEstricto !== 'function') return false;
+      return window.posPermEstricto('cuenta.plan');
+    } catch (e) { return false; }
+  }
+
   function pintar() {
     var dd = document.getElementById('user-dropdown');
     if (!dd || !ctx) return;
+    if (!puedeVerlo()) {
+      var q = document.getElementById('pm-bloque');
+      if (q) q.remove();
+      return;
+    }
     var viejo = document.getElementById('pm-bloque');
     if (viejo) viejo.remove();
 
@@ -772,8 +805,16 @@
     catch (e) { console.warn('[pos-marcas]', e && e.message); }
   }
 
-  if (window._pos && window._pos.on) window._pos.on('core:ready', function () { setTimeout(iniciar, 400); });
-  else document.addEventListener('DOMContentLoaded', function () { setTimeout(iniciar, 1200); });
+  /*  Se espera a que los permisos esten CONFIRMADOS. Sin esto, la primera
+      pintada se decide con `_listaReal` todavia en null — o sea, que no —
+      y el dueNo veria su menu sin el bloque hasta recargar.            */
+  var _iniciarConPerms = function () {
+    var listo = (window.posPermsReady && window.posPermsReady()) || Promise.resolve();
+    listo.then(function () { setTimeout(iniciar, 60); },
+               function () { setTimeout(iniciar, 60); });
+  };
+  if (window._pos && window._pos.on) window._pos.on('core:ready', function () { setTimeout(_iniciarConPerms, 400); });
+  else document.addEventListener('DOMContentLoaded', function () { setTimeout(_iniciarConPerms, 1200); });
 
   window.posMarcas = { recargar: iniciar, ctx: function () { return ctx; } };
 })();

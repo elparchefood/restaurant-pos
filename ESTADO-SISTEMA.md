@@ -3,6 +3,73 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 El plan y las marcas no eran asunto de todo el mundo — 5-sep-2026
+
+Sergio: *"la opcion para crear sucursal y para crear marca solo exclusivamente
+debe salirle al gerente, es decir la persona que creo la cuenta en Cobra. Esa
+informacion no le debe salir a personas que tengan un rol"*.
+
+**Hasta hoy ese bloque se pintaba para cualquiera que abriera el Escritorio.**
+Un mesero veia el plan contratado **con su precio**, podia cambiarse de marca y
+de sucursal, y tenia delante los botones de crear marca y crear sucursal.
+`pos-marcas.js` inyectaba el bloque sin preguntar por rol ni por permisos.
+
+### Quien lo ve ahora
+
+| | |
+|---|---|
+| El dueNo (`es_dueno()`) | siempre, y no se le puede quitar |
+| Un rol con `cuenta.plan` | pensado para el administrador, que lo trae de fabrica |
+| Todos los demas | no existe el bloque |
+
+Se comprobo que los 4 tenants tienen `owner_user_id` registrado antes de
+publicar: si a alguno le faltara, su dueNo se habria quedado sin su propio menu.
+
+### El permiso que el administrador SI puede perder
+
+Aqui estaba la trampa. `pos-perms.js` le da **comodin** (`_perms = '*'`) al
+dueNo y al rol con clave `admin`, y con un comodin no se puede saber si un
+permiso concreto esta en la lista: todo contesta que si. Con eso, quitarle
+`cuenta.plan` al administrador no habria servido de nada — y Sergio pidio
+justo lo contrario: *"la persona que crea el rol podra deshabilitarlo si
+quiere"*.
+
+Asi que aparte del comodin se guardan dos cosas mas: si es el dueNo, y la
+**lista de verdad** del rol. `window.posPermEstricto(id)` las usa y contesta
+sin comodines. El resto del sistema no se toca: el administrador sigue
+teniendo acceso total a todo lo demas.
+
+Y al reves que en todo lo demas, aqui **mientras no se sepa se dice que no**.
+En el resto conceder de mas un instante no hace daNo (el boton aparece y luego
+se esconde); aqui el problema que se esta arreglando es que se veia de mas.
+
+### Los tres sitios donde habia que ponerlo
+
+1. `pos_roles` de los **administradores que ya existen** — un `update`, porque
+   un permiso que no esta en la lista no se concede.
+2. `pos_sembrar_roles()`, para los restaurantes que **todavia no existen**: el
+   administrador nacia con la lista vacia («su clave le da acceso total»), que
+   era verdad hasta hoy.
+3. El catalogo de `configuracion.js`, para que aparezca en Usuarios y roles con
+   su casilla: **Configuracion → Ver el plan, marcas y sedes**.
+
+### Un hueco que aparecio al probarlo
+
+El dueNo se resuelve desde lo guardado en el equipo cuando ya se confirmo
+antes. Ese camino ponia el comodin pero **no marcaba que era el dueNo**, asi
+que arrancando sin red `posPermEstricto` contestaba que no y el dueNo se
+quedaba sin su propio bloque hasta que la base confirmara.
+
+### Donde esta
+
+- `pos-perms.js` — `posEsDueno()`, `posPermEstricto()` (y **hay que rearmar
+  `pos-nucleo.js`**: va empaquetado).
+- `pos-marcas.js` — la puerta. Solo lo carga `dashboard.html`.
+- `configuracion.js` — el catalogo.
+- `supabase/sql/2026-09-04-permiso-cuenta-plan.sql` — el update y la siembra,
+  con guardas que revientan si el permiso no quedo, y tambien si se le colo a
+  un rol que no es administrador.
+
 ## 🟢 Historial: rediseno de la pantalla — 5-sep-2026
 
 Sergio: *"la pantalla se ve muy plana, los datos se ven en texto puro, no se
