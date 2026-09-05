@@ -348,4 +348,236 @@
   color: #fff;
   box-shadow: 0 2px 8px -2px rgba(91,107,255,.45);
 }
-.btn-hs-primary:hover { background: #
+.btn-hs-primary:hover { background: #4F5BE3; border-color: #4F5BE3; }
+
+/* ══ LO QUE FALTABA DEL DETALLE (5-sep-2026) ═══════════════════════════
+   Este archivo estaba CORTADO A MEDIA LINEA — se veía el corte en
+   `.btn-hs-primary:hover { background: #` — y nació así en su primer
+   commit. Con el corte se perdieron los estilos de TODO el panel de
+   detalle: los cuatro números de arriba, los títulos de sección, la
+   tabla de productos y la cronología. En pantalla salían apilados como
+   texto plano.
+
+   Y había una segunda consecuencia, peor: una llave sin cerrar se traga
+   todo lo que venga después, así que cualquier estilo añadido al final
+   del archivo no se aplicaba nunca.
+
+   Los valores son los del sistema del producto, no inventados: superficie
+   #fff, borde #ECEEF2, tinta #0F172A / #64748B / #94A3B8, acento #5B6BFF.
+   ─────────────────────────────────────────────────────────────────── */
+
+/* Los cuatro números de arriba */
+.hs-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.hs-kpi {
+  background: #fff;
+  border: 1px solid #ECEEF2;
+  border-radius: 12px;
+  padding: 12px 14px;
+  min-width: 0;
+}
+.hs-kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  margin-bottom: 5px;
+}
+.hs-kpi-value {
+  font-size: 17px;
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* Cada bloque del detalle */
+.hs-section { margin-bottom: 18px; }
+.hs-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  margin-bottom: 9px;
+}
+
+/* La tabla de productos. Las cifras a la derecha y con cifras de igual
+   ancho: una columna de precios que no alinea no se puede leer de un
+   vistazo, que es justo para lo que se abre esta pantalla. */
+.hs-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #ECEEF2;
+  border-radius: 12px;
+  overflow: hidden;
+  font-size: 13px;
+}
+.hs-table th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  padding: 9px 14px;
+  background: #F8FAFC;
+  border-bottom: 1px solid #ECEEF2;
+  white-space: nowrap;
+}
+.hs-table td {
+  padding: 10px 14px;
+  color: #0F172A;
+  border-bottom: 1px solid #F1F5F9;
+}
+.hs-table tbody tr:last-child td { border-bottom: none; }
+.hs-table th:not(:first-child),
+.hs-table td:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.hs-table tfoot td {
+  background: #F8FAFC;
+  border-top: 1px solid #ECEEF2;
+  font-weight: 800;
+  color: #0F172A;
+}
+.hs-table tfoot td:first-child { text-align: right; color: #64748B; font-weight: 700; }
+
+/* La cronología: un punto por paso, unidos por una línea. */
+.hs-timeline {
+  background: #fff;
+  border: 1px solid #ECEEF2;
+  border-radius: 12px;
+  padding: 14px 16px 4px;
+}
+.hs-tl-item { display: flex; gap: 12px; }
+.hs-tl-left { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.hs-tl-dot {
+  width: 9px; height: 9px; border-radius: 999px;
+  background: #E2E8F0; margin-top: 4px; flex-shrink: 0;
+}
+.hs-tl-dot.done { background: #16A34A; }
+.hs-tl-dot.current { background: #5B6BFF; box-shadow: 0 0 0 3px rgba(91,107,255,.16); }
+.hs-tl-line { width: 2px; flex: 1; background: #F1F5F9; margin: 3px 0; min-height: 10px; }
+.hs-tl-item:last-child .hs-tl-line { background: transparent; }
+.hs-tl-event { font-size: 13px; font-weight: 700; color: #0F172A; }
+.hs-tl-time { font-size: 11.5px; color: #94A3B8; margin-top: 1px; padding-bottom: 14px; }
+.hs-tl-item:last-child .hs-tl-time { padding-bottom: 8px; }
+
+
+
+/* ══ LA FACTURA ELECTRONICA DEL PEDIDO (5-sep-2026) ══════════════
+   Va en el panel grande, NUNCA en la tarjeta de la lista: la chiquita
+   dice lo minimo para escoger cual abrir.
+   El estado se lee por el COLOR de la barra de la izquierda antes de
+   leer una sola palabra — verde salio, ambar va en camino, rojo hay que
+   hacer algo. */
+.hs-fac {
+  border: 1px solid #ECEEF2;
+  border-left: 4px solid #CBD5E1;
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.hs-fac.bien { border-left-color: #16A34A; }
+.hs-fac.espera { border-left-color: #F59E0B; }
+.hs-fac.mal { border-left-color: #DC2626; }
+
+.hs-fac-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.hs-fac-estado { font-size: 14.5px; font-weight: 800; color: #0F172A; letter-spacing: -.01em; }
+.hs-fac.bien .hs-fac-estado { color: #15803D; }
+.hs-fac.espera .hs-fac-estado { color: #B45309; }
+.hs-fac.mal .hs-fac-estado { color: #B91C1C; }
+.hs-fac-dice { font-size: 12.5px; color: #64748B; line-height: 1.55; margin-top: 3px; max-width: 62ch; }
+.hs-fac-acciones { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+
+/* El numero es el dato que la gente busca y dicta por telefono: grande,
+   monoespaciado y facil de seleccionar. */
+.hs-fac-datos { display: flex; gap: 26px; flex-wrap: wrap; padding-top: 11px; border-top: 1px solid #F1F5F9; }
+.hs-fac-dato { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.hs-fac-lbl {
+  font-size: 10px; font-weight: 700; color: #94A3B8;
+  text-transform: uppercase; letter-spacing: .09em;
+}
+.hs-fac-val {
+  font-size: 13.5px; font-weight: 700; color: #0F172A;
+  font-variant-numeric: tabular-nums;
+}
+.hs-fac-val.mono {
+  font-family: 'DM Mono', ui-monospace, Menlo, monospace;
+  font-size: 12.5px; font-weight: 500; color: #475569;
+  overflow-wrap: anywhere; max-width: 46ch;
+}
+.hs-fac-val.flojo { color: #94A3B8; font-weight: 600; }
+
+/* El motivo del rechazo se ve COMPLETO. Recortarlo es justo lo que hace
+   que nadie pueda arreglar nada. */
+.hs-fac-motivo {
+  padding: 10px 13px; border-radius: 10px;
+  background: #FEF2F2; border: 1px solid #FECACA;
+  font-size: 12.5px; color: #B91C1C; line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.hs-fac-motivo.ojo { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }
+
+.btn-hs[disabled] { opacity: .55; cursor: default; }
+
+/* El aviso de esta pantalla. Nada de alert(): en el ejecutable no sale y
+   la accion se queda muda. */
+.hs-toast {
+  position: fixed; bottom: 26px; left: 50%;
+  transform: translateX(-50%) translateY(14px);
+  background: #0F172A; color: #fff; font-family: inherit;
+  font-size: 14px; font-weight: 600; padding: 13px 20px;
+  border-radius: 12px; z-index: 10000; opacity: 0; pointer-events: none;
+  transition: opacity .2s, transform .2s;
+  box-shadow: 0 12px 30px -8px rgba(15,23,42,.5); max-width: 90vw;
+}
+.hs-toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+.hs-toast.bien { background: #166534; }
+.hs-toast.mal  { background: #B91C1C; }
+.hs-toast.ojo  { background: #B45309; }
+
+/* ── La ventana de datos. Misma que la de la caja, a proposito: es el
+   mismo formulario y tiene que verse igual. ───────────────────── */
+.fe-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.42); backdrop-filter: blur(2px);
+  z-index: 300; display: none; align-items: center; justify-content: center; padding: 24px; }
+.fe-overlay.show { display: flex; }
+.fe-modal { background: #fff; border-radius: 18px; width: 460px; max-width: 96vw;
+  box-shadow: 0 30px 70px -20px rgba(15,23,42,.4); overflow: hidden;
+  display: flex; flex-direction: column; }
+.fe-head { padding: 20px 22px 14px; border-bottom: 1px solid #ECEEF2; }
+.fe-title { font-size: 18px; font-weight: 800; color: #0F172A; letter-spacing: -.02em; }
+.fe-sub { font-size: 12.5px; color: #64748B; margin-top: 3px; }
+.fe-body { padding: 18px 22px; display: flex; flex-direction: column; gap: 14px; }
+.fe-seg { display: inline-flex; background: #F1F5F9; border-radius: 9px; padding: 3px; gap: 2px; align-self: flex-start; }
+.fe-seg button { border: none; background: transparent; font-family: inherit; font-size: 12.5px;
+  font-weight: 600; color: #64748B; padding: 7px 14px; border-radius: 7px; cursor: pointer; }
+.fe-seg button.on { background: #fff; color: #0F172A; box-shadow: 0 1px 2px rgba(15,23,42,.1); font-weight: 700; }
+.fe-campo { display: flex; flex-direction: column; gap: 6px; }
+.fe-campo > span { font-size: 12px; font-weight: 700; color: #475569; }
+.fe-campo > span i { font-style: normal; font-weight: 500; color: #94A3B8; }
+.fe-campo.is-hidden { display: none; }
+.fe-inp { height: 46px; padding: 0 14px; background: #fff; border: 1px solid #ECEEF2;
+  border-radius: 11px; font-family: inherit; font-size: 15px; color: #0F172A; outline: none; width: 100%; }
+.fe-inp:focus { border-color: #5B6BFF; box-shadow: 0 0 0 3px rgba(91,107,255,.12); }
+.fe-inp::placeholder { color: #94A3B8; font-size: 13.5px; }
+.fe-aviso { padding: 11px 14px; border-radius: 11px; background: #FFFBEB; border: 1px solid #FDE68A;
+  font-size: 12.5px; color: #92400E; line-height: 1.55; }
+.fe-aviso.mal { background: #FEF2F2; border-color: #FECACA; color: #B91C1C; }
+.fe-aviso.is-hidden { display: none; }
+.fe-seg.is-hidden { display: none; }
+.fe-foot { display: flex; gap: 10px; justify-content: flex-end; align-items: center;
+  padding: 16px 22px; border-top: 1px solid #ECEEF2; background: #FBFBFD; }

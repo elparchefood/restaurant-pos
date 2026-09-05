@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="historial.css?v=1789510000">
+<link rel="stylesheet" href="historial.css?v=1799620000">
 </head>
 <body>
 <div id="app">
@@ -169,12 +169,52 @@
 <!-- Templates ocultos -->
 <div id="hs-print-area" style="display:none"></div>
 
+<!-- ══ FACTURA ELECTRONICA ════════════════════════════════════
+     Una sola ventana para las dos cosas que se hacen aqui: facturar una
+     venta que no se facturo, y mandarle la factura al cliente. Son el
+     mismo formulario con distintos campos a la vista, no dos ventanas
+     parecidas que dentro de un mes digan cosas distintas.
+     Ventana propia y no un cuadro del navegador: en el ejecutable los
+     `prompt` no salen y la accion se queda muda. -->
+<div class="fe-overlay" id="hf-overlay">
+  <div class="fe-modal">
+    <div class="fe-head">
+      <div class="fe-title" id="hf-title">Datos para la factura</div>
+      <div class="fe-sub" id="hf-sub"></div>
+    </div>
+
+    <div class="fe-body">
+      <div class="fe-seg" id="hf-seg">
+        <button type="button" class="on" data-tipo="cc">Cédula</button>
+        <button type="button" data-tipo="nit">NIT (empresa)</button>
+      </div>
+
+      <label class="fe-campo" id="hf-campo-doc"><span id="hf-lbl-doc">Número de cédula</span>
+        <input class="fe-inp" id="hf-doc" inputmode="numeric" autocomplete="off" placeholder="Sin puntos ni guiones"></label>
+      <label class="fe-campo" id="hf-campo-nom"><span id="hf-lbl-nom">Nombre completo</span>
+        <input class="fe-inp" id="hf-nom" autocomplete="off" placeholder="Como aparece en el documento"></label>
+      <label class="fe-campo"><span>Correo <i>(para enviársela)</i></span>
+        <input class="fe-inp" id="hf-mail" type="email" autocomplete="off" placeholder="cliente@correo.com"></label>
+
+      <div class="fe-aviso is-hidden" id="hf-aviso"></div>
+    </div>
+
+    <div class="fe-foot">
+      <button class="btn-hs btn-hs-ghost" id="hf-cancel">Cancelar</button>
+      <button class="btn-hs btn-hs-primary" id="hf-ok">Facturar</button>
+    </div>
+  </div>
+</div>
+
+<!-- El aviso de esta pantalla. Nada de alert(). -->
+<div class="hs-toast" id="hs-toast"></div>
+
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <script src="pos-nucleo.js?v=1799600002"></script>
 <!-- Candado de entrada (23-ago-2026). Esta pantalla no tenia ninguno: se
      veia todo lo vendido con solo escribir la direccion. No echa a nadie —
      al que no tenga el permiso le sale el PIN del administrador. -->
 <script>if(window.posRequirePin) posRequirePin('ventas.ver');</script>
-<script src="historial.js?v=1798937000"></script>
+<script src="historial.js?v=1799620000"></script>
 </body>
 </html>

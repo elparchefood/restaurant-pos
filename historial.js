@@ -13,6 +13,11 @@ const HS = {
   query:      '',
   selectedId: null,
   branchId:   null,
+  feOn:       false,   //  esta sede emite factura electronica
+  fac:        null,    //  la factura del pedido abierto
+  facPudo:    false,   //  se pudo PREGUNTAR (distinto de "no tiene")
+  hfPedido:   null,
+  hfModo:     null,
 };
 
 /* ─── Helpers ─── */
@@ -213,7 +218,9 @@ async function selectOrder(id) {
   const detailEl = document.getElementById('hs-detail');
   detailEl.innerHTML = `<div class="hs-empty"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><p>Cargando detalle…</p></div>`;
 
-  await loadItems(id);
+  /*  Los dos van juntos: sin la factura, el detalle se pintaria una vez
+      sin ella y otra con ella, y se veria el salto.                   */
+  await Promise.all([loadItems(id), HS.feOn ? hsFacCargar(id) : Promise.resolve()]);
   renderDetail(o);
 }
 
@@ -283,6 +290,8 @@ function renderDetail(o) {
         <tfoot><tr><td colspan="3">Total</td><td>${COPF(o.total)}</td></tr></tfoot>
       </table>` : '<div style="color:#94A3B8;font-size:13px">Sin ítems registrados</div>'}
     </div>
+
+    ${hsFacHTML(o)}
 
     <div class="hs-section">
       <div class="hs-section-title">Cronología</div>
@@ -545,9 +554,385 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (r.status === 'rejected') console.warn('[historial] carga de apoyo ' + i + ' fallo:', r.reason);
     });
 
+  /*  Se pregunta UNA vez, no en cada pedido que se abre: es un dato de la
+      sede, no del pedido.                                             */
+  HS.feOn = await hsFacturacionOn();
+
   /* Vincular filtros */
   bindFilters();
 
   /* Carga inicial */
   await loadAndRender();
+});
+
+/*  ══ LA FACTURA ELECTRONICA DEL PEDIDO ══════════════════════════════════
+    Aqui se ve en que quedo la factura de una venta, y se hacen las dos
+    cosas que hay que poder hacer DESPUES de cobrar:
+
+      · mandarsela al cliente que la pide luego ("¿me la envia al
+        correo?"), y
+      · facturar una venta que se cobro sin factura — que es exactamente
+        lo que la caja le promete al cajero cuando la venta pasa del tope:
+        *"puedes cobrar igual y arreglarlo despues desde el historial"*.
+
+    Todo va en el panel grande. La tarjeta de la lista NO lleva nada: esa
+    dice lo minimo para escoger cual abrir.                              */
+
+/*  El aviso de esta pantalla. Nada de alert(): en el ejecutable no sale y
+    la accion se queda muda.                                             */
+let _hsToastT = null;
+function hsAviso(msg, tono) {
+  const el = document.getElementById('hs-toast');
+  if (!el) { console.warn('[historial]', msg); return; }
+  el.textContent = msg;
+  el.className = 'hs-toast on' + (tono ? ' ' + tono : '');
+  clearTimeout(_hsToastT);
+  //  Un motivo de rechazo hay que poder leerlo: dura mas.
+  _hsToastT = setTimeout(function () { el.className = 'hs-toast'; }, msg.length > 90 ? 9000 : 4200);
+}
+
+/*  Lo que contesta el proveedor es texto de fuera: se escapa antes de
+    ponerlo en la pantalla.                                              */
+function hsEsc(t) {
+  return String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/*  ¿Esta sede emite? Si la consulta FALLA no se enciende nada: ensenar la
+    tarjeta y que al pulsar no pase nada es peor que no ensenarla.        */
+async function hsFacturacionOn() {
+  try {
+    const r = await sb.from('pos_facturacion_cuentas')
+      .select('activo,emitiendo').eq('branch_id', HS.branchId).limit(1);
+    if (r.error) { console.error('[factura] no se pudo preguntar:', r.error.message); return false; }
+    const c = r.data && r.data[0];
+    return !!(c && c.activo && c.emitiendo !== false);
+  } catch (e) { console.error('[factura] no se pudo preguntar:', e); return false; }
+}
+
+/*  `facPudo` separa "no tiene factura" de "no pude preguntar". Sin esa
+    distincion, un permiso mal puesto se ve igual que una venta sin
+    facturar — que es como la facturacion entera estuvo muda dos semanas
+    sin que nadie se enterara.                                           */
+async function hsFacCargar(orderId) {
+  HS.fac = null;
+  HS.facPudo = false;
+  try {
+    const r = await sb.from('pos_facturas')
+      .select('id,estado,numero,prefijo,cufe,error,intentos,proximo_intento,correo_enviado_at,correo_error,emitida_at')
+      .eq('order_id', orderId).eq('tipo', 'factura')
+      .order('created_at', { ascending: false }).limit(1);
+    if (r.error) { console.error('[factura] no se pudo leer:', r.error.message); return; }
+    HS.facPudo = true;
+    HS.fac = (r.data && r.data[0]) || null;
+  } catch (e) { console.error('[factura] no se pudo leer:', e); }
+}
+
+function hsFacCuando(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const mismoDia = d.toDateString() === new Date().toDateString();
+  return (mismoDia ? 'hoy' : d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }))
+    + ' ' + d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+}
+
+/*  "En 3 minutos" se entiende; una fecha con segundos, no.              */
+function hsFacEnCuanto(iso) {
+  if (!iso) return '';
+  const min = Math.round((new Date(iso) - Date.now()) / 60000);
+  if (min <= 0) return 'en cualquier momento';
+  if (min === 1) return 'en 1 minuto';
+  if (min < 60) return 'en ' + min + ' minutos';
+  const h = Math.round(min / 60);
+  return h === 1 ? 'en 1 hora' : 'en ' + h + ' horas';
+}
+
+function hsFacHTML(o) {
+  //  Sin cuenta conectada esta seccion no existe: no se le habla de la
+  //  DIAN a un restaurante que no factura.
+  if (!HS.feOn) return '';
+
+  const f = HS.fac;
+  const cobrado = o.status === 'paid' || o.status === 'completed';
+  let clase = '', titulo = '', dice = '', acciones = '', datos = '', motivo = '';
+
+  if (!HS.facPudo) {
+    clase = 'espera';
+    titulo = 'No se pudo consultar';
+    dice = 'No pudimos preguntar en qué quedó esta factura. Revisa la conexión y vuelve a abrir el pedido.';
+  } else if (!f) {
+    if (!cobrado) {
+      titulo = 'Sin factura todavía';
+      dice = 'Esta venta aún no se ha cobrado. La factura sale al cobrar.';
+    } else {
+      clase = 'espera';
+      titulo = 'Esta venta no tiene factura';
+      dice = 'Se cobró sin factura electrónica. Si el cliente la pide, puedes emitirla ahora.';
+      acciones = `<button class="btn-hs btn-hs-primary" onclick="hsFacAbrir('${o.id}','emitir')">Facturar esta venta</button>`;
+    }
+  } else if (f.estado === 'aceptada') {
+    clase = 'bien';
+    titulo = 'Factura emitida';
+    dice = 'La DIAN ya la aceptó. Esta venta está en regla.';
+    acciones = `<button class="btn-hs btn-hs-ghost" onclick="hsFacAbrir('${o.id}','correo')">`
+      + (f.correo_enviado_at ? 'Volver a enviarla' : 'Enviar por correo') + '</button>';
+  } else if (f.estado === 'enviada') {
+    clase = 'espera';
+    titulo = 'En la DIAN';
+    dice = 'Ya salió y la DIAN la está validando. No hay que hacer nada: se confirma sola.';
+    acciones = `<button class="btn-hs btn-hs-ghost" onclick="hsFacAbrir('${o.id}','correo')">Enviar por correo</button>`;
+  } else if (f.estado === 'pendiente') {
+    clase = 'espera';
+    titulo = 'Todavía no sale';
+    dice = 'Se está reintentando sola'
+      + (f.proximo_intento ? ' — siguiente intento ' + hsFacEnCuanto(f.proximo_intento) : '')
+      + '. No tienes que hacer nada; si quieres, puedes intentarlo ya.';
+    acciones = `<button class="btn-hs btn-hs-primary" onclick="hsFacReintentar('${o.id}',this)">Intentar ahora</button>`;
+    if (f.error) motivo = '<div class="hs-fac-motivo ojo"><b>Lo último que contestó:</b> ' + hsEsc(f.error) + '</div>';
+  } else if (f.estado === 'rechazada') {
+    clase = 'mal';
+    titulo = 'No se pudo emitir';
+    dice = 'Ya no se reintenta sola. Mira el motivo y vuelve a intentarlo cuando esté resuelto.';
+    acciones = `<button class="btn-hs btn-hs-primary" onclick="hsFacReintentar('${o.id}',this)">Intentar de nuevo</button>`;
+    if (f.error) motivo = '<div class="hs-fac-motivo"><b>Motivo:</b> ' + hsEsc(f.error) + '</div>';
+  } else if (f.estado === 'anulada') {
+    titulo = 'Factura anulada';
+    dice = 'Esta factura se anuló con una nota crédito.';
+  } else {
+    clase = 'espera';
+    titulo = 'Estado: ' + hsEsc(f.estado || '—');
+    dice = 'No reconocemos este estado.';
+  }
+
+  if (f && (f.numero || f.cufe || f.correo_enviado_at || f.correo_error)) {
+    const trozos = [];
+    if (f.numero) {
+      trozos.push('<div class="hs-fac-dato"><div class="hs-fac-lbl">Número</div>'
+        + '<div class="hs-fac-val">' + hsEsc(f.numero) + '</div></div>');
+    }
+    if (f.emitida_at) {
+      trozos.push('<div class="hs-fac-dato"><div class="hs-fac-lbl">Emitida</div>'
+        + '<div class="hs-fac-val">' + hsFacCuando(f.emitida_at) + '</div></div>');
+    }
+    /*  El correo se dice SIEMPRE. Un envio que fallo y no se cuenta es un
+        cliente que cree que tiene su factura y no la tiene.             */
+    let correo = '<span class="hs-fac-val flojo">Sin enviar</span>';
+    if (f.correo_enviado_at) {
+      correo = '<span class="hs-fac-val">Enviado ' + hsFacCuando(f.correo_enviado_at) + '</span>';
+    } else if (f.correo_error) {
+      correo = '<span class="hs-fac-val" style="color:#B91C1C">No llegó</span>';
+    }
+    trozos.push('<div class="hs-fac-dato"><div class="hs-fac-lbl">Correo</div>' + correo + '</div>');
+    if (f.cufe) {
+      trozos.push('<div class="hs-fac-dato"><div class="hs-fac-lbl">Código CUFE</div>'
+        + '<div class="hs-fac-val mono">' + hsEsc(f.cufe) + '</div></div>');
+    }
+    datos = '<div class="hs-fac-datos">' + trozos.join('') + '</div>';
+    if (f.correo_error && !f.correo_enviado_at) {
+      motivo += '<div class="hs-fac-motivo ojo"><b>El correo no salió:</b> ' + hsEsc(f.correo_error) + '</div>';
+    }
+  }
+
+  return '<div class="hs-section">'
+    + '<div class="hs-section-title">Factura electrónica</div>'
+    + '<div class="hs-fac ' + clase + '">'
+    +   '<div class="hs-fac-top">'
+    +     '<div><div class="hs-fac-estado">' + titulo + '</div>'
+    +     '<div class="hs-fac-dice">' + dice + '</div></div>'
+    +     (acciones ? '<div class="hs-fac-acciones">' + acciones + '</div>' : '')
+    +   '</div>'
+    +   motivo + datos
+    + '</div></div>';
+}
+
+// ── la ventana ────────────────────────────────────────────────────────
+
+function hsFacAbrir(orderId, modo) {
+  const ov = document.getElementById('hf-overlay');
+  if (!ov) return;
+  HS.hfPedido = orderId;
+  HS.hfModo = modo;
+
+  const o = HS.orders.find(x => x.id === orderId) || {};
+  const c = o.factura_cliente || {};
+  const esCorreo = modo === 'correo';
+
+  document.getElementById('hf-title').textContent = esCorreo
+    ? 'Enviar la factura por correo' : 'Facturar esta venta';
+  document.getElementById('hf-sub').textContent = esCorreo
+    ? 'Le llega en PDF, con el código de la DIAN.'
+    : 'Si el cliente no da sus datos, sale a consumidor final.';
+  document.getElementById('hf-ok').textContent = esCorreo ? 'Enviar' : 'Facturar';
+
+  //  En modo correo sobra todo lo demas: se pregunta UNA cosa.
+  document.getElementById('hf-seg').classList.toggle('is-hidden', esCorreo);
+  document.getElementById('hf-campo-doc').classList.toggle('is-hidden', esCorreo);
+  document.getElementById('hf-campo-nom').classList.toggle('is-hidden', esCorreo);
+
+  hsFacTipo(c.tipo || 'cc');
+  document.getElementById('hf-doc').value = c.documento || '';
+  document.getElementById('hf-nom').value = c.nombre || o.customer_name || '';
+  document.getElementById('hf-mail').value = c.correo || '';
+  hsFacAviso('');
+  ov.classList.add('show');
+  setTimeout(function () {
+    const foco = document.getElementById(esCorreo ? 'hf-mail' : 'hf-doc');
+    if (foco) foco.focus();
+  }, 60);
+}
+
+function hsFacCerrar() {
+  const ov = document.getElementById('hf-overlay');
+  if (ov) ov.classList.remove('show');
+}
+
+function hsFacTipo(t) {
+  const seg = document.getElementById('hf-seg');
+  if (seg) [].forEach.call(seg.children, function (b) {
+    b.classList.toggle('on', b.dataset.tipo === t);
+  });
+  const esNit = t === 'nit';
+  document.getElementById('hf-lbl-doc').textContent = esNit ? 'NIT (sin el dígito de verificación)' : 'Número de cédula';
+  document.getElementById('hf-lbl-nom').textContent = esNit ? 'Razón social' : 'Nombre completo';
+}
+
+function hsFacAviso(msg, tono) {
+  const el = document.getElementById('hf-aviso');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = 'fe-aviso' + (msg ? '' : ' is-hidden') + (tono ? ' ' + tono : '');
+}
+
+const HS_MAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+async function hsFacConfirmar() {
+  const btn = document.getElementById('hf-ok');
+  const orderId = HS.hfPedido;
+  const esCorreo = HS.hfModo === 'correo';
+  const mail = (document.getElementById('hf-mail').value || '').trim();
+
+  if (esCorreo && !mail) { hsFacAviso('Falta el correo del cliente.', 'mal'); return; }
+  if (mail && !HS_MAIL_RE.test(mail)) {
+    hsFacAviso('Ese correo no se ve bien. Revísalo.', 'mal'); return;
+  }
+
+  let datos = null;
+  if (!esCorreo) {
+    const btnTipo = document.querySelector('#hf-seg button.on');
+    const doc = (document.getElementById('hf-doc').value || '').replace(/[^0-9-]/g, '').trim();
+    const nom = (document.getElementById('hf-nom').value || '').trim();
+    /*  Uno sin el otro no sirve: o van los dos, o va a consumidor final.
+        Media identificacion es la forma segura de que la rechacen.      */
+    if ((doc && !nom) || (nom && !doc)) {
+      hsFacAviso('Para poner los datos del cliente hacen falta el documento Y el nombre. Si no los tienes, déjalos vacíos y sale a consumidor final.', 'mal');
+      return;
+    }
+    if (doc && nom) {
+      datos = { tipo: (btnTipo && btnTipo.dataset.tipo) || 'cc', documento: doc, nombre: nom, correo: mail };
+    }
+  }
+
+  const antes = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = esCorreo ? 'Enviando…' : 'Facturando…';
+  try {
+    if (datos) {
+      /*  Los datos del cliente se guardan en el PEDIDO antes de emitir: de
+          ahi los lee el servidor, y ademas quedan guardados para el dia
+          que haya que volver a mirarlos.                               */
+      const g = await sb.from('pos_orders').update({ factura_cliente: datos }).eq('id', orderId);
+      if (g.error) throw new Error('No se pudieron guardar los datos: ' + g.error.message);
+      const o = HS.orders.find(x => x.id === orderId);
+      if (o) o.factura_cliente = datos;
+    }
+    const r = await hsFacLlamar(esCorreo
+      ? { order_id: orderId, reenviar: true, correo: mail }
+      : { order_id: orderId });
+
+    hsFacCerrar();
+    if (esCorreo) {
+      if (r.correo_enviado) hsAviso('Factura enviada a ' + mail, 'bien');
+      else hsAviso('No se pudo enviar: ' + (r.motivo || 'el proveedor no dijo por qué'), 'mal');
+    } else if (r.factura && r.factura.numero) {
+      hsAviso('Factura emitida: ' + r.factura.numero, 'bien');
+    } else if (r.error) {
+      hsAviso('No salió: ' + r.error + '. Queda en cola y se reintenta sola.', 'ojo');
+    } else {
+      hsAviso('Quedó en cola: se reintenta sola.', 'ojo');
+    }
+    await hsFacRefrescar(orderId);
+  } catch (e) {
+    hsFacAviso(String(e.message || e), 'mal');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = antes;
+  }
+}
+
+async function hsFacReintentar(orderId, btn) {
+  const antes = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Intentando…'; }
+  try {
+    const r = await hsFacLlamar({ order_id: orderId });
+    if (r.factura && r.factura.numero) hsAviso('Factura emitida: ' + r.factura.numero, 'bien');
+    else if (r.error) hsAviso('Sigue sin salir: ' + r.error, 'mal');
+    else hsAviso('Sigue en cola. Se reintenta sola.', 'ojo');
+  } catch (e) {
+    hsAviso(String(e.message || e), 'mal');
+    if (btn) { btn.disabled = false; btn.textContent = antes; }
+  }
+  await hsFacRefrescar(orderId);
+}
+
+/*  Una sola puerta al servidor. `fetch` NO lanza con un 403 ni con un 500:
+    hay que mirar el cuerpo, o el fallo pasa por "no hay datos" — que es
+    exactamente lo que tuvo la facturacion muda dos semanas.             */
+async function hsFacLlamar(cuerpo) {
+  const ses = await sb.auth.getSession();
+  const tok = ses && ses.data && ses.data.session && ses.data.session.access_token;
+  if (!tok) throw new Error('Se cerró la sesión. Vuelve a entrar.');
+  const r = await fetch(SUPABASE_URL + '/functions/v1/facturar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+    body: JSON.stringify(cuerpo),
+  });
+  const d = await r.json().catch(function () { return null; });
+  if (!d) throw new Error('El servidor no contestó (' + r.status + ')');
+  if (!r.ok && !d.error) throw new Error('El servidor contestó ' + r.status);
+  return d;
+}
+
+/*  Vuelve a leer la factura y repinta SOLO su tarjeta: repintar el detalle
+    entero perderia el sitio donde la persona estaba mirando.            */
+async function hsFacRefrescar(orderId) {
+  await hsFacCargar(orderId);
+  const o = HS.orders.find(x => x.id === orderId);
+  if (!o) return;
+  const secciones = document.querySelectorAll('#hs-detail .hs-section');
+  for (const sec of secciones) {
+    const t = sec.querySelector('.hs-section-title');
+    if (t && t.textContent.trim() === 'Factura electrónica') {
+      const caja = document.createElement('div');
+      caja.innerHTML = hsFacHTML(o);
+      if (caja.firstChild) sec.replaceWith(caja.firstChild);
+      return;
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const ok = document.getElementById('hf-ok');
+  if (ok) ok.onclick = hsFacConfirmar;
+  const ca = document.getElementById('hf-cancel');
+  if (ca) ca.onclick = hsFacCerrar;
+  const seg = document.getElementById('hf-seg');
+  if (seg) [].forEach.call(seg.children, function (b) {
+    b.onclick = function () { hsFacTipo(b.dataset.tipo); };
+  });
+  const ov = document.getElementById('hf-overlay');
+  if (ov) ov.onclick = function (e) { if (e.target === ov) hsFacCerrar(); };
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') hsFacCerrar();
+  });
 });

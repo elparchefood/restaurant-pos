@@ -3,6 +3,88 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Ver y arreglar la factura desde el historial — 5-sep-2026
+
+Sergio: *"sigue con el botón de ver estado y reenviar factura"*.
+
+En el detalle de cada pedido hay ahora una tarjeta **Factura electrónica**
+que dice en que quedo y deja hacer las dos cosas que hay que poder hacer
+DESPUES de cobrar. El estado se lee por el color de la barra izquierda antes
+de leer una palabra:
+
+| Barra | Dice | Y ofrece |
+|---|---|---|
+| verde | **Factura emitida** — la DIAN ya la acepto | Enviar / volver a enviar por correo |
+| ambar | **En la DIAN** — la esta validando | Enviar por correo |
+| ambar | **Todavia no sale** — se reintenta sola, siguiente intento en X | Intentar ahora |
+| rojo | **No se pudo emitir** + el motivo completo | Intentar de nuevo |
+| ambar | **Esta venta no tiene factura** | Facturar esta venta |
+| — | (el restaurante no factura) | la seccion no existe |
+
+**«Facturar esta venta» cumple una promesa que ya estaba escrita.** Cuando una
+venta pasa del tope de la DIAN, la caja le dice al cajero: *"puedes cobrar
+igual y arreglarlo despues desde el historial"*. Hasta hoy no habia nada en el
+historial con que arreglarlo. Ahora se piden los datos del cliente (o se emite
+a consumidor final), se guardan en el pedido y se emite.
+
+**El correo se dice SIEMPRE.** «Sin enviar», «Enviado hoy 8:54 p. m.» o «No
+llego» con el motivo completo debajo. Un envio que falla y no se cuenta es un
+cliente que cree que tiene su factura y no la tiene.
+
+### Un cambio en el servidor que hacia falta para esto
+
+**Reintentar a mano devuelve los 8 intentos.** Una factura que ya se rindio se
+quedaria rindiendose para siempre: el boton diria «intentar de nuevo» y no
+intentaria nada. Si una persona le da, es porque cambio algo — volvio el
+internet, corrigio los datos. El reloj NO reinicia nada: para eso existe el
+rendirse. `emitirPedido(order_id, desdeCola)`.
+
+**Y «esto no se arregla esperando» pasa a estar en un solo sitio.** Cerrar una
+factura imposible (pedido anulado, sin productos, sede sin cuenta) lo hacia
+SOLO la cola. Resultado: al pulsar «Intentar ahora» salia el aviso «el pedido
+no tiene productos» mientras la tarjeta seguia diciendo «se reintenta sola» con
+un motivo de hace rato — dos verdades distintas en la misma pantalla, que es lo
+que pasa siempre que la misma decision se escribe dos veces. Ahora vive en
+`cerrarPendiente()` dentro de `emitirPedido`, y sirve para los dos caminos.
+
+### Y un archivo que llevaba roto desde su primer commit
+
+**`historial.css` estaba CORTADO A MEDIA LINEA** — terminaba en
+`.btn-hs-primary:hover { background: #`. Nacio asi en `d0f9106`, el commit que
+creo el modulo. Dos consecuencias:
+
+1. **Se perdieron los estilos de todo el panel de detalle**: los cuatro numeros
+   de arriba, los titulos de seccion, la tabla de productos y la cronologia
+   salian apilados como texto plano. Asi se ha visto siempre.
+2. **La llave sin cerrar se tragaba lo que viniera despues**, asi que cualquier
+   estilo anadido al final del archivo no se aplicaba nunca. La tarjeta nueva
+   habria sido la siguiente victima.
+
+Escritos con los valores del sistema (superficie `#fff`, borde `#ECEEF2`, tinta
+`#0F172A`/`#64748B`/`#94A3B8`, acento `#5B6BFF`), no inventados.
+
+### Probado en el navegador, con datos de verdad
+
+Los cinco estados, con la sesion del Restaurante de Prueba: emitida, en cola,
+rechazada, sin factura y sin facturacion. Facturado desde el historial con
+datos de cliente — **Factus la acepto a nombre de Carolina Muñoz con su cedula**
+(`SETP990017845`), no como consumidor final. Y el reenvio por correo contesta
+lo que hay que contestar: en sandbox, *"el correo no esta autorizado"*.
+
+### Donde esta
+
+- `historial.js` — `hsFacHTML()` y compania; el bloque va al final del archivo.
+- `historial.css` — el cierre de la regla cortada, los estilos del detalle que
+  faltaban y los de la tarjeta.
+- `historial.html` — la ventana de datos y el aviso propio (nada de `alert`).
+- `supabase/functions/facturar/index.ts` (v41) — `desdeCola` y
+  `cerrarPendiente()`.
+
+### Lo que NO lleva
+
+La tarjeta de la lista de la izquierda, que sigue diciendo lo minimo para
+escoger cual abrir. Todo aviso va en el panel grande.
+
 ## 🟢 La cola de reintentos de facturacion — 5-sep-2026
 
 Sergio, al disenar el boton de facturar: *"la factura queda en cola y se

@@ -754,6 +754,37 @@ async function destrabar(FACTUS: Factus, tenantId: string): Promise<number> {
   return quitadas;
 }
 
+/*  ══ CERRAR LO QUE NO SE ARREGLA ESPERANDO ════════════════════
+    El pedido no existe, lo anularon, no tiene productos, la sede se quedo
+    sin cuenta: reintentar eso mil veces no lo arregla.
+
+    Esto lo hacia SOLO la cola, y por eso una persona que le daba a
+    "Intentar ahora" en el historial veia un aviso que decia "el pedido no
+    tiene productos" mientras la tarjeta seguia diciendo "se reintenta
+    sola" con otro motivo de hace rato. Dos verdades distintas en la misma
+    pantalla, que es justo lo que pasa cuando la misma decision se escribe
+    en dos sitios. Ahora se decide aqui, y sirve para los dos caminos.
+
+    NO cierra si el restaurante APAGO la facturacion: eso no es un error,
+    es una decision suya, y cuando la vuelva a encender la factura tiene
+    que seguir esperando.                                               */
+async function cerrarPendiente(order_id: string, motivo: string) {
+  try {
+    await db(
+      `pos_facturas?order_id=eq.${order_id}&tipo=eq.factura&estado=eq.pendiente`,
+      {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ estado: "rechazada", error: motivo, proximo_intento: null }),
+      },
+    );
+  } catch (e) {
+    //  Si esto falla NO se tumba la respuesta: lo peor que pasa es que la
+    //  cola la recoja una vez mas y la cierre ella.
+    console.error("[emitir] no se pudo cerrar la pendiente:", String(e).slice(0, 150));
+  }
+}
+
 /*  ══ EMITIR — UNA sola vez, para la caja y para la cola ══════════
     La cola reintenta EXACTAMENTE lo mismo que hace la caja: los mismos
     candados, el mismo cuerpo, la misma idempotencia, el mismo correo.
@@ -778,7 +809,9 @@ type ResultadoEmitir = {
   anulado?: boolean;
 };
 
-async function emitirPedido(order_id: string): Promise<ResultadoEmitir> {
+/*  `desdeCola` distingue quien lo pide. Solo cambia una cosa — los
+    intentos — pero es una cosa que importa: ver mas abajo.        */
+async function emitirPedido(order_id: string, desdeCola = false): Promise<ResultadoEmitir> {
     // ── el pedido y sus renglones ────────────────────────────────────
     const pedidos = await db(
       `pos_orders?id=eq.${order_id}`
@@ -786,7 +819,10 @@ async function emitirPedido(order_id: string): Promise<ResultadoEmitir> {
       + `tip_amount,discount_amount,`
       + `status,factura_cliente`);
     const pedido = pedidos?.[0];
-    if (!pedido) return { ok: false, no_existe: true, error: "El pedido no existe" };
+    if (!pedido) {
+      await cerrarPendiente(order_id, "El pedido no existe");
+      return { ok: false, no_existe: true, error: "El pedido no existe" };
+    }
 
     /*  ══ EL INTERRUPTOR DEL RESTAURANTE ══════════════════════════════
         Sergio: *"al desactivarla simplemente se corta cualquier flujo de
@@ -819,6 +855,7 @@ async function emitirPedido(order_id: string): Promise<ResultadoEmitir> {
         factura emitida no se deshace.                                  */
     if (!llaves || !llaves.client_id) {
       console.error("[cuenta] la sede", pedido.branch_id, "no tiene cuenta de facturacion");
+      await cerrarPendiente(order_id, "El restaurante no tiene conectada su cuenta de facturacion");
       return { ok: false, sin_cuenta: true,
                error: "Este restaurante todav\u00eda no tiene conectada su cuenta de facturaci\u00f3n electr\u00f3nica" };
     }
@@ -832,6 +869,7 @@ async function emitirPedido(order_id: string): Promise<ResultadoEmitir> {
     });
 
     if (pedido.status === "cancelled") {
+      await cerrarPendiente(order_id, "Un pedido anulado no se factura");
       return { ok: false, anulado: true, error: "Un pedido anulado no se factura" };
     }
 
@@ -850,7 +888,10 @@ async function emitirPedido(order_id: string): Promise<ResultadoEmitir> {
       `pos_order_items?order_id=eq.${order_id}`
       + `&select=id,product_id,name,product_name,quantity,unit_price,product_price,`
       + `total,tax_pct,tax_base,tax_amount`);
-    if (!renglones?.length) return { ok: false, anulado: true, error: "El pedido no tiene productos" };
+    if (!renglones?.length) {
+      await cerrarPendiente(order_id, "El pedido no tiene productos");
+      return { ok: false, anulado: true, error: "El pedido no tiene productos" };
+    }
 
     // ── se emite ─────────────────────────────────────────────────────
     const cuerpo = FACTUS.cuerpo(pedido, renglones, null);
@@ -924,6 +965,14 @@ async function emitirPedido(order_id: string): Promise<ResultadoEmitir> {
           reintento en una factura ya emitida es basura que confunde al
           que abra la tabla.                                            */
       ...(res.ok ? { proximo_intento: null } : {}),
+      /*  Y si la esta reintentando UNA PERSONA desde el historial, la
+          cuenta de intentos vuelve a cero. Una factura que ya se rindio a
+          los 8 se quedaria rindiendose para siempre: el boton diria
+          "intentar de nuevo" y no intentaria nada. Si alguien le da, es
+          porque cambio algo — volvio el internet, corrigio los datos — y
+          merece los 8 intentos otra vez. El reloj NO reinicia nada: para
+          eso existe el rendirse.                                       */
+      ...(previa && !desdeCola ? { intentos: 0 } : {}),
     };
 
     const guardada = await db(
@@ -1102,7 +1151,7 @@ async function correrCola(): Promise<Response> {
         console.log(`[cola] ${f.id}: la sede no esta emitiendo, se salta`);
         continue;
       }
-      const r = await emitirPedido(f.order_id);
+      const r = await emitirPedido(f.order_id, true);
       if (r.ok) { emitidas++; console.log(`[cola] ${f.order_id} emitida: ${r.numero}`); }
 
       /*  ══ LO QUE NO SE ARREGLA ESPERANDO SE CIERRA AQUI ══════════════
@@ -1119,12 +1168,9 @@ async function correrCola(): Promise<Response> {
           Se marcan `rechazada`, que es lo que ya significa "esto lo tiene
           que mirar una persona", y se les quita la cita.              */
       else if (r.no_existe || r.anulado || r.sin_cuenta) {
+        /*  Ya la cerro `emitirPedido`, que es donde vive esa decision
+            ahora. Aqui solo se cuenta para el resumen de la corrida.  */
         cerradas++;
-        await db(`pos_facturas?id=eq.${f.id}`, {
-          method: "PATCH",
-          headers: { Prefer: "return=minimal" },
-          body: JSON.stringify({ estado: "rechazada", error: r.error, proximo_intento: null }),
-        });
         console.log(`[cola] ${f.order_id} cerrada sin reintentar: ${r.error}`);
       }
       else {
