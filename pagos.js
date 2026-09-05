@@ -833,6 +833,32 @@ function removePayment(id) {
    dos y cualquier calculo nuevo se equivocaria.
    Aqui se guarda SIEMPRE en minuscula y sin tildes. El nombre bonito se sigue
    mostrando en pantalla; lo que se normaliza es lo que queda escrito. */
+/*  ══ EL AVISO DE ESTA PANTALLA ═══════════════════════════════════════
+    Nada de `alert()`: en el ejecutable no aparece, asi que un fallo se
+    quedaba MUDO — el cajero pulsaba "Guardar abono", no pasaba nada
+    visible y no habia forma de saber por que.
+
+    Y tampoco habia toast: el codigo llamaba a `showToast` protegido con
+    `typeof showToast === 'function'`, que en esta pantalla es SIEMPRE
+    falso porque no existe. La proteccion escondia que el aviso jamas
+    salia — incluido el del tope de la DIAN que escribi hoy.           */
+function pgAviso(msg, tono) {
+  try {
+    var t = document.getElementById('pg-toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'pg-toast';
+      document.body.appendChild(t);
+    }
+    t.className = 'pg-toast' + (tono ? ' ' + tono : '') + ' on';
+    t.textContent = String(msg || '');
+    clearTimeout(window.__pgToastT);
+    window.__pgToastT = setTimeout(function () {
+      t.className = 'pg-toast' + (tono ? ' ' + tono : '');
+    }, 4200);
+  } catch (e) { console.warn('[pago]', msg); }
+}
+
 function metodoNormalizado(p) {
   var base = (p && (p.methodKey || p.method)) || 'efectivo';
   return String(base).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
@@ -855,7 +881,7 @@ async function guardarAbono() {
       } catch (e) {
         if (btn) { btn.disabled = false; btn.textContent = 'Guardar abono'; }
         if (e && e.codigo === 'SALDO_INSUFICIENTE') _sdAvisoSinSaldo(sp.amount, 0, e.disponible);
-        else alert('No se pudo descontar el saldo: ' + (e.message || e));
+        else pgAviso('No se pudo descontar el saldo: ' + (e.message || e), 'mal');
         return;
       }
     }
@@ -878,10 +904,13 @@ async function guardarAbono() {
     nuevos.forEach(p => { p.saved = true; });
     renderAll();
     if (btn) btn.textContent = 'Abono guardado ✓';
+    /*  Se dice CUANTO QUEDO DEBIENDO: el cajero necesita ese numero para
+        decirselo al cliente, y antes tenia que buscarlo en la pantalla. */
+    pgAviso('Abono guardado. Queda debiendo ' + fmt(calc().falta), 'bien');
     setTimeout(() => { if (btn) btn.textContent = 'Guardar abono'; }, 2000);
   } catch (e) {
     console.error('guardarAbono:', e);
-    alert('Error al guardar el abono: ' + (e.message || e));
+    pgAviso('No se pudo guardar el abono: ' + (e.message || e), 'mal');
     if (btn) { btn.disabled = false; btn.textContent = 'Guardar abono'; }
   }
 }
@@ -975,7 +1004,7 @@ async function cobrarDespues() {
       } catch (e) {
         btnFinish.disabled = false; btnFinish.textContent = 'Finalizar';
         if (e && e.codigo === 'SALDO_INSUFICIENTE') _sdAvisoSinSaldo(e.pedido, 0, e.disponible);
-        else alert('No se pudo descontar el saldo: ' + (e.message || e));
+        else pgAviso('No se pudo descontar el saldo: ' + (e.message || e), 'mal');
         return;
       }
     }
@@ -1355,7 +1384,28 @@ async function loadOrder() {
     if (prevPays && prevPays.length) {
       SP.payments = prevPays.map(p => ({
         id:       'saved-' + p.id,
-        method:   p.method || 'efectivo',
+        /*  ══ LA LLAVE SE GUARDA, EL NOMBRE SE MUESTRA ══════════════════
+            El pago se guarda con la LLAVE del metodo (`pm_x719c1pqb`), que
+            es lo correcto: es estable aunque el restaurante le cambie el
+            nombre, y los informes agrupan por ella.
+
+            Pero aqui se metia esa llave TAL CUAL en el campo que se pinta,
+            asi que el cajero abria un abono guardado y leia
+            "pm_x719c1pqb" donde tenia que decir "Efectivo".
+
+            `posMetodos.nombre()` ya sabe traducirla — se escribio para
+            esto mismo, con la nota "un id interno NUNCA se le muestra a
+            nadie: ya salio una vez en la pantalla de un cliente". Estaba
+            en caja y en informes, y esta pantalla no lo usaba.
+
+            Se guarda TAMBIEN la llave en `methodKey`: al finalizar, el
+            pago se vuelve a escribir con ella y sin esto se guardaria el
+            nombre traducido, partiendo en dos el mismo metodo en los
+            informes.                                                    */
+        method:   (window.posMetodos && posMetodos.nombre)
+                    ? posMetodos.nombre(p.method || 'efectivo')
+                    : (p.method || 'Efectivo'),
+        methodKey: p.method || 'efectivo',
         amount:   Number(p.amount) || 0,
         received: Number(p.received) || Number(p.amount) || 0,
         saved:    true,
@@ -1647,6 +1697,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       cambio. Y el candado del dinero: `SP.confirmadoPorRed` solo lo pone la
       red — el boton Finalizar no se habilita con datos del equipo, porque
       cobrar con un total viejo es peor que esperar un segundo. */
+  /*  Los metodos de pago del restaurante, para poder traducir la llave
+      guardada (`pm_x719c1pqb`) al nombre que el cajero entiende. Sin
+      esto, `posMetodos.nombre()` no tiene con que resolver y contesta
+      "Otros" — mejor que la llave cruda, pero igual de inutil.
+
+      No retrasa nada: la lista sale de lo guardado en el equipo y la
+      consulta va por detras.                                          */
+  try { if (window.posMetodos) await posMetodos.cargar(sb, SP.branchId); }
+  catch (e) { console.warn('[pago] metodos:', e && e.message); }
+
   /*  El boton de factura, POR DETRAS. Es una consulta mas y no puede
       retrasar el pintado del pedido: si tarda, el boton aparece medio
       segundo despues y no pasa nada. Al reves si pasaria.            */
@@ -2554,8 +2614,9 @@ function feAvisarTope(total) {
   var msg = 'Esta venta pasa de ' + (typeof COPF === 'function' ? COPF(tope) : tope)
     + ', y por encima de eso la DIAN pide factura aunque el cliente no la haya pedido. '
     + 'Puedes cobrar igual y arreglarlo después desde el historial.';
-  if (typeof showToast === 'function') showToast(msg, 'amber');
-  else console.warn('[factura] ' + msg);
+  /*  Antes esto era `typeof showToast === 'function'`, que en esta
+      pantalla es SIEMPRE falso: el aviso del tope no se veia nunca.   */
+  pgAviso(msg, 'ojo');
   return true;
 }
 

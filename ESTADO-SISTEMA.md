@@ -3,6 +3,64 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 «Guardar abono» — 5-sep-2026
+
+Sergio: *"el boton guardar abono no sirve"*.
+
+Al probarlo, **guardaba bien**: la fila entraba en `pos_payments`, `paid_amount`
+subia, y al reabrir el pedido decia «Pagado $20.000 · Falta $32.000». Lo que
+fallaba era todo lo que el cajero VE.
+
+### 1. Mostraba una llave interna donde va el metodo
+
+En la lista de pagos aparecia:
+
+```
+pm_x719c1pqb — Abono registrado — $20.000
+```
+
+El pago se guarda con la **llave** del metodo, y eso esta bien: es estable
+aunque el restaurante le cambie el nombre, y los informes agrupan por ella. El
+fallo es que al releerlo se metia la llave TAL CUAL en el campo que se pinta.
+
+Y lo peor: **ya existia el traductor**. `posMetodos.nombre()` se escribio para
+esto, con la nota *"un id interno NUNCA se le muestra a nadie: 'pm_x719c1pqb' ya
+salio una vez en la pantalla de un cliente y no puede volver a pasar"*. Estaba
+en caja y en informes; esta pantalla no lo usaba.
+
+Ahora traduce para mostrar y **guarda la llave en `methodKey`**: sin eso, al
+finalizar se escribiria el nombre traducido y el mismo metodo quedaria partido
+en dos en los informes.
+
+### 2. Si fallaba, no se enteraba nadie
+
+`guardarAbono` avisaba con `alert()`. **En el ejecutable no aparece**, asi que un
+fallo se quedaba mudo: se pulsa el boton, no pasa nada visible y no hay forma de
+saber por que. Ver [[feedback_nunca_dialogos_navegador]].
+
+Y no habia con que reemplazarlo: el codigo llamaba a `showToast` protegido con
+`typeof showToast === 'function'` — **que en esta pantalla es siempre falso**
+porque no existe. La proteccion escondia que el aviso jamas salia.
+
+Eso incluia **el aviso del tope de la DIAN que yo mismo escribi hoy**: nunca se
+habria visto.
+
+Ahora hay `pgAviso()` propio, usado en los cinco sitios que callaban.
+
+### 3. Y no decia lo unico que hace falta saber
+
+Al guardar solo cambiaba el texto del boton. Ahora dice **cuanto queda
+debiendo** — que es el numero que el cajero tiene que decirle al cliente, y antes
+tenia que ir a buscarlo.
+
+### Comprobado
+
+Dos abonos seguidos sobre el mismo pedido: se guardan, la lista dice
+**«Efectivo»** en los dos, y el aviso sale en verde con *«Abono guardado. Queda
+debiendo $22.000»*.
+
+---
+
 ## 🔴→🟢 «Y una Coca-Cola» tras el resumen — 5-sep-2026 (`delay-reply` v404)
 
 ### El caso, de Daniela Martinez (5-sep, 01:01)

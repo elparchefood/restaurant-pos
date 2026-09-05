@@ -1079,3 +1079,14 @@ body.pg-abriendo .pg-velo {
 
 /* Cuando ya hay datos, el botón lo dice sin tener que abrirlo. */
 #btn-factura.tiene { color: #16A34A; border-color: #BBF7D0; background: #F0FDF4; }
+
+/* El aviso de esta pantalla. Nada de alert(): en el ejecutable no sale y
+   el fallo se queda mudo. */
+.pg-toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%) translateY(14px);
+  background: #0F172A; color: #fff; font-family: inherit; font-size: 14px; font-weight: 600;
+  padding: 13px 20px; border-radius: 12px; z-index: 10000; opacity: 0; pointer-events: none;
+  transition: opacity .2s, transform .2s; box-shadow: 0 12px 30px -8px rgba(15,23,42,.5); max-width: 90vw; }
+.pg-toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+.pg-toast.bien { background: #166534; }
+.pg-toast.mal  { background: #B91C1C; }
+.pg-toast.ojo  { background: #B45309; }
