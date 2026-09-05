@@ -3,6 +3,83 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🔴→🟢 La tablet no se enteraba de los cambios — 4-sep-2026
+
+Sergio: *"en el computador esta muy bien, pero en la tablet sigue apareciendo
+agotado con las salsas"*. Y ademas, al reves: *"me permite vender bebidas que ya
+estan agotadas"*.
+
+**Dos sintomas opuestos, UNA causa.**
+
+### Por que
+
+`pos-datos.js` guarda en CADA EQUIPO lo que "no cambia durante un turno" —
+productos, categorias, **insumos y recetas** — hasta 8 horas. Y su propia nota
+lo decia:
+
+> *"la pantalla que guardo llama a `invalidar()` y lo deja fresco en ESE equipo.
+> En otro equipo se ve al reabrir."*
+
+Eso se decidio pensando en **precios**, que nadie cambia a mitad de turno. Pero
+en el mismo paquete viajan las **recetas** y el interruptor `agota_producto`, y
+esos **si** se tocan a mitad de turno — justo cuando alguien ve que una salsa
+esta bloqueando.
+
+| En la tablet | Lo que pasaba |
+|---|---|
+| Salsa que ya no agota | dato viejo → **bloquea de mas** |
+| Bebida con receta nueva | sin la receta → **no bloquea** |
+
+Las dos caras del mismo dato viejo.
+
+### La solucion: un numero, no menos tiempo
+
+Bajar las 8 horas a 5 minutos habria hecho que cada pantalla se trajera **374
+recetas cada 5 minutos**, que es justo lo que ese modulo vino a quitar.
+
+En vez de eso, un **disparador en la base** sube un numero cada vez que alguien
+toca `pos_products`, `pos_categories`, `pos_modifier_groups`, `iv_insumos` o
+`iv_recetas`. El equipo pregunta **ese numero** —una fila diminuta— y solo si
+cambio vuelve a traer el paquete.
+
+**Por que un disparador y no una llamada desde la pantalla:** porque la pantalla
+se olvida. Ya paso — `invalidar()` existe y solo sirve en ese equipo, y cualquier
+camino nuevo que escriba (una funcion del servidor, el panel, una migracion) no
+se acordaria. La base no se olvida.
+
+### Cuando se mira
+
+- al abrir (por detras: se pinta con lo guardado y se comprueba despues);
+- cuando la pantalla **vuelve al frente**;
+- y **cada 2 minutos mientras se esta mirando** — sin esto quedaba un hueco: la
+  tablet que se queda a la vista toda la tarde nunca vuelve a preguntar, porque
+  `visibilitychange` no dispara si nadie la esconde, que es lo que hace un
+  mesero.
+
+### Un fallo mio, cazado probando
+
+La primera version comparaba `Number(memoria.version || 0) === v`. Un paquete
+guardado **antes** de que existiera el sello no lleva version → `undefined || 0`
+→ `0 === 0` → **se daba por bueno para siempre**. Justo los datos que esto viene
+a arreglar. Ahora, sin sello, se refresca siempre.
+
+### Comprobado en vivo
+
+Pantalla abierta con `agota: true` guardado → se cambia en la base desde fuera →
+`revisar()` devuelve `true` → la pantalla pasa a `agota: false` **sin recargar**.
+
+### Y no basta con enterarse: hay que repintar
+
+`pos-stock` vuelve a armar su mapa al oir `posDatosCambiaron`, y las tres
+pantallas de venta repintan al oir `posStockCambio`. Enterarse y no repintar
+dejaria el dato bien por dentro y **al mesero viendo el letrero rojo**.
+
+⚠️ `pos-datos.js` va DENTRO de `pos-nucleo.js` (lo arma
+`herramientas/armar-nucleo.py`). Editar el modulo suelto no cambia nada hasta
+volver a armar — casi se me pasa.
+
+---
+
 ## 🟢 La propina, el descuento y el correo al cliente — 4-sep-2026 (`facturar` v32)
 
 ### La propina va como RECARGO, no como linea

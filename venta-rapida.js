@@ -385,6 +385,19 @@
     });
   }
 
+  /*  ══ REPINTAR CUANDO CAMBIA EL INVENTARIO EN OTRO EQUIPO ═════════════
+      `pos-stock` avisa con `posStockCambio` cuando se vuelve a armar el mapa
+      porque alguien toco los insumos o las recetas desde otra pantalla.
+  
+      Sin esto el dato queda bien por dentro y el mesero SIGUE VIENDO el
+      letrero rojo — que es exactamente lo que le pasaba a Sergio en la
+      tablet. Enterarse y no repintar no sirve de nada.                   */
+  try {
+    window.addEventListener('posStockCambio', function () {
+      if (S.currentCatId) openCategory(S.currentCatId);
+    });
+  } catch (e) {}
+
   function openCategory(catId) {
     S.currentCatId = catId;
     const cat   = S.categories.find(c => String(c.id) === String(catId));

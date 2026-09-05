@@ -1047,6 +1047,51 @@
 
   /* Deja los datos listos. Se puede llamar desde varias pantallas a la vez: si
      ya hay una carga en curso, se espera a esa en vez de lanzar otra. */
+  /*  ══ LA VERSIÓN DE LOS DATOS ═══════════════════════════════════════
+      La base sube un número cada vez que alguien toca productos,
+      categorías, insumos o recetas (disparador `trg_datos_version`).
+      Preguntarlo es una fila diminuta; volver a traer el paquete son 374
+      recetas. Por eso se pregunta el número y solo se trae si cambió.
+
+      Devuelve null si no se pudo preguntar — y eso NO se trata como "no
+      cambió": ante la duda se refresca, porque quedarse con datos viejos
+      es lo que estamos arreglando.                                     */
+  async function versionRemota() {
+    try {
+      var s2 = sb(), tid = estado().tenantId;
+      if (!s2 || !tid) return null;
+      var r = await s2.from('pos_datos_version')
+        .select('version').eq('tenant_id', tid).maybeSingle();
+      /*  El cliente de Supabase NO lanza cuando la consulta se rechaza:
+          devuelve {data:null, error:{...}}. Sin mirarlo, un fallo de
+          permisos pasaría por "no hay version" y no refrescaría nunca. */
+      if (r.error) { console.warn('[datos] version:', r.error.message); return null; }
+      return r.data ? Number(r.data.version) : 0;
+    } catch (e) { return null; }
+  }
+
+  var ultimaRevision = 0;
+  var REVISAR_CADA = 60 * 1000;   // no más de una vez por minuto
+
+  /*  Mira si los datos cambiaron y, si cambiaron, los vuelve a traer.
+      Devuelve true cuando hubo cambio, para que la pantalla repinte.  */
+  async function revisar(forzarConsulta) {
+    var ahora = Date.now();
+    if (!forzarConsulta && ahora - ultimaRevision < REVISAR_CADA) return false;
+    ultimaRevision = ahora;
+    var v = await versionRemota();
+    if (v == null) return false;                 // no se pudo preguntar
+    /*  ⚠️ UN PAQUETE SIN SELLO SE REFRESCA SIEMPRE. Es de antes de que
+        existiera este mecanismo, y no hay con que compararlo. La primera
+        version que escribi hacia `Number(undefined || 0) === 0` -> true,
+        o sea que un paquete viejo se daba por bueno para siempre: justo
+        los datos que estamos arreglando.                              */
+    if (!memoria || memoria.version == null) { await invalidar(); return true; }
+    if (Number(memoria.version) === v) return false;
+    await invalidar();
+    return true;
+  }
+
   function cargar(forzar) {
     if (!forzar && memoria) return Promise.resolve(memoria);
     if (cargando) return cargando;
@@ -1059,14 +1104,26 @@
         if (g && g.datos && g.datos.tenant === estado().tenantId
             && (g.datos.sucursal || null) === (estado().branchId || null)) {
           memoria = g.datos;
+          /*  Se devuelve YA lo guardado —la pantalla pinta al instante— y
+              POR DETRÁS se comprueba si cambió. Preguntar antes de pintar
+              le metería un viaje a cada apertura por un dato que casi
+              nunca cambia; así solo cuesta cuando de verdad cambió.    */
+          revisar(true).then(function (hubo) {
+            if (hubo) {
+              try { w.dispatchEvent(new CustomEvent('posDatosCambiaron')); } catch (e) {}
+            }
+          });
           return Promise.resolve(memoria);
         }
       } catch (e) { /* sin guardado: se pide */ }
     }
 
-    cargando = traer().then(function (d) {
+    cargando = traer().then(async function (d) {
       cargando = null;
       if (d) {
+        /*  El paquete se sella con la versión que había AL TRAERLO. Sin
+            esto no hay con qué comparar después y la revisión no sirve. */
+        try { d.version = await versionRemota(); } catch (e) { d.version = null; }
         memoria = d;
         try { if (w.posCache) w.posCache.guardar(LLAVE, d); } catch (e) {}
       }
@@ -1165,8 +1222,45 @@
     };
   }
 
+  /*  LA TABLET SE QUEDA ABIERTA TODO EL TURNO, así que no basta con
+      mirarlo al abrir. Se mira cuando la pantalla vuelve al frente —que
+      es justo cuando el mesero la va a usar— y como mucho una vez por
+      minuto, para que volver de la pantalla de bloqueo no dispare una
+      consulta cada vez.                                                */
+  try {
+    w.document.addEventListener('visibilitychange', function () {
+      if (w.document.visibilityState !== 'visible' || !memoria) return;
+      revisar(false).then(function (hubo) {
+        if (hubo) {
+          console.log('[datos] cambiaron en otro equipo: recargados');
+          try { w.dispatchEvent(new CustomEvent('posDatosCambiaron')); } catch (e) {}
+        }
+      });
+    });
+  } catch (e) { /* sin document (pruebas): no pasa nada */ }
+
+  /*  Y CADA DOS MINUTOS MIENTRAS SE ESTA MIRANDO. Sin esto quedaba un
+      hueco: la tablet que se queda a la vista toda la tarde nunca vuelve
+      a preguntar, porque `visibilitychange` no dispara si nadie la
+      esconde — que es justo lo que hace un mesero.
+
+      Cuesta una fila diminuta cada dos minutos. Traer el paquete entero
+      son 374 recetas; por eso se pregunta el numero y no los datos.   */
+  try {
+    w.setInterval(function () {
+      if (!memoria || w.document.visibilityState !== 'visible') return;
+      revisar(false).then(function (hubo) {
+        if (hubo) {
+          console.log('[datos] cambiaron en otro equipo: recargados');
+          try { w.dispatchEvent(new CustomEvent('posDatosCambiaron')); } catch (e) {}
+        }
+      });
+    }, 120000);
+  } catch (e) { /* sin setInterval: no pasa nada */ }
+
   w.posDatos = {
     cargar:     cargar,
+    revisar:    revisar,
     carta:      carta,
     invalidar:  invalidar,
     listo:      function () { return !!memoria; },

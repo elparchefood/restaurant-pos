@@ -434,4 +434,24 @@
     '.ps-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(12px);background:#0F172A;color:#fff;font-size:13px;font-weight:600;padding:12px 18px;border-radius:12px;z-index:10000;opacity:0;transition:opacity .2s,transform .2s;font-family:"DM Sans",system-ui,sans-serif;pointer-events:none;}' +
     '.ps-toast.on{opacity:1;transform:translateX(-50%) translateY(0);}';
   try { var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st); } catch (e) {}
+
+  /*  ══ CUANDO LOS DATOS CAMBIAN EN OTRO EQUIPO ═══════════════════════════
+      `pos-datos` avisa con `posDatosCambiaron` cuando alguien toco los
+      insumos o las recetas desde otra pantalla u otro equipo. Sin esto,
+      `pos-datos` se refrescaba y ESTE modulo seguia con su copia vieja del
+      mapa — que es justo el sintoma de Sergio: apago el interruptor de las
+      salsas en el computador y la tablet siguio bloqueando.
+
+      Se vuelve a armar el mapa y se avisa a la pantalla para que repinte
+      las tarjetas: si no repinta, el dato esta bien por dentro pero el
+      mesero sigue viendo el letrero rojo.                                */
+  try {
+    window.addEventListener('posDatosCambiaron', function () {
+      var sb = (window._pos && window._pos.sb) || window.sb;
+      if (!sb || !S.ready) return;
+      window.posStock.load(sb).then(function () {
+        try { window.dispatchEvent(new CustomEvent('posStockCambio')); } catch (e) {}
+      });
+    });
+  } catch (e) { /* sin window (pruebas) */ }
 })();

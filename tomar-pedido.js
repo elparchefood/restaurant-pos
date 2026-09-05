@@ -791,6 +791,21 @@ function renderCatGrid() {
 }
 
 // ── RENDER: Productos de categoría ───────────────────────────
+
+/*  ══ REPINTAR CUANDO CAMBIA EL INVENTARIO EN OTRO EQUIPO ═════════════
+    `pos-stock` avisa con `posStockCambio` cuando se vuelve a armar el mapa
+    porque alguien toco los insumos o las recetas desde otra pantalla.
+
+    Sin esto el dato queda bien por dentro y el mesero SIGUE VIENDO el
+    letrero rojo — que es exactamente lo que le pasaba a Sergio en la
+    tablet. Enterarse y no repintar no sirve de nada.                   */
+try {
+  window.addEventListener('posStockCambio', function () {
+    var b = document.querySelector('.tp-cat.on') || document.querySelector('[data-cat-id].on');
+    if (b) renderProdGrid(b.dataset.catId, b.dataset.catName, b.dataset.catColor);
+  });
+} catch (e) {}
+
 function renderProdGrid(catId, catName, catColor) {
   const prods = S.products.filter(p => p.category_id === catId);
   $('prod-cat-name').textContent  = catName;
