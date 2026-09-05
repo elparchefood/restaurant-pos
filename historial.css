@@ -159,33 +159,115 @@
   overflow: hidden;
 }
 .hs-list-head {
-  padding: 12px 14px 10px;
-  border-bottom: 1px solid #ECEEF2;
-  flex-shrink: 0;
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid #ECEEF2;
+  border-radius: 12px;
+  margin-bottom: 9px;
+  flex-shrink: 0;
 }
 .hs-list-count {
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
   color: #94A3B8;
-  letter-spacing: .06em;
   text-transform: uppercase;
+  letter-spacing: .09em;
+  display: block;
 }
 .hs-list-total {
-  font-size: 12px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+  display: block;
+  margin-top: 1px;
+}
+.hs-list-ico {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  background: #EEF2FF; color: #5B6BFF;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.hs-order {
+  position: relative;
+  background: #fff;
+  border: 1px solid #ECEEF2;
+  border-radius: 12px;
+  padding: 11px 13px;
+  margin-bottom: 7px;
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+  overflow: hidden;
+}
+.hs-order:hover { background: #F8FAFC; border-color: #DCE0E8; }
+.hs-order.selected { background: #F8FAFF; border-color: #C7D2FE; }
+/* La barra dice cuál está abierto de un vistazo. Con la lista llena, el
+   borde azul solo no se distingue del de al lado. */
+.hs-order-bar {
+  position: absolute; left: 0; top: 12px; bottom: 12px;
+  width: 3px; background: #5B6BFF; border-radius: 0 3px 3px 0;
+}
+.hs-order-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+.hs-order-id {
+  font-size: 13.5px;
   font-weight: 700;
   color: #0F172A;
-  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
+.hs-order-total {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0F172A;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.hs-order-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: #94A3B8;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+.hs-order-canal { flex-shrink: 0; color: #94A3B8; }
+.hs-order.selected .hs-order-canal { color: #5B6BFF; }
+.hs-order-time { flex-shrink: 0; }
+.hs-order-sep { color: #E2E8F0; flex-shrink: 0; }
+.hs-order-dot { width: 5px; height: 5px; border-radius: 999px; flex-shrink: 0; }
+.hs-order-est { font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+.hs-order-dot.verde { background: #16A34A; } .hs-order-est.verde { color: #15803D; }
+.hs-order-dot.rojo  { background: #DC2626; } .hs-order-est.rojo  { color: #B91C1C; }
+.hs-order-dot.ambar { background: #F59E0B; } .hs-order-est.ambar { color: #B45309; }
+.hs-order-dot.gris  { background: #CBD5E1; } .hs-order-est.gris  { color: #64748B; }
+.hs-order-waiter {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 .hs-list-scroll {
   flex: 1;
   overflow-y: auto;
   padding: 10px;
 }
-
-/* Empty state */
 .hs-empty {
   display: flex;
   flex-direction: column;
@@ -201,50 +283,6 @@
 .hs-empty p { font-size: 14px; font-weight: 600; color: #CBD5E1; }
 .hs-empty span { font-size: 12px; color: #CBD5E1; }
 
-/* Order card */
-.hs-order {
-  padding: 11px 12px;
-  border-radius: 10px;
-  border: 1px solid #ECEEF2;
-  background: #fff;
-  margin-bottom: 6px;
-  cursor: pointer;
-  transition: all .12s;
-}
-.hs-order:hover { background: #F8FAFC; border-color: #DCE0E8; }
-.hs-order.selected {
-  border-color: #5B6BFF;
-  background: #F5F6FF;
-}
-.hs-order-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 3px;
-}
-.hs-order-id {
-  font-size: 13px;
-  font-weight: 700;
-  color: #0F172A;
-}
-.hs-order-total {
-  font-size: 13px;
-  font-weight: 700;
-  color: #0F172A;
-  font-variant-numeric: tabular-nums;
-}
-.hs-order-meta {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-bottom: 7px;
-}
-.hs-order-time { font-size: 11px; color: #64748B; }
-.hs-order-sep { color: #CBD5E1; font-size: 10px; }
-.hs-order-waiter { font-size: 11px; color: #64748B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
-.hs-order-badges { display: flex; gap: 5px; flex-wrap: wrap; }
-
-/* Badges */
 .hs-badge {
   display: inline-flex;
   align-items: center;

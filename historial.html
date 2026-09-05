@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="historial.css?v=1799640000">
+<link rel="stylesheet" href="historial.css?v=1799660000">
 </head>
 <body>
 <div id="app">
@@ -141,9 +141,17 @@
 
       <!-- Lista de pedidos -->
       <div class="hs-list">
+        <!-- El total del rango es el dato que mas se mira de esta
+             columna: deja de ser un renglon gris del mismo tamano que
+             todo lo demas. -->
         <div class="hs-list-head">
-          <span class="hs-list-count" id="hs-count">Cargando…</span>
-          <span class="hs-list-total" id="hs-total"></span>
+          <div>
+            <span class="hs-list-count" id="hs-count">Cargando…</span>
+            <span class="hs-list-total" id="hs-total"></span>
+          </div>
+          <div class="hs-list-ico">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1Z"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg>
+          </div>
         </div>
         <div class="hs-list-scroll" id="hs-order-list">
           <div class="hs-empty">
@@ -215,6 +223,6 @@
      veia todo lo vendido con solo escribir la direccion. No echa a nadie —
      al que no tenga el permiso le sale el PIN del administrador. -->
 <script>if(window.posRequirePin) posRequirePin('ventas.ver');</script>
-<script src="historial.js?v=1799640000"></script>
+<script src="historial.js?v=1799660000"></script>
 </body>
 </html>

@@ -143,10 +143,11 @@ function renderList() {
   applyFilters();
   const list = HS.filtered;
   const total = list.reduce((s, o) => s + (o.total || 0), 0);
-  const rangeLabel = HS.range === 'today' ? 'HOY' : HS.range === 'yesterday' ? 'AYER' : '7 DÍAS';
+  const rangeLabel = HS.range === 'today' ? 'Hoy' : HS.range === 'yesterday' ? 'Ayer' : 'Últimos 7 días';
 
-  document.getElementById('hs-count').textContent = list.length + ' PEDIDOS · ' + rangeLabel;
-  document.getElementById('hs-total').textContent = list.length ? COPF(total) : '';
+  document.getElementById('hs-count').textContent =
+    rangeLabel + ' · ' + list.length + (list.length === 1 ? ' pedido' : ' pedidos');
+  document.getElementById('hs-total').textContent = list.length ? COPF(total) : '—';
 
   const q = HS.query.trim();
   const el = document.getElementById('hs-order-list');
@@ -160,25 +161,36 @@ function renderList() {
     return;
   }
 
+  /*  DOS LÍNEAS, no tres. Antes cada tarjeta gastaba un renglón entero en
+      dos etiquetas de color que competían con el total y hacían que la
+      lista pareciera un semáforo. Ahora el canal es un icono y el estado
+      un punto con su palabra, todo en la misma línea de la hora.
+
+      Sigue sin llevar avisos de ninguna clase: esta tarjeta dice lo
+      mínimo para escoger cuál abrir, y todo lo demás va en el panel
+      grande.                                                            */
   el.innerHTML = list.map(o => {
     const isSelected = o.id === HS.selectedId;
-    const waiter = HS.users[o.waiter_id] || '—';
+    const waiter = HS.users[o.waiter_id] || '';
     const table  = HS.tables[o.table_id];
     const label  = orderLabel(o, table);
-    const canal  = canalBadge(o.channel);
-    const status = statusBadge(o.status);
+    const est    = estadoLista(o.status);
 
     return `<div class="hs-order${isSelected ? ' selected' : ''}" data-id="${o.id}">
+      ${isSelected ? '<span class="hs-order-bar"></span>' : ''}
       <div class="hs-order-head">
         <span class="hs-order-id">${highlight(label, q)}</span>
         <span class="hs-order-total">${COPF(o.total)}</span>
       </div>
       <div class="hs-order-meta">
+        ${canalIcono(o.channel)}
         <span class="hs-order-time">${fmtTime(o.created_at)}</span>
-        <span class="hs-order-sep">·</span>
-        <span class="hs-order-waiter" title="${waiter}">${highlight(waiter, q)}</span>
+        <span class="hs-order-sep">|</span>
+        <span class="hs-order-dot ${est.tono}"></span>
+        <span class="hs-order-est ${est.tono}">${est.texto}</span>
+        ${waiter ? `<span class="hs-order-sep">|</span>
+        <span class="hs-order-waiter" title="${waiter}">${highlight(waiter, q)}</span>` : ''}
       </div>
-      <div class="hs-order-badges">${canal}${status}</div>
     </div>`;
   }).join('');
 
@@ -187,10 +199,52 @@ function renderList() {
   });
 }
 
+/*  Nombres cortos: el canal ya lo dice el icono, así que repetirlo en el
+    título solo gasta el ancho que necesita el nombre del cliente.
+    «Domicilio — Luis Hurtado» → «Luis Hurtado».
+
+    Las mesas se llaman «01».«16», que sueltas no se entienden: se les
+    antepone «Mesa». Si la mesa ya tiene un nombre con letras (Terraza,
+    Barra) se deja tal cual — «Mesa Terraza» sería peor que no tocarlo.
+
+    La BÚSQUEDA no depende de esto: filtra por mesero, mesa, cliente,
+    turno, canal y móvil, no por el título. Comprobado antes de acortar. */
 function orderLabel(o, tableName) {
   if (o.channel === 'rapido') return 'Turno #' + String(o.turno || 0).padStart(3,'0');
-  if (o.channel === 'domicilio') return o.customer_name ? 'Domicilio — ' + o.customer_name : 'Domicilio';
-  return tableName ? tableName : (o.customer_name || 'Mesa');
+  if (o.channel === 'domicilio') return o.customer_name || 'Domicilio';
+  if (tableName) {
+    const mesa = /^[0-9]+$/.test(String(tableName).trim()) ? 'Mesa ' + tableName : tableName;
+    /*  Sergio: "hay mesas que si dan su nombre, asi que debe aparecer a
+        nombre de quien se hizo ese pedido". Son 125 de 234 pedidos de
+        salon, no un caso raro. La mesa va PRIMERO para que, si el ancho
+        obliga a recortar, lo que se pierda sea el nombre y no la mesa. */
+    return o.customer_name ? mesa + ' · ' + o.customer_name : mesa;
+  }
+  return o.customer_name || 'Mesa';
+}
+
+/*  El canal, en icono. Ocupa la mitad y se reconoce antes que una palabra:
+    moto para domicilio, rayo para venta rápida, cubiertos para salón.   */
+function canalIcono(ch) {
+  const attrs = 'width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hs-order-canal"';
+  if (ch === 'domicilio') {
+    return `<svg ${attrs}><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M8 17h8M5 14V9h4l3 5"/><path d="M14 6h3l2 5v3"/></svg>`;
+  }
+  if (ch === 'rapido') {
+    return `<svg ${attrs}><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>`;
+  }
+  return `<svg ${attrs}><path d="M6 2v7a2 2 0 0 0 4 0V2M8 9v13"/><path d="M17 2c-1.5 2-2 4-2 6s.5 3 2 3 2-1 2-3-.5-4-2-6ZM17 11v11"/></svg>`;
+}
+
+/*  El estado, en una palabra con su color. Los mismos casos que las
+    etiquetas de siempre — que se quedan, porque el panel grande sí las
+    usa.                                                                 */
+function estadoLista(st) {
+  if (st === 'paid' || st === 'completed') return { texto: 'Pagado', tono: 'verde' };
+  if (st === 'cancelled') return { texto: 'Anulado', tono: 'gris' };
+  if (st === 'pendiente_pago') return { texto: 'Pendiente de pago', tono: 'rojo' };
+  if (st === 'in_progress' || st === 'ready') return { texto: 'En curso', tono: 'ambar' };
+  return { texto: 'Abierto', tono: 'gris' };
 }
 
 function canalBadge(ch) {

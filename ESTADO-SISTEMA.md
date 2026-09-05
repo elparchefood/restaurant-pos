@@ -3,6 +3,80 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 Historial: rediseno de la pantalla — 5-sep-2026
+
+Sergio: *"la pantalla se ve muy plana, los datos se ven en texto puro, no se
+entiende absolutamente nada. Quiero que se vea elegante, bonito e intuitivo"*.
+Propuesto en maqueta y aprobado antes de tocar codigo. **Ni un dato ni un
+boton ni una consulta cambian**: solo como se presenta.
+
+### El panel de detalle
+
+**El total manda.** Era una de cuatro cajas identicas, del mismo tamano que
+«Canal» — y quien abre un pedido casi siempre va por el total. Ahora es una
+banda donde el total ocupa el doble y pesa 29 px.
+
+**Los productos se leen como una cuenta, no como una tabla.** Cantidad en un
+cuadro, producto en negrita, presentacion y precio unitario debajo en gris,
+total a la derecha con cifras de ancho fijo.
+
+**El nombre del producto se parte.** Llega como `Personal · Premium · Mixta`:
+el primer trozo es SIEMPRE la presentacion y el resto el producto —
+comprobado contra los 22 nombres mas vendidos de El Parche (`Personal`,
+`Familiar`, `1.5 Litros`, `Litro`, `Único`), no supuesto. Si un nombre no trae
+`·` se muestra tal cual: nunca se inventa nada.
+
+**La cronologia tiene columna de horas propia**, con puntos de color por tipo
+de evento. Antes la hora iba pegada al texto y habia que leerlo todo para
+ubicarse; ahora se ve de un golpe cuanto tardo cada paso.
+
+Y dos cambios de contenido que Sergio aprobo uno a uno: «Canal» sale de los
+cuatro numeros (ya esta arriba como etiqueta) y entra «Unidades»; y
+«Descuento $0» pasa a «Sin descuento» en gris, porque un cero en negro pesa
+como un dato importante y no lo es.
+
+### La lista de pedidos
+
+**De tres lineas a dos.** Cada tarjeta gastaba un renglon entero en dos
+etiquetas de color que competian con el total y hacian que la lista pareciera
+un semaforo. Ahora el canal es un icono (moto, rayo, cubiertos) y el estado un
+punto con su palabra, en la misma linea de la hora.
+
+**El total del rango deja de ser un renglon gris** y encabeza la columna.
+
+**El pedido abierto lleva barra azul.** Con la lista llena, el borde azul solo
+no se distingue del de al lado.
+
+**Nombres cortos.** `Domicilio — Luis Hurtado` → `Luis Hurtado` (el icono ya
+dice el canal); `04` → `Mesa 04`. Y a media implementacion Sergio corrigio:
+*"hay mesas que si dan su nombre, asi que debe aparecer a nombre de quien se
+hizo ese pedido"* — son **125 de 234** pedidos de salon, no un caso raro. Queda
+`Mesa 07 · Natalia Collazos`, con la mesa PRIMERO para que, si el ancho obliga
+a recortar, se pierda el nombre y no la mesa.
+
+Una mesa con nombre propio (`Terraza`) no se prefija: «Mesa Terraza» seria
+peor que no tocarlo.
+
+**La busqueda no se toco y sigue funcionando**: filtra por mesero, mesa,
+cliente, turno, canal y movil — no por el titulo. Comprobado ANTES de acortar
+los nombres, que es donde se habria roto sin avisar.
+
+La tarjeta de la lista sigue sin llevar avisos de ninguna clase: dice lo
+minimo para escoger cual abrir. Ver la regla de siempre.
+
+### Probado
+
+Los siete casos de `orderLabel` uno por uno (mesa con y sin nombre, mesa con
+nombre propio, domicilio con y sin cliente, turno, y el pedido sin nada), la
+banda de resumen a 1280 y 1440 px sin partirse, y el detalle completo con
+nombres de producto reales de El Parche insertados a proposito.
+
+### Donde esta
+
+`historial.js` (`renderList`, `orderLabel`, `canalIcono`, `estadoLista`,
+`renderDetail`, `buildTimeline`, `splitProducto`), `historial.css` y la
+cabecera de la lista en `historial.html`.
+
 ## 🟢 Ver y arreglar la factura desde el historial — 5-sep-2026
 
 Sergio: *"sigue con el botón de ver estado y reenviar factura"*.
