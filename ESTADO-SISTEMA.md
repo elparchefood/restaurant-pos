@@ -3,6 +3,86 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 La propina, el descuento y el correo al cliente — 4-sep-2026 (`facturar` v32)
+
+### La propina va como RECARGO, no como linea
+
+Factus lo tiene documentado y con ejemplo: `allowance_charges` con
+`concept_type: "03"` (recargo condicionado) e `is_surcharge: true`. Y en su
+ejemplo **el monto del pago incluye el recargo**.
+
+Ponerla como una linea mas habria sido mas facil y habria estado mal: una
+propina no es un producto vendido.
+
+### El descuento NO puede ir como descuento (todavia)
+
+Su tabla de codigos, textual:
+
+```
+00  Descuento no condicionado  (disponible proximamente)
+01  Descuento condicionado     (disponible proximamente)
+02  Recargo no condicionado    (disponible proximamente)
+03  Recargo condicionado                    <-- el unico que hay
+```
+
+Asi que se **reparte proporcional en los precios**: si el cliente pago menos,
+las lineas dicen lo que de verdad pago por cada cosa. Menos explicito que un
+campo aparte, pero **la factura queda por el valor correcto** — y una factura
+por un valor equivocado si es un problema; no detallar el descuento no lo es.
+
+El sobrante se ajusta en la ultima linea: repartir 1.000 entre tres platos deja
+0,33 por lado, y **un peso de diferencia basta para que la rechacen**.
+
+### La comprobacion que cierra el asunto
+
+Lo facturado tiene que ser igual a `paid_amount`. Si no cuadra, se anota
+`[factura] DESCUADRE`. Es la senal de que aparecio un concepto que nadie metio
+en la factura — que es **exactamente** lo que paso con el empaque.
+
+### Comprobado con una venta de verdad
+
+Lineas 104.000 + empaque 4.000 − descuento 3.000 = **105.000**, mas propina
+10.400 = **115.400**, igual a lo que pago el cliente. Factus devolvio:
+
+```json
+totals: { gross_amount: "105000.00", surcharge_amount: "10400.00",
+          total: "115400.00" }
+allowance_charges: [{ concept_type: {code:"03"}, is_surcharge: true,
+                      reason: "propina", amount: "10400.00" }]
+```
+
+Y a nombre de una **empresa**: NIT 900123456 con `company`, y el **digito de
+verificacion lo calculo Factus** (se mando "900123456-7" y el real es 8 — por
+eso su documentacion dice mandarlo sin el).
+
+### El correo: el mecanismo esta, la entrega no se pudo comprobar
+
+La bandera `send_email` del cuerpo **no sirve**: se mando en `true` en cuatro
+facturas y las cuatro volvieron con `false`. Se usa el endpoint que existe para
+eso — `POST /v2/bills/:number/send-email` — que ademas **contesta si salio**.
+
+⚠️ **En el sandbox no se puede comprobar la entrega**: solo manda a direcciones
+de una lista blanca. Contesta:
+
+> *"El correo no esta autorizado para recibir correos en el entorno sandbox"*
+
+O sea que **el camino esta comprobado** (Factus recibe la peticion, la valida y
+contesta) pero **un correo entregado de verdad, no**. Eso solo se ve en
+produccion.
+
+Y el motivo **se devuelve y se guarda** en `correo_error`, no solo en los
+registros: un "no se pudo enviar" sin motivo obliga a mirar el servidor para
+algo que el gerente tiene que poder leer en su pantalla.
+
+### Reenviar
+
+`{order_id, reenviar: true, correo?}` vuelve a mandar la factura **sin
+reemitirla**. Hacia falta: se cayo el correo, el cliente lo borro, o dio uno mal
+y ahora da otro. Sin esto habria que emitir otra factura para reenviar un
+correo.
+
+---
+
 ## 🟢 El boton de facturar en la caja — 4-sep-2026 (`facturar` v28)
 
 En **Cobrar**, junto a "Finalizar pago". Es el unico sitio de todo Cobra donde

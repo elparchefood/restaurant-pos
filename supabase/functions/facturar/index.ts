@@ -287,12 +287,66 @@ function crearFactus(c: CuentaFactus) {
     const domiCobrado = Math.max(0, pagado - venta);
     if (domiCobrado > 0) items.push(linea("DOMICILIO", "Domicilio", domiCobrado));
 
-    /*  ⚠️ EL MONTO SALE DE SUMAR LAS LÍNEAS, no de una columna. Asi no
-        puede volver a descuadrar ni aunque manana aparezca otro
-        concepto: si algo se cobra tiene linea, y si tiene linea entra en
-        el monto. Tomarlo de `total_final` fue justo el fallo.        */
-    const totalFacturado = items.reduce(
-      (a, it) => a + (Number(it.price) || 0) * (Number(it.quantity) || 1), 0);
+    /*  ══ EL DESCUENTO SE REPARTE EN LOS PRECIOS ══════════════════════
+        Su tabla de codigos dice que los descuentos globales estan
+        "disponibles proximamente" — solo funciona el recargo (03). Asi
+        que un descuento no se puede mandar como descuento.
+
+        Se reparte proporcional en las lineas: si el cliente pago menos,
+        las lineas dicen lo que de verdad pago por cada cosa. Es menos
+        explicito que un campo aparte, pero la factura queda por el valor
+        CORRECTO — y una factura por un valor equivocado si es un
+        problema, mientras que no detallar el descuento no lo es.
+
+        El sobrante se ajusta en la ultima linea: repartir 1.000 entre
+        tres platos deja 0,33 por lado, y un peso de diferencia basta
+        para que la rechacen.                                          */
+    const descuento = Math.round(Number(pedido?.discount_amount) || 0);
+    if (descuento > 0 && items.length) {
+      const bruto = items.reduce((a, it) => a + it.price * it.quantity, 0);
+      if (bruto > descuento) {
+        let repartido = 0;
+        items.forEach((it, i) => {
+          const suyo = i === items.length - 1
+            ? descuento - repartido                       // el resto, exacto
+            : Math.round((it.price * it.quantity / bruto) * descuento);
+          repartido += suyo;
+          it.price = Number(Math.max(0, it.price - suyo / it.quantity).toFixed(2));
+        });
+      }
+    }
+
+    /*  ══ LA PROPINA ES UN RECARGO, NO UNA LINEA ═══════════════════════
+        Una propina no es un producto vendido. Factus la quiere como
+        `allowance_charges` con concepto 03 (recargo condicionado), que es
+        el unico de esa tabla que esta disponible hoy.                 */
+    const propina = Math.round(Number(pedido?.tip_amount) || 0);
+    const baseProductos = items.reduce((a, it) => a + it.price * it.quantity, 0);
+    const recargos = propina > 0 ? [{
+      concept_type: "03",
+      is_surcharge: true,
+      reason: "propina",
+      base_amount: String(baseProductos.toFixed(2)),
+      amount: propina,
+    }] : [];
+
+    /*  ⚠️ EL MONTO SALE DE SUMAR LAS LINEAS Y LOS RECARGOS, no de una
+        columna. Asi no puede volver a descuadrar ni aunque manana
+        aparezca otro concepto. Tomarlo de `total_final` fue justo el
+        fallo del empaque.                                             */
+    const totalFacturado = baseProductos + propina;
+
+    /*  Y LA COMPROBACION QUE LO CIERRA: lo facturado tiene que ser igual
+        a lo que pago el cliente. Si no cuadra, es que aparecio un
+        concepto que nadie metio en la factura — que es exactamente lo
+        que paso con el empaque. No se tumba la factura por esto: se
+        anota, porque emitir por el valor correcto es lo que importa y
+        aqui ya se calculo a partir de las lineas.                     */
+    const loQuePago = Math.round(Number(pedido?.paid_amount) || 0);
+    if (loQuePago > 0 && Math.abs(loQuePago - totalFacturado) > 1) {
+      console.error(`[factura] DESCUADRE: se facturan ${totalFacturado} y el cliente pago ${loQuePago}`
+        + ` | pedido ${pedido?.id} | empaque ${pedido?.packaging_fee} propina ${propina} descuento ${descuento}`);
+    }
 
     return {
       /*  LA IDEMPOTENCIA. El id del pedido: si dos cajas tocan "facturar" a
@@ -312,6 +366,9 @@ function crearFactus(c: CuentaFactus) {
           respuesta.                                                    */
       send_email: !!(pedido?.factura_cliente?.correo),
       items,
+      /*  Va solo si hay: su nota dice que un array opcional, en cuanto
+          lleva datos, se vuelve obligatorio — mandarlo vacio molesta.  */
+      ...(recargos.length ? { allowance_charges: recargos } : {}),
     };
   },
 
@@ -444,6 +501,39 @@ function crearFactus(c: CuentaFactus) {
         vencido:   x.is_expired === 1 || x.is_expired === true,
       })),
     };
+  },
+
+  /*  Le manda la factura al cliente y DICE si salio. La bandera
+      `send_email` del cuerpo no sirve: se mando en true en cuatro
+      facturas y las cuatro volvieron con false. Esto contesta.       */
+  async enviarCorreo(numero: string, correo: string) {
+    const tok = await tokenFactus(c);
+    const r = await fetch(
+      `${c.url}/v2/bills/${encodeURIComponent(numero)}/send-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json",
+                 Authorization: `Bearer ${tok}` },
+      body: JSON.stringify({ email: correo }),
+    });
+    /*  `fetch` no lanza con un 422: sin mirar `ok`, un correo que nunca
+        salio quedaria anotado como enviado.                          */
+    if (!r.ok) {
+      const t = await r.text();
+      console.error("[correo] no salio:", r.status, t.slice(0, 200));
+      /*  El motivo se DEVUELVE, no solo se registra. Un "no se pudo
+          enviar" sin motivo obliga a mirar los registros del servidor
+          para algo que el gerente tiene que poder leer en su pantalla.
+          Regla 7 del adaptador: un rechazo siempre se ve.            */
+      let motivo = `HTTP ${r.status}`;
+      try {
+        const d = JSON.parse(t);
+        const e = d?.data?.errors ?? d?.errors;
+        const primero = e && Object.values(e)[0];
+        motivo = (Array.isArray(primero) ? primero[0] : primero) || d?.message || motivo;
+      } catch (_e) { /* si no es JSON, queda el codigo */ }
+      return { ok: false, motivo: String(motivo) };
+    }
+    return { ok: true, motivo: null };
   },
 
   /*  Los datos de la empresa segun el proveedor: NIT y razon social. Se
@@ -657,7 +747,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   try {
-    const { order_id, revisar, conectar } = await req.json();
+    const { order_id, revisar, conectar, reenviar, correo } = await req.json();
     /*  Para conectar la cuenta NO hace falta un pedido: la sede sale de
         la sesion. Para todo lo demas si, porque es lo que demuestra que
         el pedido es de quien pregunta.                                 */
@@ -874,6 +964,7 @@ Deno.serve(async (req) => {
     const pedidos = await db(
       `pos_orders?id=eq.${order_id}`
       + `&select=id,tenant_id,branch_id,total,total_final,paid_amount,packaging_fee,`
+      + `tip_amount,discount_amount,`
       + `status,factura_cliente`);
     const pedido = pedidos?.[0];
     if (!pedido) return json({ error: "El pedido no existe" }, 404);
@@ -937,6 +1028,28 @@ Deno.serve(async (req) => {
       + `&select=id,estado,numero,cufe,prefijo`);
     const previa = previas?.[0];
     if (previa && previa.estado === "aceptada") {
+      /*  ══ REENVIAR ═══════════════════════════════════════════════════
+          La factura ya salio y NO se vuelve a emitir. Pero el correo si
+          se puede volver a mandar: se cayo, el cliente lo borro, o dio
+          uno mal y ahora da otro. Sin esto habria que emitir otra
+          factura para reenviar un correo, que es absurdo.
+
+          Tambien vale para cambiar el destinatario: si viene `correo` en
+          la peticion, se manda a ese.                                 */
+      if (reenviar === true && previa.numero) {
+        const dest = String(correo ?? "").trim()
+          || String((pedido?.factura_cliente as Record<string, unknown>)?.correo ?? "").trim();
+        if (!dest) return json({ error: "No hay a que correo mandarla" }, 400);
+        const env = await FACTUS.enviarCorreo(String(previa.numero), dest);
+        await db(`pos_facturas?id=eq.${previa.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(env.ok
+            ? { correo_enviado_at: new Date().toISOString(), correo_error: null }
+            : { correo_error: env.motivo }),
+        });
+        return json({ ya_estaba: true, factura: previa, correo_enviado: env.ok,
+                      motivo: env.motivo, a: dest });
+      }
       return json({ ya_estaba: true, factura: previa });
     }
 
@@ -989,6 +1102,32 @@ Deno.serve(async (req) => {
         body: JSON.stringify(fila),
       },
     );
+
+    /*  ══ Y SE LE MANDA AL CLIENTE ═══════════════════════════════════
+        Solo si salio bien y solo si dio correo. Si el envio falla NO se
+        tumba la factura: ya esta emitida y es valida. Se anota y se
+        puede reenviar.                                               */
+    const correoCliente = String(
+      (pedido?.factura_cliente as Record<string, unknown>)?.correo ?? "").trim();
+    if (res.ok && leido.numero && correoCliente) {
+      try {
+        const env = await FACTUS.enviarCorreo(String(leido.numero), correoCliente);
+        if (env.ok) {
+          await db(`pos_facturas?id=eq.${guardada?.[0]?.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ correo_enviado_at: new Date().toISOString() }),
+          });
+          console.log("[correo] enviada a", correoCliente);
+        } else {
+          /*  Se guarda POR QUE no salio, para que se lea en la pantalla
+              y no haya que entrar a los registros.                    */
+          await db(`pos_facturas?id=eq.${guardada?.[0]?.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ correo_error: env.motivo }),
+          });
+        }
+      } catch (e) { console.error("[correo] fallo:", String(e).slice(0, 150)); }
+    }
 
     if (!res.ok) {
       console.error("Factus rechazo:", res.status, JSON.stringify(res.cuerpo).slice(0, 600));
