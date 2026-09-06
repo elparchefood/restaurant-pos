@@ -1471,6 +1471,7 @@
           if (String(x.telefono || '').replace(/[^0-9]/g, '').slice(-10) === tel10) i = k;
         });
         if (i < 0) { toast('La tarjeta es de ••• ' + tel10.slice(-4) + ', pero esa persona no está registrada en la app'); return; }
+        posNfc.sonar();
         modalDar('recarga', i);
       } catch (e) { toast('No se pudo leer la tarjeta: ' + (e.message || e)); }
     });

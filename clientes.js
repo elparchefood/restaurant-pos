@@ -263,6 +263,7 @@
           return String(x.telefono || '').replace(/[^0-9]/g, '').slice(-10) === tel10;
         });
         if (!c) { avisoFlotante('La tarjeta es de ••• ' + tel10.slice(-4) + ', pero no está en esta lista'); return; }
+        posNfc.sonar();
         abrirFicha(c.id);
       } catch (e) { avisoFlotante('No se pudo leer la tarjeta: ' + (e.message || e)); }
     });

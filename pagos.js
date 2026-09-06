@@ -2219,6 +2219,10 @@ function pgArrancarLector() {
           detalle: 'Esta tarjeta está bloqueada. Cobra por otro medio.' });
         return;
       }
+      /*  El sonido va AQUI, antes de guardar: guardar sale a internet y
+          puede tardar medio segundo. El sonido es la respuesta al TOQUE,
+          no a la consulta — si llega tarde ya no dice nada.          */
+      posNfc.sonar();
       var nombre = (t.cliente && t.cliente.nombre) || ('Cliente ••• ' + t.telefono.slice(-4));
       await pgGuardarCliente((t.cliente && t.cliente.id) || null, nombre, t.telefono);
       SP.tarjetaTel = t.telefono;   // la posesión de la tarjeta autoriza su billetera
