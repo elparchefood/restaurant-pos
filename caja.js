@@ -2523,7 +2523,115 @@ async function liberarMesasAlCerrar(branchId) {
   if (n) console.log('[caja] mesas liberadas al cerrar:', n);
 }
 
+
+/* ══ CERRAR LA CAJA AVISA QUE ESTA TRABAJANDO ═══════════════════════════════
+   Sergio, 5-sep-2026: *"al tocar el botón cerrar caja definitivamente se queda
+   cargando un rato... No está mal que cargue. El problema es que no hay nada
+   que le indique al usuario que está cargando: parece que se hubiera trabado o
+   que no hubiera pasado nada"*.
+
+   Cerrar la caja son SEIS cosas seguidas, no una: guardar el cierre, revisar
+   pedidos sueltos, limpiar el chat, soltar las mesas, imprimir y avisarle al
+   gerente qué comprar. Varias salen a internet.
+
+   Por eso no se pone una ruedita y ya: se dice CUAL de las seis va. Una espera
+   que se explica se siente la mitad de larga, y sobre todo se distingue de un
+   cuelgue — que era el problema real. A las once de la noche, con la caja
+   cuadrada y ganas de irse, "no pasa nada" y "está trabajando" tienen que
+   verse distinto.
+
+   Y de paso se mide cada paso y queda en la consola. Si algún día hay que
+   acelerarlo, se sabra cual acelerar en vez de adivinar.                    */
+var cjCierre = (function () {
+  var ov = null, filas = [], t0 = 0, tPaso = 0, medidas = [];
+  var PASOS = [
+    'Guardando el cierre',
+    'Revisando pedidos sueltos',
+    'Limpiando el chat y soltando las mesas',
+    'Imprimiendo el cierre',
+    'Avisándole al gerente qué comprar',
+  ];
+
+  function icono(estado) {
+    if (estado === 'hecho') {
+      return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    }
+    if (estado === 'haciendo') {
+      return '<span style="width:13px;height:13px;border-radius:999px;border:2px solid #C7D2FE;' +
+             'border-top-color:#5B6BFF;display:block;animation:cjGira .7s linear infinite"></span>';
+    }
+    return '<span style="width:13px;height:13px;border-radius:999px;border:2px solid #E2E8F0;display:block"></span>';
+  }
+
+  function pintar(activo) {
+    filas.forEach(function (f, i) {
+      var estado = i < activo ? 'hecho' : (i === activo ? 'haciendo' : 'pendiente');
+      f.querySelector('[data-ic]').innerHTML = icono(estado);
+      var tx = f.querySelector('[data-tx]');
+      tx.style.color = estado === 'pendiente' ? '#94A3B8' : (estado === 'hecho' ? '#475569' : '#0F172A');
+      tx.style.fontWeight = estado === 'haciendo' ? '700' : '500';
+    });
+  }
+
+  function abrir() {
+    cerrar();
+    t0 = tPaso = Date.now();
+    medidas = [];
+    ov = document.createElement('div');
+    ov.id = 'cj-cerrando';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100020;background:rgba(15,23,42,.55);' +
+      'display:flex;align-items:center;justify-content:center;padding:24px';
+    ov.innerHTML =
+      '<style>@keyframes cjGira{to{transform:rotate(360deg)}}</style>' +
+      '<div style="background:#fff;border-radius:16px;width:390px;max-width:94vw;padding:22px 24px;' +
+          'box-shadow:0 30px 70px -20px rgba(15,23,42,.45)">' +
+        '<div style="display:flex;align-items:center;gap:11px">' +
+          '<span style="width:20px;height:20px;border-radius:999px;border:2.5px solid #C7D2FE;' +
+            'border-top-color:#5B6BFF;display:block;animation:cjGira .7s linear infinite"></span>' +
+          '<div style="font-size:16px;font-weight:800;color:#0F172A;letter-spacing:-.02em">Cerrando la caja</div>' +
+        '</div>' +
+        '<div id="cj-cerrando-pasos" style="display:flex;flex-direction:column;gap:9px;margin-top:16px"></div>' +
+        '<div style="font-size:11.5px;color:#94A3B8;margin-top:16px;line-height:1.5;' +
+            'border-top:1px solid #F1F5F9;padding-top:12px">' +
+          'No cierres esta ventana. Termina solo.</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    var cont = ov.querySelector('#cj-cerrando-pasos');
+    filas = PASOS.map(function (p) {
+      var f = document.createElement('div');
+      f.style.cssText = 'display:flex;align-items:center;gap:10px';
+      f.innerHTML = '<span data-ic style="display:flex;width:14px;flex-shrink:0"></span>' +
+                    '<span data-tx style="font-size:12.5px">' + p + '</span>';
+      cont.appendChild(f);
+      return f;
+    });
+    pintar(0);
+  }
+
+  /*  Se llama al EMPEZAR cada paso, no al terminarlo: lo que el cajero
+      necesita ver es en qué está, no en qué estuvo.                       */
+  function paso(i) {
+    if (!ov) return;
+    var ahora = Date.now();
+    if (i > 0) medidas.push(PASOS[i - 1] + ': ' + (ahora - tPaso) + ' ms');
+    tPaso = ahora;
+    pintar(i);
+  }
+
+  function cerrar() {
+    if (ov) {
+      medidas.push(PASOS[PASOS.length - 1] + ': ' + (Date.now() - tPaso) + ' ms');
+      console.log('[caja] cierre en ' + (Date.now() - t0) + ' ms →', medidas.join(' · '));
+      ov.remove();
+    }
+    ov = null; filas = [];
+  }
+
+  return { abrir: abrir, paso: paso, cerrar: cerrar };
+})();
+
 async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoContado) {
+  cjCierre.abrir();
   try {
     // Cerrar la sesion activa con datos de cierre (incluye arqueo si se hizo)
     const upd = {
@@ -2532,6 +2640,7 @@ async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoCon
     };
     if (arqueoDiff !== null && arqueoDiff !== undefined) upd.arqueo_diff = arqueoDiff;
     if (arqueoContado !== null && arqueoContado !== undefined) upd.arqueo_contado = arqueoContado;
+    cjCierre.paso(0);
     const { error } = await sb.from('pos_sessions').update(upd).eq('id', S.session.id);
     //  Abrir o cerrar caja cambia lo que el guardian tiene guardado.
     try { localStorage.removeItem('pos.caja.abierta.v1'); } catch (e) {}
@@ -2544,12 +2653,14 @@ async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoCon
     /* Sin sede, este filtro no casa con nada: cero filas en vez de las
        ventas de todas las marcas juntas. */
     qOrfanas.eq('branch_id', S.branchId || '00000000-0000-0000-0000-000000000000');
+    cjCierre.paso(1);
     await qOrfanas;
 
     // Al cerrar caja, el día terminó: se limpian las etiquetas de estado de los
     // chats (En preparación / Listo / En camino / Entregado) para que mañana el
     // tablero arranque limpio y los clientes que vuelvan a escribir aparezcan
     // como consulta nueva. Los pedidos quedan intactos en Ventas/Informes.
+    cjCierre.paso(2);
     try { await limpiarEtiquetasEstadoChat(S.branchId); } catch(e) { console.warn('limpiar etiquetas estado:', e); }
 
     /* Y las mesas quedan libres, sin ningún estado colgando.
@@ -2570,6 +2681,7 @@ async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoCon
 
     // Imprimir el cierre ANTES de refrescar (refreshAll limpia S.session/arqueo)
     try {
+      cjCierre.paso(3);
       const cerrada = Object.assign({}, S.session, upd);
       await imprimirCierre(cerrada);
     } catch(e) { console.warn('imprimir cierre:', e); }
@@ -2593,6 +2705,7 @@ async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoCon
         pude preguntar". Mientras se vean igual, la proxima vez tampoco se va
         a poder averiguar.                                                  */
     try {
+      cjCierre.paso(4);
       const rAv = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/aviso-insumos', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ branch_id: S.branchId }),
@@ -2623,9 +2736,15 @@ async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoCon
       showToast('Aviso de compras: no se pudo hablar con el servidor');
     }
 
+    cjCierre.cerrar();
     showToast('Caja cerrada correctamente');
     await refreshAll();
-  } catch(e) { console.error(e); showToast('Error al cerrar caja'); }
+  } catch(e) {
+    /*  Si algo revienta a mitad, el aviso NO se puede quedar puesto: dejaria
+        una pantalla girando para siempre, que es peor que no haberla puesto. */
+    cjCierre.cerrar();
+    console.error(e); showToast('Error al cerrar caja');
+  }
 }
 
 // Quita las etiquetas de estado de pedido (En preparación/Listo/En camino/
