@@ -18960,3 +18960,108 @@ volvería a pedirla y la pantalla giraría para siempre.
   cajón, aunque no sea una venta.
 - No es para vender. Recargas, tarjetas NFC y la app de El Parche son de Sergio
   y de nadie más; ningún restaurante que compre Cobra las va a tener.
+
+
+---
+
+# PACO YA MIRA LAS FOTOS (6-sep-2026) — `delay-reply` v409
+
+Sergio: *"hay gente que no te dice explícitamente lo que quiere sino que te
+manda la foto de la carta justamente señalando la parte que necesitan"*.
+
+## 1. No faltaba la capacidad: estaba desconectada
+
+La visión ya estaba conectada y pagada en dos sitios — `verify-transfer` lee
+los comprobantes de pago y `analyze-menu` lee cartas para importarlas. Lo que
+había en el camino del pedido era una salida a humano puesta a propósito el
+17-ago (*"Paco no ve imagenes... pasar a humano NO es un error, es la
+válvula"*). Eso era cierto entonces; hoy ya no hacía falta.
+
+## 2. Va donde van las notas de voz, y funciona igual
+
+El paso nuevo es **4c. FOTOS → texto (visión)**, justo detrás del **4b. AUDIOS
+→ texto (Whisper)** que ya existía. Misma forma exacta:
+
+    se baja el archivo → se convierte en texto → se reemplaza `m.body`
+    → sigue por el flujo de siempre como si el cliente lo hubiera escrito
+
+**No hay un segundo lector de pedidos.** El de siempre hace el resto, con su
+catálogo, sus presentaciones y sus precios. Esa es la razón de meterlo aquí y
+no más abajo: cuanto antes la foto sea texto, menos código hay que enterarse
+de que existían las fotos.
+
+La foto leída queda escrita en el chat como `📷 lo que entendió`, igual que la
+nota de voz queda como `🎙️`. Así Sergio ve de un vistazo si leyó bien, con la
+foto al lado para comparar.
+
+## 3. Lo que NO se toca
+
+- **El comprobante.** Si la conversación ya espera un pago (`pago_pendiente`),
+  ni se mira la foto: es el comprobante y su camino ya funciona. Además ahorra
+  la llamada, que no es gratis — la mayoría de las fotos que llegan son
+  comprobantes.
+- **Si el modelo dice que es un comprobante** (aunque no hubiera pago
+  pendiente), se deja el body intacto y todo sigue como antes.
+- **Si duda o no entiende**, el body se queda como estaba y cae en el traspaso
+  a humano de siempre. La válvula no se quitó, se estrechó.
+
+## 4. Las tres reglas del prompt, y de dónde salió cada una
+
+1. **El modelo dice QUÉ VE, nunca CUÁNTO VALE.** Se le pasan los nombres del
+   catálogo, jamás los precios. División de siempre.
+2. **La cantidad solo sale de lo que la persona escribió.** En la primera
+   prueba leyó "DOS salchipapas" porque el globito rosa de la carta dice
+   "2 Personas" — que es para cuánta gente alcanza, no cuántas quiere.
+3. **Empieza siempre por el tipo de plato** (salchipapa, hamburguesa, perro,
+   sándwich), sacado de la `[sección:]` del producto en la lista. Obligatorio:
+   "Maicitos" existe como hamburguesa, como adición y como salchipapa, y
+   escoger mal cuesta dinero — es exactamente el fallo del 6-sep con "carne
+   premium", $11.000 de menos.
+
+Y un detalle que costó dos vueltas: **tamaños y tipos van SEPARADOS** en la
+lista que se le pasa. Revueltos en un mismo paréntesis, el modelo no
+distinguía "Personal" (tamaño) de "Mixta" (tipo) y devolvía el plato sin el
+tipo.
+
+## 5. Medido, no supuesto
+
+Se desplegó una función de prueba aparte (`probar-foto`, ya borrada) para
+probar el prompt contra **las 7 fotos reales** que los clientes mandaron esta
+semana, sin tocar el bot.
+
+| Foto | Qué era | Qué leyó |
+|---|---|---|
+| Mónica Hurtado ×2 | recorte de la carta: Maicitos Especial Mixta, con el pie *"una de estas personal"* | `una salchipapa maicitos especial mixta personal` |
+| Sofía Arango | la carta con la Premium Mixta **rodeada con marcador verde** | `una salchipapa premium mixta personal` |
+| 4 más | comprobantes de Nequi | clasificados como comprobante, sin tocar |
+
+**12 de 12 en la prueba de estabilidad** (las 3 fotos de pedido × 4 vueltas).
+
+Y las dos frases que produce son las que el lector **ya cobra bien**: Camerón
+escribió *"una salchi premium mixta personal"* el 31-ago y Paco cotizó
+$35.000 correctos.
+
+## 6. El coste
+
+~1.700 tokens por foto. La cuenta tiene un tope de 30.000 por minuto en
+gpt-4o, **compartido con el lector de comprobantes** — por eso los reintentos
+son tres, con esperas de 1,5 s y 3 s: en hora pico sale un 429 que dice
+literalmente "try again in 2.3s", y con una sola espera de 1,2 s se caía otra
+vez. Tope de 3 fotos por tanda.
+
+## 7. Una trampa que se repitió
+
+El parche se pasó por `python -c "..."` dentro de bash y la plantilla llevaba
+comillas invertidas. Bash las ejecutó como una orden, se comió el texto y
+escribió **`sbGet()` sin argumento**. El chequeo de sintaxis pasó tan feliz —
+`sbGet()` es código válido — así que **ningún parser lo habría detectado**.
+Solo se vio leyendo lo que quedó escrito.
+
+Misma familia que las barras invertidas en los heredocs: lo que va a un
+archivo se escribe con un archivo, no por la línea de órdenes.
+
+## 8. Lo que falta
+
+`delay-reply-banco` es una copia vieja (v96, 10.794 líneas) que sigue
+desplegada pero que el webhook NO llama. No se tocó. Si algún día se
+resucita, le falta este paso.

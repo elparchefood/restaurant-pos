@@ -1159,7 +1159,8 @@ async function processConversation(convId: string, relectura = false): Promise<v
     `/rest/v1/chat_messages?conversation_id=eq.${convId}&direction=eq.in` +
     `&sent_at=gte.${encodeURIComponent(batchStart)}&order=sent_at.asc&${SEL_BATCH}`
   );
-  type BatchMsg = { id: string; body: string; external_id: string; media_url?: string | null; media_type?: string | null };
+  /* `leida`: la foto ya se convirtio en texto y NO debe ir a un humano. */
+  type BatchMsg = { id: string; body: string; external_id: string; media_url?: string | null; media_type?: string | null; leida?: boolean };
   let batchMsgs = (msgsRes || []) as Array<BatchMsg>;
 
   if (!batchMsgs.length) {
@@ -1203,6 +1204,213 @@ async function processConversation(convId: string, relectura = false): Promise<v
       await sbPatch(`/rest/v1/chat_messages?id=eq.${m.id}`, { body: `🎙️ ${texto}` });
       console.log("audio transcrito:", texto.slice(0, 80));
     } catch (err) { console.error("transcripción de audio falló:", err); }
+  }
+
+  /* 4c. FOTOS → texto (visión): Paco "mira" la carta que le señalan.
+     ─────────────────────────────────────────────────────────────────────────
+     Sergio, 6-sep: *"hay gente que no te dice explícitamente lo que quiere
+     sino que te manda la foto de la carta justamente señalando la parte que
+     necesitan"*. Medido: pasó 2 veces esta semana. El caso claro es Mónica
+     Hurtado el 3-sep — mandó la foto con el pie de foto "Me regalas porfa una
+     de estas personal". El pie solo, sin la foto, no dice nada.
+
+     Esto es EXACTAMENTE lo que hace el paso de arriba con las notas de voz:
+     se baja el archivo, se convierte a texto, se reemplaza el body y sigue por
+     el flujo normal como si el cliente lo hubiera escrito. No hay un segundo
+     lector de pedidos: el de siempre hace el resto, con su catálogo, sus
+     presentaciones y sus precios.
+
+     TRES REGLAS QUE NO SE PUEDEN ROMPER:
+
+     1. El modelo dice QUÉ VE, nunca CUÁNTO VALE. Se le pasan los nombres de
+        los productos, jamás los precios. El precio lo pone el catálogo — esa
+        es la división de siempre (ver la nota de `extractProducto`).
+
+     2. Un comprobante de pago NO es un pedido. Si la foto es una pantalla de
+        Nequi o Bancolombia se deja el body intacto y todo sigue como hoy:
+        el camino del comprobante ya funciona y no se toca.
+
+     3. Si no se entiende, NO se inventa. Se deja el body como estaba y cae en
+        el traspaso a humano de más abajo, que es la válvula de siempre. */
+  const FOTOS_MAX = 3;                       // tope por tanda: 3 fotos bastan
+  let fotosLeidas = 0;
+
+  /*  Si la conversacion YA esta esperando el pago, la foto es el comprobante y
+      no hay nada que mirar: se ahorra la llamada. No es un detalle menor — la
+      mayoria de las fotos que llegan son comprobantes, y cada lectura gasta
+      ~1.700 tokens del mismo cupo por minuto del que come el lector de
+      comprobantes. Mirarlas todas seria pagar dos veces por la misma foto.
+      Se pregunta SOLO si hay foto, para no meter un viaje mas en cada tanda. */
+  let esperandoPago = false;
+  if (batchMsgs.some(m => m.media_type === "image" && m.media_url)) {
+    try {
+      const cr = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=pago_pendiente&limit=1`) as Array<Record<string, unknown>> | null;
+      esperandoPago = !!(cr?.[0]?.pago_pendiente);
+    } catch (e) { console.error("[foto] pago_pendiente:", e); }
+  }
+
+  for (const m of batchMsgs) {
+    if (esperandoPago) break;
+    if (fotosLeidas >= FOTOS_MAX) break;
+    if (m.media_type !== "image") continue;
+    if (!m.media_url) continue;
+    try {
+      /*  LA IMAGEN VIAJA ADENTRO DEL MENSAJE, no como un enlace.
+          Misma lección que costó comprobantes ilegibles: si se le manda la
+          dirección, OpenAI tiene que ir a descargarla, y cuando Supabase se
+          demora desiste con "Timeout while downloading" — en silencio. */
+      const bin = await fetch(m.media_url);
+      if (!bin.ok) { console.error("[foto] no se pudo bajar:", bin.status); continue; }
+      const buf = new Uint8Array(await bin.arrayBuffer());
+      if (buf.length < 100 || buf.length > 12 * 1024 * 1024) continue;
+      let s = "";
+      for (let i = 0; i < buf.length; i += 8192) s += String.fromCharCode(...buf.subarray(i, i + 8192));
+      const tipoImg = bin.headers.get("content-type") || "image/jpeg";
+      const dataUri = `data:${tipoImg};base64,${btoa(s)}`;
+
+      /*  Los nombres del catálogo, SIN precios. Sirven para que el modelo
+          llame las cosas como las llama el restaurante y el lector de pedidos
+          las reconozca. Si la consulta falla se sigue sin lista: el modelo
+          describe con las palabras de la foto, que suelen ser las mismas. */
+      let listaProductos = "";
+      try {
+        const rows = await sbGet(
+          `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=name,presentations,variables,category_id(name)&limit=200`
+        ) as Array<Record<string, unknown>> | null;
+        const lineas: string[] = [];
+        for (const p of (rows || [])) {
+          const nom = String(p.name || "").trim();
+          if (!nom) continue;
+          /*  TAMANOS y TIPOS van SEPARADOS, no en un mismo parentesis.
+              Revueltos, el modelo no distinguia "Personal" (tamano) de "Mixta"
+              (tipo) y devolvia el plato sin el tipo: "Maicitos Especial Personal"
+              cuando la clienta habia senalado la MIXTA.                        */
+          const tamanos: string[] = [];
+          for (const pr of ((p.presentations as Array<{ name?: string }>) || [])) {
+            const n = String(pr?.name || "").trim();
+            if (n && n.toLowerCase() !== "unico" && n.toLowerCase() !== "único") tamanos.push(n);
+          }
+          const tipos: string[] = [];
+          for (const g of ((p.variables as Array<{ options?: Array<{ name?: string }> }>) || [])) {
+            for (const o of (g?.options || [])) {
+              const n = String(o?.name || "").trim();
+              if (n) tipos.push(n);
+            }
+          }
+          const cat = String((p.category_id as Record<string, unknown> | null)?.name || "").trim();
+          let linea = nom;
+          if (cat) linea += `  [sección: ${cat}]`;
+          if (tipos.length)   linea += `  ·  tipos: ${[...new Set(tipos)].join(", ")}`;
+          if (tamanos.length) linea += `  ·  tamaños: ${[...new Set(tamanos)].join(", ")}`;
+          lineas.push(linea);
+        }
+        listaProductos = lineas.join("\n").slice(0, 6000);
+      } catch (e) { console.error("[foto] catálogo:", e); }
+
+      const pie = String(m.body || "").trim().replace(/^\[(imagen|image)\]\s*/i, "").trim();
+      const prompt =
+`Eres el que MIRA las fotos que los clientes de un restaurante mandan por WhatsApp.
+Tu único trabajo es decir qué está pidiendo la persona. No calculas precios ni totales.
+
+${listaProductos ? `Productos que existen en este restaurante:\n${listaProductos}\n` : ""}
+${pie ? `La persona escribió junto a la foto: "${pie}"\n` : "La persona no escribió nada, solo mandó la foto.\n"}
+Responde SOLO este JSON:
+{
+  "tipo": "pedido" | "comprobante" | "otra",
+  "texto": "",
+  "seguro": true | false
+}
+
+- "pedido": la foto es una carta, un menú, un plato o una pantalla donde se ve
+  lo que quiere. Muy común: señalan con el dedo, con un círculo, con una raya
+  de marcador o con una flecha; o recortan la carta dejando solo lo que
+  quieren. En "texto" escribe lo que pide COMO LO ESCRIBIRÍA UN CLIENTE por
+  WhatsApp: en minúsculas, corto y natural. NO copies las líneas de la lista de
+  arriba ni sus separadores: la lista es solo para que sepas qué existe y cómo
+  se llama cada cosa. Nombra el plato COMPLETO — si tiene tipo (mixta, carne,
+  pollo...) y se ve cuál señalan, ponlo; y el tamaño igual.
+  Y EMPIEZA SIEMPRE POR EL TIPO DE PLATO: salchipapa, hamburguesa, perro
+  caliente o sándwich. Lo sabes por la [sección:] del producto en la lista de
+  arriba, aunque en la foto no se vea el encabezado. Es obligatorio: el mismo
+  nombre existe en varias secciones — hay "Maicitos" de hamburguesa, de
+  adición y de salchipapa — y sin esa palabra el sistema escoge mal y cobra
+  otro precio.
+  Así se ve bien: "una salchipapa premium mixta personal".
+- "comprobante": es una pantalla de un banco o billetera (Nequi, Bancolombia,
+  Daviplata, transferencia, "pago realizado"). Deja "texto" vacío.
+- "otra": cualquier otra cosa, o no se entiende qué quiere. Deja "texto" vacío.
+
+TRES COSAS QUE SE HACEN MAL SI NO SE AVISA:
+
+1. LA CANTIDAD SOLO SALE DE LO QUE LA PERSONA ESCRIBIÓ. Si no escribió cuántas
+   quiere, NO pongas ninguna cantidad. En las cartas hay globos que dicen
+   "1 Persona", "2 Personas", "3 Personas" al lado del precio: eso dice para
+   cuánta gente alcanza el plato, NO cuántos quiere la persona. Nunca lo
+   copies como cantidad.
+
+2. NO COPIES PRECIOS. Ni los del menú ni ningún número de dinero. El precio lo
+   pone el sistema, no tú.
+
+3. SI NO SE VE EL TAMAÑO (personal o familiar) NO LO INVENTES. Es mejor que
+   falte y se lo pregunten a que salga mal. Solo ponlo si se ve señalado o si
+   la persona lo escribió.
+
+"seguro" es false si dudas de cuál producto están señalando, o si en la foto
+hay varios productos y no está claro cuál. Ante la duda, false.`;
+
+      /*  TRES intentos, con esperas crecientes. Dos no bastan: la cuenta tiene
+          un tope de 30.000 tokens por minuto en gpt-4o y una foto gasta ~1.700,
+          asi que en hora pico —con los comprobantes gastando del mismo cupo—
+          sale un 429 que dice literalmente "try again in 2.3s". Con una sola
+          espera de 1,2 s se caia otra vez y el cliente se quedaba sin lectura.
+          1,5 s y luego 3 s cubren de sobra lo que pide OpenAI. */
+      let leido: { tipo?: string; texto?: string; seguro?: boolean } | null = null;
+      for (let intento = 0; intento < 3 && !leido; intento++) {
+        try {
+          if (intento > 0) await new Promise(r => setTimeout(r, intento === 1 ? 1500 : 3000));
+          const res = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "gpt-4o",
+              max_tokens: 300,
+              temperature: 0,
+              response_format: { type: "json_object" },
+              messages: [{
+                role: "user",
+                content: [
+                  { type: "text",      text: prompt },
+                  { type: "image_url", image_url: { url: dataUri, detail: "high" } },
+                ],
+              }],
+            }),
+          });
+          if (!res.ok) { console.error(`[foto] visión (intento ${intento + 1}):`, (await res.text()).slice(0, 300)); continue; }
+          const data = await res.json() as Record<string, unknown>;
+          const raw = (((data.choices as Array<Record<string, unknown>>)?.[0]?.message as Record<string, unknown>)?.content as string || "").trim();
+          leido = JSON.parse(raw.replace(/```json|```/g, "").trim());
+        } catch (err) { console.error(`[foto] visión falló (intento ${intento + 1}):`, String(err).slice(0, 200)); }
+      }
+
+      if (!leido) continue;                                   // se queda como está → humano
+      const tipoFoto = String(leido.tipo || "").toLowerCase();
+      const textoFoto = String(leido.texto || "").trim();
+      console.log(`[foto] tipo=${tipoFoto} seguro=${leido.seguro} texto="${textoFoto.slice(0, 90)}"`);
+
+      /*  Un comprobante sigue su camino de siempre. Y si no está seguro de qué
+          señalan, tampoco: vale mucho más una persona mirando la foto que un
+          pedido equivocado — el 6-sep un producto mal leído costó $11.000. */
+      if (tipoFoto !== "pedido" || !textoFoto || leido.seguro === false) continue;
+
+      m.body = textoFoto;
+      m.leida = true;
+      fotosLeidas++;
+      /*  Queda escrito en el chat lo que Paco entendió, igual que con las notas
+          de voz (🎙️). Así Sergio ve de un vistazo si leyó bien la foto — y la
+          foto sigue ahí al lado para comparar. */
+      await sbPatch(`/rest/v1/chat_messages?id=eq.${m.id}`, { body: `📷 ${textoFoto}` });
+      console.log("foto leída:", textoFoto.slice(0, 80));
+    } catch (err) { console.error("lectura de la foto falló:", err); }
   }
 
   const soloMediaNoTexto = batchMsgs.every(m => {
@@ -2411,7 +2619,8 @@ INTENCION, no las palabras exactas.` },
      foto ("me regalas una de estas personal") no contaba como imagen y se
      trataba como un mensaje de texto cualquiera. */
   const hasImagenBatch = batchMsgs.some(m =>
-    m.media_type === "image" || (m.body||"").startsWith("[imagen]") || (m.body||"").startsWith("[image]"));
+    !m.leida &&
+    (m.media_type === "image" || (m.body||"").startsWith("[imagen]") || (m.body||"").startsWith("[image]")));
 
   /* ── UNA FOTO QUE NO ES COMPROBANTE VA A UN HUMANO (17-ago) ─────────────
      Paco no ve imagenes. Una clienta mando la foto de la carta seNalando la
