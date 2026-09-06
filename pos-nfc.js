@@ -54,8 +54,55 @@
     }
   }, true);
 
+  /*  ══ EL LECTOR DEL EJECUTABLE ════════════════════════════
+      El lector de El Parche NO se hace pasar por un teclado: es de tarjeta
+      inteligente (PC/SC), y a esos el navegador no les puede hablar. Solo el
+      ejecutable, igual que con la impresora.
+
+      Asi que hay DOS caminos por los que puede llegar una tarjeta:
+        · la rafaga de teclas de un lector barato — lo de arriba;
+        · el ejecutable, que lee el suyo y lo manda por aqui.
+
+      Los dos terminan en los mismos oyentes. Una pantalla que ya sabia
+      escuchar tarjetas no tiene que cambiar nada.
+
+      ⚠️ Lo que llega del ejecutable NO viene con el numero pelado sino con
+      el TOQUE entero: numero, contador y firma. Ahi esta la seguridad, y
+      por eso se pasa completo a quien escuche — el que valida es el
+      servidor.                                                          */
+  var ultimoToque = null;
+
+  function conectarEjecutable() {
+    try {
+      var e = window.electronPOS;
+      if (!e || typeof e.onTarjeta !== 'function') return;   // navegador o .exe viejo
+      e.onTarjeta(function (d) {
+        if (!d || !d.uid) return;
+        ultimoToque = d;
+        oyentes.slice().forEach(function (fn) {
+          try { fn(String(d.uid).toUpperCase(), d); } catch (x) { console.error('[nfc]', x); }
+        });
+      });
+      if (typeof e.onLector === 'function') {
+        e.onLector(function (d) {
+          /*  Se deja dicho en la consola y disponible para quien lo quiera
+              pintar: "no hay lector" y "no pasaste la tarjeta" son cosas
+              distintas, y sin esto se confunden.                        */
+          w.posNfcHayLector = !!(d && d.hay);
+          console.log('[nfc] lector', (d && d.hay) ? 'conectado' : 'desconectado');
+        });
+      }
+    } catch (x) { console.error('[nfc] no se pudo conectar con el lector:', x); }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', conectarEjecutable);
+  } else { conectarEjecutable(); }
+
   /* Escuchar tarjetas. Devuelve la funcion para dejar de escuchar — cada
-     pantalla escucha SOLO mientras su modal o su vista lo necesita. */
+     pantalla escucha SOLO mientras su modal o su vista lo necesita.
+
+     El oyente recibe DOS cosas: el numero de la tarjeta (como siempre) y,
+     si vino del lector del ejecutable, el toque completo con su firma. */
   function escuchar(fn) {
     oyentes.push(fn);
     return function () {
@@ -131,6 +178,10 @@
     return !!(r.data && r.data.length);
   }
 
+  //  `ultimoToque` guarda el ultimo toque completo: lo necesita quien vaya a
+  //  validarlo contra el servidor, que es lo unico que da seguridad.
   w.posNfc = { setCtx: setCtx, escuchar: escuchar, buscar: buscar,
-               tarjetasDe: tarjetasDe, vincular: vincular, desvincular: desvincular };
+               tarjetasDe: tarjetasDe, vincular: vincular, desvincular: desvincular,
+               ultimoToque: function () { return ultimoToque; },
+               hayLector: function () { return w.posNfcHayLector === true; } };
 })(window);
