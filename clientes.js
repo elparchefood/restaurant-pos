@@ -394,29 +394,92 @@
         });
       } catch (e) { caja.innerHTML = '<div style="font-size:12.5px;color:#DC2626">No se pudieron cargar: ' + esc(e.message || e) + '</div>'; }
     }
-    /* Tarjeta que YA es de otro: ADVERTIR y preguntar antes de pasarla
-       (pedido de Sergio, 20-ago: "que no nos vayamos a equivocar"). Nada se
-       sobreescribe sin un si explicito. */
-    function preguntarPasarla(uid, duena) {
-      var a = ov.querySelector('#clt-aviso');
-      a.style.display = 'block';
-      a.style.background = '#FFFBEB';
-      a.style.color = '#92400E';
-      var nom = (duena && duena.cliente && duena.cliente.nombre) || ('••• ' + String(duena.telefono).slice(-4));
-      a.innerHTML = '<b>Ojo:</b> la tarjeta ····' + esc(uid.slice(-4)) + ' ya está vinculada a <b>' + esc(nom) + '</b>.' +
-        '<div style="margin-top:8px;display:flex;gap:8px">' +
-          '<button id="clt-pasar" style="background:#F59E0B;color:#fff;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Sí, pasarla a ' + esc(c.nombre || 'este cliente') + '</button>' +
-          '<button id="clt-no" style="background:#fff;color:#475569;border:1px solid #ECEEF2;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Dejarla como está</button>' +
-        '</div>';
-      a.querySelector('#clt-no').onclick = function () { a.style.display = 'none'; };
-      a.querySelector('#clt-pasar').onclick = async function () {
-        try {
-          await posNfc.vincular(tel, uid, null, { forzar: true });
-          aviso('Listo: la tarjeta ····' + uid.slice(-4) + ' pasó de ' + nom + ' a ' + (c.nombre || 'este cliente') + '.', true);
-          pintarLista();
-        } catch (e2) { aviso('No se pudo pasar: ' + (e2.message || e2), false); }
-      };
+    /*  ══ PASAR UNA TARJETA QUE YA ES DE ALGUIEN ═══════════════════════════
+        Sergio, 5-sep: *"si coloco en un cliente vacío una tarjeta que ya está
+        ocupada me debe aparecer un modal informando que la tarjeta ya tiene
+        dueño, y darme la opción de vincularla. Y si acepto, otro modal
+        diciéndome: ¿está seguro?"*
+
+        DOS ventanas, no una. La primera informa y ofrece; la segunda hace
+        parar y decir que sí a sabiendas. Es una operación que le quita la
+        tarjeta a un cliente, y equivocarse aquí se nota tarde.
+
+        Ventana propia y nunca `confirm()` del navegador: en el ejecutable no
+        sale y la acción se quedaría muda.                                */
+    function preguntar(opciones) {
+      return new Promise(function (resolver) {
+        var f = document.createElement('div');
+        f.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);' +
+          'display:flex;align-items:center;justify-content:center;z-index:100010;padding:24px';
+        f.innerHTML =
+          '<div style="background:#fff;border-radius:16px;width:440px;max-width:96vw;' +
+              'box-shadow:0 24px 60px -12px rgba(15,23,42,.4);overflow:hidden">' +
+            '<div style="padding:20px 22px 6px">' +
+              '<div style="font-size:17px;font-weight:800;color:#0F172A;letter-spacing:-.02em">' +
+                esc(opciones.titulo) + '</div>' +
+              '<div style="font-size:13.5px;color:#475569;line-height:1.6;margin-top:8px">' +
+                opciones.texto + '</div>' +
+            '</div>' +
+            '<div style="display:flex;gap:10px;justify-content:flex-end;padding:16px 22px;' +
+                'border-top:1px solid #ECEEF2;background:#FBFBFD;margin-top:16px">' +
+              '<button data-no style="background:#fff;color:#475569;border:1px solid #ECEEF2;' +
+                'padding:9px 14px;border-radius:9px;font-size:12.5px;font-weight:700;' +
+                'cursor:pointer;font-family:inherit">' + esc(opciones.no || 'Cancelar') + '</button>' +
+              '<button data-si style="background:' + (opciones.peligro ? '#DC2626' : '#5B6BFF') + ';' +
+                'color:#fff;border:none;padding:9px 14px;border-radius:9px;font-size:12.5px;' +
+                'font-weight:700;cursor:pointer;font-family:inherit">' + esc(opciones.si) + '</button>' +
+            '</div>' +
+          '</div>';
+        function cerrar(r) { f.remove(); document.removeEventListener('keydown', tecla); resolver(r); }
+        function tecla(e) { if (e.key === 'Escape') cerrar(false); }
+        f.querySelector('[data-no]').onclick = function () { cerrar(false); };
+        f.querySelector('[data-si]').onclick = function () { cerrar(true); };
+        f.addEventListener('click', function (e) { if (e.target === f) cerrar(false); });
+        document.addEventListener('keydown', tecla);
+        document.body.appendChild(f);
+        setTimeout(function () { try { f.querySelector('[data-no]').focus(); } catch (x) {} }, 50);
+      });
     }
+
+    async function preguntarPasarla(uid, duena) {
+      var nom = (duena && duena.cliente && duena.cliente.nombre)
+        || ('el celular ···' + String(duena && duena.telefono || '').slice(-4));
+      var aQuien = c.nombre || 'este cliente';
+      var cuatro = String(uid).slice(-4);
+
+      //  ── primera ventana: informar y ofrecer ──────────────────────────
+      var sigue = await preguntar({
+        titulo: 'Esa tarjeta ya tiene dueño',
+        texto: 'La tarjeta ····' + esc(cuatro) + ' está vinculada a <b>' + esc(nom) + '</b>.' +
+               '<br><br>¿Quieres vincularla a <b>' + esc(aQuien) + '</b>?',
+        si: 'Sí, vincularla',
+        no: 'Dejarla como está',
+      });
+      if (!sigue) return;
+
+      //  ── segunda ventana: la consecuencia, dicha con precisión ────────
+      //  No se dice "se pierden los datos" a secas porque no es verdad y
+      //  asusta de más: los puntos y el saldo van con el TELEFONO, no con
+      //  el plastico. Lo que de verdad pasa es que el otro se queda sin
+      //  tarjeta — y eso sí hay que decirlo claro.
+      var seguro = await preguntar({
+        titulo: '¿Seguro?',
+        texto: '<b>' + esc(nom) + '</b> se queda sin tarjeta y no la va a poder usar más.' +
+               '<br><br>Sus puntos y su saldo <b>no se pierden</b>: están atados a su celular, ' +
+               'no a la tarjeta. Pero si la vuelve a necesitar habrá que darle otra.',
+        si: 'Sí, pasarla a ' + aQuien,
+        no: 'Cancelar',
+        peligro: true,
+      });
+      if (!seguro) return;
+
+      try {
+        await posNfc.vincular(tel, uid, null, { forzar: true });
+        aviso('Listo: la tarjeta ····' + cuatro + ' pasó de ' + nom + ' a ' + aQuien + '.', true);
+        pintarLista();
+      } catch (e2) { aviso('No se pudo pasar: ' + (e2.message || e2), false); }
+    }
+
     var soltar = posNfc.escuchar(async function (uid) {
       try {
         await posNfc.vincular(tel, uid);
