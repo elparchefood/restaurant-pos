@@ -122,6 +122,12 @@
     if (r.error) throw r.error;
     var t = r.data && r.data[0];
     if (!t) return null;
+    /*  Si la tarjeta no tiene dueNo no hay a quien buscar. Sin esto se
+        preguntaba por el telefono "%null" — una consulta que no falla pero
+        tampoco significa nada.                                          */
+    if (!t.telefono) {
+      return { id: t.id, uid: t.uid, telefono: null, activa: t.activa, cliente: null };
+    }
     var c = await s.from('pos_clientes').select('id,nombre,telefono')
       .eq('tenant_id', CTX.tenantId).like('telefono', '%' + t.telefono).limit(5);
     var tel10 = String(t.telefono).replace(/[^0-9]/g, '').slice(-10);
@@ -149,12 +155,25 @@
     if (tel.length !== 10) throw new Error('El cliente necesita un celular a 10 dígitos.');
     var forzar = !!(opciones && opciones.forzar);
     var ya = await buscar(uid);
-    if (ya && ya.telefono !== tel && !forzar) {
+    /*  ⚠️ OJO CON LA TARJETA SIN DUEÑO (5-sep-2026).
+        Una tarjeta puede estar en la base y no ser de nadie todavia: el
+        servidor le crea la ficha en el primer toque autentico, para poder
+        vigilarle el contador. `telefono` viene NULL.
+
+        Aqui se trataba como "ya es de otra persona" y ademas se reventaba
+        al leerle los ultimos digitos a un telefono que no existe:
+        *Cannot read properties of null (reading 'slice')*. Le paso a
+        Sergio al vincular su propia tarjeta.
+
+        Sin dueNo NO es un conflicto: es justo la que hay que asignar.  */
+    if (ya && ya.telefono && ya.telefono !== tel && !forzar) {
       /* Una tarjeta = un dueNo; se dice de quien es en vez de pisarlo. */
-      var e = new Error('Esa tarjeta ya es de ' + ((ya.cliente && ya.cliente.nombre) || ('••• ' + ya.telefono.slice(-4))) + '.');
+      var e = new Error('Esa tarjeta ya es de ' + ((ya.cliente && ya.cliente.nombre) || ('••• ' + String(ya.telefono).slice(-4))) + '.');
       e.codigo = 'OCUPADA'; e.duena = ya;
       throw e;
     }
+    /*  Se le pone dueNo: puede ser una tarjeta sin asignar (lo normal al
+        prepararla) o una que se esta pasando a otro cliente con permiso. */
     if (ya && ya.telefono !== tel) {
       var ru = await s.from('pos_tarjetas')
         .update({ telefono: tel, quien: quien || null })
