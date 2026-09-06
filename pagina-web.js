@@ -1002,6 +1002,7 @@
     { k: 'resumen',  t: 'Resumen' },
     { k: 'personas', t: 'Personas' },
     { k: 'recargas', t: 'Recargas' },
+    { k: 'billetera', t: 'Billetera' },
     { k: 'regalos',  t: 'Regalos' },
     { k: 'revisar',  t: 'Por revisar' },
   ];
@@ -1071,6 +1072,7 @@
     }).join('') + '</div>';
 
     var cuerpo = k === 'personas' ? webPersonas()
+               : k === 'billetera' ? webBilletera()
                : k === 'recargas' ? webRecargas()
                : k === 'regalos'  ? webRegalos()
                : k === 'revisar'  ? webRevisar()
@@ -1230,6 +1232,252 @@
   }
 
   // ── RECARGAS: plata que ENTRO ───────────────────────────────────────
+
+  /* ══ BILLETERA: LO QUE DEBES EN COMIDA ═══════════════════════════════════
+     Sergio, 6-sep-2026: *"debemos tener un lugar donde vamos a registrar todas
+     las recargas, ver cuánto ya se ha redimido y cuánto dinero todavía está
+     quieto sin que lo muevan las personas"*.
+
+     LA IDEA: una recarga NO es plata que ganaste — es comida que debes. La
+     venta ocurre el día que vienen a reclamarla, no el día que recargaron. Por
+     eso la recarga no entra a ventas ni al arqueo, y por eso hacía falta este
+     otro sitio: hasta hoy podías saber cuánto vendiste ayer, pero no cuánta
+     comida tenías prometida.
+
+     LO QUE NO SE MEZCLA, y es la mitad del valor de esta pantalla:
+       · la plata que ENTRÓ (recargas pagadas)   → dinero de verdad
+       · lo que REGALASTE (bonos y cortesías)    → nunca fue dinero
+     Sumadas se ven como una sola cifra y engañan. Aquí van separadas siempre.
+
+     Y las fichas marcadas como de prueba NO cuentan. Con la de Sergio dentro,
+     esta pantalla abriría diciendo "debes $648.500" cuando la deuda real son
+     $122.500: el 83% del número sería suyo. Un informe que nace con una cifra
+     que el dueño sabe falsa se deja de mirar, y ya no sirve ni cuando se
+     arregla.                                                                */
+
+  var BI_TOPE_MOV = 2000;
+
+  async function cargarBilletera() {
+    S.bi = S.bi || {};
+    S.bi.cargando = false;
+    var s = sb();
+    if (!s || !S.t) {
+      /*  Sin sesion no se puede preguntar. Se marca como FALLO, no como
+          vacio: ensenar cero aqui seria decir que no debes nada.        */
+      S.bi.falloSaldos = true; S.bi.falloMovs = true;
+      return;
+    }
+    /*  Cada consulta por separado, no en Promise.all: si una falla las otras
+        tienen que seguir pintando. Un Promise.all ya nos dejó pantallas
+        congeladas sin un error en la consola.                             */
+    try {
+      var q = await s.from('pos_saldo')
+        .select('saldo, cliente_id, pos_clientes(nombre, telefono, es_prueba)')
+        .eq('tenant_id', S.t.id).gt('saldo', 0);
+      S.bi.saldos = q.data || [];
+      S.bi.falloSaldos = !!q.error;
+    } catch (e) { S.bi.saldos = []; S.bi.falloSaldos = true; }
+
+    try {
+      /*  AQUI SI VA EL CONSUMO. La pestaña de Recargas lo deja fuera a
+          propósito —ahí solo interesa lo que entró— pero sin él no se puede
+          decir cuánto se ha redimido, que es justo lo que se preguntó.   */
+      var m = await s.from('pos_saldo_mov')
+        .select('created_at, monto, motivo, detalle, cliente_id, pos_clientes(nombre, telefono, es_prueba)')
+        .eq('tenant_id', S.t.id)
+        .order('created_at', { ascending: false }).limit(BI_TOPE_MOV);
+      S.bi.movs = m.data || [];
+      S.bi.falloMovs = !!m.error;
+    } catch (e) { S.bi.movs = []; S.bi.falloMovs = true; }
+  }
+
+  /*  Lo que de verdad se le debe a alguien: sin las fichas de prueba. */
+  function biReales(lista) {
+    return (lista || []).filter(function (x) {
+      var c = x.pos_clientes || {};
+      return c.es_prueba !== true;
+    });
+  }
+
+  function biCuentas() {
+    var movs = biReales(S.bi && S.bi.movs);
+    var entro = 0, regalado = 0, consumido = 0;
+    movs.forEach(function (m) {
+      var v = Number(m.monto) || 0;
+      if (m.motivo === 'recarga') entro += v;
+      else if (m.motivo === 'consumo') consumido += Math.abs(v);
+      else regalado += v;               // bono_recarga, regalo, bono_instalacion
+    });
+    var saldos = biReales(S.bi && S.bi.saldos);
+    var debo = saldos.reduce(function (a, x) { return a + (Number(x.saldo) || 0); }, 0);
+    var entregado = entro + regalado;
+    return {
+      debo: debo, entro: entro, regalado: regalado, consumido: consumido,
+      entregado: entregado,
+      redimido: entregado > 0 ? Math.round(consumido / entregado * 100) : 0,
+      personas: saldos.length,
+    };
+  }
+
+  /*  Cuánto lleva quieta cada billetera. Es lo que Sergio pidió con "cuánto
+      dinero todavía está quieto sin que lo muevan las personas": no es lo
+      mismo un saldo de ayer que uno de hace dos meses — el viejo es el que
+      un día se va a presentar entero a reclamar comida.                  */
+  function biQuietud() {
+    var ult = {};
+    biReales(S.bi && S.bi.movs).forEach(function (m) {
+      var k = String(m.cliente_id);
+      var t = new Date(m.created_at).getTime();
+      if (!ult[k] || t > ult[k]) ult[k] = t;
+    });
+    var cajones = [
+      { k: 'Se movió esta semana', dias: 7,   plata: 0, gente: 0 },
+      { k: 'Entre 1 y 4 semanas',  dias: 30,  plata: 0, gente: 0 },
+      { k: 'Más de un mes quieto', dias: 1e9, plata: 0, gente: 0 },
+    ];
+    biReales(S.bi && S.bi.saldos).forEach(function (x) {
+      var t = ult[String(x.cliente_id)];
+      var dias = t ? (Date.now() - t) / 86400000 : 1e9;
+      for (var i = 0; i < cajones.length; i++) {
+        if (dias < cajones[i].dias) { cajones[i].plata += Number(x.saldo) || 0; cajones[i].gente++; break; }
+      }
+    });
+    return cajones;
+  }
+
+  var BI_VISTAS = [
+    { k: 'debo',   t: 'Qué debo' },
+    { k: 'quien',  t: 'Quién tiene saldo' },
+    { k: 'libro',  t: 'Movimientos' },
+  ];
+
+  function webBilletera() {
+    /*  El sentinel se pone ANTES de pedir, no dentro del loader: si la
+        consulta se cae y S.bi quedara sin tocar, cada repintado volveria a
+        pedirla y la pantalla se quedaria girando para siempre.         */
+    if (!S.bi) { S.bi = { cargando: true }; cargarBilletera().then(pintar); }
+    if (S.bi.cargando) return '<section class="mw-card"><div class="pw-vacio">Sacando las cuentas…</div></section>';
+    if (S.bi.falloSaldos || S.bi.falloMovs) {
+      /*  "No hay" y "no pude preguntar" NO se pueden ver igual. Enseñar cero
+          cuando la consulta fallo es mentir con cara de dato.            */
+      return '<section class="mw-card"><div class="pw-vacio"><b>No se pudieron leer las billeteras</b>' +
+        '<p>No es que estén vacías: es que la consulta falló. Recarga la página; si sigue igual, avísame.</p></div></section>';
+    }
+    var v = (S.bi && S.bi.vista) || 'debo';
+    var tabs = '<div class="cc-tabs" style="display:flex;gap:2px;border-bottom:1px solid #ECEEF2;margin-bottom:16px">' +
+      BI_VISTAS.map(function (x) {
+        return '<button class="cc-tab' + (x.k === v ? ' on' : '') + '" data-bi="' + x.k + '" ' +
+          'style="padding:11px 14px;background:none;border:none;border-bottom:2px solid ' +
+          (x.k === v ? '#5B6BFF' : 'transparent') + ';margin-bottom:-1px;font-family:inherit;' +
+          'font-size:13.5px;font-weight:' + (x.k === v ? '700' : '600') + ';color:' +
+          (x.k === v ? '#5B6BFF' : '#64748B') + ';cursor:pointer">' + x.t + '</button>';
+      }).join('') + '</div>';
+
+    return '<section class="mw-card">' +
+      '<div class="mw-card-head"><div><h2 class="mw-h">Billetera</h2>' +
+        '<p class="mw-sub">Una recarga no es una venta: es comida que debes. Aquí se ve cuánta, ' +
+        'de quién es y hace cuánto no la tocan.</p></div></div>' +
+      tabs +
+      (v === 'debo' ? biVistaDebo() : v === 'quien' ? biVistaQuien() : biVistaLibro()) +
+    '</section>';
+  }
+
+  function biVistaDebo() {
+    var c = biCuentas();
+    if (!c.personas && !c.entregado) {
+      return '<div class="pw-vacio"><b>Todavía no hay nada en billeteras</b>' +
+        '<p>Cuando alguien recargue o le regales saldo, aquí queda la cuenta de cuánta comida debes.</p></div>';
+    }
+    var quietud = biQuietud();
+    return '<div class="pw-minis">' +
+        miniK('Comida que debo', COP(c.debo),
+              num(c.personas) + (c.personas === 1 ? ' persona' : ' personas')) +
+        miniK('De eso, plata que entró', COP(c.entro), 'recargas que te pagaron') +
+        miniK('Y esto lo regalaste', COP(c.regalado), 'bonos y cortesías') +
+        miniK('Ya se comieron', COP(c.consumido), c.redimido + '% de lo entregado') +
+      '</div>' +
+      '<div class="pw-scr" style="margin-top:16px"><div class="pw-row pw-rr pw-cab" style="grid-template-columns:2fr 1fr 1fr">' +
+        '<div>Hace cuánto no la tocan</div><div>Personas</div><div>Plata quieta</div></div>' +
+      quietud.map(function (q) {
+        return '<div class="pw-row pw-rr" style="grid-template-columns:2fr 1fr 1fr">' +
+          '<div><b>' + esc(q.k) + '</b></div>' +
+          '<div class="pw-tenue">' + num(q.gente) + '</div>' +
+          '<div class="pw-num">' + COP(q.plata) + '</div></div>';
+      }).join('') + '</div>' +
+      /*  El dato que de verdad decide: si casi nadie redime, la deuda no se
+          esta yendo — se esta acumulando, y un dia llega junta.          */
+      (c.entregado > 0 && c.redimido < 25
+        ? '<div class="mw-note warn" style="margin-top:14px"><span>Solo se ha comido el <b>' +
+          c.redimido + '%</b> de lo que has entregado. Los <b>' + COP(c.debo) + '</b> que quedan ' +
+          'no son plata quieta: son comida que en algún momento van a venir a reclamar, y ' +
+          'conviene que no te tome por sorpresa.</span></div>'
+        : '');
+  }
+
+  function biVistaQuien() {
+    var lista = biReales(S.bi && S.bi.saldos).slice().sort(function (a, b) {
+      return (Number(b.saldo) || 0) - (Number(a.saldo) || 0);
+    });
+    if (!lista.length) {
+      return '<div class="pw-vacio"><b>Nadie tiene saldo</b>' +
+        '<p>Ni una billetera con plata. Cuando alguien recargue o le regales saldo, aparece aquí.</p></div>';
+    }
+    var ult = {};
+    biReales(S.bi && S.bi.movs).forEach(function (m) {
+      var k = String(m.cliente_id), t = new Date(m.created_at).getTime();
+      if (!ult[k] || t > ult[k]) ult[k] = t;
+    });
+    return '<div class="pw-scr"><div class="pw-row pw-rr pw-cab" style="grid-template-columns:2fr 1fr 1.2fr">' +
+        '<div>Persona</div><div>Saldo</div><div>Sin tocarla</div></div>' +
+      lista.map(function (x) {
+        var cli = x.pos_clientes || {};
+        var t = ult[String(x.cliente_id)];
+        var dias = t ? Math.floor((Date.now() - t) / 86400000) : null;
+        var cuanto = dias === null ? '—'
+          : dias === 0 ? 'hoy' : dias === 1 ? '1 día' : dias + ' días';
+        return '<div class="pw-row pw-rr" style="grid-template-columns:2fr 1fr 1.2fr">' +
+          '<div class="pw-cn"><div class="pw-av">' + esc(inicialesPw(cli.nombre)) + '</div>' +
+            '<div><b>' + esc(cli.nombre || 'Cliente') + '</b>' +
+            '<small>' + esc(cli.telefono || '') + '</small></div></div>' +
+          '<div class="pw-num">' + COP(x.saldo) + '</div>' +
+          '<div class="pw-tenue">' + esc(cuanto) + '</div></div>';
+      }).join('') + '</div>';
+  }
+
+  var BI_ETIQUETA = {
+    recarga:          ['brand', 'Recarga'],
+    bono_recarga:     ['ok',    'Bono por recargar'],
+    bono_instalacion: ['ok',    'Bono por instalar'],
+    regalo:           ['ok',    'Regalo'],
+    consumo:          ['neutral', 'Se lo comió'],
+  };
+
+  function biVistaLibro() {
+    var movs = biReales(S.bi && S.bi.movs);
+    if (!movs.length) {
+      return '<div class="pw-vacio"><b>El libro está vacío</b>' +
+        '<p>Aquí queda cada recarga, bono, regalo y consumo, con su fecha y de quién fue.</p></div>';
+    }
+    var pag = movs.slice(0, tope('billetera'));
+    return '<div class="pw-scr"><div class="pw-row pw-rr pw-cab" style="grid-template-columns:2fr 1.4fr 1fr 1.2fr">' +
+        '<div>Persona</div><div>Qué pasó</div><div>Monto</div><div>Cuándo</div></div>' +
+      pag.map(function (m) {
+        var cli = m.pos_clientes || {};
+        var et = BI_ETIQUETA[m.motivo] || ['neutral', m.motivo];
+        var v = Number(m.monto) || 0;
+        return '<div class="pw-row pw-rr" style="grid-template-columns:2fr 1.4fr 1fr 1.2fr">' +
+          '<div class="pw-cn"><div class="pw-av">' + esc(inicialesPw(cli.nombre)) + '</div>' +
+            '<div><b>' + esc(cli.nombre || 'Cliente') + '</b>' +
+            '<small>' + esc(cli.telefono || '') + '</small></div></div>' +
+          '<div><span class="mw-badge ' + et[0] + '">' + esc(et[1]) + '</span></div>' +
+          '<div class="pw-num" style="color:' + (v < 0 ? '#DC2626' : '#16A34A') + '">' +
+            (v < 0 ? '−' : '+') + COP(Math.abs(v)) + '</div>' +
+          '<div class="pw-tenue">' + esc(fechaPw(m.created_at)) + '</div></div>';
+      }).join('') +
+      pieLista('billetera', pag.length, movs.length, 'movimientos') + '</div>' +
+      avisoTope(movs.length, BI_TOPE_MOV, 'movimientos');
+  }
+
   function webRecargas() {
     var todas = recargasDe();
     var cuerpo;
@@ -1421,6 +1669,17 @@
     });
     document.querySelectorAll('[data-wf]').forEach(function (b) {
       b.onclick = function () { S.wf = b.dataset.wf; S.tope.personas = PASO; pintar(); };
+    });
+    /* Cambiar de vista dentro de Billetera. El tope del libro se reinicia por
+       lo mismo que al cambiar de sub-pestana: volver a Movimientos no deberia
+       arrancar en la fila 200 de la vez pasada. */
+    document.querySelectorAll('[data-bi]').forEach(function (b) {
+      b.onclick = function () {
+        if (!S.bi) return;
+        S.bi.vista = b.dataset.bi;
+        S.tope.billetera = PASO;
+        pintar();
+      };
     });
     /* El buscador repinta SOLO la lista, no la pestana entera: repintar todo
        le quita el foco al campo y hay que volver a hacer clic tras cada letra. */
