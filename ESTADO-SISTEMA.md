@@ -3,6 +3,83 @@
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
 
+## 🟢 El sonido de la tarjeta, y soltar al cliente al retirarla — 5-sep-2026
+
+### El sonido
+
+Sergio escogio **"Marea larga"**, en *mas largo* y *mas fuerte* (3,2 s),
+despues de oir cuatro opciones en una pagina de prueba. Suena en las tres
+pantallas que leen tarjetas: cobro, Clientes y Mi pagina web.
+
+**No es un archivo de audio**: se fabrica con Web Audio en `pos-nfc.js`. Un
+`.mp3` habria que descargarlo —y el primero llegaria tarde, justo el que
+importa—, empacarlo en el ejecutable y mantenerlo igual en los dos lados.
+
+Vive DENTRO de `pos-nfc.js` y no en un archivo nuevo porque las tres
+pantallas que leen tarjetas ya lo cargan: un archivo mas seria una descarga
+mas por pantalla para 80 lineas.
+
+**Dos trampas:**
+
+1. **El navegador no deja sonar sin un gesto previo del usuario**, y un toque
+   de tarjeta NO es un gesto: entra por el ejecutable, no por el mouse. Sin
+   arreglarlo, *el primer sonido del dia no salia*. Se resuelve despertando
+   el audio con el primer clic o tecla del cajero.
+2. **El eco se guarda como sonido, no como nodo.** Con un nodo compartido,
+   cada toque nuevo lo conectaba otra vez sin soltarlo: a los diez toques el
+   eco habria sonado diez veces.
+
+Interruptor: `localStorage['pos.sonido.tarjeta'] = '0'` lo apaga. **Todavia
+no tiene boton en Configuracion.**
+
+### Al quitar la tarjeta se suelta al cliente
+
+Pedido de Sergio: *"que al quitar la tarjeta se quite el cliente; eso hace
+que tengamos que tener la tarjeta puesta para poder terminar el pago"*.
+
+Es un **control**, no una comodidad. Antes bastaba con pasar la tarjeta un
+segundo, devolverla, y seguir cobrandole a la billetera de alguien que ya se
+habia ido del local.
+
+#### Sin reconstruir el ejecutable
+
+El lector solo avisaba cuando PONEN una tarjeta. Ahora avisa tambien cuando
+la quitan — y eso se logro **sin tocar el .exe**:
+
+| | |
+|---|---|
+| `lector-nfc.ps1` | vive **fuera** del `app.asar` (es `extraResources`), asi que se puede cambiar en sitio |
+| `main.js` / `preload.js` | viven **dentro** del asar: cambiarlos obliga a reconstruir e instalar |
+
+Por eso la retirada viaja como un `aviso` **con un campo `evento` de mas**, y
+no como un tipo nuevo: `main.js` reenvia el objeto entero y `preload.js` lo
+pasa tal cual, asi que un campo adicional llega solo.
+
+Para que el archivo nuevo se cargue hay que reiniciar el ayudante. No hace
+falta cerrar la aplicacion: al matar el proceso de PowerShell, `main.js` lo
+vuelve a levantar a los 10 s con el guion nuevo.
+
+> ⚠️ Esto SOLO existe con el lector del ejecutable (PC/SC). Un lector de los
+> que se hacen pasar por teclado no tiene forma de decir que quitaron la
+> tarjeta: manda las teclas y se acabo. `posNfc.alRetirar()` tiene que
+> funcionar igual si no lo llaman nunca.
+
+#### Tres cuidados que no son obvios
+
+1. **Se vuelve a quien habia ANTES de la tarjeta, no a vacio.** Un domicilio
+   del chat trae el nombre del cliente sin ficha (`customer_name` sin
+   `cliente_id`); borrarlo dejaba el pedido sin saber de quien era. Por eso
+   `SP.antesTarjeta` guarda el estado previo, y solo la primera vez.
+2. **Un pago con billetera que ya movio plata no se deshace.** `saldoOk` y
+   `saved` significan que la base ya descontó. Quitarlo de la pantalla
+   dejaria al cliente sin el saldo Y sin el pago. En ese caso se suelta la
+   autorizacion pero el cliente se queda.
+3. **Si al cliente lo puso el cajero a mano, la tarjeta no lo quita.** Solo
+   se suelta lo que la tarjeta puso (`SP.tarjetaTel`).
+
+Y la franja ahora **pide dejar la tarjeta en el lector hasta terminar**: sin
+ese aviso, esto se vive como que el sistema pierde el cliente solo.
+
 ## 🟢 Recargar desde Clientes, y la tarjeta reconocida en el cobro — 5-sep-2026
 
 Dos cosas que pidio Sergio el mismo dia, las dos alrededor de la billetera.
