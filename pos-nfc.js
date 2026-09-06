@@ -26,6 +26,7 @@
   var MIN = 6;         // ningun uid real tiene menos
   var HUECO = 80;      // ms entre teclas: un humano casi nunca baja de 100
   var oyentes = [];
+  var retirados = [];   // los que quieren saber cuando la QUITAN
 
   document.addEventListener('keydown', function (ev) {
     if (!oyentes.length) return;              // nadie esperando: ni tocar el teclado
@@ -88,6 +89,29 @@
           try { fn(String(d.uid).toUpperCase(), d); } catch (x) { console.error('[nfc]', x); }
         });
       });
+      /*  ══ CUANDO QUITAN LA TARJETA (5-sep-2026) ═══════════════════
+          Pedido de Sergio: al retirarla, la pantalla de cobro suelta al
+          cliente. Asi no se puede terminar un pago con la billetera de
+          alguien que ya se llevo su tarjeta.
+
+          Viene como "aviso" con un campo `evento` y no como un tipo nuevo
+          a proposito: main.js y preload.js viven DENTRO del paquete del
+          ejecutable, y cambiarlos obliga a reconstruirlo e instalarlo otra
+          vez. El canal de avisos ya pasa el mensaje entero, asi que un
+          campo de mas viaja solo — sin tocar el .exe.
+
+          ⚠️ Esto SOLO llega del lector del ejecutable. Un lector de los que
+          se hacen pasar por teclado no tiene como decir que quitaron la
+          tarjeta: manda las teclas y se acabo. Quien use `alRetirar` tiene
+          que seguir funcionando si no lo llaman nunca.                 */
+      if (typeof e.onTarjetaAviso === 'function') {
+        e.onTarjetaAviso(function (d) {
+          if (!d || d.evento !== 'retirada') return;
+          retirados.slice().forEach(function (fn) {
+            try { fn(); } catch (x) { console.error('[nfc]', x); }
+          });
+        });
+      }
       if (typeof e.onLector === 'function') {
         e.onLector(function (d) {
           /*  Se deja dicho en la consola y disponible para quien lo quiera
@@ -113,6 +137,16 @@
     return function () {
       var i = oyentes.indexOf(fn);
       if (i >= 0) oyentes.splice(i, 1);
+    };
+  }
+
+  /* Escuchar cuando QUITAN la tarjeta del lector. Devuelve la funcion para
+     dejar de escuchar, igual que `escuchar`. */
+  function alRetirar(fn) {
+    retirados.push(fn);
+    return function () {
+      var i = retirados.indexOf(fn);
+      if (i >= 0) retirados.splice(i, 1);
     };
   }
 
@@ -375,5 +409,5 @@
                tarjetasDe: tarjetasDe, vincular: vincular, desvincular: desvincular,
                ultimoToque: function () { return ultimoToque; },
                hayLector: function () { return w.posNfcHayLector === true; },
-               sonar: sonar };
+               sonar: sonar, alRetirar: alRetirar };
 })(window);

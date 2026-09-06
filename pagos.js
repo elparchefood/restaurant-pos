@@ -9,6 +9,13 @@ const SP = {
   order: null, table: null,
   items: [],      // [{id, name, qty, unitPrice, catName, catColor}]
   cliente: '',
+  /*  LA TARJETA FISICA. `tarjetaTel` es el celular de la tarjeta que esta
+      AHORA en el lector: mientras este puesto, su billetera esta autorizada
+      y no se pide codigo por SMS. `antesTarjeta` es a quien habia antes de
+      apoyarla, para poder volver a eso si la retiran — un domicilio del chat
+      trae nombre sin ficha, y borrarlo dejaria el pedido sin dueNo.      */
+  tarjetaTel: null,
+  antesTarjeta: null,
   method: 'efectivo',
   methodDefs: [],  // métodos configurados (de ia_config.pagos)
   entry: 0,
@@ -2222,6 +2229,11 @@ function pgArrancarLector() {
       /*  El sonido va AQUI, antes de guardar: guardar sale a internet y
           puede tardar medio segundo. El sonido es la respuesta al TOQUE,
           no a la consulta — si llega tarde ya no dice nada.          */
+      /*  Se apunta quien estaba ANTES de la tarjeta, para poder volver a
+          eso si la retiran. Solo la PRIMERA vez: si ya habia una tarjeta
+          puesta, lo de antes sigue siendo lo de antes, no el cliente de
+          la tarjeta anterior.                                        */
+      if (!SP.tarjetaTel) SP.antesTarjeta = { id: SP.clienteId, nom: SP.cliente, tel: SP.clienteTel };
       posNfc.sonar();
       var nombre = (t.cliente && t.cliente.nombre) || ('Cliente ••• ' + t.telefono.slice(-4));
       await pgGuardarCliente((t.cliente && t.cliente.id) || null, nombre, t.telefono);
@@ -2232,6 +2244,69 @@ function pgArrancarLector() {
       pgTarjetaFranja({ tipo: 'mal', titulo: 'No se pudo leer la tarjeta',
         detalle: _payEsc(e.message || String(e)) });
     }
+  });
+
+  /*  ══ AL QUITAR LA TARJETA SE SUELTA AL CLIENTE ═══════════════════════
+      Sergio, 5-sep: *"que al quitar la tarjeta se quite el cliente; eso hace
+      que tengamos que tener la tarjeta puesta para poder terminar el pago"*.
+
+      Es un CONTROL, no una comodidad. Sin esto, bastaba con pasar la tarjeta
+      un segundo, devolverla, y seguir cobrandole a la billetera de alguien
+      que ya se fue. Con esto, la tarjeta tiene que estar en el lector en el
+      momento de cobrar — que es justo lo que prueba que el dueNo esta ahi.  */
+  posNfc.alRetirar(function () {
+    /*  Si al cliente NO lo puso la tarjeta, la tarjeta no lo quita. Pudo
+        haberlo escogido el cajero a mano, o venir de un domicilio.        */
+    if (!SP.tarjetaTel) return;
+
+    /*  Un pago con billetera que YA movio plata no se deshace aqui:
+        `saldoOk` y `saved` significan que la base ya lo descontó. Quitarlo
+        de la pantalla dejaria al cliente sin ese saldo Y sin el pago.
+        Se suelta la autorizacion, pero el cliente se queda.               */
+    var yaCobrado = (SP.payments || []).some(function (p) {
+      return p.methodTipo === 'saldo' && (p.saldoOk || p.saved);
+    });
+    if (yaCobrado) {
+      SP.tarjetaTel = null;
+      SP.antesTarjeta = null;
+      pgTarjetaFranja({ tipo: 'mal', titulo: 'Quitaste la tarjeta',
+        detalle: 'Ese pago con la billetera <b>ya se descontó</b>, así que el cliente se queda. Termina el cobro con normalidad.' });
+      return;
+    }
+
+    /*  Los pagos con billetera que todavia NO han movido plata se quitan:
+        sin tarjeta no se sostienen. Nada de esto llego a la base — el saldo
+        se descuenta al finalizar, no al aplicar.                          */
+    var antes = (SP.payments || []).length;
+    SP.payments = (SP.payments || []).filter(function (p) { return p.methodTipo !== 'saldo'; });
+    var quitados = antes - SP.payments.length;
+
+    /*  Y se vuelve a quien estaba ANTES de la tarjeta, no a vacio: un
+        domicilio del chat trae el nombre del cliente sin ficha, y borrarlo
+        dejaria el pedido sin saber de quien es.                           */
+    var a = SP.antesTarjeta || { id: null, nom: '', tel: '' };
+    SP.antesTarjeta = null;
+    SP.tarjetaTel = null;
+    SP.entry = 0;
+
+    /*  Si el metodo escogido era la billetera hay que moverlo: sin cliente
+        no se puede cobrar por ahi, y dejarlo puesto es dejar al cajero
+        mirando un boton que no le va a servir.                            */
+    var esSaldo = (SP.methodDefs || []).some(function (m) {
+      return m.key === SP.method && m.tipo === 'saldo';
+    });
+    if (esSaldo) {
+      var otro = (SP.methodDefs || []).filter(function (m) { return m.tipo !== 'saldo' && m.tipo !== 'puntos'; })[0];
+      if (otro) SP.method = otro.key;
+    }
+
+    pgGuardarCliente(a.id, a.nom, a.tel);
+
+    pgTarjetaFranja({ tipo: 'mal', titulo: 'Quitaste la tarjeta',
+      detalle: (quitados
+        ? 'Se soltó el cliente y se quitó el pago con la billetera. '
+        : 'Se soltó el cliente. ') +
+        'Para cobrarle a su billetera, la tarjeta tiene que estar en el lector.' });
   });
 }
 try { pgArrancarLector(); } catch (e) {}
@@ -2275,7 +2350,7 @@ function pgTrasLeerTarjeta(nombre) {
              (falta <= 0 ? '' : alcanza
                ? ' — le alcanza para todo (' + _payMoney(falta) + ')'
                : ' — alcanza para parte de los ' + _payMoney(falta)) +
-             '. Escribe cuánto le vas a cobrar.' });
+             '. Escribe cuánto le vas a cobrar y <b>déjala en el lector</b> hasta terminar.' });
 }
 
 async function pgGuardarCliente(id, nombre, tel) {
