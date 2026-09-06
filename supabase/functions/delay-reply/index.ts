@@ -4312,13 +4312,32 @@ INTENCION, no las palabras exactas.` },
            lo encola el webhook), y `convRow.contact_name` es su nombre de
            perfil. No existe aqui ninguna variable `conv`. */
         const usuarioRed = String(convRow?.contact_name || "");
+
+        /*  ⚠️ EL NOMBRE DE LA RED NO SIEMPRE ES UN NOMBRE.
+
+            Este va a quedar como el nombre del cliente en la base — no es
+            solo para saludar. Y en Instagram la gente se pone "𝓙𝓸𝓼𝓮", puros
+            emojis o "•ᴊᴜᴀɴ•". Guardar eso deja una ficha que despues nadie
+            encuentra buscando "Juan".
+
+            Asi que solo se usa si PARECE un nombre. Si no, se manda vacio y
+            la ficha queda como "Cliente" hasta que alguien ponga el bueno —
+            que es mejor que quedarse con basura pegada.
+
+            El id y el usuario de Instagram si se guardan siempre: esos
+            identifican la cuenta, no a la persona.                        */
+        const _n = usuarioRed.trim();
+        const _letras = (_n.match(/[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]/g) || []).length;
+        const nombreRedSirve = _n.length >= 2 && _n.length <= 40 &&
+                               _letras >= 2 && _letras >= _n.replace(/\s/g, "").length * 0.6;
         const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/fn_cliente_vincular_red`, {
           method: "POST",
           headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             p_tenant: tenantId, p_telefono: String(state.telefono || ""),
             p_red: state.canal, p_red_id: String(fromPhone || ""),
-            p_usuario: usuarioRed, p_nombre: state.nombre || usuarioRed,
+            p_usuario: usuarioRed,
+            p_nombre: state.nombre || (nombreRedSirve ? usuarioRed : ""),
             p_branch: branchId,
           }),
         });

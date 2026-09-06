@@ -80,18 +80,36 @@ async function anotarHistoria(o: {
     if (r.status === 409) { console.log("[historia] repetida, ya estaba:", assetId); return; }
     if (!r.ok) { console.error("[historia] no se pudo anotar:", r.status, (await r.text()).slice(0, 160)); return; }
 
-    // ── El aviso, que es lo que hace que la regla sea justa ──
-    const nom = nombreUsable(o.nombre) ? primerNombre(o.nombre) : "";
+    /*  ══ EL AVISO ═══════════════════════════════════════════════════════
+        Se manda AHORA y no al acreditar, para que la regla de las 24 horas la
+        sepa ANTES de decidir si borra la historia. Un castigo que se explica
+        despues no es una regla, es una sorpresa.
+
+        Y el nombre no es solo para saludar: es el que va a quedar en su FICHA
+        DE CLIENTE. Por eso, si el de Instagram no sirve, se le pide junto con
+        el celular — pedirlo despues seria un mensaje mas por algo que cabia
+        en el mismo.                                                        */
+    const sirveNombre = nombreUsable(o.nombre);
+    const nom = sirveNombre ? primerNombre(o.nombre) : "";
     const hola = nom ? `¡Hola ${nom}! 🙌` : "¡Hola! 🙌";
+    const ganaste =
+      `${hola} Gracias por mencionarnos en tu historia.
+
+` +
+      `Te ganaste *5 puntos* ⭐ Se te acreditan cuando la historia cumpla sus ` +
+      `24 horas, así que déjala ahí 🙂`;
+
     const texto = clienteId
-      ? `${hola} Gracias por mencionarnos en tu historia.\n\n` +
-        `Te ganaste *5 puntos* ⭐ Se te acreditan cuando la historia cumpla sus 24 horas, ` +
-        `así que déjala ahí 🙂`
-      : `${hola} Gracias por mencionarnos en tu historia.\n\n` +
-        `Te ganaste *5 puntos* ⭐ Se te acreditan cuando la historia cumpla sus 24 horas, ` +
-        `así que déjala ahí 🙂\n\n` +
-        `Para poder dártelos necesito tu número de celular: los puntos se acumulan en el ` +
-        `número, no en Instagram. Pásamelo y quedas registrado.`;
+      ? ganaste
+      : sirveNombre
+        ? `${ganaste}
+
+Para poder dártelos necesito tu *número de celular*: ` +
+          `los puntos se acumulan en el número, no en Instagram. Pásamelo y quedas registrado.`
+        : `${ganaste}
+
+Para poder dártelos necesito tu *nombre y tu número de celular*: ` +
+          `los puntos se acumulan en el número, no en Instagram. Pásamelos y quedas registrado.`;
 
     const env = await fetch(`https://graph.facebook.com/v22.0/${o.pageId}/messages`, {
       method: "POST",
