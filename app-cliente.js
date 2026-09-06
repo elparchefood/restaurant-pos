@@ -480,7 +480,31 @@
       if (!t) return;
       acceso({ accion: 'sesion', token: t,
         instalada: yaInstalada(),
-        plataforma: esIOS() ? 'ios' : (/android/i.test(navigator.userAgent) ? 'android' : 'escritorio') });
+        plataforma: esIOS() ? 'ios' : (/android/i.test(navigator.userAgent) ? 'android' : 'escritorio') })
+        .then(function (d) {
+          /*  ⚠️ ESTA RESPUESTA SE ESTABA TIRANDO A LA BASURA (6-sep-2026).
+
+              El servidor no solo anota el aparato: en la PRIMERA entrada desde
+              la app instalada abona el bono de bienvenida y devuelve la ficha
+              ya con ese saldo. Aqui no se leia, asi que S.cliente se quedaba
+              con el saldo de ANTES del bono y la pantalla mostraba $0.
+
+              La plata estaba abonada —comprobado en la base: movimiento de
+              $5.000, saldo_post 5.000— pero el cliente no la veia hasta
+              cerrar la app y volver a abrirla. Le paso a Sergio probando el
+              registro en un Android, y se veia exactamente como "no llego el
+              bono".
+
+              Repintar SOLO si cambio algo: `pantallaDentro` se llama en cada
+              toque, y repintar por repintar le borra al cliente lo que
+              estuviera escribiendo.                                       */
+          if (!d || !d.ok || !d.cliente) return;
+          var antes = S.cliente ? Number(S.cliente.saldo || 0) : 0;
+          var ahora = Number(d.cliente.saldo || 0);
+          S.cliente = d.cliente;
+          if (ahora !== antes) pantallaDentro();
+        })
+        .catch(function () { /* el aparato es un dato de segunda: nunca frena */ });
     } catch (e) { /* si falla, no puede frenar la pantalla */ }
   }
 
