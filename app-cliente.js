@@ -50,6 +50,48 @@
   function leerToken()     { try { return localStorage.getItem(LLAVE_SESION) || ''; } catch (e) { return ''; } }
   function borrarToken()   { try { localStorage.removeItem(LLAVE_SESION); } catch (e) {} }
 
+
+  /* ══ LLEGO CON UNA TARJETA ══════════════════════════════════════════════
+     La tarjeta abre esta misma direccion con tres datos que el chip calcula
+     solo en cada toque:
+
+         ?u=<numero>&c=<contador>&m=<firma>
+
+     NO se decide nada mirando el numero: se manda el toque al servidor, que
+     es el unico que tiene la clave para saber si la firma es autentica y si
+     ese contador es nuevo. Aqui solo se pregunta y se obedece.
+
+     Y a proposito la direccion NO lleva `#instalar` grabado: lo escrito en
+     el plastico no se puede cambiar despues, y esto si. El que no tiene la
+     app ve el video; el que ya la tiene entra a su cuenta.               */
+  function tarjetaEnLaDireccion() {
+    try {
+      var p = new URLSearchParams(location.search);
+      var u = p.get('u'), c = p.get('c'), m = p.get('m');
+      if (!u || !c || !m) return null;
+      if (!/^[0-9A-Fa-f]{14}$/.test(u) || !/^[0-9A-Fa-f]{6}$/.test(c)
+          || !/^[0-9A-Fa-f]{16}$/.test(m)) return null;
+      return { uid: u.toUpperCase(), ctr: c.toUpperCase(), cmac: m.toUpperCase() };
+    } catch (e) { return null; }
+  }
+
+  async function validarTarjeta(t) {
+    try {
+      var r = await fetch(SB_URL + '/functions/v1/tarjeta', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: t.uid, ctr: t.ctr, cmac: t.cmac, slug: S.slug }),
+      });
+      /*  `fetch` no lanza con un 500: hay que mirar el cuerpo o un fallo del
+          servidor pasaria por "tarjeta invalida", que es una acusacion muy
+          distinta.                                                       */
+      var d = await r.json().catch(function () { return null; });
+      if (!d) return { ok: false, fallo: true, error: 'No se pudo comprobar la tarjeta.' };
+      return d;
+    } catch (e) {
+      return { ok: false, fallo: true, error: 'Sin conexión para comprobar la tarjeta.' };
+    }
+  }
+
   async function acceso(cuerpo) {
     cuerpo.slug = S.slug;
     try {
@@ -4582,6 +4624,56 @@
     S.horarios = neg.horarios || null;
     S.pago = neg.pago || null;   // los datos para transferir, de la recarga
     document.title = neg.nombre;
+
+    /*  ══ LA TARJETA, ANTES QUE NADA ══════════════════════════
+        Quien llega con una tarjeta viene de acercarla al celular. Se
+        comprueba con el servidor y se decide: el video al que no tiene la
+        app, su cuenta al que si.                                        */
+    var _tar = tarjetaEnLaDireccion();
+    if (_tar) {
+      var _v = await validarTarjeta(_tar);
+
+      /*  La direccion se limpia SIEMPRE, salga como salga: ese codigo no
+          tiene por que quedarse en el historial del telefono ni en lo que
+          la persona comparta sin darse cuenta. Ya no sirve —el contador
+          quedo usado— pero no es sitio para el.                        */
+      try { history.replaceState(null, '', location.pathname); } catch (x) {}
+
+      if (_v && _v.ok) {
+        S.tarjeta = { uid: _v.uid, asignada: !!_v.asignada, telefono: _v.telefono || null };
+        var _t1 = leerToken();
+        if (_t1) {
+          try {
+            var _d1 = await acceso({ accion: 'sesion', token: _t1,
+              instalada: yaInstalada(),
+              plataforma: esIOS() ? 'ios' : (/android/i.test(navigator.userAgent) ? 'android' : 'escritorio') });
+            /*  Tiene la app y su sesion: a lo suyo, sin tutorial. Es el
+                cliente de siempre acercando SU tarjeta.                */
+            if (_d1.ok) { S.cliente = _d1.cliente; return pantallaDentro(); }
+          } catch (x) {}
+        }
+        /*  Sin sesion en este telefono: es la primera vez. Le sale el
+            video de como instalar, que era justo lo que Sergio queria —
+            pero decidido aqui y no grabado en el plastico.             */
+        return pantallaTutorial();
+      }
+
+      /*  Tarjeta que no cuadra. Se dice QUE paso, sin acusar a nadie de
+          nada: la mayoria de las veces sera un codigo ya usado (alguien
+          reabrio una direccion vieja), no una falsificacion.           */
+      if (_v && _v.repetido) {
+        S.avisoTarjeta = 'Ese codigo ya se uso. Vuelve a acercar la tarjeta.';
+      } else if (_v && _v.bloqueada) {
+        S.avisoTarjeta = 'Esa tarjeta esta bloqueada. Habla con el restaurante.';
+      } else if (_v && _v.fallo) {
+        S.avisoTarjeta = _v.error;
+      } else {
+        S.avisoTarjeta = 'No pudimos comprobar esa tarjeta.';
+      }
+      /*  Y se sigue por el camino normal: se queda en la pantalla de
+          siempre con el aviso. Trancar la app por una tarjeta que no
+          valido seria peor que el problema.                            */
+    }
 
     /* EL TUTORIAL MANDA SOBRE TODO LO DEMAS (23-ago-2026).
        Quien llega con #instalar viene del boton de la plantilla de WhatsApp
