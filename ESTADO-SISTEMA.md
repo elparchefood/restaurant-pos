@@ -18870,3 +18870,93 @@ reconocio`). Mismo dato, ya corriendo.
 la linea 4012 y las decisiones empiezan en la 182. Mientras eso no cambie,
 cada regex que se quite volvera a aparecer con otro nombre — porque cuando
 hace falta, el lector todavia no ha contestado.
+
+
+---
+
+# LA BILLETERA, CONTABILIZADA (6-sep-2026)
+
+Sergio: *"El efectivo de las recargas nunca entra al arqueo... debemos tener un
+lugar donde vamos a registrar todas las recargas, ver cuánto ya sea redimido y
+cuánto dinero todavía está quieto sin que lo muevan las personas."*
+
+## 1. La regla contable, en una línea
+
+**Una recarga no es una venta: es comida que se debe.** La plata entra hoy y el
+plato sale cualquier otro día. Por eso una recarga NUNCA suma a ventas — suma
+a una deuda — y solo se convierte en venta el día que alguien se la come.
+
+Eso ya estaba bien resuelto en el POS (la recarga entra como `ingreso` a
+`pos_cash_moves`, no como venta). Lo que faltaba era **dónde verlo**.
+
+## 2. La pestaña — `pagina-web.js`, sub-pestaña `billetera`
+
+Va en "Mi página web", justo después de Recargas, porque es la lectura contable
+de lo que Recargas muestra fila por fila.
+
+Tres vistas (`BI_VISTAS`, botones `data-bi`):
+
+| Vista | Qué contesta |
+|---|---|
+| **Qué debo** | los 4 números + cuánta plata lleva cuánto tiempo quieta |
+| **Quién tiene saldo** | cada persona con su saldo y hace cuántos días no lo toca |
+| **Movimientos** | el libro entero: recarga, bono, regalo y consumo |
+
+Los cuatro números de arriba (`biCuentas`):
+
+- **Comida que debo** — la suma de `pos_saldo` con saldo > 0.
+- **De eso, plata que entró** — solo `motivo = 'recarga'`. Es la única que de
+  verdad se cobró.
+- **Y esto lo regalaste** — `bono_recarga`, `bono_instalacion` y `regalo`.
+  Salió del bolsillo, no de la caja de nadie.
+- **Ya se comieron** — `motivo = 'consumo'`, con el % redimido.
+
+**Por qué la diferencia entre "entró" y "regalaste" es el dato que importa:**
+son deudas del mismo tamaño en el plato, pero de origen opuesto. La primera ya
+está pagada; la segunda es margen que se va a entregar. Juntarlas en un solo
+número escondería exactamente lo que hay que vigilar.
+
+### La quietud (`biQuietud`)
+
+Tres cajones — se movió esta semana / 1 a 4 semanas / más de un mes — armados
+con la fecha del último movimiento de cada persona. No es lo mismo un saldo de
+ayer que uno de hace dos meses: **el viejo es el que un día se presenta entero
+a reclamar comida**, y conviene saber cuánto es antes de que llegue.
+
+## 3. `consumo` SÍ, al revés que en Recargas
+
+`cargarBilletera()` pide `pos_saldo_mov` **incluyendo** `consumo`. La pestaña de
+Recargas lo deja fuera a propósito (ahí solo interesa lo que entró), pero sin él
+no se puede decir cuánto se ha redimido — que es justo lo que se preguntó.
+
+## 4. Las fichas de prueba quedan fuera — `pos_clientes.es_prueba`
+
+Columna nueva (`2026-09-06-cliente-de-prueba.sql`). Decisión de Sergio: su
+propia ficha es de prueba (*"el mío yo no lo voy a usar"*); la de Linda cuenta
+como saldo real (*"yo lo asumo"*).
+
+`biReales()` filtra `es_prueba !== true` en TODAS las vistas. El saldo sigue
+existiendo y se puede gastar normal — simplemente no entra en las cuentas.
+
+**Y con eso el libro cuadró al peso**: $170.000 entregados − $47.500 comidos =
+$122.500 que se deben, 21 personas. El descuadre de $55.000 entre `pos_saldo` y
+su libro estaba entero en la ficha de Sergio.
+
+## 5. Fallo ≠ vacío (otra vez)
+
+Si la consulta se cae, `falloSaldos`/`falloMovs` quedan en `true` y la pantalla
+dice **que falló**, no cero. Pintar $0 aquí sería decirle a Sergio que no debe
+nada — la mentira más cara posible en esta pantalla.
+
+Y el sentinel se pone ANTES de pedir (`S.bi = { cargando: true }`), no dentro
+del loader: si la consulta se cayera y `S.bi` quedara sin tocar, cada repintado
+volvería a pedirla y la pantalla giraría para siempre.
+
+## 6. Lo que NO hace
+
+- No mueve un peso. Es una lectura; no escribe en `pos_saldo` ni en el arqueo.
+- No toca el cierre de caja. La recarga en efectivo sigue entrando como
+  `ingreso` de `pos_cash_moves`, que es lo correcto: ese billete SÍ está en el
+  cajón, aunque no sea una venta.
+- No es para vender. Recargas, tarjetas NFC y la app de El Parche son de Sergio
+  y de nadie más; ningún restaurante que compre Cobra las va a tener.
