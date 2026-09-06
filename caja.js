@@ -2353,14 +2353,51 @@ async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoCon
     /* Avisarle por WhatsApp al gerente qué hay que comprar. Va del lado del
        servidor porque hace falta el token de Meta y ese no puede llegar al
        navegador. Si falla, el cierre NO se interrumpe: ya está guardado. */
+    /*  ⚠️ EL SILENCIO ERA EL PROBLEMA (5-sep-2026).
+
+        Sergio: «llevo 2 dias que no se envia». Y no habia forma de saberlo:
+        si el aviso NO salia, esta pantalla no decia absolutamente nada. Solo
+        hablaba cuando todo iba bien.
+
+        Esa noche se comprobo que el envio funcionaba —token vigente, numero
+        conectado, plantilla aprobada, y Meta acepto los dos mensajes al
+        llamar la funcion a mano—. Asi que lo que faltaba no era arreglar el
+        envio: era que el cierre CONTARA lo que paso.
+
+        «No habia nada por comprar» y «WhatsApp lo rechazo» se veian igual:
+        callados. Es el mismo error de siempre — confundir "no hay" con "no
+        pude preguntar". Mientras se vean igual, la proxima vez tampoco se va
+        a poder averiguar.                                                  */
     try {
       const rAv = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/aviso-insumos', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ branch_id: S.branchId }),
       });
       const dAv = await rAv.json().catch(function(){ return {}; });
-      if (dAv && dAv.enviado) showToast('Aviso de compras enviado al gerente');
-    } catch(e) { console.warn('aviso insumos:', e); }
+      if (dAv && dAv.enviado) {
+        showToast('Aviso de compras enviado al gerente');
+      } else {
+        const PORQUE = {
+          nada_bajo:    'no hay nada por comprar',
+          apagado:      'está apagado en Configuración',
+          sin_gerentes: 'no hay números de gerente configurados',
+          sin_whatsapp: 'esta sede no tiene WhatsApp conectado',
+          no_se_pudo_leer_inventario: 'no se pudo leer el inventario',
+        };
+        /*  Si Meta lo rechazo, la funcion trae el motivo numero por numero.
+            Se enseNa TAL CUAL: el texto de Meta es feo, pero es lo unico que
+            permite arreglarlo. Traducirlo a "hubo un problema" es volver al
+            silencio con otras palabras.                                   */
+        const falla = ((dAv && dAv.resultados) || []).filter(function(x){ return !x.ok; })[0];
+        showToast('Aviso de compras: ' + (falla
+          ? ('WhatsApp lo rechazó — ' + (falla.error || 'sin motivo'))
+          : (PORQUE[dAv && dAv.razon] || ('no salió (' + ((dAv && dAv.razon) || 'sin motivo') + ')'))));
+        console.warn('[aviso-insumos] no se envió:', dAv);
+      }
+    } catch(e) {
+      console.warn('aviso insumos:', e);
+      showToast('Aviso de compras: no se pudo hablar con el servidor');
+    }
 
     showToast('Caja cerrada correctamente');
     await refreshAll();
