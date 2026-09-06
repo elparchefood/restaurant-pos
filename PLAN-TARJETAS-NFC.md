@@ -214,11 +214,59 @@ dias de devolucion de Amazon. Se hizo la autenticacion completa:
 
 Con ese canal es con el que se activa SUN/SDM. **El lector se queda.**
 
-### 5. ¿Cada toque da un codigo distinto? — TODAVIA NO SE PUEDE PROBAR
+### 5. ¿Cada toque da un codigo distinto? — **SI** ✅
 
-No es una comprobacion pasiva: la seguridad **viene apagada de fabrica**. Para
-que cada toque de un codigo distinto hay que programar la tarjeta antes, y eso
-es lo que falta construir.
+Se programo una tarjeta de prueba y se leyo tres veces seguidas:
+
+```
+Toque 1 : ...?u=04218D7A421890&c=000001&m=C771498FA27B41BF
+Toque 2 : ...?u=04218D7A421890&c=000002&m=C0CAD93DB2A6A5C0
+Toque 3 : ...?u=04218D7A421890&c=000003&m=4A75305B6600B39A
+```
+
+El numero de la tarjeta es el mismo — es lo que la identifica. El **contador
+sube solo** y **la firma cambia entera** en cada toque. Copiar un codigo no
+sirve para nada: el siguiente es otro, y el servidor rechazara un contador que
+ya paso. Es exactamente lo que se compro.
+
+**LOS 5 PASOS DEL PLAN ESTAN CUMPLIDOS.**
+
+## Como se programa (para las otras 99)
+
+1. Se escribe el fichero NDEF con la direccion y tres huecos de ceros: 14 para
+   el numero, 6 para el contador, 16 para la firma. Se escribe **en claro**;
+   ese fichero es de lectura libre.
+2. Se activa SDM con `ChangeFileSettings` sobre el fichero 02, **cifrado**
+   (los permisos del fichero traen "Change = clave 0", y esa clave exige canal
+   seguro; en claro contesta `917E`).
+3. La configuracion que funciona:
+   - `FileOption` **40** — SDM encendido, comunicacion en claro
+   - `AccessRights` **E0 EE** — los mismos que traia
+   - `SDMOptions` **C1** — pone numero + contador, en texto legible
+   - `SDMAccessRights` **FF E1** ← el orden importa y me costo dos intentos
+   - y los cuatro offsets: numero, contador, inicio de lo firmado, firma
+
+⚠️ **`SDMAccessRights` va FF E1, no E1 FF.** Al reves, la tarjeta entiende que
+la firma no se usa, no espera los dos ultimos offsets y contesta `917E`
+(longitud incorrecta) — que no dice nada de lo que pasa de verdad. Leidos de
+izquierda a derecha: `F` reservado, `F` no devuelve el contador, `E` numero y
+contador a la vista, `1` la firma se hace con la clave 1.
+
+Los offsets se cuentan **desde el primer byte del fichero**, contando los dos
+bytes de longitud que van delante del mensaje NDEF.
+
+## ⚠️ LO QUE FALTA ANTES DE ENTREGAR NINGUNA TARJETA
+
+**La tarjeta de prueba sigue con la clave de fabrica**, que es publica. Hoy
+cualquiera con un lector puede recalcular esa firma. Falta:
+
+1. **Generar la clave AES-128 de El Parche** y guardarla como secreto del
+   servidor. ⚠️ NUNCA en el repo. Sin copia de esa clave, una tarjeta
+   programada no se recupera: se tira.
+2. **Cambiar la clave 1 de la tarjeta** (la que firma) por la nuestra.
+3. **Verificar en el servidor**: firma valida **y contador nuevo**. Sin lo
+   segundo, alguien podria repetir un codigo que vio antes.
+4. La pantalla que lee la tarjeta y el tope por transaccion.
 
 ## ⚠️ Y lo que la prueba dejo a la vista
 
