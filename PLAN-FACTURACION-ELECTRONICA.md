@@ -434,46 +434,49 @@ sirve cualquier restaurante sin predecir cuanto va a gastar cada uno, y un
 cliente nuevo arranca al instante sin comprarle nada. Con planes por NIT hay
 que dimensionar cada uno por adelantado y comprar otro si se pasa.
 
-## 10.2-bis ✅ DECIDIDO: **BOLSA MULTIFACTURADOR** (Sergio)
+## 10.2-bis QUE PAQUETE COMPRAR — **no se decide de antemano**
 
-> *"Comprar una bolsa anual por NIT es ilogico: un cliente puede entrar a Cobra
-> y salirse a los dos meses, o no usar su bolsa. Sale mejor comprar el
-> certificado de cada cliente con lo que pagan en Cobra en su primera
-> mensualidad, y que ellos consuman de la bolsa multifacturador — que la
-> comprare cuando entre el primer cliente que vaya a facturar."*
+**La decision la toma Sergio cuando llegue el primer cliente que vaya a
+facturar, con el volumen real de ese cliente enfrente.** No antes, y no en
+este documento.
 
-**Como queda:**
+> *"No es algo que haya que informar en el correo, es decision mia en el
+> momento que llegue."*
 
-| | |
-|---|---|
-| **La bolsa** | Una sola, multifacturador. Se compra **cuando entre el primer cliente que vaya a facturar**, no antes |
-| **El certificado** | $130.000/ano por NIT, lo compra **Cobra**, con lo que ese cliente paga en **su primera mensualidad** |
-| **El consumo** | Todos los restaurantes tiran de la misma bolsa |
+Y **no va en el correo a Factus**: a ellos no les hace falta para abrir la
+cuenta de aliado, y comprometerse por escrito con un modelo antes de tener un
+cliente no compra nada.
 
-### ⚠️ Por que la cuenta de arriba estaba mal planteada — y por que la borro
+### Como esta hoy la balanza
 
-Yo habia recomendado **planes por NIT** porque salen mas baratos por documento.
-La comparacion era correcta y la conclusion no, porque **le faltaba la
-variable que manda: que el cliente se puede ir.**
+| | Bolsa multifacturador | Paquete por NIT |
+|---|---|---|
+| Entrada mas barata | **$630.000** (10.000 docs) **+ $130.000** de certificado por NIT | **$169.000** (150 docs) — **certificado incluido** |
+| Si el cliente se va a los dos meses | lo que no uso queda para el siguiente | esa plata se pierde (§f.6) |
+| Hay que adivinar el volumen | no | si, por cliente |
 
-Un plan anual atado a un NIT es una apuesta a que ESE restaurante se queda un
-ano. Si se va a los dos meses, esa plata esta perdida —§f.6: no hay
-devoluciones, y la vigencia corre desde la compra— y no se puede pasar a otro
-cliente. Con **churn**, el precio por documento del plan por NIT deja de ser
-el precio real: el precio real es el plan entero dividido entre los documentos
-que ese cliente ALCANZO a emitir.
+**Inclinacion de Sergio hoy: paquete por NIT para empezar.** Razon: *"es muy
+caro para mi para empezar"*. Y es correcta — $760.000 desembolsados antes de
+que entre el primer peso, contra $169.000 que ademas trae el certificado.
 
-La bolsa es **una sola apuesta, y la controlamos nosotros**: si un cliente se
-va, sus documentos sin usar quedan para el siguiente.
+El argumento del churn sigue vivo, pero cambia de tamaNo con la cifra: apostar
+$169.000 a que un cliente se queda es muy distinto de apostar $630.000 a que
+llegan varios. Con un solo cliente, la bolsa compra una flexibilidad que
+todavia no hace falta.
 
-Y por eso tambien **se compra cuando entre el primer cliente que facture, no
-antes**: la vigencia de un ano corre desde la compra, asi que comprarla con
-tiempo es quemar meses.
+**Lo que si esta decidido:** el certificado de cada cliente lo paga Cobra con
+lo que ese cliente deja en **su primera mensualidad**.
 
-⚠️ Que esto no vuelva a perderse: la decision **ya se habia hablado** y solo
-estaba mi recomendacion escrita, asi que al redactar el correo a Factus copie
-lo que decia el plan — que era lo contrario de lo decidido. Es exactamente
-contra lo que avisa el encabezado de esta seccion 10.
+### ⚠️ Por que esta seccion existe
+
+En §10.2 yo habia escrito una **"Recomendacion: empezar con planes por NIT"**
+basada solo en el precio por documento. Al redactar el correo a Factus la lei
+como si fuera una decision tomada y la puse en el correo — dos veces, y las
+dos veces al reves de lo que Sergio queria en ese momento.
+
+**Los numeros del tarifario son datos. Lo que se hace con ellos es de Sergio.**
+En este documento van separados a proposito: las tablas de §10.2 son datos;
+esto es una balanza, no una orden.
 
 ## 10.3 Lo que el restaurante consume — la cuenta que decide el precio
 
