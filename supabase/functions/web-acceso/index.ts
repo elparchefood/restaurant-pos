@@ -495,14 +495,29 @@ async function otorgarBonoInstalacion(tenantId: string, clienteId: string): Prom
     const saldoNuevo = Number(await r.json().catch(() => 0)) || 0;
     console.log(`[bono instalacion] $${monto} para ${clienteId} (saldo ${saldoNuevo})`);
 
-    //  El aviso en su celular. Best-effort: el saldo ya quedo.
-    fetch(`${SUPABASE_URL}/functions/v1/avisar-cliente`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tipo: "bono_instalacion", cliente_id: clienteId, tenant_id: tenantId,
-        monto, saldo: saldoNuevo,
-      }),
-    }).catch(() => {});
+    /*  El aviso NO se manda aqui. Cuando se abona el bono, el celular del
+        cliente todavia no esta apuntado para recibir avisos — se apunta unos
+        segundos despues, cuando acepta el permiso. Medido: 11,5 s de
+        diferencia en un registro real.
+
+        Se manda al registrar el celular (accion 'push'), que es el momento en
+        que de verdad hay a quien mandarselo. Ahi tambien queda el porque.
+
+        Se intenta igual por si el celular YA estaba apuntado —un cliente que
+        vuelve a instalar—, que es el unico caso en que aqui si hay a quien
+        avisarle.                                                          */
+    const yaTienePush = await sbGet(
+      `/pos_web_push?cliente_id=eq.${clienteId}&select=id&limit=1`
+    ) as Array<Record<string, unknown>> | null;
+    if (yaTienePush && yaTienePush.length) {
+      fetch(`${SUPABASE_URL}/functions/v1/avisar-cliente`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tipo: "bono_instalacion", cliente_id: clienteId, tenant_id: tenantId,
+          monto, saldo: saldoNuevo,
+        }),
+      }).catch(() => {});
+    }
   } catch (e) { console.error("[bono instalacion]", e); }
 }
 
@@ -1093,6 +1108,51 @@ Deno.serve(async (req) => {
         endpoint, p256dh, auth,
       }, true, "resolution=merge-duplicates");
       if (!guardado) return json({ ok: false, razon: "no_se_guardo" });
+
+      /*  ══ EL AVISO DEL BONO SE MANDA AQUI, NO AL ABONARLO ═══════════════
+          Medido el 6-sep-2026 con un registro de verdad:
+
+              19:30:47.96   se abona el bono
+              19:30:59.51   el celular queda apuntado para recibir avisos
+
+          Once segundos y medio de diferencia. Cuando se mandaba el aviso al
+          abonar, ese celular todavia no existia para el sistema de
+          notificaciones: no habia a quien mandarselo, y como el envio va
+          best-effort, nadie se enteraba de que no salio.
+
+          Y no es un retraso que se arregle esperando un poco: entre medio
+          esta el permiso del navegador, el ayudante y el saludo con Google.
+          Puede tardar dos segundos o media hora — depende de cuando el
+          cliente toque "Permitir".
+
+          Asi que se invierte: el aviso sale cuando el celular ESTA LISTO
+          para recibirlo. Se manda solo si el bono es reciente y si este es
+          su PRIMER celular apuntado — asi no se repite el dia que agregue
+          otro aparato.                                                    */
+      try {
+        const cuantos = await sbGet(
+          `/pos_web_push?cliente_id=eq.${s.cliente_id}&select=id`
+        ) as Array<Record<string, unknown>> | null;
+        if ((cuantos?.length || 0) === 1) {
+          const hace15 = new Date(Date.now() - 15 * 60000).toISOString();
+          const bono = await sbGet(
+            `/pos_saldo_mov?cliente_id=eq.${s.cliente_id}&motivo=eq.bono_instalacion` +
+            `&created_at=gte.${encodeURIComponent(hace15)}&select=monto,saldo_post&limit=1`
+          ) as Array<Record<string, unknown>> | null;
+          if (bono && bono.length) {
+            await fetch(`${SUPABASE_URL}/functions/v1/avisar-cliente`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                tipo: "bono_instalacion", cliente_id: s.cliente_id, tenant_id: s.tenant_id,
+                monto: Number(bono[0].monto) || 0,
+                saldo: Number(bono[0].saldo_post) || 0,
+              }),
+            }).catch(() => {});
+            console.log(`[bono instalacion] aviso mandado al registrar el celular de ${s.cliente_id}`);
+          }
+        }
+      } catch (e) { console.error("[bono instalacion] aviso tardio:", String(e).slice(0, 160)); }
+
       return json({ ok: true });
     }
 
