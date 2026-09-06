@@ -389,6 +389,47 @@
      forma de que las dos se contradigan.
 
      Lo unico que hace esta pantalla es preguntar CUANTO te pagaron.     */
+
+  /*  ══ SI PAGÓ EN EFECTIVO, ESE BILLETE ESTÁ EN EL CAJÓN ═══════════════
+      Sergio, 6-sep: la recarga NO es una venta y no entra al arqueo como
+      tal — la venta ocurre el día que se come la comida. Pero si te pagó
+      con billetes, esos billetes SÍ están en el cajón, y si el arqueo no
+      los espera, al cerrar aparecen como sobrante.
+
+      Así que se anota como INGRESO de caja: suma al efectivo esperado y no
+      toca las ventas ni los informes. Es exactamente lo que ya hace
+      "Ingresos y egresos" — no se inventa nada, se reusa.
+
+      Solo con EFECTIVO. Una recarga por transferencia no pone un peso en el
+      cajón, y anotarla dejaría la caja cuadrando de más.               */
+  async function ingresoPorRecarga(c, valor) {
+    try {
+      var st = (window._pos && window._pos.state) || {};
+      var b = st.branchId;
+      if (!b) return { ok: false, por: 'sin sede' };
+      var s = await sb.from('pos_sessions')
+        .select('id').eq('branch_id', b).eq('status', 'open')
+        .order('opened_at', { ascending: false }).limit(1);
+      var ses = s.data && s.data[0];
+      /*  Caja cerrada: no hay a qué turno pegarle el ingreso. NO se inventa
+          uno ni se deja pasar en silencio — se le dice al cajero, que es
+          quien tiene el billete en la mano.                            */
+      if (!ses) return { ok: false, por: 'caja cerrada' };
+      var r = await sb.from('pos_cash_moves').insert({
+        tenant_id: tenantId, branch_id: b, session_id: ses.id,
+        type: 'ingreso', amount: valor,
+        concept: 'Recarga de billetera · ' + (c.nombre || c.telefono || 'cliente'),
+        medio: 'Efectivo',
+        created_by: (st.user && st.user.id) || null,
+      }).select('id');
+      if (r.error) throw r.error;
+      return { ok: true };
+    } catch (e) {
+      console.error('[recarga] no se pudo anotar el ingreso:', e);
+      return { ok: false, por: (e && e.message) || 'error' };
+    }
+  }
+
   function modalRecargar(c) {
     var ov = document.createElement('div');
     ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;padding:20px';
@@ -410,6 +451,11 @@
             [40000, 50000, 100000].map(function (v) {
               return '<button data-v="' + v + '" style="flex:1;background:#fff;border:1px solid #ECEEF2;border-radius:9px;padding:7px 0;font-family:inherit;font-size:12px;font-weight:700;color:#475569;cursor:pointer">' + COP(v) + '</button>';
             }).join('') +
+          '</div>' +
+          '<div style="font-size:9.5px;font-weight:800;color:#CBD5E1;text-transform:uppercase;letter-spacing:.09em;margin:14px 0 6px">Cómo te pagó</div>' +
+          '<div id="clr-medio" style="display:flex;gap:7px">' +
+            '<button data-medio="efectivo" style="flex:1;background:#EEF2FF;border:1px solid #5B6BFF;color:#5B6BFF;border-radius:9px;padding:9px 0;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer">Efectivo</button>' +
+            '<button data-medio="transferencia" style="flex:1;background:#fff;border:1px solid #ECEEF2;color:#475569;border-radius:9px;padding:9px 0;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer">Transferencia</button>' +
           '</div>' +
           '<div id="clr-cuenta" style="margin-top:12px;font-size:12.5px;color:#475569;line-height:1.55;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:10px;padding:10px 12px">Calculando…</div>' +
           '<div id="clr-aviso" style="display:none;font-size:12.5px;margin-top:10px;padding:9px 12px;border-radius:9px"></div>' +
@@ -479,6 +525,21 @@
       inp.value = v ? v.toLocaleString('es-CO') : '';
       pintarCuenta();
     });
+    /*  Cual escogio. Arranca en EFECTIVO porque es lo normal en el
+        mostrador: el que recarga por transferencia casi siempre lo hace
+        desde su propia app, no pidiendoselo al cajero.                 */
+    var medio = 'efectivo';
+    ov.querySelectorAll('#clr-medio [data-medio]').forEach(function (b) {
+      b.onclick = function () {
+        medio = b.dataset.medio;
+        ov.querySelectorAll('#clr-medio [data-medio]').forEach(function (x) {
+          var on = x === b;
+          x.style.background  = on ? '#EEF2FF' : '#fff';
+          x.style.borderColor = on ? '#5B6BFF' : '#ECEEF2';
+          x.style.color       = on ? '#5B6BFF' : '#475569';
+        });
+      };
+    });
     ov.querySelectorAll('#clr-rapidos [data-v]').forEach(function (b) {
       b.onclick = function () { inp.value = Number(b.dataset.v).toLocaleString('es-CO'); pintarCuenta(); };
     });
@@ -524,12 +585,22 @@
             }),
           }).catch(function () {});
         } catch (e2) {}
+        /*  El billete ya esta en el cajon: se anota como ingreso ANTES de
+            cerrar el cuadro, para poder decirlo en el mismo aviso.     */
+        var caja = { ok: true };
+        if (medio === 'efectivo') caja = await ingresoPorRecarga(c, v);
+
         cerrar();
         S.selSaldo = Number(f.saldo) || 0;
         pintarFicha();
         avisoFlotante('Recargado ' + COP(v) +
           (Number(f.bono) > 0 ? ' + bono de ' + COP(f.bono) : '') +
-          ' — le queda ' + COP(f.saldo));
+          ' — le queda ' + COP(f.saldo) +
+          (medio === 'efectivo'
+            ? (caja.ok ? '. Anotado en la caja como ingreso.'
+                       : '. ⚠️ NO se pudo anotar en la caja (' + caja.por +
+                         '): regístralo a mano o el cierre saldrá con sobrante.')
+            : ''));
       } catch (e) {
         btn.disabled = false; btn.textContent = 'Recargar';
         aviso('No se pudo recargar: ' + (e.message || e), false);
