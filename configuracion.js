@@ -1272,6 +1272,17 @@ var UR_PERMS = [
     { id: 'caja.abrir',       label: 'Aperturar caja',        desc: 'Abrir el turno y la base de efectivo' },
     { id: 'caja.cerrar',      label: 'Cerrar caja',           desc: 'Cerrar el turno e imprimir el cierre Z' },
     { id: 'caja.movimientos', label: 'Ingresos y egresos',    desc: 'Registrar entradas y salidas de efectivo' },
+    /*  ⚠️ ESTE PERMISO RESTA, NO SUMA — y esta al reves a proposito.
+
+        Sergio, 6-sep-2026: *"tiene que ir en los permisos del cajero; ahi es
+        donde terminamos si es cierre normal o cierre ciego"*.
+
+        Si se hubiera hecho como "Ver las cifras de la caja", al publicarlo
+        NINGUN rol lo tendria y todos los cajeros del mundo se habrian quedado
+        ciegos de un dia para otro sin que nadie lo pidiera. Al reves, nadie lo
+        tiene y nada cambia hasta que el dueNo lo marque.                    */
+    { id: 'caja.cierre_ciego', label: 'Cierre de caja CIEGO',
+      desc: 'Cuenta el efectivo sin ver ventas, medios de pago ni el esperado. Al guardar sabe si cuadra' },
     { id: 'pagos.anular',     label: 'Anular pagos',          desc: 'Anular un pago o venta ya registrada' }
     /* AQUI HABIA UNA CASILLA QUE NO HACIA NADA: 'Ver todas las cajas'.
        Se podia marcar, decia 'Guardado', y ninguna pantalla la comprobaba

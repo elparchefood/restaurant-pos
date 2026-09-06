@@ -735,6 +735,10 @@ function renderHero(orders, moves) {
 
 // ── KPIs ───────────────────────────────────────────────────────
 function renderKPIs(orders) {
+  /*  Lo ciego se aplica DESPUES de pintar, en cada pasada. Hacerlo una sola
+      vez al arrancar no sirve: la pantalla se vuelve a dibujar sola con cada
+      venta que entra, y volveria a destapar las cifras.                    */
+  try { setTimeout(cjAplicarCiega, 0); } catch (e) {}
   const active    = orders.filter(o=>o.status!=='cancelled');
   const cancelled = orders.filter(o=>o.status==='cancelled');
   const total     = active.reduce((s,o)=>s+(parseFloat(o.total_final ?? o.total)||0),0);
@@ -1876,6 +1880,181 @@ function fillArqueoDenoms(denoms) {
   });
 }
 
+
+/* ══ CIERRE DE CAJA CIEGO ═══════════════════════════════════════════════════
+   Sergio, 6-sep-2026: *"si tiene el cierre de caja ciego no podrá ver
+   absolutamente nada, ni la cantidad de ventas ni la cantidad de
+   transferencias, ningún dato. Lo único que va a poder hacer es colocar el
+   dinero que hay, el arqueo normal, y el sistema le va a decir si está bien o
+   le falta o le sobra"*.
+
+   PARA QUE SIRVE: si el cajero ve cuánto debería haber, contar deja de ser
+   contar. Un faltante se tapa acomodando el conteo, y el arqueo pasa a
+   confirmar lo que ya decía el sistema en vez de comprobarlo.
+
+   EL INTERRUPTOR ES EL PERMISO. No hay una casilla aparte: se marca
+   `caja.cierre_ciego` en el rol y ese rol cierra a ciegas. Eso fue decisión
+   suya y es mejor que un interruptor por sede — se puede tener un cajero
+   ciego y un administrador que sí ve, sin duplicar la configuración.        */
+
+/*  El dueño NUNCA queda ciego, tenga lo que tenga el rol. Y ante la duda
+    —permisos sin cargar, comodín— se responde QUE NO: quedarse ciego por
+    error deja a alguien sin poder cerrar el turno, que es peor que enseñar
+    unas cifras un segundo de más.                                          */
+function cajaCiega() {
+  try {
+    if (typeof posEsDueno === 'function' && posEsDueno()) return false;
+    var p = (typeof posPerms === 'function') ? posPerms() : null;
+    if (p === '*' || p === null || !Array.isArray(p)) return false;
+    return p.indexOf('caja.cierre_ciego') >= 0;
+  } catch (e) { return false; }
+}
+
+/*  Mientras no se sepa, la plata NO se pinta. Es al revés que `cajaCiega()` y
+    no es una contradicción: la función decide el MODO (y ante la duda, el
+    normal), esto decide si ya se puede PINTAR (y ante la duda, todavía no).
+
+    Sin esto habría un parpadeo: la pantalla alcanza a mostrar el total del
+    turno y medio segundo después lo esconde. Ese parpadeo es justo el dato
+    que el modo ciego existe para tapar.                                    */
+function cajaPlataLista() {
+  try {
+    if (typeof posPermsReady === 'function' && !posPermsReady()) return false;
+  } catch (e) {}
+  return true;
+}
+
+/*  Los sitios donde hay plata del turno. Se apagan enteros: no se tachan ni
+    se ponen en "•••", porque un hueco tapado invita a destaparlo. Sencillamente
+    no están.                                                               */
+function cjTapar(el, tapar) {
+  if (!el) return;
+  if (tapar) {
+    if (el.dataset.cjVisible === undefined) el.dataset.cjVisible = el.style.display || '';
+    el.style.display = 'none';
+  } else if (el.dataset.cjVisible !== undefined) {
+    el.style.display = el.dataset.cjVisible;
+    delete el.dataset.cjVisible;
+  }
+}
+function cjTarjetaDe(id, sel) {
+  var e = document.getElementById(id);
+  return e ? e.closest(sel) : null;
+}
+
+/*  Se llama en cada repintado. No basta con hacerlo una vez al arrancar: la
+    pantalla se vuelve a dibujar sola cada vez que entra una venta.          */
+function cjAplicarCiega() {
+  var listo = cajaPlataLista();
+  var ciega = listo && cajaCiega();
+  var tapar = !listo || ciega;      // sin saber todavía, tampoco se enseña
+
+  // Las dos tarjetas de arriba que son plata. Transacciones y puntos se
+  // quedan: contar pedidos no dice cuánto dinero hay.
+  cjTapar(cjTarjetaDe('kpi-ventas', '.cj-stat'), tapar);
+  cjTapar(cjTarjetaDe('kpi-ticket', '.cj-stat'), tapar);
+
+  // Desglose por medio de pago — la tarjeta entera.
+  cjTapar(cjTarjetaDe('desglose-pago', '.cj-card'), tapar);
+
+  /*  Ventas por canal: se tapa SOLO la lista y su título, no la tarjeta
+      entera — abajo de ella viven Ingresos y Egresos, que el cajero necesita
+      porque son los que él mismo registró. Saber lo que uno mismo anotó no
+      descubre cuánto vendió el turno.                                      */
+  var canales = document.getElementById('canales-lista');
+  cjTapar(canales, tapar);
+  if (canales && canales.parentElement) {
+    var tit = canales.parentElement.querySelector('.cj-card-title');
+    cjTapar(tit, tapar);
+  }
+
+  // Top ventas del turno.
+  cjTapar(cjTarjetaDe('top-ventas', '.cj-card'), tapar);
+
+  // El resumen del cierre y el efectivo esperado.
+  cjTapar(document.getElementById('cerrar-resumen'), tapar);
+  var esp = document.getElementById('cerrar-esperado');
+  if (esp) cjTapar(esp.closest('div[style]') || esp.parentElement, tapar);
+
+  // En el arqueo: el esperado del sistema y la diferencia.
+  cjTapar(cjTarjetaDe('arqueo-esperado', '.cj-arqueo-card'), tapar);
+  cjTapar(document.getElementById('arqueo-diff-card'), tapar);
+
+  // Y un aviso, para que no parezca que la pantalla está rota.
+  var av = document.getElementById('cj-ciega-aviso');
+  if (ciega && !av) {
+    var cont = document.querySelector('.cj-kpis');
+    if (cont && cont.parentElement) {
+      av = document.createElement('div');
+      av.id = 'cj-ciega-aviso';
+      av.style.cssText = 'margin:0 0 16px;padding:12px 15px;border-radius:12px;' +
+        'background:#EEF2FF;border:1px solid #C7D2FE;display:flex;gap:10px;align-items:flex-start';
+      av.innerHTML =
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4F5BE3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:1px;flex-shrink:0"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>' +
+        '<div style="font-size:12.5px;color:#3730A3;line-height:1.55">' +
+        '<b>Cierre a ciegas.</b> Cuenta el efectivo del cajón sin mirar nada más. ' +
+        'Al guardar el conteo te decimos si cuadra, y con eso cierras.</div>';
+      cont.parentElement.insertBefore(av, cont);
+    }
+  } else if (!ciega && av) { av.remove(); }
+}
+
+/*  ══ EL CONTEO SE TRABA AL GUARDARLO ═══════════════════════════════════
+    Esta es la pieza que hace que todo lo demás sirva. Sergio pidió que al
+    guardar se vea la diferencia exacta. Perfecto — pero si después pudiera
+    volver a contar, contaría, vería que faltan cincuenta mil, y ajustaría
+    hasta cuadrar. Todo lo de arriba sería decorado.
+
+    Así que en modo ciego el conteo es de una sola vez. Reabrirlo exige el
+    permiso de ver las cifras, o sea el dueño.                              */
+function cjArqueoTrabado() {
+  return cajaCiega() && !!(S.session && S.session.arqueo_contado != null);
+}
+
+function cjTrabarArqueo(trabar) {
+  cjInputsArqueo().forEach(function (inp) {
+    inp.readOnly = !!trabar;
+    inp.style.background = trabar ? '#F8FAFC' : '';
+    inp.style.color = trabar ? '#94A3B8' : '';
+  });
+  var g = document.getElementById('btn-guardar-arqueo');
+  if (g) g.style.display = trabar ? 'none' : '';
+}
+
+/*  El veredicto. Es lo ÚNICO que ve el cajero en todo el turno, así que se
+    dice en una frase y sin rodeos.                                         */
+function cjMostrarVeredicto(contado, esperado) {
+  var dif = contado - esperado;
+  var cuadra = dif === 0;
+  var falta = dif < 0;
+  var col = cuadra ? { bg:'#DCFCE7', bd:'#BBF7D0', ink:'#166534' }
+                   : { bg:'#FEF2F2', bd:'#FECACA', ink:'#B91C1C' };
+  var titulo = cuadra ? 'La caja cuadra'
+             : falta  ? 'Faltan ' + COPF(Math.abs(dif))
+                      : 'Sobran ' + COPF(dif);
+  var caja = document.getElementById('cj-veredicto');
+  if (!caja) {
+    caja = document.createElement('div');
+    caja.id = 'cj-veredicto';
+    var ref = document.getElementById('arqueo-obs');
+    var dentro = ref ? ref.closest('div') : null;
+    var panel = document.querySelector('#panel-arqueo .cj-modal-body') ||
+                document.querySelector('#panel-arqueo .cj-modal');
+    if (dentro && dentro.parentElement) dentro.parentElement.insertBefore(caja, dentro);
+    else if (panel) panel.appendChild(caja);
+    else return;
+  }
+  caja.style.cssText = 'margin:0 0 14px;padding:14px 16px;border-radius:12px;background:' +
+    col.bg + ';border:1px solid ' + col.bd;
+  caja.innerHTML =
+    '<div style="font-size:16px;font-weight:800;color:' + col.ink + ';letter-spacing:-.02em">' +
+      (cuadra ? '✓ ' : '⚠ ') + titulo + '</div>' +
+    '<div style="font-size:12.5px;color:' + col.ink + ';opacity:.85;margin-top:6px;line-height:1.6">' +
+      'Contaste <b>' + COPF(contado) + '</b> · esperado <b>' + COPF(esperado) + '</b>' +
+      (cuadra ? '' : '<br>El conteo ya quedó guardado. Avísale al administrador.') +
+    '</div>';
+}
+
 document.getElementById('btn-arqueo').addEventListener('click', function() {
   const guardado = S.arqueoDenoms;
   if (guardado && guardado.lineas && guardado.lineas.length && (guardado.total || 0) > 0) {
@@ -1895,6 +2074,14 @@ document.getElementById('btn-arqueo').addEventListener('click', function() {
     updateArqueoEsperado();
   }
   openPanel('panel-arqueo');
+  /*  Si ya conto en este turno y esta en modo ciego, no puede volver a
+      contar: se le enseNa lo que conto y el resultado, y ya.              */
+  try {
+    var _trab = cjArqueoTrabado();
+    cjTrabarArqueo(_trab);
+    if (_trab) cjMostrarVeredicto(Number(S.session.arqueo_contado) || 0, _cjEsperadoActual || 0);
+    cjAplicarCiega();
+  } catch (e) { console.error('[caja] arqueo ciego:', e); }
 });
 
 document.getElementById('btn-guardar-arqueo').addEventListener('click', async function() {
@@ -1916,6 +2103,18 @@ document.getElementById('btn-guardar-arqueo').addEventListener('click', async fu
       }).eq('id', S.session.id);
     }
   } catch(e) { console.error('guardar arqueo:', e); }
+  /*  En modo ciego el panel NO se cierra: es el unico momento en que el
+      cajero va a ver algo, asi que se le enseNa ahi mismo y se traba el
+      conteo. En modo normal, todo sigue como siempre.                     */
+  if (cajaCiega()) {
+    if (S.session) S.session.arqueo_contado = S.arqueoContado;
+    try {
+      cjMostrarVeredicto(S.arqueoContado, _cjEsperadoActual || 0);
+      cjTrabarArqueo(true);
+    } catch (e) { console.error('[caja] veredicto:', e); }
+    showToast('Conteo guardado');
+    return;
+  }
   showToast('Arqueo guardado: ' + COPF(S.arqueoContado));
   closePanel('panel-arqueo');
 });
@@ -2128,6 +2327,28 @@ async function imprimirCierre(sesionCerrada) {
   }
   const c = await buildCierreData();
   if (sesionCerrada) c.session = sesionCerrada;
+
+  /*  ⚠️ EL PAPEL TAMBIEN CUENTA.
+
+      El tiquete Z lleva ventas, ticket promedio, desglose por metodo y por
+      canal. Si el cajero cierra a ciegas y despues se queda con ese papel en
+      la mano, todo lo que se escondio en la pantalla se lo entrega la
+      impresora. Era la fuga mas grande y la menos visible.
+
+      En modo ciego se imprime el PALOTEO: lo que conto, lo que se esperaba y
+      la diferencia — que es justo lo que Sergio decidio que si puede ver — y
+      nada de ventas. El Z completo lo saca el dueNo desde el historial de
+      cierres, que ya pide permiso de administrador.                       */
+  if (cajaCiega()) {
+    const dCiego = getArqueoDenoms();
+    const denomsC = (dCiego && dCiego.total) ? dCiego : (S.arqueoDenoms || null);
+    if (!denomsC || !denomsC.total) { showToast('Primero cuenta el efectivo'); return; }
+    const okC = await window.posPrintTicket(
+      window.posBuildPaloteo(denomsC, { negocio: c.negocio, session: c.session, esperado: c.esperado }),
+      'recibo');
+    if (okC) showToast('Comprobante del conteo enviado a la impresora');
+    return;
+  }
   const d = getArqueoDenoms();
   c.denoms  = (d && d.total) ? d : (S.arqueoDenoms || null);
   c.contado = (S.arqueoContado != null) ? S.arqueoContado : (c.denoms ? c.denoms.total : null);
@@ -2216,7 +2437,10 @@ async function updateArqueoEsperado() {
   const contado  = getArqueoContado();
   const diff     = contado - esperado;
   _cjEsperadoActual = esperado;
-  document.getElementById('arqueo-esperado').textContent = COPF(esperado);
+  /*  La tarjeta esta escondida, pero el numero igual quedaba escrito en la
+      pantalla. Mientras no haya guardado el conteo, ni eso: no se escribe.  */
+  var _elEsp = document.getElementById('arqueo-esperado');
+  if (_elEsp) _elEsp.textContent = (cajaCiega() && !cjArqueoTrabado()) ? '—' : COPF(esperado);
   try { cjPintarPendientes(); } catch(e) {}
   const diffEl  = document.getElementById('arqueo-diff');
   const diffLbl = document.getElementById('arqueo-diff-lbl');
