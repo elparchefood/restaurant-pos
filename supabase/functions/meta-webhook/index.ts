@@ -9,6 +9,118 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+
+/* ══ MENCION EN UNA HISTORIA: 5 PUNTOS ══════════════════════════════════════
+   Sergio, 6-sep-2026. Cinco puntos por mencionarnos, sin tope de cuantas —
+   pero se acreditan cuando la historia CUMPLE SUS 24 HORAS. Si la borra antes,
+   no hay puntos. Aqui solo se ANOTA y se le avisa; quien acredita es la
+   funcion `historias`, que revisa el enlace a la 1 h, 12 h y 23 h.
+
+   Por que se le avisa de una y no al acreditar: para que la regla la sepa
+   ANTES de decidir si borra la historia. Un castigo que se explica despues no
+   es una regla, es una sorpresa.                                            */
+
+/*  ¿Sirve el nombre de Instagram para saludar? Sergio: *"si tiene el nombre
+    bien configurado se coloca ese nombre; si no, se le pregunta, en casos
+    extremos que tengan letras raras o algo asi"*.
+
+    Asi que se exige poco pero se exige: que tenga letras de verdad y que sean
+    mayoria. Un "𝓙𝓸𝓼𝓮" o un "🌸🌸🌸" no pasan, y se saluda sin nombre — que es
+    mejor que saludar mal.                                                   */
+function nombreUsable(n: string): boolean {
+  const t = String(n || "").trim();
+  if (t.length < 2 || t.length > 40) return false;
+  const letras = (t.match(/[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]/g) || []).length;
+  return letras >= 2 && letras >= t.replace(/\s/g, "").length * 0.6;
+}
+
+function primerNombre(n: string): string {
+  return String(n || "").trim().split(/\s+/)[0] || "";
+}
+
+async function anotarHistoria(o: {
+  tenantId: string; branchId: string; convId: string; red: string;
+  mediaUrl: string; nombre: string;
+  para: string; pageId: string; pageToken: string;
+}) {
+  try {
+    /*  El id de la historia sale del enlace. Es lo que impide pagar dos veces
+        la misma cuando Meta reintenta el aviso — el candado esta en la base,
+        no aqui.                                                             */
+    const m = o.mediaUrl.match(/asset_id=(\d+)/);
+    const assetId = m ? m[1] : "";
+    if (!assetId) { console.warn("[historia] enlace sin asset_id, no se anota"); return; }
+
+    /*  ¿Ya sabemos quien es? Se le pregunta a la conversacion. Si todavia no
+        dio su celular viene vacio, y entonces el mensaje se lo pide.       */
+    let clienteId: string | null = null;
+    try {
+      const c = await sbGet(`/rest/v1/chat_conversations?id=eq.${o.convId}&select=cliente_id&limit=1`);
+      clienteId = (c?.[0]?.cliente_id as string) || null;
+    } catch { /* sin dato: se le pide el numero, que es lo prudente */ }
+
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/pos_historias`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json", Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        tenant_id: o.tenantId, branch_id: o.branchId || null,
+        conversation_id: o.convId, cliente_id: clienteId,
+        red: o.red, usuario: o.nombre || null,
+        historia_id: assetId, media_url: o.mediaUrl,
+        puntos: 5, estado: "vigilando",
+      }),
+    });
+
+    /*  409 = ya estaba anotada. NO es un fallo: es el candado haciendo su
+        trabajo con un aviso repetido de Meta. Se sale sin escribirle otra vez,
+        que seria el error visible — dos mensajes por una sola historia.     */
+    if (r.status === 409) { console.log("[historia] repetida, ya estaba:", assetId); return; }
+    if (!r.ok) { console.error("[historia] no se pudo anotar:", r.status, (await r.text()).slice(0, 160)); return; }
+
+    // ── El aviso, que es lo que hace que la regla sea justa ──
+    const nom = nombreUsable(o.nombre) ? primerNombre(o.nombre) : "";
+    const hola = nom ? `¡Hola ${nom}! 🙌` : "¡Hola! 🙌";
+    const texto = clienteId
+      ? `${hola} Gracias por mencionarnos en tu historia.\n\n` +
+        `Te ganaste *5 puntos* ⭐ Se te acreditan cuando la historia cumpla sus 24 horas, ` +
+        `así que déjala ahí 🙂`
+      : `${hola} Gracias por mencionarnos en tu historia.\n\n` +
+        `Te ganaste *5 puntos* ⭐ Se te acreditan cuando la historia cumpla sus 24 horas, ` +
+        `así que déjala ahí 🙂\n\n` +
+        `Para poder dártelos necesito tu número de celular: los puntos se acumulan en el ` +
+        `número, no en Instagram. Pásamelo y quedas registrado.`;
+
+    const env = await fetch(`https://graph.facebook.com/v22.0/${o.pageId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${o.pageToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ recipient: { id: o.para }, message: { text: texto }, messaging_type: "RESPONSE" }),
+    });
+    if (!env.ok) { console.error("[historia] no se pudo avisar:", (await env.text()).slice(0, 160)); return; }
+    const d = await env.json().catch(() => ({})) as Record<string, unknown>;
+
+    await fetch(`${SUPABASE_URL}/rest/v1/chat_messages`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json", Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        conversation_id: o.convId, tenant_id: o.tenantId,
+        direction: "out", origen: "bot", body: texto,
+        delivery_status: "sent", external_id: String(d.message_id || "") || null,
+        sent_at: new Date().toISOString(),
+      }),
+    });
+  } catch (e) {
+    /*  Nunca revienta el webhook. Perder unos puntos es malo; perder el
+        mensaje del cliente por un fallo dando puntos seria peor.           */
+    console.error("[historia]", String(e));
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
@@ -681,6 +793,19 @@ async function recibirMeta(canal: string, entries: Array<Record<string, unknown>
          vieja que ninguna. */
       if (fotoUrl) patchConv.contact_avatar_url = fotoUrl;
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, patchConv);
+
+      /*  ══ ¿NOS MENCIONO EN UNA HISTORIA? ═══════════════════════════════
+          Va DESPUES de guardar el mensaje: si esto fallara, el mensaje del
+          cliente ya esta a salvo. Los puntos son importantes; el mensaje lo
+          es mas.                                                          */
+      if (mediaType === "story_mention" && mediaUrl) {
+        await anotarHistoria({
+          tenantId: String(tenant_id), branchId: String(branch_id || ""),
+          convId: String(convId), red: canal === "instagram" ? "instagram" : String(canal || "instagram"),
+          mediaUrl: String(mediaUrl), nombre: String(nombre || ""),
+          para: String(de), pageId: String(pageId), pageToken: String(pageToken),
+        });
+      }
 
       /* A la cola de Paco, igual que WhatsApp. En `from_phone` va el id de la
          persona en esa red (no es un telefono: por eso el pedido pedira el
