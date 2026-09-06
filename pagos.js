@@ -2129,29 +2129,150 @@ function pgCliente() {
 
 /* Se guarda en el pedido AL INSTANTE, no al finalizar: si el cajero se sale a
    mitad de camino, el cliente ya quedó asociado y los puntos no se pierden. */
-/* ── La tarjeta fisica en la caja (20-ago-2026) ───────────────────────
-   Acercar la tarjeta al lector IDENTIFICA al cliente (igual que dar su
-   numero) y ademas AUTORIZA su billetera: tener la tarjeta en la mano es la
-   prueba de que la cuenta es suya, asi que no se le pide el codigo por SMS.
-   Sin tarjeta, el codigo sigue siendo obligatorio. */
+/* ══ LA TARJETA EN LA PANTALLA DE COBRO ═══════════════════════════════════
+   Sergio, 5-sep: *"que al colocar la tarjeta en el lector se reconozca al
+   cliente, diga que ya detectó la tarjeta, indique el saldo, y el cajero
+   coloque manualmente el monto a pagar"*.
+
+   Vale para los tres canales —mesa, venta rápida y domicilio— porque los
+   tres cobran en ESTA misma pantalla; no hay tres pantallas de cobro.
+
+   Tener la tarjeta en la mano ADEMÁS autoriza su billetera: es la prueba de
+   que la cuenta es suya, así que no se le pide el código por SMS. Sin
+   tarjeta, el código sigue siendo obligatorio.
+
+   ── EL AVISO NO ES ADORNO ────────────────────────────────────────────
+   Antes el toque llenaba el nombre del cliente en silencio. El cajero no
+   tenía forma de saber si el lector había leído o si no había pasado nada,
+   y ante la duda vuelve a pasar la tarjeta. Por eso ahora lo dice en la
+   pantalla, encima de los métodos de pago, donde está mirando.
+
+   Se avisa en la franja y NO con una ventana: una ventana en mitad de un
+   cobro hay que cerrarla antes de seguir, y esto pasa mientras el cliente
+   está enfrente esperando.                                              */
+function pgTarjetaFranja(info) {
+  var row = document.querySelector('.pg-method-row');
+  if (!row) return;
+  var v = document.getElementById('pg-nfc');
+  if (!v) {
+    v = document.createElement('div');
+    v.id = 'pg-nfc';
+    row.parentNode.insertBefore(v, row);
+  }
+  if (!info) { v.remove(); return; }
+
+  var mal = info.tipo === 'mal';
+  var col = mal ? { bg: '#FFFBEB', bd: '#FDE68A', ink: '#B45309' }
+                : { bg: '#EEF2FF', bd: '#C7D2FE', ink: '#4F5BE3' };
+  v.style.cssText = 'display:flex;align-items:center;gap:11px;margin-bottom:10px;' +
+    'padding:10px 13px;border-radius:11px;background:' + col.bg +
+    ';border:1px solid ' + col.bd + ';animation:pgNfcIn .22s cubic-bezier(.2,.8,.2,1)';
+  v.innerHTML =
+    '<span style="width:28px;height:28px;border-radius:999px;background:#fff;color:' + col.ink +
+      ';display:flex;align-items:center;justify-content:center;flex-shrink:0">' +
+      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8.5a7 7 0 0 1 12 0"/><path d="M8.5 11.5a3.5 3.5 0 0 1 7 0"/><circle cx="12" cy="15" r="1"/></svg>' +
+    '</span>' +
+    '<span style="flex:1;min-width:0;line-height:1.45">' +
+      '<span style="display:block;font-size:12.5px;font-weight:800;color:' + col.ink + '">' +
+        _payEsc(info.titulo) + '</span>' +
+      '<span style="display:block;font-size:11.5px;color:#475569">' + info.detalle + '</span>' +
+    '</span>' +
+    '<button type="button" id="pg-nfc-x" title="Quitar este aviso" ' +
+      'style="background:none;border:none;color:#94A3B8;cursor:pointer;padding:4px;flex-shrink:0;font-family:inherit">' +
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+    '</button>';
+  var x = document.getElementById('pg-nfc-x');
+  if (x) x.onclick = function () { v.remove(); };
+}
+
 var _nfcListo = false;
 function pgArrancarLector() {
   if (_nfcListo || !window.posNfc) return;
   _nfcListo = true;
-  var _st = (window._pos && window._pos.state) || {};
-  posNfc.setCtx(_st.tenantId || SP.tenantId);
   posNfc.escuchar(async function (uid) {
+    /*  ⚠️ EL TENANT SE PONE AQUÍ, EN CADA TOQUE — NO AL ARRANCAR.
+        Al cargar la pantalla la sesión todavía no ha llegado (`boot()`
+        pregunta al servidor y es asíncrono), así que `state.tenantId` valía
+        null y el lector quedaba armado con un restaurante vacío: la
+        consulta no fallaba, simplemente no encontraba nada, y CUALQUIER
+        tarjeta buena salía como "sin vincular". Preguntarlo en cada toque
+        no cuesta nada y no depende del orden en que arranquen las cosas. */
+    var _st = (window._pos && window._pos.state) || {};
+    var tid = _st.tenantId || SP.tenantId;
+    if (!tid) {
+      pgTarjetaFranja({ tipo: 'mal', titulo: 'Espera un segundo',
+        detalle: 'La pantalla todavía se está abriendo. Vuelve a pasar la tarjeta.' });
+      return;
+    }
+    posNfc.setCtx(tid);
+
     try {
       var t = await posNfc.buscar(uid);
-      if (!t) { _sdModalBase('Tarjeta sin vincular', '<div style="font-size:13px;color:#475569;line-height:1.55">Esta tarjeta (····' + uid.slice(-4) + ') no está vinculada a ningún cliente. Se vincula desde <b>Clientes</b>, en la ficha de la persona.</div>', null); return; }
-      if (!t.activa) { _sdModalBase('Tarjeta desactivada', '<div style="font-size:13px;color:#475569">Esta tarjeta está desactivada.</div>', null); return; }
+      if (!t || !t.telefono) {
+        pgTarjetaFranja({ tipo: 'mal', titulo: 'Tarjeta sin vincular',
+          detalle: 'La tarjeta ····' + _payEsc(String(uid).slice(-4)) +
+                   ' no es de ningún cliente. Se vincula en <b>Clientes</b>, en su ficha.' });
+        return;
+      }
+      if (!t.activa) {
+        pgTarjetaFranja({ tipo: 'mal', titulo: 'Tarjeta desactivada',
+          detalle: 'Esta tarjeta está bloqueada. Cobra por otro medio.' });
+        return;
+      }
       var nombre = (t.cliente && t.cliente.nombre) || ('Cliente ••• ' + t.telefono.slice(-4));
       await pgGuardarCliente((t.cliente && t.cliente.id) || null, nombre, t.telefono);
-      SP.tarjetaTel = t.telefono;   // la posesion de la tarjeta autoriza su billetera
-    } catch (e) { console.error('[pagos] tarjeta:', e); }
+      SP.tarjetaTel = t.telefono;   // la posesión de la tarjeta autoriza su billetera
+      pgTrasLeerTarjeta(nombre);
+    } catch (e) {
+      console.error('[pagos] tarjeta:', e);
+      pgTarjetaFranja({ tipo: 'mal', titulo: 'No se pudo leer la tarjeta',
+        detalle: _payEsc(e.message || String(e)) });
+    }
   });
 }
 try { pgArrancarLector(); } catch (e) {}
+
+/*  Lo que pasa DESPUÉS de reconocer al cliente. Va aparte porque
+    `pgGuardarCliente` ya volvió a cargar los métodos, así que aquí el saldo
+    y la lista de métodos ya son los suyos y no los de nadie.
+
+    Se deja el método puesto en la billetera pero NO se escribe el monto: lo
+    pone el cajero. Es lo que pidió Sergio, y además es lo correcto — casi
+    nunca se paga el pedido entero con saldo, y un monto puesto solo se
+    aplica sin que nadie lo mire.                                          */
+function pgTrasLeerTarjeta(nombre) {
+  var met = (SP.methodDefs || []).find(function (m) { return m.tipo === 'saldo'; });
+  var saldo = Number(SP.saldoDisp) || 0;
+  var falta = 0;
+  try { falta = Number(calc().falta) || 0; } catch (e) {}
+
+  if (!met) {
+    /*  Sin billetera en este restaurante la tarjeta igual sirve: identifica
+        al cliente para los puntos. Decirlo es mejor que dejar la franja
+        hablando de un saldo que aquí no existe.                          */
+    pgTarjetaFranja({ tipo: 'ok', titulo: 'Tarjeta detectada · ' + nombre,
+      detalle: 'Cliente identificado. Sus puntos ya quedan a su nombre.' });
+    return;
+  }
+
+  if (saldo <= 0) {
+    pgTarjetaFranja({ tipo: 'mal', titulo: 'Tarjeta detectada · ' + nombre,
+      detalle: '<b>No tiene saldo en su billetera.</b> Cobra por otro medio, o recárgale en <b>Clientes</b>.' });
+    return;
+  }
+
+  SP.method = met.key;
+  SP.entry = 0;
+  renderAll();
+
+  var alcanza = falta > 0 && saldo >= falta;
+  pgTarjetaFranja({ tipo: 'ok', titulo: 'Tarjeta detectada · ' + nombre,
+    detalle: 'Tiene <b>' + _payMoney(saldo) + '</b> en su billetera' +
+             (falta <= 0 ? '' : alcanza
+               ? ' — le alcanza para todo (' + _payMoney(falta) + ')'
+               : ' — alcanza para parte de los ' + _payMoney(falta)) +
+             '. Escribe cuánto le vas a cobrar.' });
+}
 
 async function pgGuardarCliente(id, nombre, tel) {
   SP.clienteId = id; SP.cliente = nombre || ''; SP.clienteTel = tel || '';

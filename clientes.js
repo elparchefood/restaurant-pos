@@ -7,12 +7,22 @@
  * decidir, en cada dato nuevo, a cuál de los dos pertenece.
  *
  * QUÉ QUEDÓ AFUERA Y POR QUÉ (20-ago-2026):
- * Recargas, solicitudes, saldo y los registrados en la app se fueron a
- * "Mi página web". No es acomodo: esta pantalla la ve CUALQUIER restaurante que
- * use Cobra, y esas cuatro cosas solo existen si hay página de clientes, que hoy
- * no se le vende a nadie. Mientras vivieron aquí, la pantalla tenía que esconder
- * media interfaz con `data-solo-pagina` y la ficha cambiaba de forma según el
- * restaurante. Separadas, cada módulo se lee entero y coherente.
+ * Las solicitudes de recarga y los registrados en la app se fueron a "Mi página
+ * web". No es acomodo: esta pantalla la ve CUALQUIER restaurante que use Cobra,
+ * y esas cosas solo existen si hay página de clientes. Mientras vivieron aquí,
+ * la pantalla tenía que esconder media interfaz con `data-solo-pagina` y la
+ * ficha cambiaba de forma según el restaurante.
+ *
+ * QUÉ VOLVIÓ, Y POR QUÉ NO ROMPE ESO (5-sep-2026):
+ * La billetera del cliente y su botón de RECARGAR. Sergio: con la tarjeta en la
+ * mano, mandar al cajero a otra pantalla para abonarle son tres pasos de más.
+ * Lo que se movió a "Mi página web" fue la ADMINISTRACIÓN (aprobar solicitudes,
+ * ver el libro, regalar); aquí solo está el acto del mostrador.
+ *
+ * Y no revive el problema viejo porque no se esconde con un atributo suelto:
+ * cuelga del permiso `nfc` del plan, el mismo que ya decide el botón de Tarjeta
+ * y el método "Billetera" en la caja. Donde no hay billetera, esta pantalla se
+ * ve exactamente igual que antes.
  *
  * LA PREGUNTA DE LA PANTALLA:
  * No es "cuántos clientes tengo" — es "cuántos vuelven". Por eso la barra de
@@ -326,12 +336,8 @@
           '<div class="cl-pt-s">' + (window.posPuntosFrase
               ? (posPuntosFrase() ? posPuntosFrase() + ' de comida. El domicilio no da puntos.' : 'Este restaurante no tiene programa de puntos.')
               : '1 punto por cada $ 1.000 de comida. El domicilio no da puntos.') + '</div>' +
-          /* Su billetera, aqui mismo: la consulta completa de un vistazo. Solo
-             cuando tiene algo — "$ 0" de alguien sin billetera no dice nada. */
-          (Number(S.selSaldo) > 0 && (!window.posPlan || posPlan.puede('nfc'))
-            ? '<div class="cl-pt-s" style="margin-top:4px"><b>Saldo en su billetera: ' + COP(S.selSaldo) + '</b></div>'
-            : '') +
         '</div>') +
+        bloqueBilletera(c) +
       '</div>' +
       /* El historial es lo unico que se mueve. Arriba queda quieto para poder
          mirar cuanto ha gastado mientras se baja por sus pedidos. */
@@ -340,6 +346,194 @@
       '</div>';
     var bt = document.getElementById('cl-tarjeta');
     if (bt) bt.onclick = function () { modalTarjeta(c); };
+    var br = document.getElementById('cl-recargar');
+    if (br) br.onclick = function () { modalRecargar(c); };
+  }
+
+
+  /* ══ LA BILLETERA, CON SU BOTON ═══════════════════════════════════════
+     Sergio, 5-sep: recargar sin salir de Clientes. Antes habia que irse a
+     "Mi pagina web" -> Personas; con la tarjeta en la mano eso son tres
+     pantallas de mas para algo que pasa en el mostrador.
+
+     Solo donde el plan trae la billetera. Se usa el MISMO permiso `nfc`
+     que ya decide el boton de Tarjeta y el metodo "Billetera" en la caja:
+     una sola condicion para las tres cosas, y no un restaurante escrito a
+     mano en el codigo.
+
+     Y solo con telefono, porque el saldo va atado al NUMERO, no a la
+     ficha: la ficha se puede duplicar, el numero no.                    */
+  function hayBilletera() {
+    return !window.posPlan || posPlan.puede('nfc');
+  }
+
+  function bloqueBilletera(c) {
+    if (!c.telefono || !hayBilletera()) return '';
+    var s = S.selSaldo;
+    return '<div class="cl-bill">' +
+      '<div class="cl-bill-i">' +
+        '<div class="cl-fr-l">Billetera</div>' +
+        '<div class="cl-bill-v">' + (s === null ? '···' : COP(s)) + '</div>' +
+      '</div>' +
+      '<button class="cl-bill-b" id="cl-recargar" type="button">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>' +
+        ' Recargar</button>' +
+    '</div>';
+  }
+
+  /* ── Recargar ──────────────────────────────────────────────────────
+     Esto NO calcula nada. El minimo, el bono y el libro los pone
+     `fn_recarga_aplicar` en la base — la misma funcion que usa la app del
+     cliente y la de "Mi pagina web". Dos formas de calcular un bono es una
+     forma de que las dos se contradigan.
+
+     Lo unico que hace esta pantalla es preguntar CUANTO te pagaron.     */
+  function modalRecargar(c) {
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;padding:20px';
+    ov.innerHTML =
+      '<div style="background:#fff;border-radius:16px;width:420px;max-width:94vw;overflow:hidden;box-shadow:0 30px 70px -20px rgba(15,23,42,.4)">' +
+        '<div style="padding:18px 22px 0">' +
+          '<div style="font-size:15.5px;font-weight:800;color:#0F172A;letter-spacing:-.02em">Recargar la billetera</div>' +
+          '<div style="font-size:12.5px;color:#64748B;margin-top:3px">' +
+            esc(c.nombre || 'Este cliente') +
+            (S.selSaldo === null ? '' : ' · tiene ' + COP(S.selSaldo)) + '</div>' +
+        '</div>' +
+        '<div style="padding:16px 22px 4px">' +
+          '<div style="font-size:9.5px;font-weight:800;color:#CBD5E1;text-transform:uppercase;letter-spacing:.09em;margin-bottom:6px">Cuánto te pagó</div>' +
+          '<div style="display:flex;align-items:center;gap:8px;border:1px solid #ECEEF2;border-radius:10px;padding:10px 12px">' +
+            '<span style="font-size:15px;font-weight:700;color:#94A3B8">$</span>' +
+            '<input id="clr-monto" inputmode="numeric" value="40.000" style="flex:1;min-width:0;border:none;outline:none;font-family:inherit;font-size:19px;font-weight:800;color:#0F172A;letter-spacing:-.02em;font-variant-numeric:tabular-nums">' +
+          '</div>' +
+          '<div id="clr-rapidos" style="display:flex;gap:7px;margin-top:9px">' +
+            [40000, 50000, 100000].map(function (v) {
+              return '<button data-v="' + v + '" style="flex:1;background:#fff;border:1px solid #ECEEF2;border-radius:9px;padding:7px 0;font-family:inherit;font-size:12px;font-weight:700;color:#475569;cursor:pointer">' + COP(v) + '</button>';
+            }).join('') +
+          '</div>' +
+          '<div id="clr-cuenta" style="margin-top:12px;font-size:12.5px;color:#475569;line-height:1.55;background:#F8FAFC;border:1px solid #ECEEF2;border-radius:10px;padding:10px 12px">Calculando…</div>' +
+          '<div id="clr-aviso" style="display:none;font-size:12.5px;margin-top:10px;padding:9px 12px;border-radius:9px"></div>' +
+        '</div>' +
+        '<div style="display:flex;gap:10px;justify-content:flex-end;padding:16px 22px;border-top:1px solid #ECEEF2;background:#FBFBFD;margin-top:14px">' +
+          '<button id="clr-no" style="background:#fff;color:#475569;border:1px solid #ECEEF2;padding:9px 14px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">Cancelar</button>' +
+          '<button id="clr-ok" style="background:#5B6BFF;color:#fff;border:none;padding:9px 16px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 2px 8px -2px rgba(91,107,255,.45)">Recargar</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+
+    var inp = ov.querySelector('#clr-monto');
+    var cuenta = ov.querySelector('#clr-cuenta');
+    function cerrar() { ov.remove(); document.removeEventListener('keydown', tecla); }
+    function tecla(e) { if (e.key === 'Escape') cerrar(); }
+    document.addEventListener('keydown', tecla);
+    ov.addEventListener('click', function (e) { if (e.target === ov) cerrar(); });
+    ov.querySelector('#clr-no').onclick = cerrar;
+
+    function valor() {
+      return parseInt(String(inp.value || '').replace(/[^0-9]/g, ''), 10) || 0;
+    }
+    function aviso(txt, bien) {
+      var a = ov.querySelector('#clr-aviso');
+      a.style.display = 'block';
+      a.style.background = bien ? '#DCFCE7' : '#FEF2F2';
+      a.style.color = bien ? '#16A34A' : '#DC2626';
+      a.textContent = txt;
+    }
+
+    /*  El bono se PREGUNTA, no se calcula aqui: depende del nivel del
+        cliente, que sabe de rachas y de caducidad. Y se muestra ANTES de
+        confirmar, que es justo cuando sirve saberlo: asi el cajero le
+        puede decir "por diez mil mas te llevas otro bono".              */
+    var pidiendo = 0;
+    async function pintarCuenta() {
+      var v = valor(), mio = ++pidiendo;
+      if (!v) { cuenta.textContent = 'Escribe cuánto te pagó.'; return; }
+      try {
+        var r = await sb.rpc('fn_recarga_bono', {
+          p_tenant: tenantId, p_tel: c.telefono, p_monto: v,
+        });
+        if (mio !== pidiendo) return;            // llego una respuesta vieja
+        var f = (r.data || [])[0] || {};
+        var min = Number(f.minimo) || 0;
+        if (v < min) {
+          cuenta.innerHTML = '<b style="color:#DC2626">La recarga mínima es ' + COP(min) + '.</b>';
+          return;
+        }
+        var bono = Number(f.bono) || 0;
+        var queda = (Number(S.selSaldo) || 0) + v + bono;
+        cuenta.innerHTML = (bono > 0
+          ? 'Recarga <b>' + COP(v) + '</b> + bono <b>' + COP(bono) + '</b> (' + esc(f.nivel || '') + ')'
+          : 'Recarga <b>' + COP(v) + '</b> · sin bono') +
+          '<br>Le queda <b>' + COP(queda) + '</b>';
+      } catch (e) {
+        if (mio !== pidiendo) return;
+        /*  No se puede callar: si no se sabe el bono, se dice. Mostrar solo
+            la recarga haria creer que no hay bono, y si lo hay el cajero le
+            estaria diciendo al cliente un numero que no es.              */
+        cuenta.textContent = 'No se pudo consultar el bono. La recarga sí se puede hacer.';
+      }
+    }
+
+    inp.addEventListener('input', function () {
+      var v = valor();
+      inp.value = v ? v.toLocaleString('es-CO') : '';
+      pintarCuenta();
+    });
+    ov.querySelectorAll('#clr-rapidos [data-v]').forEach(function (b) {
+      b.onclick = function () { inp.value = Number(b.dataset.v).toLocaleString('es-CO'); pintarCuenta(); };
+    });
+    setTimeout(function () { try { inp.focus(); inp.select(); } catch (x) {} }, 50);
+    pintarCuenta();
+
+    ov.querySelector('#clr-ok').onclick = async function () {
+      var v = valor();
+      if (v <= 0) { aviso('Escribe cuánto te pagó.', false); return; }
+      var btn = this;
+      btn.disabled = true; btn.textContent = 'Recargando…';
+      var st = (window._pos && window._pos.state) || {};
+      var yo = st.user || {};
+      try {
+        /*  La referencia lleva la hora: si el cajero toca dos veces, la
+            segunda choca contra el indice unico de la base y no vuelve a
+            abonar. Es el mismo candado que usa la app.                  */
+        var r = await sb.rpc('fn_recarga_aplicar', {
+          p_tenant: tenantId, p_cliente: c.id, p_monto: v,
+          p_ref: 'local:' + c.id + ':' + Date.now(),
+          p_branch: st.branchId || null, p_como: 'en el local',
+          p_quien: yo.id || null,
+        });
+        if (r.error) throw r.error;
+        var f = (r.data || [])[0];
+        if (!f || f.ok !== true) {
+          btn.disabled = false; btn.textContent = 'Recargar';
+          aviso((f && f.motivo === 'comprobante_usado')
+            ? 'Esa recarga ya se abonó antes. No se cobra dos veces.'
+            : ((f && f.motivo) || 'No se pudo recargar.'), false);
+          return;
+        }
+        /*  El aviso al celular, igual que cuando recarga desde la app: la
+            misma plata tiene que avisar igual, o el cliente cree que no
+            entro. Best-effort — la plata YA quedo arriba.               */
+        try {
+          fetch(SUPABASE_URL + '/functions/v1/avisar-cliente', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tipo: 'recarga', cliente_id: c.id, tenant_id: tenantId,
+              monto: Number(f.acreditado) || v,
+              bono: Number(f.bono) || 0, saldo: Number(f.saldo) || 0,
+            }),
+          }).catch(function () {});
+        } catch (e2) {}
+        cerrar();
+        S.selSaldo = Number(f.saldo) || 0;
+        pintarFicha();
+        avisoFlotante('Recargado ' + COP(v) +
+          (Number(f.bono) > 0 ? ' + bono de ' + COP(f.bono) : '') +
+          ' — le queda ' + COP(f.saldo));
+      } catch (e) {
+        btn.disabled = false; btn.textContent = 'Recargar';
+        aviso('No se pudo recargar: ' + (e.message || e), false);
+      }
+    };
   }
 
   /* ── La tarjeta fisica ─────────────────────────────────────────────

@@ -1,8 +1,13 @@
 /* clientes.css — la gente que le compra al restaurante.
  *
- * ESTA PANTALLA LA VE CUALQUIER RESTAURANTE que use Cobra, así que aquí no hay
- * nada de saldo, recargas ni app de clientes: eso vive en "Mi página web", que
- * solo ve el administrador de la plataforma.
+ * ESTA PANTALLA LA VE CUALQUIER RESTAURANTE que use Cobra. Las solicitudes de
+ * recarga y la app de clientes viven en "Mi página web", que solo ve el
+ * administrador de la plataforma.
+ *
+ * LO QUE SÍ ESTÁ AQUÍ (5-sep-2026, pedido de Sergio): la billetera del cliente
+ * y su botón de recargar, para no tener que cambiar de pantalla con la tarjeta
+ * en la mano. Aparece solo donde el plan trae la billetera; en los demás
+ * restaurantes esta pantalla se ve exactamente igual que antes.
  *
  * Mismos tokens que Caja y Mi página web. Se repiten en vez de importar otra
  * hoja para que esta pantalla no se rompa el día que alguien ajuste el arqueo.
@@ -141,6 +146,22 @@ svg{display:block;flex-shrink:0;}
 .cl-pt-b i{display:block;height:100%;border-radius:99px;
   background:linear-gradient(90deg,var(--indigo),var(--violet));}
 .cl-pt-s{font-size:11px;color:var(--muted);margin-top:6px;}
+
+/* ── La billetera (solo donde el plan la trae) ───────────────
+   Se separa del bloque de puntos a proposito: los puntos son del programa
+   de lealtad y los tiene cualquier restaurante; la billetera es plata y
+   solo existe donde hay recargas. Juntarlos obligaba a esconder media
+   tarjeta segun el plan. */
+.cl-bill{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin-top:8px;padding:10px 12px;background:var(--cloud);
+  border:1px solid var(--border);border-radius:10px;}
+.cl-bill-v{font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:1px;
+  font-variant-numeric:tabular-nums;}
+.cl-bill-b{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;
+  padding:8px 13px;background:var(--indigo);color:#fff;border:none;
+  border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;
+  box-shadow:0 2px 8px -2px rgba(91,107,255,.45);}
+.cl-bill-b:hover{background:var(--indigo-600);}
 
 /* Los pedidos de esa persona */
 .cl-peds{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff;}

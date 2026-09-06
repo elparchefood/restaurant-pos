@@ -1034,6 +1034,14 @@ body.pg-abriendo .pg-velo {
 }
 .pg-velo-txt { font-size: 13px; color: #64748B; font-weight: 600; }
 @keyframes pgVelo { to { transform: rotate(360deg); } }
+
+/* La franja que avisa que se leyó la tarjeta. Entra con la curva de la casa;
+   con el movimiento reducido del sistema, no entra: aparece y ya. */
+@keyframes pgNfcIn { from { opacity: 0; transform: translateY(-6px); }
+                     to   { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  #pg-nfc { animation: none !important; }
+}
 /* Quien pidio no ver animaciones no ve el giro; el velo y su red de seguridad
    siguen funcionando igual. */
 @media (prefers-reduced-motion: reduce) { .pg-velo-giro { animation: none; } }
