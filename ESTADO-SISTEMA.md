@@ -1,7 +1,97 @@
 # ESTADO DEL SISTEMA — Cobra POS
-> Última actualización: 2026-09-04
+> Última actualización: 2026-09-05
 
 Este documento registra el estado confirmado de cada componente. Se actualiza ronda a ronda. Si algo aparece como ✅ aquí, está funcionando en producción y **no debe tocarse** sin instrucción explícita.
+
+## 🟢 Recargar desde Clientes, y la tarjeta reconocida en el cobro — 5-sep-2026
+
+Dos cosas que pidio Sergio el mismo dia, las dos alrededor de la billetera.
+
+### 1. El boton de Recargar, en la ficha del cliente
+
+Antes, para abonarle saldo a alguien habia que irse a **Mi pagina web →
+Personas**. Con la tarjeta en la mano y el cliente enfrente, eso son tres
+pantallas de mas para algo que pasa en el mostrador.
+
+Ahora la ficha de **Clientes** muestra la **Billetera** con su boton
+**Recargar**. El cuadro pregunta una sola cosa —cuanto te pagó— y enseña el
+bono **antes** de confirmar, que es cuando sirve saberlo: asi el cajero le
+puede decir al cliente *"por diez mil mas te llevas otro bono"*.
+
+**No calcula nada.** El minimo, el bono y el libro los pone
+`fn_recarga_aplicar` en la base, la misma funcion que usan la app del cliente
+y Mi pagina web. Dos formas de calcular un bono es una forma de que las dos
+se contradigan. La referencia lleva la hora (`local:<cliente>:<ts>`), asi que
+un doble clic choca contra el indice unico y no abona dos veces.
+
+**Quien lo ve.** Cuelga de `posPlan.puede('nfc')` — el mismo permiso que ya
+decide el boton de *Tarjeta* en esa ficha y el metodo *Billetera* en la caja.
+Una sola condicion para las tres cosas, y **ningun restaurante escrito a mano
+en el codigo**. Hoy solo el plan `premium` trae `nfc`, y el unico que lo
+tiene es El Parche; el dia que otro compre tarjetas le funciona sin tocar
+nada. Donde no hay billetera, la pantalla se ve exactamente igual que antes.
+
+> El encabezado de `clientes.js`/`clientes.css` decia que aqui no habia nada
+> de saldo. Se corrigio: lo que se fue a Mi pagina web fue la ADMINISTRACION
+> (aprobar solicitudes, ver el libro, regalar). Aqui solo esta el acto del
+> mostrador.
+
+**Ojo con el minimo.** Minimo $40.000, bono por bloques de $50.000. Entonces
+una recarga de $40.000 **no da bono** (0 bloques enteros); el primero aparece
+a los $50.000. El cuadro lo dice tal cual — no lo disimula.
+
+### 2. La tarjeta en la pantalla de cobro: estaba muerta
+
+Desde el 20-ago `pagos.js` tenia el enganche del lector. **Nunca pudo
+funcionar**, y no por el lector: por el orden de arranque.
+
+```js
+try { pgArrancarLector(); } catch (e) {}   // <- al PARSEAR el archivo
+```
+
+Ahi dentro hacia `posNfc.setCtx(_pos.state.tenantId || SP.tenantId)`. Pero
+`boot()` de `pos-core.js` resuelve la sesion **de forma asincrona**, y
+`SP.tenantId` se llena en el `DOMContentLoaded` de la propia pantalla. En el
+instante en que corria esa linea, **los dos valian `null`**.
+
+Resultado: el lector quedaba armado con el restaurante en null, y la consulta
+`pos_tarjetas?tenant_id=eq.null` **no falla** — simplemente no encuentra
+nada. Toda tarjeta buena salia como *«Tarjeta sin vincular»*. Otro caso de
+lo mismo de siempre: un fallo que no se anuncia como fallo.
+
+`clientes.js` y `pagina-web.js` no tenian el problema porque arman el lector
+en `core:ready` y al abrir la pestaña — con la sesion ya puesta.
+
+**El arreglo**: el tenant se pone **en cada toque**, dentro del oyente. No
+cuesta nada y deja de depender del orden en que arranquen las cosas.
+
+### Y ademas la pantalla ahora lo DICE
+
+El toque llenaba el nombre del cliente en silencio. El cajero no tenia forma
+de saber si el lector habia leido, y ante la duda vuelve a pasar la tarjeta.
+
+Ahora sale una **franja encima de los metodos de pago** —donde esta
+mirando— con el nombre, el saldo y si le alcanza para todo o para parte. Es
+franja y **no ventana** a proposito: una ventana en mitad de un cobro hay que
+cerrarla antes de seguir, y esto pasa con el cliente enfrente.
+
+Al leer la tarjeta se deja **escogida la Billetera**, pero el monto **NO** se
+escribe: lo pone el cajero. Pedido de Sergio y ademas es lo correcto —casi
+nunca se paga el pedido entero con saldo, y un monto puesto solo se aplica
+sin que nadie lo mire.
+
+Vale para **mesa, venta rapida y domicilio**: los tres cobran en esta misma
+pantalla (`pagos.html?channel=...`), no hay tres pantallas de cobro.
+
+### Lo que sigue pendiente
+
+- **La recarga en el local no entra al arqueo.** Es correcto que no sea
+  venta (la venta ocurre cuando se come), pero si el cliente paga la recarga
+  en EFECTIVO, el cajon queda con esa plata y el cierre la vera como sobrante.
+  Hay que decidir como se anota — se cruza con el cierre ciego.
+- **El tope por transaccion** de la billetera: falta que Sergio ponga el
+  monto.
+- Boton para bloquear una tarjeta perdida.
 
 ## 🟢 Notas de credito: anular una factura ya emitida — 5-sep-2026
 
