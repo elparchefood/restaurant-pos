@@ -166,7 +166,7 @@
         '<button class="ep-btn ep-btn--main" type="submit" id="b-entrar">Entrar</button>' +
       '</form>' +
       /* DOS botones y no uno (pedido de Sergio, 17-ago). Por dentro hacen lo
-         mismo —mandar el código por WhatsApp; el servidor ya distingue solo si
+         mismo —mandar el código, que hoy sale por SMS; el servidor distingue solo si
          el número es cliente o no—, pero "Es mi primera vez · Olvidé mi
          contraseña" en un solo renglón confundía: el nuevo no se siente
          aludido por "contraseña" y el que la olvidó no está "empezando".
@@ -189,24 +189,37 @@
       var d = await acceso({ accion: 'entrar', telefono: tel, clave: clave, recordar: $('i-recordar').checked });
       if (d.ok) { guardarToken(d.token); S.cliente = d.cliente; return pantallaDentro(); }
       // Todavía no tiene contraseña: se le lleva derecho al código, sin regañarlo.
-      if (d.razon === 'sin_clave') return pedirCodigo(tel, 'Vamos a crear tu contraseña. Te mandamos un código por WhatsApp.');
+      if (d.razon === 'sin_clave') return pedirCodigo(tel, 'Vamos a crear tu contraseña. Te mandamos un código por mensaje de texto.');
       pantallaEntrar(d.mensaje || 'No pudimos entrar.', true);
     });
 
     function porCodigo(mensaje) {
       var tel = ($('i-tel').value || '').replace(/\D/g, '').slice(-10);
-      if (tel.length !== 10) return pantallaEntrar('Escribe tu celular arriba y te mandamos un código por WhatsApp.', true);
+      if (tel.length !== 10) return pantallaEntrar('Escribe tu celular arriba y te mandamos un código por mensaje de texto.', true);
       pedirCodigo(tel, mensaje);
     }
     $('b-nuevo').addEventListener('click', function () {
-      porCodigo('¡Bienvenido! Te mandamos un código por WhatsApp para crear tu cuenta.');
+      porCodigo('¡Bienvenido! Te mandamos un código por mensaje de texto para crear tu cuenta.');
     });
     $('b-olvide').addEventListener('click', function () {
-      porCodigo('Tranquilo, pasa en las mejores familias 😊 Te mandamos un código por WhatsApp para crear una contraseña nueva.');
+      porCodigo('Tranquilo, pasa en las mejores familias 😊 Te mandamos un código por mensaje de texto para crear una contraseña nueva.');
     });
   }
 
-  // ── 2. Código por WhatsApp ──────────────────────────────────────────
+  /* ── 2. El código ────────────────────────────────────────────────────
+     ⚠️ NO se promete el canal, se dice "mensaje de texto" — que es lo que de
+     verdad pasa. Sergio, 6-sep: *"nosotros no enviamos mensajes de
+     confirmacion para registro por WhatsApp, es por mensaje de texto"*.
+
+     Y tiene razon por dos motivos que se comprobaron ese dia: la plantilla
+     `acceso_codigo` NO existe en la cuenta de WhatsApp de El Parche, asi que
+     ese intento siempre falla; y quien se esta registrando POR PRIMERA VEZ no
+     tiene conversacion abierta, o sea que la ventana de 24 h esta cerrada por
+     definicion. Las dos puertas de WhatsApp estan cerradas justo en el unico
+     caso que importa aqui. Queda el SMS.
+
+     El servidor sigue intentando WhatsApp primero por si algun dia existe la
+     plantilla; lo que no puede es PROMETERLO en la pantalla.            */
   async function pedirCodigo(tel, aviso) {
     S.tel = tel;
     pinta('<div class="ep-login">' + cabecera() + '<p class="ep-lead">Enviando tu código…</p></div>');
@@ -221,7 +234,7 @@
       otp: (typeof window !== 'undefined' && 'OTPCredential' in window),
     });
     if (!d.ok) return pantallaEntrar(d.mensaje || 'No pudimos enviarte el código.', true);
-    pantallaCodigo(aviso || ('Te enviamos un código por WhatsApp al ' + tel + '.'));
+    pantallaCodigo(aviso || ('Te enviamos un código por mensaje de texto al ' + tel + '.'));
   }
 
   function pantallaCodigo(aviso, malo) {
