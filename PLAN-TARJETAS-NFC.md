@@ -3,8 +3,9 @@
 > Decidido con Sergio el 22-ago-2026. **Tarjetas y lector YA COMPRADOS.**
 > Todo lo de abajo está decidido, no es una propuesta.
 >
-> **Estado:** esperando que lleguen (~7 de septiembre). Al llegar, ver
-> "Primera prueba" al final — en ese orden y sin saltarse pasos.
+> **Estado (5-sep-2026): LLEGARON, y los 4 primeros pasos PASARON.**
+> Ver "Resultado de la primera prueba" al final. Falta el paso 5, que ya no es
+> una comprobacion sino trabajo: hay que programar una tarjeta.
 
 ## Para qué es la tarjeta (palabras de Sergio)
 
@@ -171,3 +172,74 @@ exactamente qué devolver y no se pierde el pedido grande.
 
 Solo después de que los 5 pasen: mandar a imprimir las 100 con el diseño de
 El Parche.
+
+---
+
+# Resultado de la primera prueba — 5-sep-2026
+
+Todo se comprobo **desde el computador de la caja**, hablandole al lector por
+PC/SC. La app del celular no hizo falta: se le pregunta al chip su identidad y
+contesta el.
+
+### 1. ¿La tarjeta es de verdad una NTAG424? — **SI**
+
+| | |
+|---|---|
+| Fabricante | NXP (`0x04`) |
+| Familia | NTAG, tipo `0x04`, subtipo `0x02` — la firma de la NTAG 424 DNA |
+| Version | 48.0 (`0x30`) |
+| Memoria | `0x11` (416 bytes), la de la 424 |
+| UID | `04218D7A421890` — **7 bytes**, como dice la hoja de datos |
+
+No eran NTAG215. Las tarjetas son las correctas y no hay que devolver nada.
+
+### 2. ¿El computador ve el lector? — **SI**
+
+Aparece como `Cryptnox NFC 0` **sin instalar nada**, con el driver CCID que
+trae Windows. Se reporta a si mismo como "NFC".
+
+### 3. ¿El lector lee la tarjeta? — **SI**
+
+Devuelve el UID de 7 bytes apoyando la tarjeta encima.
+
+### 4. ¿El lector puede PROGRAMARLA? — **SI** ← el paso decisivo
+
+Era el unico que ningun anuncio garantizaba y por el que se guardaban los 30
+dias de devolucion de Amazon. Se hizo la autenticacion completa:
+
+1. Se selecciona la aplicacion NDEF de la tarjeta → `9000`
+2. `AuthenticateEV2First` con la clave de fabrica (AES-128, 16 ceros) → `91AF`
+3. Se descifra su reto, se rota, se responde con el nuestro cifrado → `9100`
+4. **La tarjeta demuestra conocer la clave** y queda abierto un canal seguro
+
+Con ese canal es con el que se activa SUN/SDM. **El lector se queda.**
+
+### 5. ¿Cada toque da un codigo distinto? — TODAVIA NO SE PUEDE PROBAR
+
+No es una comprobacion pasiva: la seguridad **viene apagada de fabrica**. Para
+que cada toque de un codigo distinto hay que programar la tarjeta antes, y eso
+es lo que falta construir.
+
+## ⚠️ Y lo que la prueba dejo a la vista
+
+**Las tarjetas estan con la clave de fabrica** (16 ceros), que es publica y la
+sabe cualquiera. Tal como estan hoy:
+
+- cualquiera con un lector de 30 dolares puede reprogramarlas;
+- el codigo NO rota todavia: solo tienen su UID, que se puede copiar.
+
+**Mientras no se programen, una tarjeta no puede mover plata.** Programarlas no
+es un paso de mejora: es lo que las convierte en lo que Sergio pidio.
+
+## Lo siguiente, en orden
+
+1. **Decidir la direccion** que lleva la tarjeta (algo como
+   `cobrapos.app/t?...` con el UID, el contador y la firma).
+2. **Generar la clave AES-128 de El Parche** y guardarla como secreto del
+   servidor. ⚠️ **NUNCA en el repo, que es publico.** Y sin copia de esa clave
+   una tarjeta programada no se puede recuperar: se tira.
+3. **Programar UNA tarjeta** de prueba — no las 100.
+4. **Comprobar el paso 5** con esa: tres toques, tres codigos distintos.
+5. Verificar la firma en el servidor: CMAC valida **y contador nuevo**.
+
+Solo despues de eso se manda a imprimir el resto.
