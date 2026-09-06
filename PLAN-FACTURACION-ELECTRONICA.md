@@ -434,9 +434,46 @@ sirve cualquier restaurante sin predecir cuanto va a gastar cada uno, y un
 cliente nuevo arranca al instante sin comprarle nada. Con planes por NIT hay
 que dimensionar cada uno por adelantado y comprar otro si se pasa.
 
-**Recomendacion:** empezar con **planes por NIT** (mas barato y con
-certificado), y pasarse a bolsa solo cuando haya tantos restaurantes que
-dimensionar uno por uno sea el problema.
+## 10.2-bis ✅ DECIDIDO: **BOLSA MULTIFACTURADOR** (Sergio)
+
+> *"Comprar una bolsa anual por NIT es ilogico: un cliente puede entrar a Cobra
+> y salirse a los dos meses, o no usar su bolsa. Sale mejor comprar el
+> certificado de cada cliente con lo que pagan en Cobra en su primera
+> mensualidad, y que ellos consuman de la bolsa multifacturador — que la
+> comprare cuando entre el primer cliente que vaya a facturar."*
+
+**Como queda:**
+
+| | |
+|---|---|
+| **La bolsa** | Una sola, multifacturador. Se compra **cuando entre el primer cliente que vaya a facturar**, no antes |
+| **El certificado** | $130.000/ano por NIT, lo compra **Cobra**, con lo que ese cliente paga en **su primera mensualidad** |
+| **El consumo** | Todos los restaurantes tiran de la misma bolsa |
+
+### ⚠️ Por que la cuenta de arriba estaba mal planteada — y por que la borro
+
+Yo habia recomendado **planes por NIT** porque salen mas baratos por documento.
+La comparacion era correcta y la conclusion no, porque **le faltaba la
+variable que manda: que el cliente se puede ir.**
+
+Un plan anual atado a un NIT es una apuesta a que ESE restaurante se queda un
+ano. Si se va a los dos meses, esa plata esta perdida —§f.6: no hay
+devoluciones, y la vigencia corre desde la compra— y no se puede pasar a otro
+cliente. Con **churn**, el precio por documento del plan por NIT deja de ser
+el precio real: el precio real es el plan entero dividido entre los documentos
+que ese cliente ALCANZO a emitir.
+
+La bolsa es **una sola apuesta, y la controlamos nosotros**: si un cliente se
+va, sus documentos sin usar quedan para el siguiente.
+
+Y por eso tambien **se compra cuando entre el primer cliente que facture, no
+antes**: la vigencia de un ano corre desde la compra, asi que comprarla con
+tiempo es quemar meses.
+
+⚠️ Que esto no vuelva a perderse: la decision **ya se habia hablado** y solo
+estaba mi recomendacion escrita, asi que al redactar el correo a Factus copie
+lo que decia el plan — que era lo contrario de lo decidido. Es exactamente
+contra lo que avisa el encabezado de esta seccion 10.
 
 ## 10.3 Lo que el restaurante consume — la cuenta que decide el precio
 
