@@ -107,9 +107,23 @@ usa para pagar. Entonces una sola tarjeta y un solo código sirven para:
    registra. Sin app, sin código de verificación por SMS.
 2. **Acercarla al lector del local** → paga con su saldo.
 
-**Consecuencia comercial grande**: se pueden entregar **tarjetas sin asignar**.
-El cliente la acerca a su celular, se registra, y en ese momento la tarjeta
-pasa a ser suya. El cajero no hace nada.
+### ❌ Lo de "tarjetas sin asignar" NO va — corregido el 5-sep-2026
+
+Aqui habia escrito, como "consecuencia comercial grande", que se podrian
+entregar **tarjetas sin asignar** y que el cliente se la quedara al
+registrarse. **Eso lo deduje yo, no lo pidio Sergio** — y el 5-sep se lo
+presente como si fuera decision suya. Su respuesta:
+
+> *"Yo jamas entrego tarjetas en blanco. Al entregar una tarjeta ya la hemos
+> previamente vinculado al cliente. No tiene sentido dar tarjetas en blanco."*
+
+**Como es de verdad: la tarjeta se vincula ANTES de entregarla.** Se le da al
+cliente ya siendo suya. Acercarla al celular no sirve para reclamarla, sino
+para que entre a su cuenta — o para instalar la app si no la tiene.
+
+Que quede escrito porque cambia el diseNo: no hace falta ningun camino para
+"reclamar" una tarjeta, y una tarjeta que llegue sin dueNo a la pagina es una
+señal de que algo se salto un paso, no un caso normal.
 
 ### Requisitos del "acercar al celular"
 
