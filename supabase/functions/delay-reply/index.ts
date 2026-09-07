@@ -2838,7 +2838,48 @@ INTENCION, no las palabras exactas.` },
       return;
     }
 
-    if (NUEVA_ORDEN_RE.test(clienteTexto) || esOtroProducto || horasPendiente > 24) {
+    /*  ══ EL CLIENTE CAMBIA EL PEDIDO MIENTRAS SE ESPERA EL COMPROBANTE ══
+
+        Caso real (7-sep-2026): Paco cotizo $23.000, la clienta escribio "que
+        pena puedo cambiarlo es maicitos especial de pollo" y le llego "Quedo
+        pendiente del comprobante" — la misma frase que si no hubiera dicho
+        nada. Hubo que atenderla a mano, cotizarle los $32.000 y arreglar el
+        pedido en la caja. Y encima el verificador comparo los $32.000 que
+        ella pago contra los $23.000 guardados: alarma de pago que no era.
+
+        Aqui NO se contesta nada. Se deja seguir el flujo normal, que ya sabe
+        cambiar un plato, recalcular y volver a cotizar. La bandera de
+        "esperando comprobante" se queda ENCENDIDA a proposito: si el
+        comprobante llega en mitad del cambio se verifica igual, y contra el
+        pedido ya corregido. Solo se apaga el recordatorio, que no tiene
+        sentido mientras se esta recotizando.
+
+        El orden importa: lo de cocina ("las salsas aparte") se decide ABAJO,
+        porque eso se anota y ya funciona; esto es para cuando cambia lo que
+        va a comer.
+
+        Medido contra el modelo de verdad —su mismo modelo, su misma
+        temperatura— con 17 mensajes reales: 17 de 17.                     */
+    const agregaAlgoPend = Array.isArray(intenciones.agregados)
+      && (intenciones.agregados as unknown[]).length > 0;
+    /*  Y UNA VEZ EMPEZADO, HAY QUE DEJARLO TERMINAR. Paco acepta el cambio y
+        pregunta "¿familiar o personal?"; si a esa respuesta le contesta otra
+        vez "quedo pendiente del comprobante", el cambio se queda a medias y
+        es peor que no haberlo empezado.
+        La seNal ya existe: al corregir, `resumen_enviado` vuelve a false, y
+        solo se pone en true cuando se vuelve a cotizar. Mientras este en
+        false el cliente esta contestando algo — que pase.                 */
+    const cambioAMedias = stPend?.resumen_enviado === false;
+    const cambiaElPedidoPend = cambioAMedias
+      || (!esInstruccionCocina(quitarReenvio(clienteTexto).texto)
+          && (intenciones.corrige === true || agregaAlgoPend
+              || (intenciones.pedir === true && mencionaProductoCatalogo(clienteTexto))));
+
+    if (cambiaElPedidoPend && stPend) {
+      console.log("[pago] cambia el pedido con el comprobante pendiente -> se relee");
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { recordar_at: null });
+      /* sin return: sigue el flujo normal con el pedido que ya tenia */
+    } else if (NUEVA_ORDEN_RE.test(clienteTexto) || esOtroProducto || horasPendiente > 24) {
       pagoPendienteViejo = true;
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: false, pending_order_data: null, recordar_at: null });
     } else {
@@ -5683,7 +5724,7 @@ INTENCION, no las palabras exactas.` },
           sobra: la pasada nueva la va a atender con lo que dijo. Mandarla
           seria pedirle otra vez lo que acaba de dar — el fallo medido 8
           veces en 15 dias.                                              */
-      if (await llegoAlgoDespues(convId, batchMsgs)) {
+      if (await llegoAlgoDespues(convId, batchMsgs, batchStart)) {
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
         await setTyping(convId, false);
         return;
@@ -11599,11 +11640,21 @@ function clasificarDireccion(
 
     Si la comprobacion falla se devuelve false — o sea, se manda igual. El
     silencio es peor que una pregunta de mas.                             */
-async function llegoAlgoDespues(convId: string, batchMsgs: Array<{ id: string }>): Promise<boolean> {
+async function llegoAlgoDespues(
+  convId: string,
+  batchMsgs: Array<{ id: string }>,
+  /*  DESDE CUANDO CUENTA. Sin esta hora, la resta "los ultimos 8 del cliente
+      menos los de esta tanda" deja dentro a los de turnos ANTERIORES: desde el
+      segundo mensaje de cualquier conversacion el guardia decia que si y la
+      pregunta no salia. Lo vio el banco: Paco preguntaba el tamaNo, el cliente
+      contestaba y Paco se quedaba mudo.                                    */
+  desde: string,
+): Promise<boolean> {
   try {
     const ids = new Set(batchMsgs.map(m => String(m.id)));
     const r = await sbGet(
       `/rest/v1/chat_messages?conversation_id=eq.${convId}&direction=eq.in` +
+      `&sent_at=gte.${encodeURIComponent(desde)}` +
       `&select=id&order=sent_at.desc&limit=8`
     ) as Array<Record<string, unknown>> | null;
     if (!r || !r.length) return false;
