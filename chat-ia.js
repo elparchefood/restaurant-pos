@@ -5207,7 +5207,10 @@ async function pintarUsuarioActual() {
     let u = (window._pos && window._pos.state && window._pos.state.user) || null;
     if (!u) { try { u = (await sb.auth.getSession()).data.session.user; } catch (e) {} }
     const meta = (u && u.user_metadata) || {};
-    nombre    = meta.full_name || meta.name || meta.nombre || meta.restaurant_name || (u && u.email) || '';
+    /*  `nombre` manda: es el que escribio la persona. `full_name` y `name`
+        los pone el proveedor al entrar con Google o Facebook, y en un perfil
+        de negocio son el nombre del NEGOCIO, no el de quien atiende.    */
+    nombre    = meta.nombre || meta.full_name || meta.name || meta.restaurant_name || (u && u.email) || '';
     rol       = meta.role || meta.rol || '';
     avatarUrl = meta.avatar_url || meta.foto_negocio || meta.business_photo_url || meta.logo_url || '';
   } catch (e) { /* sin sesión legible */ }

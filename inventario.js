@@ -315,7 +315,9 @@ async function loadData() {
     } catch (e) { console.warn('[inventario] marca/modo:', e && e.message); }
 
     const meta     = user.user_metadata || {};
-    const fullName = meta.full_name || user.email || 'Usuario';
+    /*  `nombre` antes que `full_name`: el segundo lo escribe Google al
+        entrar y seria el nombre del negocio, no el de la persona.       */
+    const fullName = meta.nombre || meta.full_name || user.email || 'Usuario';
     const initials = fullName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
 
     document.getElementById('tb-avatar').textContent  = initials;

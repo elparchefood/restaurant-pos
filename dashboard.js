@@ -145,8 +145,12 @@ async function loadUser(branchId) {
     // Sin ficha en pos_users, la metadata de auth ya trae nombre y rol.
     if (!data) {
       const meta = authUser.user_metadata || {};
-      if (meta.name || meta.full_name || meta.role) {
-        data = { name: meta.name || meta.full_name || authUser.email, role: meta.role || '' };
+      if (meta.nombre || meta.name || meta.full_name || meta.role) {
+        /*  `nombre` primero: es el que la persona escribio al registrarse.
+            `name`/`full_name` los escribe Google o Facebook al entrar, y en
+            un perfil de negocio suelen ser el nombre DEL NEGOCIO — Sergio
+            habria pasado a llamarse "El Parche Food" aqui.               */
+        data = { name: meta.nombre || meta.name || meta.full_name || authUser.email, role: meta.role || '' };
       }
     }
   }
