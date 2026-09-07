@@ -4507,15 +4507,19 @@ async function toggleHumanTakeover() {
     updateHumanToggleBtn(newVal);
     await updateHumanBadge();
     showToast(newVal ? 'Chat pasado al humano' : 'Bot reactivado', 'success');
-    if ((newVal && S.activeView !== 'human') || (!newVal && S.activeView === 'human')) {
-      S.conversations = S.conversations.filter(c => c.id !== S.activeConvId);
-      S.activeConvId = null;
-      renderConvList();
-      renderBadges();
-      $('chatHead').style.display = 'none';
-      $('thread').style.display = 'none';
-      $('chatEmpty').style.display = '';
-    }
+    /*  LA CONVERSACION SE QUEDA ABIERTA (7-sep-2026, Sergio).
+        Antes esto la sacaba de la lista Y ADEMAS la deseleccionaba y escondia
+        la ventana. Pero uno toca ese boton justo cuando va a escribir: cerrarle
+        el chat en la cara es lo contrario de lo que hace falta, y obligaba a
+        buscarla otra vez con el cliente esperando.
+
+        Se queda donde esta. Nada la va a cerrar por detras: los avisos en
+        tiempo real FUSIONAN la fila en vez de quitarla, y la lista solo filtra
+        por canal y por lo que se busca. Deja de aparecer donde no toca a la
+        proxima que se cambie de pestana — que es cuando de verdad estorba, no
+        ahora.                                                              */
+    renderConvList();
+    renderBadges();
   } catch(e) { console.error('toggleHumanTakeover:', e); showToast('Error al cambiar modo', 'error'); }
 }
 // ── Pagos por confirmar ───────────────────────────────────────────────────────
