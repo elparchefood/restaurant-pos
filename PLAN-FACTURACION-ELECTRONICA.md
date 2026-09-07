@@ -478,6 +478,59 @@ dos veces al reves de lo que Sergio queria en ese momento.
 En este documento van separados a proposito: las tablas de §10.2 son datos;
 esto es una balanza, no una orden.
 
+## 10.2-ter DECIDIDO (7-sep-2026) — el camino completo, de aqui a Alanube
+
+Sergio lo cerro asi, y ya no es una inclinacion sino el plan:
+
+| Cuando | Que se hace |
+|---|---|
+| **Hoy, sin clientes** | Sandbox. **No se compra nada.** Produccion se activa POR CLIENTE y todavia no hay ninguno |
+| **Entra el primer cliente** | Se mandan sus papeles (RUT, cedula, logo, comprobante, "v2") y se compra **un paquete por NIT para ESE cliente**. Activacion en 1 dia habil |
+| **Mientras crece** | Un paquete por cliente, dimensionado con su volumen real enfrente |
+| **Cuando sean muchos** | Se evalua **Alanube** |
+
+Sergio: *"vamos a quedarnos con Factus hasta que entre el primer cliente... el
+dia que tengamos muchos clientes y las facturas electronicas sean demasiadas ya
+nos pasamos a Alanube"*.
+
+### ⚠️ Una precision sobre el porque, que cambia CUANDO hay que moverse
+
+Sergio lo razono como *"una bolsa por cliente sale mas economico que una bolsa
+multifacturador, a menos que tengamos muchisimos clientes"*. La primera mitad
+la confirma el tarifario; **la segunda no**: segun las tablas de §10.2, el
+paquete por NIT sale mas barato por documento **en TODOS los tramos**, no solo
+con pocos clientes. A 10.000 documentos son $390.000 contra $630.000, y ademas
+el certificado va incluido.
+
+O sea que **la bolsa multifacturador nunca gana por precio**. Lo unico que
+compra es flexibilidad: un solo bote del que se sirve cualquiera, sin adivinar
+el volumen de cada uno y sin comprarle nada a un cliente nuevo para arrancarlo.
+
+Eso importa porque cambia la seNal de cuando moverse. **No hay que estar
+mirando el precio esperando un cruce que no va a llegar.** Lo que se acumula
+con los clientes es TRABAJO y RIESGO:
+
+- una compra y una renovacion **por cliente y por aNo**, cada una con su fecha;
+- hay que **dimensionar cada paquete por adelantado**, y quedarse corto deja a
+  ese restaurante sin facturar hasta comprarle otro;
+- lo que sobra en el paquete de un cliente **no le sirve a otro**, y se pierde
+  al aNo (§f.6).
+
+Con 3 clientes eso se lleva a mano. Con 20 son 20 vencimientos que vigilar.
+**La seNal para moverse es esa, no el precio por documento.**
+
+### Y una advertencia sobre Alanube
+
+Que Alanube sea mejor con volumen es **una hipotesis sin comprobar**: nunca
+contestaron ninguna de las 5 preguntas tecnicas en 8 dias de correos, y no
+tenemos su tarifario. El dia que se evalue hay que pedir precios y respuestas
+antes de mover nada — y esa demora en contestar es, por si sola, un dato sobre
+lo que seria depender de ellos.
+
+Lo barato de cambiar ya esta resuelto: todo lo que depende del proveedor vive
+en **un solo adaptador** (`supabase/functions/facturar/index.ts`), asi que
+mudarse es escribir otro objeto igual, no rehacer la facturacion.
+
 ## 10.3 Lo que el restaurante consume — la cuenta que decide el precio
 
 Si se emite **una factura por cada tiquete**:
