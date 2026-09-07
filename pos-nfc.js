@@ -179,7 +179,10 @@
   async function tarjetasDe(telefono) {
     var s = sb(); if (!s) throw new Error('Sin conexión');
     var tel = String(telefono || '').replace(/[^0-9]/g, '').slice(-10);
-    var r = await s.from('pos_tarjetas').select('id,uid,activa,created_at')
+    /*  `detalle` y `ultimo_uso` son para la pantalla: poder decir CUANDO se
+        bloqueo y cuando se uso por ultima vez. Sin eso, una tarjeta apagada
+        es una linea gris que no explica nada.                            */
+    var r = await s.from('pos_tarjetas').select('id,uid,activa,detalle,ultimo_uso,created_at')
       .eq('tenant_id', CTX.tenantId).eq('telefono', tel).order('created_at');
     if (r.error) throw r.error;
     return r.data || [];
@@ -227,6 +230,41 @@
     }).select('id');
     if (r.error) throw r.error;
     return { id: r.data[0].id, uid: uid, telefono: tel, activa: true };
+  }
+
+  /*  ══ BLOQUEAR UNA TARJETA ═══════════════════════════════════════════
+      El caso: el cliente llama y dice que la perdio.
+
+      NO se borra, se APAGA. Borrarla parece lo mismo y no lo es:
+        · la deja libre para que cualquiera la vuelva a vincular tocandola
+          en otra ficha, porque el sistema ya no la conoce;
+        · pierde el contador que impide repetir un toque viejo, que es
+          justo el candado que protege la plata;
+        · y se pierde el rastro de que hubo una perdida.
+      Apagada sigue reconociendose, el servidor la rechaza y se puede
+      volver a encender si aparece.
+
+      El motivo y la fecha van en `detalle`, que es una columna que ya
+      existe y estaba sin usar. Ninguna columna nueva.                  */
+  async function bloquear(id, apagar, motivo) {
+    var s = sb(); if (!s) throw new Error('Sin conexión');
+    var cambios = { activa: !apagar };
+    if (apagar) {
+      var f = new Date();
+      var MES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      cambios.detalle = (motivo || 'Bloqueada') + ' · ' +
+        f.getDate() + ' ' + MES[f.getMonth()] + ' ' + f.getFullYear();
+    } else {
+      cambios.detalle = null;
+    }
+    var r = await s.from('pos_tarjetas').update(cambios)
+      .eq('id', id).eq('tenant_id', CTX.tenantId).select('id,activa,detalle');
+    if (r.error) throw r.error;
+    /*  Una fila que no vuelve es una fila que no se toco —permisos, otro
+        tenant, id que ya no esta—. Decir "listo" ahi seria mentir sobre
+        una tarjeta perdida, que es la peor mentira de esta pantalla.  */
+    if (!r.data || !r.data.length) throw new Error('No se pudo cambiar esa tarjeta.');
+    return r.data[0];
   }
 
   async function desvincular(id) {
@@ -407,6 +445,7 @@
   //  validarlo contra el servidor, que es lo unico que da seguridad.
   w.posNfc = { setCtx: setCtx, escuchar: escuchar, buscar: buscar,
                tarjetasDe: tarjetasDe, vincular: vincular, desvincular: desvincular,
+               bloquear: bloquear,
                ultimoToque: function () { return ultimoToque; },
                hayLector: function () { return w.posNfcHayLector === true; },
                sonar: sonar, alRetirar: alRetirar };

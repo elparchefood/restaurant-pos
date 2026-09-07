@@ -641,24 +641,149 @@
       a.style.color = bien ? '#16A34A' : '#DC2626';
       a.textContent = txt;
     }
+    /*  ══ LA LISTA DE TARJETAS ════════════════════════════════════════════
+        Antes solo tenia "Quitar", que BORRA la tarjeta. Y para el caso que
+        pidio Sergio —el cliente llama y dice que la perdio— borrar es justo
+        lo contrario de lo que hay que hacer: la deja libre para que
+        cualquiera la vuelva a vincular tocandola en otra ficha, y se pierde
+        el contador que impide repetir un toque viejo.
+
+        Por eso BLOQUEAR es ahora la accion principal y "Quitar" queda
+        chiquito al lado. Bloquear no pierde nada y se deshace: si la
+        tarjeta aparece, se reactiva y sigue sirviendo.
+
+        Apagarla ya funcionaba en los DOS extremos y nadie podia encenderlo:
+        el servidor rechaza una tarjeta apagada (`tarjeta/index.ts` ->
+        `bloqueada:true`) y la caja lo dice en la pantalla de pago
+        ("Tarjeta desactivada"). Faltaba solo el interruptor.             */
     async function pintarLista() {
       var caja = ov.querySelector('#clt-lista');
       try {
         var ts = await posNfc.tarjetasDe(tel);
         if (!ts.length) { caja.innerHTML = '<div style="font-size:12.5px;color:#94A3B8">Todavía no tiene tarjeta.</div>'; return; }
+
+        var activas = ts.filter(function (t) { return t.activa !== false; });
+
         caja.innerHTML = ts.map(function (t) {
-          return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 11px;border:1px solid #ECEEF2;border-radius:10px;margin-bottom:6px">' +
-            '<div style="font-size:12.5px;color:#0F172A;font-weight:600">Tarjeta ····' + esc(String(t.uid).slice(-4)) + '</div>' +
-            '<button data-quitar="' + esc(t.id) + '" style="background:none;border:none;color:#DC2626;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Quitar</button>' +
+          var apagada = t.activa === false;
+          var cuatro = esc(String(t.uid).slice(-4));
+          /*  Debajo del numero va el estado. Si esta bloqueada, CUANDO y por
+              que; si esta buena, cuando se uso por ultima vez. Una linea
+              gris sin explicacion no le sirve a quien esta al telefono.  */
+          var pie = apagada
+            ? esc(t.detalle || 'Bloqueada')
+            : (t.ultimo_uso ? 'Activa · se usó ' + esc(fechaCorta(t.ultimo_uso))
+                            : 'Activa · sin usar todavía');
+          return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;' +
+              'padding:9px 11px;border:1px solid ' + (apagada ? '#FECACA' : '#ECEEF2') +
+              ';border-radius:10px;margin-bottom:6px;background:' + (apagada ? '#FEF2F2' : '#fff') + '">' +
+            '<div style="min-width:0">' +
+              '<div style="font-size:12.5px;color:#0F172A;font-weight:600;display:flex;align-items:center;gap:7px">' +
+                'Tarjeta ····' + cuatro +
+                (apagada ? '<span style="font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;' +
+                           'background:#FEE2E2;color:#DC2626">BLOQUEADA</span>' : '') +
+              '</div>' +
+              '<div style="font-size:11px;color:' + (apagada ? '#DC2626' : '#94A3B8') +
+                  ';margin-top:2px">' + pie + '</div>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">' +
+              (apagada
+                ? '<button data-activar="' + esc(t.id) + '" style="background:#fff;color:#16A34A;' +
+                  'border:1px solid #BBF7D0;padding:6px 11px;border-radius:8px;font-size:11.5px;' +
+                  'font-weight:700;cursor:pointer;font-family:inherit">Reactivar</button>'
+                : '<button data-bloquear="' + esc(t.id) + '" data-cuatro="' + cuatro + '" ' +
+                  'style="background:#fff;color:#DC2626;border:1px solid #FECACA;padding:6px 11px;' +
+                  'border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">Bloquear</button>') +
+              '<button data-quitar="' + esc(t.id) + '" data-cuatro="' + cuatro + '" ' +
+                'title="Borrarla del sistema" style="background:none;border:none;color:#94A3B8;' +
+                'font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit">Quitar</button>' +
+            '</div>' +
           '</div>';
-        }).join('');
+        }).join('') +
+        /*  Con UNA tarjeta el boton de arriba ya es "todas". Con varias no:
+            quien pierde la billetera las pierde todas de una vez.        */
+        (ts.length > 1 && activas.length > 1
+          ? '<button id="clt-todas" style="width:100%;margin-top:2px;background:#FEF2F2;color:#DC2626;' +
+            'border:1px solid #FECACA;padding:8px;border-radius:9px;font-size:12px;font-weight:700;' +
+            'cursor:pointer;font-family:inherit">Bloquear sus ' + activas.length + ' tarjetas activas</button>'
+          : '');
+
+        caja.querySelectorAll('[data-bloquear]').forEach(function (b) {
+          b.onclick = function () { pedirBloqueo([b.dataset.bloquear], b.dataset.cuatro); };
+        });
+        var todas = caja.querySelector('#clt-todas');
+        if (todas) {
+          todas.onclick = function () {
+            pedirBloqueo(activas.map(function (t) { return t.id; }), null);
+          };
+        }
+
+        caja.querySelectorAll('[data-activar]').forEach(function (b) {
+          b.onclick = async function () {
+            try {
+              await posNfc.bloquear(b.dataset.activar, false);
+              aviso('Tarjeta reactivada. Ya vuelve a servir.', true);
+              pintarLista();
+            } catch (e) { aviso('No se pudo reactivar: ' + (e.message || e), false); }
+          };
+        });
+
+        /*  QUITAR AHORA PREGUNTA. Antes borraba de una, y ahora esta pegado
+            al boton de bloquear: es facil darle al que no era, y borrar no
+            se deshace.                                                   */
         caja.querySelectorAll('[data-quitar]').forEach(function (b) {
           b.onclick = async function () {
+            var ok = await preguntar({
+              titulo: '¿Borrar la tarjeta ····' + b.dataset.cuatro + '?',
+              texto: 'El sistema deja de conocerla. Si la tiene alguien más y la acerca, ' +
+                     'se podrá volver a vincular a cualquier cliente.' +
+                     '<br><br>Si el cliente la <b>perdió</b>, lo correcto es <b>bloquearla</b>, ' +
+                     'no borrarla: bloqueada sigue siendo suya, no sirve para pagar y se puede ' +
+                     'reactivar si aparece.',
+              si: 'Sí, borrarla',
+              no: 'Cancelar',
+              peligro: true,
+            });
+            if (!ok) return;
             try { await posNfc.desvincular(b.dataset.quitar); aviso('Tarjeta quitada.', true); pintarLista(); }
             catch (e) { aviso('No se pudo quitar: ' + (e.message || e), false); }
           };
         });
       } catch (e) { caja.innerHTML = '<div style="font-size:12.5px;color:#DC2626">No se pudieron cargar: ' + esc(e.message || e) + '</div>'; }
+    }
+
+    /*  Se pregunta SIEMPRE, aunque bloquear se pueda deshacer: quien lo hace
+        esta al telefono con un cliente asustado, y conviene que la pantalla
+        diga en voz alta lo que va a pasar — y sobre todo lo que NO va a
+        pasar, que es lo que el cliente esta temiendo. Su saldo y sus puntos
+        no se tocan: van con el celular, no con el plastico.             */
+    async function pedirBloqueo(ids, cuatro) {
+      if (!ids || !ids.length) return;
+      var quien = c.nombre || 'este cliente';
+      var varias = ids.length > 1;
+      var ok = await preguntar({
+        titulo: varias ? '¿Bloquear sus ' + ids.length + ' tarjetas?'
+                       : '¿Bloquear la tarjeta ····' + esc(cuatro || '') + '?',
+        texto: (varias ? 'Ninguna de las tarjetas de ' : 'La tarjeta de ') +
+               '<b>' + esc(quien) + '</b> va a servir para pagar ni para sumar puntos.' +
+               '<br><br>Sus <b>puntos y su saldo no se pierden</b>: están atados a su celular, ' +
+               'no al plástico. Y si la tarjeta aparece, se reactiva desde aquí mismo.',
+        si: varias ? 'Sí, bloquearlas' : 'Sí, bloquearla',
+        no: 'Cancelar',
+        peligro: true,
+      });
+      if (!ok) return;
+      try {
+        /*  Una a una y parando en la primera que falle: decir "listo, las
+            tres" cuando una siguió sirviendo es la peor mentira posible en
+            esta pantalla — el cliente se va creyendo que está protegido. */
+        for (var i = 0; i < ids.length; i++) {
+          await posNfc.bloquear(ids[i], true, 'Bloqueada por pérdida');
+        }
+        aviso(varias ? 'Listo: sus ' + ids.length + ' tarjetas quedaron bloqueadas.'
+                     : 'Listo: la tarjeta quedó bloqueada. Ya no sirve para pagar.', true);
+        pintarLista();
+      } catch (e) { aviso('No se pudo bloquear: ' + (e.message || e), false); }
     }
     /*  ══ PASAR UNA TARJETA QUE YA ES DE ALGUIEN ═══════════════════════════
         Sergio, 5-sep: *"si coloco en un cliente vacío una tarjeta que ya está
