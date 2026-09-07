@@ -290,6 +290,78 @@ const CAT_SINONIMOS: Record<string, string[]> = {
    da igual como la escriba el dueño (tildes, mayusculas, plural). */
 let DYN_CAT_SINONIMOS: Record<string, string[]> = {};
 
+/*  ══ EJEMPLOS SACADOS DE LA CARTA DE CADA RESTAURANTE ═════════════════════
+    Los prompts necesitan ejemplos concretos —un modelo aprende peor con
+    "Plato A"— pero si van escritos a mano son los de UN restaurante, y a los
+    demas les llegan ejemplos de una comida que no venden.
+
+    Lo que enseñan esos ejemplos es GRAMATICA: "una X CON Y" es una adicion,
+    "y tambien una Y" son dos platos. La forma vale para cualquier carta; solo
+    hay que llenar los huecos con platos de verdad DE ESE negocio.
+
+    Cache de 10 minutos por sede: el clasificador corre antes de que se cargue
+    el vocabulario, y sin cache seria un viaje mas en cada mensaje.       */
+interface EjemplosCarta {
+  platoA: string; platoB: string; adicion: string; bebida: string;
+  catA: string; catB: string;
+}
+let _ejemplosCache: { branch: string; at: number; ej: EjemplosCarta } | null = null;
+
+async function ejemplosDeLaCarta(branchId: string): Promise<EjemplosCarta> {
+  /*  Si no hay carta cargada se usan palabras generales del oficio, nunca los
+      platos de un restaurante concreto.                                  */
+  const porDefecto: EjemplosCarta = {
+    platoA: "hamburguesa", platoB: "gaseosa", adicion: "queso",
+    bebida: "gaseosa", catA: "hamburguesas", catB: "bebidas",
+  };
+  try {
+    if (_ejemplosCache && _ejemplosCache.branch === branchId
+        && Date.now() - _ejemplosCache.at < 10 * 60_000) return _ejemplosCache.ej;
+
+    const rows = await sbGet(
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true` +
+      `&select=name,category_id(name)&order=sort_order&limit=200`
+    ) as Array<Record<string, unknown>> | null;
+    if (!rows || !rows.length) return porDefecto;
+
+    const cat = (p: Record<string, unknown>) =>
+      String((p.category_id as Record<string, unknown> | null)?.name || "").trim();
+    const esAcompana = (c: string) => esCategoriaDeAcompanar(c);
+    const esBebida = (c: string) => /bebida|jugo|gaseosa|refresco|licor|cerveza/i.test(c);
+
+    /*  PLATOS: de las categorias de comida, no de adiciones ni bebidas. Y de
+        DOS categorias distintas cuando se puede, que es justo lo que los
+        ejemplos tienen que enseñar a separar.                           */
+    const platos = rows.filter(p => p.name && !esAcompana(cat(p)) && !esBebida(cat(p)));
+    const ej = { ...porDefecto };
+    if (platos.length) {
+      ej.platoA = String(platos[0].name);
+      ej.catA = cat(platos[0]) || ej.catA;
+      const otro = platos.find(p => cat(p) !== cat(platos[0])) || platos[1] || platos[0];
+      ej.platoB = String(otro.name);
+      ej.catB = cat(otro) || ej.catB;
+    }
+    const adi = rows.find(p => p.name && esAcompana(cat(p)));
+    /*  Sin el "Adicion" delante: en la carta se llama "Adicion Chorizo", pero
+        dentro del ejemplo ("una X CON adicion chorizo") esa palabra sobra y
+        se lee raro. Lo que importa del ejemplo es el ingrediente.        */
+    if (adi) ej.adicion = String(adi.name).replace(/^adici[oó]n(es)?\s+/i, "").trim() || String(adi.name);
+    const beb = rows.find(p => p.name && esBebida(cat(p)));
+    if (beb) { ej.bebida = String(beb.name); if (!platos.length) ej.catB = cat(beb); }
+
+    /*  En minusculas: dentro de una frase de ejemplo ("una PREMIUM con...")
+        el nombre en mayusculas de la carta se lee como un grito.        */
+    for (const k of Object.keys(ej) as Array<keyof EjemplosCarta>) {
+      ej[k] = ej[k].toLowerCase().replace(/\s+/g, " ").trim();
+    }
+    _ejemplosCache = { branch: branchId, at: Date.now(), ej };
+    return ej;
+  } catch (err) {
+    console.error("[ejemplos]", err);
+    return porDefecto;
+  }
+}
+
 /*  Las palabras con las que la gente nombra una FAMILIA en ESTE restaurante:
     los nombres de sus categorias, los sinonimos generales y los que aNadio el
     dueNo. Se usa para reconocer la categoria pegada delante de un plato
@@ -1623,6 +1695,10 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
         .join("\n");
     }
   } catch { /* sin contexto se clasifica igual que antes */ }
+  /*  Los ejemplos del clasificador salen de la carta de ESTE restaurante: la
+      gramatica que enseNan vale para cualquiera, los nombres no. Con cache,
+      asi que no es un viaje por mensaje. Ver `ejemplosDeLaCarta`.        */
+  const ej = await ejemplosDeLaCarta(branchId);
   let intenciones: Record<string, unknown> = {};
   try {
     const rInt = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -1682,11 +1758,10 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
   ni con un pedido (politica, futbol, "que opinas de...", cadenas).
 - "categoria": si pregunta QUE HAY dentro de UNA categoria concreta, devuelve
   esa categoria con tus palabras. Ejemplos: "que tienes de tomar" ->
-  "bebidas" · "que gaseosas hay" -> "bebidas" · "que hamburguesas manejan" ->
-  "hamburguesas" · "que perros tienen" -> "perros calientes".
+  "${ej.catB}" · "que ${ej.catA} manejan" -> "${ej.catA}".
   NO es categoria: pedir el menu COMPLETO ("que tienen", "la carta") -> null
   y carta:true. Tampoco preguntar por UN producto concreto ("que sabores de
-  postobon", "cuanto vale la coca cola") -> null. Si no pregunta que hay en
+  ${ej.bebida} hay", "cuanto vale la ${ej.platoA}") -> null. Si no pregunta que hay en
   una categoria -> null.
 
 - "carta": quiere ver la carta o el menu COMPLETO, o los precios EN GENERAL.
@@ -1694,9 +1769,9 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
   "tienen algo pa comer", "precios", "cuanto valen las cosas".
   OJO: si pregunta el precio de algo CONCRETO -> carta:false y precio:true.
 - "precio": true si pregunta cuanto vale UN producto o cual es el mas barato o
-  el mas caro. Ejemplos: "la salchipapa mas economica de k precio es",
-  "cuanto vale la premium", "que precio tiene la mixta familiar", "cual es la
-  mas barata", "de a como la sencilla". Se responde con el PRECIO, no con la
+  el mas caro. Ejemplos: "la ${ej.catA} mas economica de k precio es",
+  "cuanto vale la ${ej.platoA}", "que precio tiene la ${ej.platoB}", "cual es
+  la mas barata", "de a como la ${ej.platoA}". Se responde con el PRECIO, no con la
   carta: mandarle el menu entero a quien pregunto por un plato es no
   responderle.
 - "ubicacion": pregunta DONDE QUEDA EL RESTAURANTE o pide el mapa.
@@ -1716,19 +1791,19 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
 - "agregados": lo que el cliente quiere QUE LE PONGAN ENCIMA a otro plato, no
   como plato aparte. Devuelve los nombres tal como el los escribio, en una
   lista. Si no esta agregando nada -> [].
-  Es agregado: "una ranchera CON super queso", "ponle tocineta", "con extra de
-  queso", "me das una adicion de chorizo", "la premium me la das con maicitos".
-  NO es agregado, es un plato mas: "y tambien me das una super queso", "quiero
-  dos tocinetas", "una salchipapa de chorizo". Fijate en si va PEGADO a otro
+  Es agregado: "una ${ej.platoA} CON ${ej.adicion}", "ponle ${ej.adicion}",
+  "con extra de ${ej.adicion}", "me das una adicion de ${ej.adicion}".
+  NO es agregado, es un plato mas: "y tambien me das una ${ej.platoB}", "quiero
+  dos ${ej.adicion}s", "una ${ej.catA} de ${ej.adicion}". Fijate en si va PEGADO a otro
   plato ("con", "ponle", "adicion de") o si lo esta pidiendo aparte ("una",
   "dos", "tambien me das").
   OJO con "tambien" (o "tambn", "tmb", "y de paso"): eso es UN PLATO MAS, no un
-  agregado. "una premium familiar mixta, tambn super queso" son DOS platos ->
+  agregado. "una ${ej.platoA} familiar, tambn ${ej.platoB}" son DOS platos ->
   agregados: []. Solo es agregado si dice que va SOBRE el otro plato.
   OJO con "agregar/añadir/sumar": la palabra sola NO lo vuelve agregado.
-  "puedo agregar UNA salchi super queso", "agregame UN perro", "añade UNA
-  ranchera personal" -> articulo + nombre de plato = PLATO APARTE, agregados: [].
-  "agregaLE super queso", "le añades tocineta", "con extra queso" -> eso si va
+  "puedo agregar UNA ${ej.platoA}", "agregame UN ${ej.platoB}", "añade UNA
+  ${ej.platoA} personal" -> articulo + nombre de plato = PLATO APARTE, agregados: [].
+  "agregaLE ${ej.adicion}", "le añades ${ej.adicion}", "con extra" -> eso si va
   SOBRE el plato = agregado. La señal es "le/ponle/con", no el verbo agregar.
   Si dudas entre las dos, elige plato aparte: cobrarle un plato de menos se
   arregla preguntando, mandarle un plato que no pidio no.
@@ -1750,11 +1825,11 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
   "confirma": aqui esta cerrando la lista de cosas, no aprobando el pedido.
   Puede haber mensajes que sean las dos ("no, asi esta bien, confirmo").
 - "corrige": true si esta CORRIGIENDO algo que ya dijo o que tu entendiste
-  mal — no agregando algo nuevo. "corrijo...", "es la premium, no la mixta",
+  mal — no agregando algo nuevo. "corrijo...", "es la ${ej.platoA}, no la ${ej.platoB}",
   "quise decir...", "me equivoque", "mejor solo la X", "asi no era", "era
   familiar no personal". Mira el contexto: si acabas de resumir una cosa y el
   cliente nombra OTRA parecida sin decir "tambien" ni "y", esta corrigiendo.
-  NO es corrige: "y tambien una super queso" (agrega), "no gracias" (cierra),
+  NO es corrige: "y tambien una ${ej.platoB}" (agrega), "no gracias" (cierra),
   contestar lo que se le pregunto.
 Puede haber varias en true. Si no estas seguro, pon false.
 La gente escribe con errores, sin tildes y con espacios de mas: interpreta la
@@ -9403,7 +9478,7 @@ async function buildConversationResponse(
        contestar la llamo "Agua Personal" — un producto que no existe.
        Entender flexible, nombrar exacto: al hablar del pedido se usan los
        nombres tal como estan aqui, nunca como los dijo el cliente. */
-    stateLines.push("⚠️ Al mencionar productos del pedido usa EXACTAMENTE los nombres de esta lista (son los del catálogo). JAMÁS los renombres con las palabras del cliente ni inventes variantes: si aquí dice AGUA BOTELLA, se llama agua botella, aunque el cliente haya dicho otra cosa.");
+    stateLines.push("⚠️ Al mencionar productos del pedido usa EXACTAMENTE los nombres de esta lista (son los del catálogo). JAMÁS los renombres con las palabras del cliente ni inventes variantes: aunque el cliente lo haya llamado de otra forma, el producto se llama como diga la lista.");
     for (const item of allItems) {
       const desc = [item.producto, item.tipo, item.tamano ? `(${item.tamano})` : null].filter(Boolean).join(" ");
       stateLines.push(`✅ ${item.cantidad}x ${desc}${item.adiciones && item.adiciones.length > 0 ? " + " + item.adiciones : item.adiciones === "" ? " (sin adición)" : ""}`);
