@@ -5212,7 +5212,11 @@ async function pintarUsuarioActual() {
         de negocio son el nombre del NEGOCIO, no el de quien atiende.    */
     nombre    = meta.nombre || meta.full_name || meta.name || meta.restaurant_name || (u && u.email) || '';
     rol       = meta.role || meta.rol || '';
-    avatarUrl = meta.avatar_url || meta.foto_negocio || meta.business_photo_url || meta.logo_url || '';
+    /*  Y la foto igual que el nombre: `avatar_url` NO lo escribe Cobra, lo
+        escribe Google o Facebook al entrar. Las nuestras van primero, o al
+        entrar con Google la foto del negocio se cambiaria sola por la del
+        perfil personal.                                                  */
+    avatarUrl = meta.foto_negocio || meta.business_photo_url || meta.logo_url || meta.avatar_url || '';
   } catch (e) { /* sin sesión legible */ }
 
   // Complemento desde pos_users si faltara nombre o rol
