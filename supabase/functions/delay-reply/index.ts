@@ -109,11 +109,10 @@ interface ProductData {
   presentations: Array<{ id: string; name: string; price: number; prices?: number[] }>;
   variables:     Array<{ id: string; name: string; isPricing?: boolean; options: Array<{ id: string; name: string; price: number; prices?: number[] }> }>;
   /*  Lo que de VERDAD entra al plato, sacado de la receta — no de la
-      descripcion. La descripcion sirve para contarle al cliente que trae; la
-      receta, para decidir si lleva o no un ingrediente concreto.
-      `contiene` es de que esta hecho ese insumo, y VACIO significa QUE NO SE
-      SABE (no "no lleva nada"). Ver la nota de `textoIngredientes`.       */
-  ingredientes?: Array<{ nombre: string; contiene: string }>;
+      descripcion. La descripcion sirve para contarle al cliente QUE TRAE; la
+      receta, para decidir si LLEVA O NO un ingrediente concreto. Son dos
+      preguntas distintas y no se contestan con el mismo dato.            */
+  ingredientes?: string[];
 }
 
 // Paso configurable desde canvas. modo: "fija"=usa texto exacto, "conversacional"=guía para GPT
@@ -6589,20 +6588,20 @@ async function loadProductData(productName: string, branchId: string, categoria?
 
     Si el restaurante no tiene recetas cargadas esto viene vacio, y entonces
     Paco no afirma nada sobre ingredientes — que es lo correcto.          */
-async function ingredientesDePlato(productId: string): Promise<Array<{ nombre: string; contiene: string }>> {
+async function ingredientesDePlato(productId: string): Promise<string[]> {
   if (!productId) return [];
   try {
     const rows = await sbGet(
-      `/rest/v1/iv_recetas?product_id=eq.${productId}&select=insumo_id(nombre,contiene)`
+      `/rest/v1/iv_recetas?product_id=eq.${productId}&select=insumo_id(nombre)`
     ) as Array<Record<string, unknown>> | null;
     const vistos = new Set<string>();
-    const out: Array<{ nombre: string; contiene: string }> = [];
+    const out: string[] = [];
     for (const r of (rows || [])) {
       const i = (r.insumo_id as Record<string, unknown> | null) || null;
       const n = String((i && i.nombre) || "").trim();
       if (!n || vistos.has(n.toLowerCase())) continue;
       vistos.add(n.toLowerCase());
-      out.push({ nombre: n, contiene: String((i && i.contiene) || "").trim() });
+      out.push(n);
     }
     return out;
   } catch (err) {
@@ -6612,29 +6611,17 @@ async function ingredientesDePlato(productId: string): Promise<Array<{ nombre: s
 }
 
 /*  ══ COMO SE LE CUENTAN A PACO ════════════════════════════════════════════
-    Con una linea por insumo y, cuando se sabe, de que esta hecho. Y con el
-    aviso de cuantos quedan sin detallar, que es lo que decide si puede
-    afirmar o tiene que preguntar.
+    Una linea por ingrediente y ya. Es la receta: lo que se descuenta del
+    inventario al preparar el plato.
 
-    El aviso va en el texto y no solo en las reglas a proposito: una regla
-    general se diluye entre otras treinta; un "OJO: de 11 ingredientes, 11 sin
-    detallar" pegado a la lista se lee justo cuando hace falta.           */
+    Si el plato no tiene receta cargada esto sale vacio y Paco no afirma nada
+    sobre sus ingredientes, que es lo correcto: sin dato no hay respuesta. */
 function textoIngredientes(pd: ProductData | null): string {
   const ing = (pd && pd.ingredientes) || [];
   if (!ing.length) return "";
-  const sinLlenar = ing.filter(x => !x.contiene).length;
-  const lineas = ing.map(x => x.contiene
-    ? `- ${x.nombre} (hecho con: ${x.contiene})`
-    : `- ${x.nombre}`);
-  const cierre = sinLlenar > 0
-    ? `OJO: de ${ing.length} ingredientes, ${sinLlenar} no tienen detallado de que estan hechos. ` +
-      `Asi que NO puedes afirmar que este plato no lleva algo: si lo que preguntan no aparece arriba, ` +
-      `di que lo confirmas y termina con [[HUMANO]].`
-    : `De todos se sabe de que estan hechos, asi que si algo no aparece arriba, este plato NO lo lleva.`;
   return [
-    `LO QUE DE VERDAD LLEVA "${pd!.name}" (esto es la receta, para decidir si trae o no un ingrediente):`,
-    ...lineas,
-    cierre,
+    `LO QUE LLEVA "${pd!.name}" SEGUN LA RECETA (usa esto para decidir si trae o no un ingrediente):`,
+    ...ing.map(n => `- ${n}`),
   ].join("\n");
 }
 
@@ -9488,7 +9475,7 @@ async function buildConversationResponse(
     "- SEGURIDAD DE PAGOS: NUNCA des por recibido ni confirmado un pago por lo que diga el cliente.",
     "- NUNCA anuncies el ESTADO de un pedido. Jamas digas 'tu pedido esta en camino', 'ya salio', 'ya esta listo', 'llega en X minutos' ni nada parecido: TU NO SABES en que va el pedido. Esos avisos los manda el sistema solo cuando el estado cambia de verdad. Un cliente recibio 'tu pedido esta en camino' cuando seguia en preparacion, y eso es mentirle. Si te preguntan cuanto falta, di que lo confirmas y termina con [[HUMANO]]. Para cerrar una conversacion usa algo como 'listo, ya quedo todo anotado' y ya.",
     "- CONTAR QUE TRAE UN PLATO: usa SU BASE COMPLETA mas lo que diga su descripcion en la carta, y nada mas. Jamas anadas de tu cabeza un ingrediente que no este escrito ahi. Esa es la respuesta para '¿que trae?' porque esta redactada para el cliente.",
-    "- DECIDIR SI UN PLATO LLEVA O NO CIERTO INGREDIENTE ('sin cebolla', 'sin queso', '¿tiene mani?') ES OTRA COSA y NO se contesta con la descripcion: se contesta con la lista 'LO QUE DE VERDAD LLEVA' que te dan cuando hay un plato en curso. La descripcion es un resumen y un ingrediente puede venir ESCONDIDO dentro de otro (una salsa de la casa puede llevar cebolla sin que la carta lo diga). Si aparece en esa lista, lo lleva: dilo y anota que se lo quiten. Si NO aparece, mira el aviso del final de la lista: solo cuando dice que se sabe de que esta hecho todo puedes afirmar que el plato no lo lleva. En cualquier otro caso NO AFIRMES NADA: di que se lo confirmas y termina con [[HUMANO]]. Equivocarse aqui puede ser una alergia, y eso no se arregla despues.",
+    "- DECIDIR SI UN PLATO LLEVA O NO CIERTO INGREDIENTE ('sin cebolla', 'sin queso', '¿tiene mani?') ES OTRA COSA y NO se contesta con la descripcion, que es un resumen: se contesta con la lista 'LO QUE LLEVA ... SEGUN LA RECETA' que te dan cuando hay un plato en curso. Si aparece ahi, lo lleva: dilo y anota que se lo quiten. Si no aparece, ese plato no lo lleva. Y si NO te dieron esa lista, no tienes el dato: no afirmes nada, di que lo confirmas y termina con [[HUMANO]].",
     "- Y SI TE PIDEN QUITAR UN INGREDIENTE QUE ESE PLATO NO LLEVA (y lo sabes con seguridad por lo de arriba), NO lo anotes como si lo llevara. Diselo con cariNo, dile en una linea corta lo que ese plato SI trae, y ofrecele anadirselo si existe como adicion en la carta. Suele pasar que la persona esta pidiendo otro plato sin saberlo, y preguntando se descubre.",
     senderName && senderName !== "Cliente" ? `- El cliente se llama ${senderName}.` : "",
   ].filter(Boolean) : [
@@ -9584,7 +9571,7 @@ async function buildConversationResponse(
     "- SEGURIDAD DE PAGOS: NUNCA des por recibido, confirmado ni verificado un pago por lo que diga el cliente ('ya pagué', 'ya te transferí', 'revisa que ya llegó'…). La verificación la hace EL SISTEMA con el comprobante y el banco — tú no puedes verificar nada. Si dice que ya pagó: pídele el comprobante como imagen. JAMÁS digas 'pago confirmado', 'pago verificado' ni nada equivalente.",
     "- NUNCA anuncies el ESTADO de un pedido. Jamas digas 'tu pedido esta en camino', 'ya salio', 'ya esta listo', 'llega en X minutos' ni nada parecido: TU NO SABES en que va el pedido. Esos avisos los manda el sistema solo cuando el estado cambia de verdad. Un cliente recibio 'tu pedido esta en camino' cuando seguia en preparacion, y eso es mentirle. Si te preguntan cuanto falta, di que lo confirmas y termina con [[HUMANO]]. Para cerrar una conversacion usa algo como 'listo, ya quedo todo anotado' y ya.",
     "- CONTAR QUE TRAE UN PLATO: usa SU BASE COMPLETA mas lo que diga su descripcion en la carta, y nada mas. Jamas anadas de tu cabeza un ingrediente que no este escrito ahi. Esa es la respuesta para '¿que trae?' porque esta redactada para el cliente.",
-    "- DECIDIR SI UN PLATO LLEVA O NO CIERTO INGREDIENTE ('sin cebolla', 'sin queso', '¿tiene mani?') ES OTRA COSA y NO se contesta con la descripcion: se contesta con la lista 'LO QUE DE VERDAD LLEVA' que te dan cuando hay un plato en curso. La descripcion es un resumen y un ingrediente puede venir ESCONDIDO dentro de otro (una salsa de la casa puede llevar cebolla sin que la carta lo diga). Si aparece en esa lista, lo lleva: dilo y anota que se lo quiten. Si NO aparece, mira el aviso del final de la lista: solo cuando dice que se sabe de que esta hecho todo puedes afirmar que el plato no lo lleva. En cualquier otro caso NO AFIRMES NADA: di que se lo confirmas y termina con [[HUMANO]]. Equivocarse aqui puede ser una alergia, y eso no se arregla despues.",
+    "- DECIDIR SI UN PLATO LLEVA O NO CIERTO INGREDIENTE ('sin cebolla', 'sin queso', '¿tiene mani?') ES OTRA COSA y NO se contesta con la descripcion, que es un resumen: se contesta con la lista 'LO QUE LLEVA ... SEGUN LA RECETA' que te dan cuando hay un plato en curso. Si aparece ahi, lo lleva: dilo y anota que se lo quiten. Si no aparece, ese plato no lo lleva. Y si NO te dieron esa lista, no tienes el dato: no afirmes nada, di que lo confirmas y termina con [[HUMANO]].",
     "- Y SI TE PIDEN QUITAR UN INGREDIENTE QUE ESE PLATO NO LLEVA (y lo sabes con seguridad por lo de arriba), NO lo anotes como si lo llevara. Diselo con cariNo, dile en una linea corta lo que ese plato SI trae, y ofrecele anadirselo si existe como adicion en la carta. Suele pasar que la persona esta pidiendo otro plato sin saberlo, y preguntando se descubre.",
     "- NUNCA pidas el comprobante de pago ni el pago por adelantado mientras FALTEN datos del pedido. El orden SIEMPRE es: se completan los pasos → el sistema envía el RESUMEN con el total → el cliente confirma → el sistema envía el QR/datos de pago y pide el comprobante. Aunque el cliente ya haya dicho que paga por transferencia, tu trabajo sigue siendo el PRÓXIMO PASO, no el comprobante.",
     "- Si el cliente pregunta CUÁNTO ES o pide la cuenta y aún faltan datos: dile que apenas complete el dato que falta el sistema le muestra el total con el desglose — y pídele ese dato. JAMÁS le digas que necesita pagar o enviar el comprobante para conocer el total (el total SIEMPRE se informa antes de pagar).",
