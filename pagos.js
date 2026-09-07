@@ -355,7 +355,9 @@ function renderItems() {
       <span class="pg-tline-qty">${it.qty}</span>
       <div class="pg-tline-body">
         <div class="pg-tline-name">${it.name}</div>
-        <div class="pg-tline-meta"><span class="dot" style="background:${it.catColor}"></span><span class="txt">${it.catName ? it.catName + ' · ' : ''}${fmt(it.unitPrice)}</span></div>
+        <div class="pg-tline-meta"><span class="dot" style="background:${it.catColor}"></span><span class="txt">${it.catName ? it.catName + ' · ' : ''}${fmt(it.basePrice)}</span></div>
+        ${(it.adiciones || []).map(a => `
+        <div class="pg-tline-adi"><span>+ ${a.name}</span><span>${fmt(a.price)}</span></div>`).join('')}
       </div>
       <span class="pg-tline-total">${fmt(it.qty * it.unitPrice)}</span>`;
     scroll.appendChild(line);
@@ -1460,6 +1462,36 @@ async function loadOrder() {
     (prods || []).forEach(p => { prodMap[p.id] = p; });
   }
 
+  /*  ══ EL PRECIO DE UNA LINEA ══════════════════════════════════════════
+      Los pedidos se guardan de dos formas: la caja mete la adicion DENTRO del
+      precio unitario, y Paco la deja aparte. El `total` del item es correcto
+      en las dos, asi que de ahi se saca lo que cuesta cada unidad.
+      Si algun dia faltara el total, se cae al unitario — que es lo que se
+      hacia antes, ni mejor ni peor.                                       */
+  function sumaAdiciones(it) {
+    var mods = (it.selections && it.selections.mods) || {};
+    var s = 0;
+    for (var k in mods) if (Object.prototype.hasOwnProperty.call(mods, k)) {
+      s += Number(mods[k] && mods[k].price) || 0;
+    }
+    return s;
+  }
+  function listaAdiciones(it) {
+    var mods = (it.selections && it.selections.mods) || {};
+    var out = [];
+    for (var k in mods) if (Object.prototype.hasOwnProperty.call(mods, k)) {
+      var m = mods[k] || {};
+      if (m.name) out.push({ name: String(m.name), price: Number(m.price) || 0 });
+    }
+    return out;
+  }
+  function precioEfectivo(it) {
+    var qty = Number(it.quantity) || 1;
+    var tot = parseFloat(it.total);
+    if (isFinite(tot) && tot > 0) return tot / qty;
+    return parseFloat(it.unit_price) || 0;
+  }
+
   // Construir items
   SP.items = (order.pos_order_items || []).map(it => {
     const prod = prodMap[it.product_id] || {};
@@ -1470,7 +1502,16 @@ async function loadOrder() {
       catId:     cat.id || null,
       name:      it.name || it.product_name || 'Producto',
       qty:       it.quantity || 1,
-      unitPrice: parseFloat(it.unit_price) || 0,
+      /*  LO QUE DE VERDAD CUESTA CADA UNIDAD, adiciones incluidas.
+          Antes esto era `unit_price` a secas y en los pedidos de Paco eso es
+          el precio PELADO: la adicion se perdia y se cobraba de menos. El
+          total del item si la incluye venga de donde venga el pedido. */
+      unitPrice: precioEfectivo(it),
+      /*  El desglose, para ensenarlo como en el recibo. `base` se saca
+          restando: sirve igual para los pedidos de la caja (donde la adicion
+          ya venia sumada dentro del unitario) que para los de Paco. */
+      basePrice: precioEfectivo(it) - sumaAdiciones(it),
+      adiciones: listaAdiciones(it),
       // Presentación y variantes elegidas: sin esto no se puede saber si ese
       // tamaño concreto está en el catálogo de puntos.
       selections: it.selections || {},
