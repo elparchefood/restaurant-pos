@@ -2944,7 +2944,10 @@ INTENCION, no las palabras exactas.` },
   // Cargar datos del producto actual y construir pasos
   let currentProductData: ProductData | null = null;
   if (state.producto) {
-    currentProductData = await loadProductData(state.producto, branchId, state.producto_categoria);
+    /*  Este es el UNICO que mide: aqui el producto se acaba de detectar.
+        Los otros sitios releen el mismo plato dentro del mismo turno.  */
+    currentProductData = await loadProductData(state.producto, branchId, state.producto_categoria,
+                                              { texto: clienteTexto, convId, tenantId });
   }
   let pasos = buildAllPasos(currentProductData, cfg, frasesCfg, nombreConfirmar, !!nombreKnown);
 
@@ -6600,7 +6603,11 @@ function extractNombre(text: string, isCurrentStep: boolean, productData: Produc
 
 // ── loadProductData ───────────────────────────────────────────────────────────
 
-async function loadProductData(productName: string, branchId: string, categoria?: string | null): Promise<ProductData | null> {
+/*  `sombra` es opcional y solo sirve para MEDIR: cuando viene, se lanza el
+    lector nuevo en paralelo para comparar. No cambia nada de lo que esta
+    funcion devuelve. Ver `lectorSombra`.                              */
+async function loadProductData(productName: string, branchId: string, categoria?: string | null,
+                              sombra?: { texto: string; convId: string; tenantId: string }): Promise<ProductData | null> {
   const rows = await sbGet(
     `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true` +
     `&select=id,name,price_mode,presentations,variables,category_id(name)`
@@ -6612,6 +6619,12 @@ async function loadProductData(productName: string, branchId: string, categoria?
      producto no tiene) de "prefieres" (una palabra cualquiera). */
   cargarVocabularioOpciones(rows);
   const matched = matchCatalogo(rows, productName, categoria);
+  /*  LA MEDICION VA AQUI, con la carta ya traida y la decision ya tomada.
+      Sin await: la respuesta al cliente no espera por esto.              */
+  if (sombra && sombra.texto) {
+    lectorSombra(sombra.texto, rows, String((matched && matched.name) || ""), sombra.convId, sombra.tenantId)
+      .catch(() => {});
+  }
   if (!matched) return null;
   return {
     id:            String(matched.id || ""),
@@ -6631,6 +6644,131 @@ async function loadProductData(productName: string, branchId: string, categoria?
 
     Si el restaurante no tiene recetas cargadas esto viene vacio, y entonces
     Paco no afirma nada sobre ingredientes — que es lo correcto.          */
+/*  ══ EL LECTOR NUEVO, A LA SOMBRA (7-sep-2026) ═══════════════════════════
+    Ver la nota larga del commit. Resumen: escoge el plato por NUMERO sobre una
+    lista de cosas pedibles con un precio cada una, en vez de buscar nombres
+    dentro del texto. NO DECIDE NADA todavia: solo se anota cuando no coincide
+    con el sistema actual, para poder decidir con datos de servicio real.
+
+    Se llama sin await a proposito. Si tarda, si falla, si el modelo devuelve
+    basura: da igual, la respuesta al cliente ya salio por otro camino.     */
+function armarListaPedible(rows: Array<Record<string, unknown>>): Array<{ n: number; etiqueta: string }> {
+  const out: Array<{ n: number; etiqueta: string }> = [];
+  for (const p of rows) {
+    const nom = String(p.name || "").trim();
+    if (!nom) continue;
+    const cat = String((p.cat as Record<string, unknown> | null)?.name
+                    || (p.category_id as Record<string, unknown> | null)?.name || "").trim();
+    const pres = (p.presentations as Array<{ name?: string; price?: number }>) || [];
+    const vars = (p.variables as Array<{ isPricing?: boolean; options?: Array<{ name?: string; prices?: number[] }> }>) || [];
+    const grupoPrecio = vars.find(g => g && g.isPricing === true);
+    /*  Una fila por cosa PEDIBLE: el plato con su tipo y su tamaNo, cada una
+        con su precio. "Premium" no es una: son seis.                     */
+    if (grupoPrecio && pres.length) {
+      for (const o of (grupoPrecio.options || [])) {
+        pres.forEach((pr, i) => {
+          const precio = Array.isArray(o.prices) ? Number(o.prices[i]) : 0;
+          if (!(precio > 0)) return;
+          out.push({ n: out.length + 1, etiqueta: `[${cat}] ${nom} ${o.name} ${pr.name}  $${precio}` });
+        });
+      }
+    } else if (pres.length) {
+      for (const pr of pres) {
+        const precio = Number(pr.price) || 0;
+        if (!(precio > 0)) continue;
+        out.push({ n: out.length + 1, etiqueta: `[${cat}] ${nom} ${pr.name}  $${precio}` });
+      }
+    } else {
+      const precio = Number(p.price) || 0;
+      if (precio > 0) out.push({ n: out.length + 1, etiqueta: `[${cat}] ${nom}  $${precio}` });
+    }
+  }
+  return out;
+}
+
+async function lectorSombra(
+  texto: string, rows: Array<Record<string, unknown>>,
+  eligioViejo: string, convId: string, tenantId: string,
+): Promise<void> {
+  try {
+    if (!texto || !texto.trim() || !rows || !rows.length) return;
+    const lista = armarListaPedible(rows);
+    if (lista.length < 2) return;
+    const t0 = Date.now();
+
+    const prompt =
+`Eres el lector de pedidos de un restaurante colombiano por WhatsApp.
+Tu trabajo es ENTENDER que plato quiso decir el cliente, no buscar palabras
+exactas. La gente escribe con errores, sin tildes, en pedazos, en otro orden y
+de mil formas: "salchi carne premium", "personal premium carne" y "salchi papa
+premiun de carne" son el mismo plato.
+
+ESTA ES LA CARTA. Cada linea es UNA cosa pedible, con su numero y su precio:
+${lista.map(x => x.n + ". " + x.etiqueta).join("\n")}
+
+El cliente escribio: "${texto.slice(0, 400)}"
+
+Devuelve SOLO este JSON: {"n": <numero o null>, "candidatos": [<numeros>]}
+
+COMO DECIDIR, en este orden:
+1. Busca TODAS las lineas que encajan, sin importar el orden de las palabras.
+2. Ve descartando con CADA cosa que el cliente si dijo: si dijo "personal",
+   fuera las familiares; si dijo "premium", fuera las que no lo son; si dijo
+   "hamburguesa", fuera las salchipapas.
+3. Si al final queda UNA SOLA, esa es: ponla en "n" y deja "candidatos" vacio.
+   Aunque hayas empezado con veinte. Lo que importa es cuantas quedan.
+4. Si quedan DOS O MAS, deja "n" en null y ponlas todas en "candidatos".
+   Nunca escojas al azar: preguntar es barato, servir lo que no era no.
+5. Si no nombra ningun plato, "n" null y "candidatos" vacio.
+Un numero suelto ("13 porfa") NO es una linea de esta lista.`;
+
+    const ctrl = new AbortController();
+    const reloj = setTimeout(() => ctrl.abort(), 6000);
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST", signal: ctrl.signal,
+      headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-4o", max_tokens: 200, temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    clearTimeout(reloj);
+    if (!res.ok) return;
+    const data = await res.json() as Record<string, unknown>;
+    const raw = (((data.choices as Array<Record<string, unknown>>)?.[0]?.message as Record<string, unknown>)?.content as string || "").trim();
+    const leido = JSON.parse(raw) as { n?: number | null; candidatos?: number[] };
+
+    const nombreDe = (n: unknown) => {
+      const i = Number(n);
+      return (i >= 1 && i <= lista.length) ? lista[i - 1].etiqueta : "";
+    };
+    const eligioNuevo = nombreDe(leido.n);
+    const cands = (leido.candidatos || []).map(nombreDe).filter(Boolean);
+
+    /*  ¿COINCIDEN? Se compara flojo a proposito: el sistema actual devuelve
+        "Premium" y el nuevo "[Salchipapas Especiales] Premium Carne Personal
+        $29000". Basta con que el nombre del viejo aparezca en la linea del
+        nuevo — lo que se esta midiendo es si escogen el MISMO plato.       */
+    const pelar = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const coinciden = !!eligioNuevo && !!eligioViejo
+      && pelar(eligioNuevo).includes(pelar(eligioViejo));
+
+    if (coinciden) return;   // solo interesa lo que NO cuadra
+
+    await sbPost(`/rest/v1/pos_lector_sombra`, {
+      tenant_id: tenantId || null, conversation_id: convId || null,
+      texto: texto.slice(0, 500),
+      eligio_viejo: eligioViejo || null,
+      eligio_nuevo: eligioNuevo || null,
+      candidatos: cands.length ? cands.join(" | ").slice(0, 500) : null,
+      coinciden: false,
+      ms: Date.now() - t0,
+    });
+    console.log(`[sombra] "${texto.slice(0, 60)}" viejo="${eligioViejo}" nuevo="${eligioNuevo || (cands.length + ' candidatos')}"`);
+  } catch (_e) { /* a la sombra no se rompe nada, nunca */ }
+}
+
 async function ingredientesDePlato(productId: string): Promise<string[]> {
   if (!productId) return [];
   try {
