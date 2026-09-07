@@ -7495,7 +7495,10 @@ function validarLeido(
      "asturias casa 3b" es una direccion completa y esta puerta la botaba —
      el bot preguntaba "¿para donde va?" a quien ya habia dicho todo. Entra
      si es un conjunto conocido, o si suena a conjunto y trae su unidad. */
-  if (leido.direccion && !state.direccion) {
+  /* Heredada = la trajimos de su ficha y el cliente NO la ha confirmado en
+     esta conversacion. Si acaba de escribir una, esa manda — es la misma
+     regla que ya aplicaba el respaldo por texto de mas abajo. */
+  if (leido.direccion && (!state.direccion || state.direccion_heredada)) {
     const d = String(leido.direccion).trim();
     const domIns = (cfgGlobal.domicilios as Record<string, unknown>) || null;
     if (analizarDireccion(d).tieneVia) out.direccion = d;
@@ -7515,6 +7518,10 @@ function validarLeido(
         out.direccion = `${conjDelBarrio} ${d}`;
       }
     }
+    /* Si se acepto, deja de ser heredada: la dio EL. Sin esto el flujo
+       seguiria viendo la bandera encendida y preguntaria igual — que es
+       justo el sintoma que se esta arreglando. */
+    if (out.direccion) out.direccion_heredada = false;
   }
 
   /* NOMBRE: ni cortesia, ni palabra del pedido — NI UN LUGAR (caso real,
@@ -8008,6 +8015,41 @@ function runExtractors(
       }
     }
   }
+  /*  ══ LA CASA QUE ACABAMOS DE PEDIR (7-sep-2026) ═══════════════════════
+      Juana confirmo su conjunto de Mallorca, Paco le pregunto "¿en que casa o
+      apartamento?", ella contesto "En casa k3" y Paco volvio a preguntar lo
+      mismo. Ella lo repitio y hubo que entrar a mano.
+
+      El motivo: TODA la extraccion de direccion de arriba vive detras de
+      "solo si no hay direccion, o es heredada". Juana ya tenia la suya
+      confirmada, asi que esa puerta ni se abre y su respuesta se cae al vacio.
+      **Paco pedia un dato que no era capaz de recibir.**
+
+      Aqui entra, y va aparte a proposito: no toca ninguno de los caminos de
+      arriba, solo atiende el caso que ninguno cubre — hay direccion, esta
+      CONFIRMADA, y lo unico que falta es la unidad que acabamos de pedir.
+
+      La unidad se BUSCA dentro del texto en vez de tomar el mensaje entero:
+      en ese mismo lote venia "Me regalas una adicion de salsa de ajo" y
+      "Tienes ?". Quedarse con todo habria dejado esa parrafada como direccion.
+      Se toma la ULTIMA coincidencia porque la gente la dice al final.        */
+  if (!result.direccion && state.complemento_dir_pendiente && state.direccion) {
+    const UNIDAD_RE = /\b(?:torre|bloque|bl|interior|int|apto|apartamento|apart|casa|piso|lote|mz|manzana)\s*\.?\s*[a-z]?\s*-?\s*\d{1,4}\s*[a-z]?\b/gi;
+    const hallazgos = String(text || "").match(UNIDAD_RE);
+    /* Y el caso en que la respuesta es SOLO el numero: "k3", "605", "3b". */
+    const sueltoM = String(text || "").trim().match(/^(?:en\s+la\s+|en\s+el\s+|es\s+la\s+|es\s+el\s+|la\s+|el\s+|en\s+)?([a-z]?\s*-?\s*\d{1,4}\s*[a-z]?)[.,;!?]*$/i);
+    const unidad = hallazgos ? hallazgos[hallazgos.length - 1].replace(/\s+/g, " ").trim()
+                 : (sueltoM ? sueltoM[1].replace(/\s+/g, " ").trim() : "");
+    /* Si ya esta dicha en la direccion no se repite: "Mallorca casa k3 casa k3"
+       seria peor que no hacer nada. */
+    const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+    if (unidad && !norm(state.direccion).includes(norm(unidad))) {
+      result.direccion = (state.direccion + " " + unidad).slice(0, 120);
+      result.direccion_heredada = false;
+      console.log('[direccion] la unidad que se pidio: "' + unidad + '" -> "' + result.direccion + '"');
+    }
+  }
+
   /* El barrio puede llegar en cualquier momento: en la direccion completa, o
      solo, o mucho despues. Se lee siempre. */
   if (!state.barrio) {
@@ -9381,6 +9423,7 @@ async function buildConversationResponse(
     "- Si preguntan si abren un DÍA específico (¿abren el martes?, ¿el lunes sí atienden?), NO respondas con el horario de HOY. Revisa las listas 'DÍAS CON SERVICIO' y 'DÍAS CERRADOS' del contexto y responde EXACTO para ESE día: si ese día está en DÍAS CERRADOS, dile CLARO que ese día NO hay servicio (jamás digas que sí abren ni 'nos vemos ese día'). Si está abierto, dile el horario de ese día.",
     "- NO repitas una frase que ya hayas enviado antes en esta conversación (mira el historial): varía SIEMPRE el mensaje.",
     "- SEGURIDAD DE PAGOS: NUNCA des por recibido ni confirmado un pago por lo que diga el cliente.",
+    "- NUNCA anuncies el ESTADO de un pedido. Jamas digas 'tu pedido esta en camino', 'ya salio', 'ya esta listo', 'llega en X minutos' ni nada parecido: TU NO SABES en que va el pedido. Esos avisos los manda el sistema solo cuando el estado cambia de verdad. Un cliente recibio 'tu pedido esta en camino' cuando seguia en preparacion, y eso es mentirle. Si te preguntan cuanto falta, di que lo confirmas y termina con [[HUMANO]]. Para cerrar una conversacion usa algo como 'listo, ya quedo todo anotado' y ya.",
     senderName && senderName !== "Cliente" ? `- El cliente se llama ${senderName}.` : "",
   ].filter(Boolean) : [
     `Eres ${botName}, el asistente virtual de este restaurante. Atiendes pedidos por WhatsApp.`,
@@ -9473,6 +9516,7 @@ async function buildConversationResponse(
        Un humano reconoce en una frase y redirige con calidez. */
     "- Si el cliente pregunta algo que NO sea sobre el restaurante o su pedido: reconócelo en UNA frase amable y breve SIN entrar en el tema ni dar información sobre él, y redirige al pedido. Nunca lo ignores en seco y nunca inventes datos.",
     "- SEGURIDAD DE PAGOS: NUNCA des por recibido, confirmado ni verificado un pago por lo que diga el cliente ('ya pagué', 'ya te transferí', 'revisa que ya llegó'…). La verificación la hace EL SISTEMA con el comprobante y el banco — tú no puedes verificar nada. Si dice que ya pagó: pídele el comprobante como imagen. JAMÁS digas 'pago confirmado', 'pago verificado' ni nada equivalente.",
+    "- NUNCA anuncies el ESTADO de un pedido. Jamas digas 'tu pedido esta en camino', 'ya salio', 'ya esta listo', 'llega en X minutos' ni nada parecido: TU NO SABES en que va el pedido. Esos avisos los manda el sistema solo cuando el estado cambia de verdad. Un cliente recibio 'tu pedido esta en camino' cuando seguia en preparacion, y eso es mentirle. Si te preguntan cuanto falta, di que lo confirmas y termina con [[HUMANO]]. Para cerrar una conversacion usa algo como 'listo, ya quedo todo anotado' y ya.",
     "- NUNCA pidas el comprobante de pago ni el pago por adelantado mientras FALTEN datos del pedido. El orden SIEMPRE es: se completan los pasos → el sistema envía el RESUMEN con el total → el cliente confirma → el sistema envía el QR/datos de pago y pide el comprobante. Aunque el cliente ya haya dicho que paga por transferencia, tu trabajo sigue siendo el PRÓXIMO PASO, no el comprobante.",
     "- Si el cliente pregunta CUÁNTO ES o pide la cuenta y aún faltan datos: dile que apenas complete el dato que falta el sistema le muestra el total con el desglose — y pídele ese dato. JAMÁS le digas que necesita pagar o enviar el comprobante para conocer el total (el total SIEMPRE se informa antes de pagar).",
     "- NUNCA generes un resumen del pedido, NUNCA uses frases como 'tu pedido queda así', 'en total son', 'listo tu pedido', ni nada parecido. El sistema envía el resumen automáticamente cuando tiene TODOS los datos. Si el sistema te llama es porque AÚN FALTAN datos. Tu único trabajo es obtener el siguiente dato indicado en PRÓXIMO PASO.",
