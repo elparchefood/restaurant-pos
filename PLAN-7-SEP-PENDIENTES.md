@@ -79,3 +79,22 @@ carpeta** con todo dentro:
 dentro, los baja de la nube**. Así, cuando se actualice una APK, se cambia en
 un solo sitio y todos los que descarguen después reciben la nueva — sin
 reenviarle nada a nadie ni volver a publicar el programita.
+
+---
+
+## 7. El botón de contacto en el Escritorio
+
+Un botón en el tablero para que **un cliente con un problema pueda hablar con
+Sergio**. Desde ahí se agenda una llamada.
+
+- **Primera versión:** Calendly.
+- **Como lo quiere de verdad:** *"mucho mejor si el agendamiento se hace dentro
+  de cobra"* — o sea, su propio agendador, sin mandar al cliente a otra página.
+
+**Por qué importa más de lo que parece:** hoy un restaurante que se queda
+atascado no tiene por dónde escribir. Y el momento en que un cliente tiene un
+problema es exactamente el momento en que decide si sigue pagando o no.
+
+*(Ojo al diseñarlo: el soporte de verdad no es solo una llamada agendada. Un
+cajero atascado a las 9 p.m. no agenda nada para el martes. Esto se conecta con
+el punto 4 — la bandeja de WhatsApp de Cobra — y conviene pensarlos juntos.)*
