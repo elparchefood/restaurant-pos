@@ -449,6 +449,7 @@ async function loadInsumos() {
     cat:        i.categoria,
     catColor:   i.cat_color,
     prep:       i.prep_requerido,
+    contiene:   i.contiene || '',
     controlManual: !!i.control_manual,
     merma:      !!i.merma_activa,
     //  Sin el dato se asume QUE SI AGOTA: es como se comportaba antes, y
@@ -2254,6 +2255,7 @@ function abrirEditorInsumo(insId) {
   document.getElementById('ins-panel-title').textContent = ins?'Editar insumo':'Nuevo insumo';
   document.getElementById('ins-edit-id').value    = ins?ins.id:'';
   document.getElementById('ins-nombre').value     = ins?ins.nombre:'';
+  document.getElementById('ins-contiene').value   = ins?(ins.contiene||''):'';
   document.getElementById('ins-precio').value     = ins?ins.precio:'';
   document.getElementById('ins-conversion').value = ins?ins.conversion:'';
   document.getElementById('ins-stock').value      = ins?ins.stock:'';
@@ -2510,7 +2512,8 @@ async function guardarInsumo() {
       Dos cosas cambian: el `payload` se queda solo con lo del insumo, y el
       resultado SE MIRA. Lo de cuanto hay va por `fn_iv_fijar_existencia`,
       que es el camino que ya usaban los otros cuatro botones.            */
-  const payload  = { nombre, categoria:cat, cat_color:catColor, prep_requerido:togglePrepOn, control_manual:toggleManualOn, merma_activa:toggleMermaOn, sub_inventario:toggleSubOn, agota_producto:toggleAgotaOn, vender_bodega:(toggleSubOn && toggleVenderBodegaOn), aviso_bodega:avisoBodega, buy_unit:buyUnit, use_unit:useUnit, precio, conversion, min_stock:min, updated_at:new Date().toISOString() };
+  const contiene = (document.getElementById('ins-contiene')?.value || '').trim();
+  const payload  = { nombre, categoria:cat, cat_color:catColor, contiene, prep_requerido:togglePrepOn, control_manual:toggleManualOn, merma_activa:toggleMermaOn, sub_inventario:toggleSubOn, agota_producto:toggleAgotaOn, vender_bodega:(toggleSubOn && toggleVenderBodegaOn), aviso_bodega:avisoBodega, buy_unit:buyUnit, use_unit:useUnit, precio, conversion, min_stock:min, updated_at:new Date().toISOString() };
   const agotadoManualFinal = toggleManualOn ? (_insPrev ? !!_insPrev.agotadoManual : false) : false;
   const extra = { sub:toggleSubOn, servicio, venderBodega:(toggleSubOn && toggleVenderBodegaOn), avisoBodega };
   if (editId) {

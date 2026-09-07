@@ -464,6 +464,16 @@
       <input type="hidden" id="ins-edit-id">
       <div class="iv-field"><div class="iv-field-label">Nombre</div><input class="iv-input" type="text" id="ins-nombre" placeholder="Ej. Carne de res molida"></div>
       <div class="iv-field"><div class="iv-field-label">Categoría</div><select class="iv-select" id="ins-cat"><option value="">Seleccionar categoría…</option></select><input class="iv-input is-hidden" type="text" id="ins-cat-new" placeholder="Nombre de la nueva categoría" style="margin-top:8px"></div>
+      <div class="iv-field">
+        <div class="iv-field-label">¿De qué está hecho? <span style="font-weight:400;color:#94A3B8">(opcional)</span></div>
+        <input class="iv-input" type="text" id="ins-contiene" placeholder="Ej. ajo, mayonesa, aceite">
+        <div style="font-size:11px;color:#94A3B8;margin-top:6px;line-height:1.5">
+          Solo para los que se preparan. Sirve para que el asistente sepa contestar
+          si un plato lleva cierto ingrediente aunque esté escondido aquí dentro.
+          <b>Si lo dejas vacío no pasa nada</b>: el asistente no dirá que el plato no
+          lo lleva, preguntará.
+        </div>
+      </div>
       <div class="iv-divider" style="margin:18px 0"></div>
       <div class="iv-section-label">¿Cómo lo compras?</div>
       <div class="iv-form-2">
@@ -818,6 +828,6 @@
      y los precios— asi que para dejar que el cocinero mirara el stock habia
      que darle tambien la carta entera. -->
 <script>if(window.posRequirePin) posRequirePin(['catalogo.editar','inventario.ver','inventario.compras']);</script>
-<script src="inventario.js?v=1799500000"></script>
+<script src="inventario.js?v=1799975000"></script>
 </body>
 </html>
