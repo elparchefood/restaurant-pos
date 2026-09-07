@@ -6741,8 +6741,9 @@ async function lectorSombra(
 `Eres el lector de pedidos de un restaurante colombiano por WhatsApp.
 Tu trabajo es ENTENDER que plato quiso decir el cliente, no buscar palabras
 exactas. La gente escribe con errores, sin tildes, en pedazos, en otro orden y
-de mil formas: "salchi carne premium", "personal premium carne" y "salchi papa
-premiun de carne" son el mismo plato.
+de mil formas, y muchas veces con la palabra de la seccion delante o el tamaNo
+en otro sitio. Tres maneras de escribir el MISMO plato pueden no parecerse
+nada entre si.
 
 ESTA ES LA CARTA. Cada linea es UNA cosa pedible, con su numero y su precio:
 ${lista.map(x => x.n + ". " + x.etiqueta).join("\n")}
