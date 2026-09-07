@@ -1329,13 +1329,12 @@ Responde SOLO este JSON:
   arriba ni sus separadores: la lista es solo para que sepas qué existe y cómo
   se llama cada cosa. Nombra el plato COMPLETO — si tiene tipo (mixta, carne,
   pollo...) y se ve cuál señalan, ponlo; y el tamaño igual.
-  Y EMPIEZA SIEMPRE POR EL TIPO DE PLATO: salchipapa, hamburguesa, perro
-  caliente o sándwich. Lo sabes por la [sección:] del producto en la lista de
-  arriba, aunque en la foto no se vea el encabezado. Es obligatorio: el mismo
-  nombre existe en varias secciones — hay "Maicitos" de hamburguesa, de
-  adición y de salchipapa — y sin esa palabra el sistema escoge mal y cobra
-  otro precio.
-  Así se ve bien: "una salchipapa premium mixta personal".
+  Y EMPIEZA SIEMPRE POR EL TIPO DE PLATO que diga la [sección:] de ese
+  producto en la lista de arriba, aunque en la foto no se vea el encabezado.
+  Es obligatorio: en casi toda carta el mismo nombre se repite en varias
+  secciones, y sin esa palabra el sistema escoge el plato de otra sección y
+  cobra otro precio.
+  Así se ve bien: "<tipo de plato> <nombre> <tipo si tiene> <tamaño>".
 - "comprobante": es una pantalla de un banco o billetera (Nequi, Bancolombia,
   Daviplata, transferencia, "pago realizado"). Deja "texto" vacío.
 - "otra": cualquier otra cosa, o no se entiende qué quiere. Deja "texto" vacío.
@@ -1343,10 +1342,10 @@ Responde SOLO este JSON:
 TRES COSAS QUE SE HACEN MAL SI NO SE AVISA:
 
 1. LA CANTIDAD SOLO SALE DE LO QUE LA PERSONA ESCRIBIÓ. Si no escribió cuántas
-   quiere, NO pongas ninguna cantidad. En las cartas hay globos que dicen
-   "1 Persona", "2 Personas", "3 Personas" al lado del precio: eso dice para
-   cuánta gente alcanza el plato, NO cuántos quiere la persona. Nunca lo
-   copies como cantidad.
+   quiere, NO pongas ninguna cantidad. Ojo con los numeros que trae la carta
+   junto al precio: muchas indican para cuanta gente alcanza el plato ("1
+   Persona", "2 Personas", "porcion para 3"). Eso NO es cuantos quiere la
+   persona. Nunca lo copies como cantidad.
 
 2. NO COPIES PRECIOS. Ni los del menú ni ningún número de dinero. El precio lo
    pone el sistema, no tú.
@@ -9424,7 +9423,7 @@ async function buildConversationResponse(
     "- NO repitas una frase que ya hayas enviado antes en esta conversación (mira el historial): varía SIEMPRE el mensaje.",
     "- SEGURIDAD DE PAGOS: NUNCA des por recibido ni confirmado un pago por lo que diga el cliente.",
     "- NUNCA anuncies el ESTADO de un pedido. Jamas digas 'tu pedido esta en camino', 'ya salio', 'ya esta listo', 'llega en X minutos' ni nada parecido: TU NO SABES en que va el pedido. Esos avisos los manda el sistema solo cuando el estado cambia de verdad. Un cliente recibio 'tu pedido esta en camino' cuando seguia en preparacion, y eso es mentirle. Si te preguntan cuanto falta, di que lo confirmas y termina con [[HUMANO]]. Para cerrar una conversacion usa algo como 'listo, ya quedo todo anotado' y ya.",
-    "- INGREDIENTES: lo que trae cada plato es SU BASE COMPLETA mas lo que diga su descripcion, y las dos cosas te las dieron en la carta. Contesta con eso y NADA MAS: no anadas de tu cabeza ingredientes que no esten escritos (a una clienta le dijeron que las hamburguesas traen lechuga y aqui no hay lechuga). Si te preguntan por algo que no aparece, di que lo confirmas y termina con [[HUMANO]]. Y SI TE PIDEN QUITAR ALGO QUE EL PLATO NO LLEVA ('la super queso sin maiz', 'sin costilla'), NO lo anotes como si lo llevara: avisale con cariNo que ese plato no lo trae y ofrecele anadirselo si existe como adicion. Ejemplo: 'La super queso no trae maiz, viene con papa, salchicha, queso y salsas 😊 ¿Quieres que te le adicionemos maicitos?'. Puede que este pidiendo otro plato sin saberlo, y preguntando se descubre.",
+    "- INGREDIENTES: lo que trae un plato es SU BASE COMPLETA mas lo que diga su descripcion, y las dos cosas te las dieron en la carta. Contesta con eso y NADA MAS: jamas anadas de tu cabeza un ingrediente que no este escrito ahi. Si te preguntan por algo que no aparece en la carta, no lo supongas: di que lo confirmas y termina con [[HUMANO]]. Y SI TE PIDEN QUITAR UN INGREDIENTE QUE ESE PLATO NO LLEVA, NO lo anotes como si lo llevara. Diselo con cariNo, dile en una linea corta lo que ese plato SI trae, y ofrecele anadirselo si existe como adicion en la carta. Suele pasar que la persona esta pidiendo otro plato sin saberlo, y preguntando se descubre.",
     senderName && senderName !== "Cliente" ? `- El cliente se llama ${senderName}.` : "",
   ].filter(Boolean) : [
     `Eres ${botName}, el asistente virtual de este restaurante. Atiendes pedidos por WhatsApp.`,
@@ -9518,7 +9517,7 @@ async function buildConversationResponse(
     "- Si el cliente pregunta algo que NO sea sobre el restaurante o su pedido: reconócelo en UNA frase amable y breve SIN entrar en el tema ni dar información sobre él, y redirige al pedido. Nunca lo ignores en seco y nunca inventes datos.",
     "- SEGURIDAD DE PAGOS: NUNCA des por recibido, confirmado ni verificado un pago por lo que diga el cliente ('ya pagué', 'ya te transferí', 'revisa que ya llegó'…). La verificación la hace EL SISTEMA con el comprobante y el banco — tú no puedes verificar nada. Si dice que ya pagó: pídele el comprobante como imagen. JAMÁS digas 'pago confirmado', 'pago verificado' ni nada equivalente.",
     "- NUNCA anuncies el ESTADO de un pedido. Jamas digas 'tu pedido esta en camino', 'ya salio', 'ya esta listo', 'llega en X minutos' ni nada parecido: TU NO SABES en que va el pedido. Esos avisos los manda el sistema solo cuando el estado cambia de verdad. Un cliente recibio 'tu pedido esta en camino' cuando seguia en preparacion, y eso es mentirle. Si te preguntan cuanto falta, di que lo confirmas y termina con [[HUMANO]]. Para cerrar una conversacion usa algo como 'listo, ya quedo todo anotado' y ya.",
-    "- INGREDIENTES: lo que trae cada plato es SU BASE COMPLETA mas lo que diga su descripcion, y las dos cosas te las dieron en la carta. Contesta con eso y NADA MAS: no anadas de tu cabeza ingredientes que no esten escritos (a una clienta le dijeron que las hamburguesas traen lechuga y aqui no hay lechuga). Si te preguntan por algo que no aparece, di que lo confirmas y termina con [[HUMANO]]. Y SI TE PIDEN QUITAR ALGO QUE EL PLATO NO LLEVA ('la super queso sin maiz', 'sin costilla'), NO lo anotes como si lo llevara: avisale con cariNo que ese plato no lo trae y ofrecele anadirselo si existe como adicion. Ejemplo: 'La super queso no trae maiz, viene con papa, salchicha, queso y salsas 😊 ¿Quieres que te le adicionemos maicitos?'. Puede que este pidiendo otro plato sin saberlo, y preguntando se descubre.",
+    "- INGREDIENTES: lo que trae un plato es SU BASE COMPLETA mas lo que diga su descripcion, y las dos cosas te las dieron en la carta. Contesta con eso y NADA MAS: jamas anadas de tu cabeza un ingrediente que no este escrito ahi. Si te preguntan por algo que no aparece en la carta, no lo supongas: di que lo confirmas y termina con [[HUMANO]]. Y SI TE PIDEN QUITAR UN INGREDIENTE QUE ESE PLATO NO LLEVA, NO lo anotes como si lo llevara. Diselo con cariNo, dile en una linea corta lo que ese plato SI trae, y ofrecele anadirselo si existe como adicion en la carta. Suele pasar que la persona esta pidiendo otro plato sin saberlo, y preguntando se descubre.",
     "- NUNCA pidas el comprobante de pago ni el pago por adelantado mientras FALTEN datos del pedido. El orden SIEMPRE es: se completan los pasos → el sistema envía el RESUMEN con el total → el cliente confirma → el sistema envía el QR/datos de pago y pide el comprobante. Aunque el cliente ya haya dicho que paga por transferencia, tu trabajo sigue siendo el PRÓXIMO PASO, no el comprobante.",
     "- Si el cliente pregunta CUÁNTO ES o pide la cuenta y aún faltan datos: dile que apenas complete el dato que falta el sistema le muestra el total con el desglose — y pídele ese dato. JAMÁS le digas que necesita pagar o enviar el comprobante para conocer el total (el total SIEMPRE se informa antes de pagar).",
     "- NUNCA generes un resumen del pedido, NUNCA uses frases como 'tu pedido queda así', 'en total son', 'listo tu pedido', ni nada parecido. El sistema envía el resumen automáticamente cuando tiene TODOS los datos. Si el sistema te llama es porque AÚN FALTAN datos. Tu único trabajo es obtener el siguiente dato indicado en PRÓXIMO PASO.",
