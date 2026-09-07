@@ -81,14 +81,108 @@ async function handleLogin() {
   }
 }
 
-async function handleGoogleLogin() {
+/*  ══ ENTRAR CON GOOGLE O CON FACEBOOK ═══════════════════════════════════
+
+    Los dos botones hacen lo mismo con distinto proveedor: una sola funcion y
+    dos nombres, que son los que llama el HTML.
+
+    LA VUELTA ES AQUI, no a `dashboard.html`. Hace falta un sitio donde mirar
+    quien volvio: el boton lo puede tocar cualquiera que tenga cuenta de
+    Google, y quien no tenga restaurante en Cobra no puede quedarse dentro de
+    la aplicacion. Antes mandaba a todo el mundo al tablero.               */
+const RED_NOMBRE = { google: 'Google', facebook: 'Facebook' };
+
+async function entrarConRed(proveedor) {
   try {
     const { error } = await sb.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin + '/dashboard.html' }
+      provider: proveedor,
+      options: { redirectTo: window.location.origin + window.location.pathname }
     });
     if (error) throw error;
-  } catch(e) { showToast('Error con Google: ' + e.message); }
+  } catch (e) {
+    /*  Cuando el proveedor no esta encendido, el mensaje que llega es
+        "Unsupported provider: provider is not enabled" — que no le dice nada
+        a nadie. Se traduce a algo que se pueda leer y que ademas diga que
+        hacer mientras tanto.                                             */
+    const crudo = String((e && e.message) || e);
+    showToast(/not enabled|Unsupported provider/i.test(crudo)
+      ? 'Entrar con ' + (RED_NOMBRE[proveedor] || proveedor) +
+        ' todavía no está disponible. Entra con tu correo y contraseña.'
+      : 'No se pudo entrar con ' + (RED_NOMBRE[proveedor] || proveedor) + ': ' + crudo);
+  }
+}
+
+async function handleGoogleLogin()   { return entrarConRed('google'); }
+async function handleFacebookLogin() { return entrarConRed('facebook'); }
+
+/*  ══ LA VUELTA DE GOOGLE / FACEBOOK ═════════════════════════════════════
+
+    ⚠️ LA SESION HAY QUE RECOGERLA A MANO. `pos-nucleo.js` crea el cliente con
+    `detectSessionInUrl: false` —a proposito, para que ninguna otra pantalla
+    se ponga a leer direcciones— asi que la libreria NO toma sola el token que
+    el proveedor devuelve. Sin esto, la persona volvia con el token a la vista
+    en la barra del navegador y sin sesion: el boton "funcionaba" y no entraba
+    nadie. Es el tipo de fallo que no se ve hasta que hay credenciales, por eso
+    queda escrito aqui.
+
+    La libreria de este proyecto (supabase-js 2.112, flujo `implicit`) devuelve
+    `#access_token=...&refresh_token=...`. Con esos dos se arma la sesion.
+
+    Devuelve true si esto ERA una vuelta, para que el arranque normal de la
+    pantalla no se meta encima.                                            */
+async function volverDeRed() {
+  const hash = window.location.hash || '';
+  const bus  = window.location.search || '';
+  const hayError = /[?&#]error(_description)?=/.test(hash + bus);
+  const trae = new URLSearchParams(hash.replace(/^#/, ''));
+  const at = trae.get('access_token'), rt = trae.get('refresh_token');
+  if (!hayError && !at) return false;
+
+  /*  La direccion se limpia SIEMPRE y lo primero: un token a la vista en la
+      barra queda tambien en el historial del navegador.                  */
+  window.history.replaceState({}, '', window.location.origin + window.location.pathname);
+  goStep('login');
+
+  if (hayError) {
+    const p = new URLSearchParams((bus.replace(/^\?/, '') + '&' + hash.replace(/^#/, '')));
+    const d = (p.get('error_description') || p.get('error') || '').replace(/\+/g, ' ');
+    /*  "Cancelé" viene en el CODIGO (`error=access_denied`,
+        `error_reason=user_denied`), no en el texto — que en Facebook llega
+        como "Permissions error" y se leia como una averia nuestra.      */
+    const codigo = (p.get('error') || '') + ' ' + (p.get('error_reason') || '');
+    showToast(/denied/i.test(codigo + ' ' + d) ? 'Cancelaste la entrada.'
+                                : 'No se pudo entrar: ' + (d || 'el proveedor no aceptó'));
+    return true;
+  }
+
+  try {
+    const { error } = await sb.auth.setSession({ access_token: at, refresh_token: rt || '' });
+    if (error) throw error;
+    const { data } = await sb.auth.getUser();
+    const u = data && data.user;
+    if (!u) throw new Error('no llegó la cuenta');
+    const meta = u.user_metadata || {};
+    const red = RED_NOMBRE[(u.app_metadata || {}).provider] || 'esa cuenta';
+
+    /*  SIN RESTAURANTE NO SE ENTRA. Con correo y contraseña esto casi no
+        pasa —la cuenta solo existe si alguien se registro—, pero con Google
+        lo puede intentar cualquier persona del mundo. Se cierra la sesion en
+        vez de dejarla a medias dentro de la aplicacion.                   */
+    if (!meta.tenant_id) {
+      await sb.auth.signOut();
+      showError('login-error', 'login-error-msg',
+        'Entraste con ' + red + ', pero ese correo todavía no tiene un restaurante en Cobra. ' +
+        'Regístrate y te lo activamos.');
+      return true;
+    }
+    const role = meta.role || '';
+    const esMesero = role === 'mesero' || role === 'cajero' || role === 'cajera';
+    window.location.href = esMesero ? 'ventas.html' : 'dashboard.html';
+  } catch (e) {
+    showError('login-error', 'login-error-msg',
+      'No se pudo completar la entrada: ' + ((e && e.message) || e));
+  }
+  return true;
 }
 
 async function handleForgot() {
@@ -627,7 +721,13 @@ document.addEventListener('DOMContentLoaded', () => {
   cargarPrecios();   // y cuando lleguen los de la base, se vuelve a pintar
   cargarCuentaCobro();  // la cuenta a la que se transfiere, desde la consola
 
-  //  Al final: primero queda todo enganchado y pintado, y solo entonces se
-  //  mueve la pantalla a donde pide la direccion.
-  abrirSegunEnlace();
+  /*  Al final: primero queda todo enganchado y pintado, y solo entonces se
+      mueve la pantalla a donde pide la direccion.
+
+      Y antes de eso, la vuelta de Google o Facebook: si esto es una vuelta,
+      manda ella y `abrirSegunEnlace` no corre — leeria una direccion que
+      acabamos de limpiar.                                                */
+  volverDeRed().then(function (eraVuelta) {
+    if (!eraVuelta) abrirSegunEnlace();
+  });
 });
