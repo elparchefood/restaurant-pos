@@ -3000,7 +3000,7 @@ INTENCION, no las palabras exactas.` },
     const reenv = quitarReenvio(clienteTexto);
     const esNotaCocina = esInstruccionCocina(reenv_texto(reenv));
     if ((esNotaCocina || reenv.esReenvio) && !state.producto && (state.items || []).length === 0
-        && !PIDE_NUEVO_RE.test(reenv_texto(reenv))) {
+        && !construirPideNuevoRe().test(reenv_texto(reenv))) {
       const convPed = await sbGet(
         `/rest/v1/chat_conversations?id=eq.${convId}&select=order_id&limit=1`
       ) as Array<Record<string, unknown>> | null;
@@ -5831,7 +5831,35 @@ function quitarReenvio(text: string): { texto: string; esReenvio: boolean } {
 /* Pero si el mensaje PIDE algo nuevo ("quiero otra salchipapa sin cebolla"),
    no es una nota sobre el pedido en cocina: es un pedido mas, y el flujo
    normal debe atenderlo. El verbo de pedir es lo que separa las dos cosas. */
-const PIDE_NUEVO_RE = /\b(quier[oe]|quisiera|me\s+das|dame|me\s+haces|me\s+manda[sn]?|env[ií]ame|deseo|antoja|pedir|ordenar|otr[oa]\s+(pedido|salchipapa|hamburguesa|premium|mixta|sandwich|s[aá]ndwich))\b/i;
+/*  ¿EN UN REENVIO, EL CLIENTE ESTA PIDIENDO ALGO NUEVO?
+
+    Los verbos ("quiero", "dame", "me das") valen para cualquier restaurante.
+    Lo que no valia era la lista de platos que venia detras de "otra": decia
+    "premium" y "mixta", que son de El Parche, y una pizzeria diciendo "quiero
+    otra napolitana" se quedaba fuera.
+
+    Ahora esa parte sale de SU carta: las categorias, los platos y los
+    sinonimos generales. Si no hay nada cargado, cae al patron de siempre.  */
+function construirPideNuevoRe(): RegExp {
+  const VERBOS = "quier[oe]|quisiera|me\\s+das|dame|me\\s+haces|me\\s+manda[sn]?|env[ií]ame|deseo|antoja|pedir|ordenar";
+  try {
+    const palabras = new Set<string>(["pedido"]);
+    const meter = (s: unknown) => {
+      const t = normalizarTexto(String(s || "")).trim();
+      if (t.length >= 4 && t.length <= 30) palabras.add(t);
+    };
+    for (const c of DYN_CATEGORY_NAMES) { meter(c); for (const w of String(c).split(/\s+/)) meter(w); }
+    for (const e of DYN_PROD_MAP) meter(e.key);
+    for (const arr of Object.values(CAT_SINONIMOS)) for (const s of arr) meter(s);
+    for (const arr of Object.values(DYN_CAT_SINONIMOS)) for (const s of arr) meter(s);
+    if (palabras.size < 3) throw new Error("sin carta");
+    const alt = [...palabras].sort((a, b2) => b2.length - a.length)
+      .map(s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+    return new RegExp("\\b(" + VERBOS + "|otr[oa]\\s+(" + alt + "))\\b", "i");
+  } catch (_e) {
+    return new RegExp("\\b(" + VERBOS + "|otr[oa]\\s+(pedido|plato|orden))\\b", "i");
+  }
+}
 
 function esInstruccionCocina(text: string): boolean {
   const t = normalizarTexto(String(text || ""));
@@ -6830,8 +6858,8 @@ Devuelve SOLO este JSON: {"n": <numero o null>, "candidatos": [<numeros>]}
 COMO DECIDIR, en este orden:
 1. Busca TODAS las lineas que encajan, sin importar el orden de las palabras.
 2. Ve descartando con CADA cosa que el cliente si dijo: si dijo "personal",
-   fuera las familiares; si dijo "premium", fuera las que no lo son; si dijo
-   "hamburguesa", fuera las salchipapas.
+   fuera las familiares; si nombro una variedad, fuera las que no lo son; si
+   nombro una seccion de la carta, fuera las de las otras secciones.
 3. Si al final queda UNA SOLA, esa es: ponla en "n" y deja "candidatos" vacio.
    Aunque hayas empezado con veinte. Lo que importa es cuantas quedan.
 4. Si quedan DOS O MAS, deja "n" en null y ponlas todas en "candidatos".
@@ -9776,7 +9804,7 @@ async function buildConversationResponse(
     "- SI EL CLIENTE VA A PAGAR EN EFECTIVO, JAMAS le pidas el comprobante ni le mandes datos para transferir. No hay nada que comprobar: paga cuando reciba. Pedirselo lo confunde y lo obliga a corregirte.",
     "- Y EL COMPROBANTE SE PIDE AL FINAL, NUNCA ANTES. El orden es: se completan los datos -> el sistema manda el resumen con el total -> el cliente confirma -> el sistema manda el QR o los datos de pago -> Y AHI se espera el comprobante. Decir 'quedo pendiente del comprobante' antes de que el cliente sepa cuanto es y a donde pagar no tiene sentido.",
     "- CONTAR QUE TRAE UN PLATO: usa SU BASE COMPLETA mas lo que diga su descripcion en la carta, y nada mas. Jamas anadas de tu cabeza un ingrediente que no este escrito ahi. Esa es la respuesta para '¿que trae?' porque esta redactada para el cliente.",
-    "- Y LA PALABRA 'BASE' NUNCA SE DEJA SIN EXPLICAR. Para el cliente no significa nada: una clienta pregunto literalmente que era. Cuando cuentes que trae un plato, o dices lo que esa base lleva de verdad —te lo dan al principio de la carta— o no la nombras. NO vale 'trae la base completa mas pollo'. Si valen 'trae papas, salchicha, queso y salsas, mas pollo desmechado' o 'trae la base de salchipapas (papas, salchicha, queso y salsas) mas pollo'. Y no hace falta recitar las diez cosas: agrupa lo obvio ('y las salsas de la casa') y que suene a persona.",
+    "- Y LA PALABRA 'BASE' NUNCA SE DEJA SIN EXPLICAR. Para el cliente no significa nada: una clienta pregunto literalmente que era. Cuando cuentes que trae un plato, o dices lo que esa base lleva de verdad —te lo dan al principio de la carta— o no la nombras. NO vale 'trae la base completa mas pollo'. Si vale nombrar lo que la base trae y seguir con lo del plato, o decir 'trae la base de <su familia> (esto, esto y esto) mas <lo suyo>'. Y no hace falta recitar las diez cosas: agrupa lo obvio ('y las salsas de la casa') y que suene a persona.",
     "- SI TE PIDEN QUITAR O EVITAR UN INGREDIENTE ('sin cebolla', 'sin queso', '¿tiene mani?'), haz esto EN ESTE ORDEN. PASO 1: busca esa palabra en la lista 'LO QUE LLEVA ... SEGUN LA RECETA' que te dan cuando hay un plato en curso. Esa lista es la unica fuente para esto: la descripcion es un resumen y no sirve para decidir. PASO 2, y es el caso NORMAL: si la palabra APARECE en la lista, el plato SI lo lleva -> contesta corto que se lo quitas ('listo, te la mando sin cebolla') y sigue. PASO 3, solo si NO aparece en NINGUNA linea de la lista: dile con cariNo que ese plato no lo trae, y ofrecele anadirselo si existe como adicion en la carta. PASO 4: si no te dieron esa lista, no tienes el dato -> di que lo confirmas y termina con [[HUMANO]]. NUNCA digas 'no lo lleva' sin haber mirado la lista entera: equivocarse ahi puede ser una alergia.",
     "- Y OJO: la lista de la receta es PARA TI, no para leersela al cliente. Trae nombres de bodega ('salsa X casera', 'ripio') que no significan nada para el. Si te preguntan que trae un plato, contestas con su base y su descripcion, que estan escritas para el cliente. La receta solo la usas para decidir si lleva o no algo.",
     senderName && senderName !== "Cliente" ? `- El cliente se llama ${senderName}.` : "",
@@ -9876,7 +9904,7 @@ async function buildConversationResponse(
     "- SI EL CLIENTE VA A PAGAR EN EFECTIVO, JAMAS le pidas el comprobante ni le mandes datos para transferir. No hay nada que comprobar: paga cuando reciba. Pedirselo lo confunde y lo obliga a corregirte.",
     "- Y EL COMPROBANTE SE PIDE AL FINAL, NUNCA ANTES. El orden es: se completan los datos -> el sistema manda el resumen con el total -> el cliente confirma -> el sistema manda el QR o los datos de pago -> Y AHI se espera el comprobante. Decir 'quedo pendiente del comprobante' antes de que el cliente sepa cuanto es y a donde pagar no tiene sentido.",
     "- CONTAR QUE TRAE UN PLATO: usa SU BASE COMPLETA mas lo que diga su descripcion en la carta, y nada mas. Jamas anadas de tu cabeza un ingrediente que no este escrito ahi. Esa es la respuesta para '¿que trae?' porque esta redactada para el cliente.",
-    "- Y LA PALABRA 'BASE' NUNCA SE DEJA SIN EXPLICAR. Para el cliente no significa nada: una clienta pregunto literalmente que era. Cuando cuentes que trae un plato, o dices lo que esa base lleva de verdad —te lo dan al principio de la carta— o no la nombras. NO vale 'trae la base completa mas pollo'. Si valen 'trae papas, salchicha, queso y salsas, mas pollo desmechado' o 'trae la base de salchipapas (papas, salchicha, queso y salsas) mas pollo'. Y no hace falta recitar las diez cosas: agrupa lo obvio ('y las salsas de la casa') y que suene a persona.",
+    "- Y LA PALABRA 'BASE' NUNCA SE DEJA SIN EXPLICAR. Para el cliente no significa nada: una clienta pregunto literalmente que era. Cuando cuentes que trae un plato, o dices lo que esa base lleva de verdad —te lo dan al principio de la carta— o no la nombras. NO vale 'trae la base completa mas pollo'. Si vale nombrar lo que la base trae y seguir con lo del plato, o decir 'trae la base de <su familia> (esto, esto y esto) mas <lo suyo>'. Y no hace falta recitar las diez cosas: agrupa lo obvio ('y las salsas de la casa') y que suene a persona.",
     "- SI TE PIDEN QUITAR O EVITAR UN INGREDIENTE ('sin cebolla', 'sin queso', '¿tiene mani?'), haz esto EN ESTE ORDEN. PASO 1: busca esa palabra en la lista 'LO QUE LLEVA ... SEGUN LA RECETA' que te dan cuando hay un plato en curso. Esa lista es la unica fuente para esto: la descripcion es un resumen y no sirve para decidir. PASO 2, y es el caso NORMAL: si la palabra APARECE en la lista, el plato SI lo lleva -> contesta corto que se lo quitas ('listo, te la mando sin cebolla') y sigue. PASO 3, solo si NO aparece en NINGUNA linea de la lista: dile con cariNo que ese plato no lo trae, y ofrecele anadirselo si existe como adicion en la carta. PASO 4: si no te dieron esa lista, no tienes el dato -> di que lo confirmas y termina con [[HUMANO]]. NUNCA digas 'no lo lleva' sin haber mirado la lista entera: equivocarse ahi puede ser una alergia.",
     "- Y OJO: la lista de la receta es PARA TI, no para leersela al cliente. Trae nombres de bodega ('salsa X casera', 'ripio') que no significan nada para el. Si te preguntan que trae un plato, contestas con su base y su descripcion, que estan escritas para el cliente. La receta solo la usas para decidir si lleva o no algo.",
     "- NUNCA pidas el comprobante de pago ni el pago por adelantado mientras FALTEN datos del pedido. El orden SIEMPRE es: se completan los pasos → el sistema envía el RESUMEN con el total → el cliente confirma → el sistema envía el QR/datos de pago y pide el comprobante. Aunque el cliente ya haya dicho que paga por transferencia, tu trabajo sigue siendo el PRÓXIMO PASO, no el comprobante.",
