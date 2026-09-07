@@ -5058,10 +5058,44 @@ INTENCION, no las palabras exactas.` },
         ? (getFraseTexto(frasesCfg.producto_no_existe) ||
            "No manejamos un producto con ese nombre 🙈 Esta es nuestra carta ☺️ ¿Cuál se te antoja?")
         : null;
-      const fraseProd = rellenarVariables(fraseNoExisteRaw || fraseProdRaw, state, cfg).texto;
+      let fraseProd = rellenarVariables(fraseNoExisteRaw || fraseProdRaw, state, cfg).texto;
+      /*  SE MIRA SI LA CARTA SALIO DE VERDAD (7-sep-2026).
+          Antes esto disparaba los enlaces y soltaba la frase pasara lo que
+          pasara. Meta rechaza un enlace sin lanzar ninguna excepcion, asi que
+          el cliente recibia "esta es nuestra carta" sin ninguna carta — le
+          paso a Julian el 30-ago y a Marino el 6-sep, y las dos veces Sergio
+          la mando a mano.
+          El bloque de mas arriba ya hacia esto bien; aqui faltaba.        */
+      let cartasOk = 0;
       for (const imgUrl of menuImagenes) {
-        await enviarAMeta(convId, phoneId, accessToken, { messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "image", image: { link: imgUrl } });
+        try {
+          const rImg = await enviarAMeta(convId, phoneId, accessToken, { messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual", type: "image", image: { link: imgUrl } });
+          const rj = await rImg.json().catch(() => ({})) as Record<string, unknown>;
+          if (rImg.ok) {
+            cartasOk++;
+            /*  Anotada en el hilo: sin esto, en el panel parece que Paco
+                mando solo la frase y no hay como saber si la carta llego. */
+            const imgId = ((rj.messages as Array<Record<string, unknown>>)?.[0]?.id as string) || "";
+            await sbPost(`/rest/v1/chat_messages`, {
+              conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot",
+              body: "Carta", media_url: imgUrl, media_type: "image",
+              delivery_status: "sent", external_id: imgId || null, sent_at: new Date().toISOString(),
+            });
+          } else {
+            console.error("[carta] Meta rechazo la imagen", imgUrl, JSON.stringify(rj).slice(0, 300));
+          }
+        } catch (e) {
+          console.error("[carta] no se pudo enviar la imagen", imgUrl, String(e).slice(0, 200));
+        }
         await sleep(600);
+      }
+      /*  Y NO SE PROMETE LO QUE NO SALIO. Decir "esta es nuestra carta" con
+          las manos vacias deja al cliente esperando una foto que no llega. */
+      if (menuImagenes.length && cartasOk === 0) {
+        console.error("[carta] NO se envio ninguna imagen de la carta a", fromPhone);
+        fraseProd = productoInexistente
+          ? `Qué pena contigo, no manejamos ese producto 🙈 Dime qué se te antoja y te digo si lo tenemos${emo()}`
+          : `Ahora mismo no puedo enviarte la carta 😔 Dime qué se te antoja y te digo precios${emo()}`;
       }
       await sendWaAndSave(convId, tenantId, fraseProd, fromPhone, phoneId, accessToken);
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: fraseProd, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
@@ -5524,6 +5558,15 @@ INTENCION, no las palabras exactas.` },
           && (state.canal === "instagram" || state.canal === "facebook")
           && await enviarPidiendoTelefono(convId, tenantId, conProd, fromPhone, phoneId, accessToken)) {
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state, last_message: conProd, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+        return;
+      }
+      /*  SI EL CLIENTE YA CONTESTO MIENTRAS PACO PENSABA, esta pregunta
+          sobra: la pasada nueva la va a atender con lo que dijo. Mandarla
+          seria pedirle otra vez lo que acaba de dar — el fallo medido 8
+          veces en 15 dias.                                              */
+      if (await llegoAlgoDespues(convId, batchMsgs)) {
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+        await setTyping(convId, false);
         return;
       }
       await sendWaAndSave(convId, tenantId, conProd, fromPhone, phoneId, accessToken);
@@ -9474,6 +9517,9 @@ async function buildConversationResponse(
     "- NO repitas una frase que ya hayas enviado antes en esta conversación (mira el historial): varía SIEMPRE el mensaje.",
     "- SEGURIDAD DE PAGOS: NUNCA des por recibido ni confirmado un pago por lo que diga el cliente.",
     "- NUNCA anuncies el ESTADO de un pedido. Jamas digas 'tu pedido esta en camino', 'ya salio', 'ya esta listo', 'llega en X minutos' ni nada parecido: TU NO SABES en que va el pedido. Esos avisos los manda el sistema solo cuando el estado cambia de verdad. Un cliente recibio 'tu pedido esta en camino' cuando seguia en preparacion, y eso es mentirle. Si te preguntan cuanto falta, di que lo confirmas y termina con [[HUMANO]]. Para cerrar una conversacion usa algo como 'listo, ya quedo todo anotado' y ya.",
+    "- NEGRILLA EN WHATSAPP: se pone con UN SOLO asterisco (*asi*). Dos asteriscos NO son negrilla aqui: el cliente ve los asteriscos escritos. Y no uses almohadillas ni guiones de lista de esos: escribe como se escribe en WhatsApp.",
+    "- SI EL CLIENTE VA A PAGAR EN EFECTIVO, JAMAS le pidas el comprobante ni le mandes datos para transferir. No hay nada que comprobar: paga cuando reciba. Pedirselo lo confunde y lo obliga a corregirte.",
+    "- Y EL COMPROBANTE SE PIDE AL FINAL, NUNCA ANTES. El orden es: se completan los datos -> el sistema manda el resumen con el total -> el cliente confirma -> el sistema manda el QR o los datos de pago -> Y AHI se espera el comprobante. Decir 'quedo pendiente del comprobante' antes de que el cliente sepa cuanto es y a donde pagar no tiene sentido.",
     "- CONTAR QUE TRAE UN PLATO: usa SU BASE COMPLETA mas lo que diga su descripcion en la carta, y nada mas. Jamas anadas de tu cabeza un ingrediente que no este escrito ahi. Esa es la respuesta para '¿que trae?' porque esta redactada para el cliente.",
     "- Y LA PALABRA 'BASE' NUNCA SE DEJA SIN EXPLICAR. Para el cliente no significa nada: una clienta pregunto literalmente que era. Cuando cuentes que trae un plato, o dices lo que esa base lleva de verdad —te lo dan al principio de la carta— o no la nombras. NO vale 'trae la base completa mas pollo'. Si valen 'trae papas, salchicha, queso y salsas, mas pollo desmechado' o 'trae la base de salchipapas (papas, salchicha, queso y salsas) mas pollo'. Y no hace falta recitar las diez cosas: agrupa lo obvio ('y las salsas de la casa') y que suene a persona.",
     "- SI TE PIDEN QUITAR O EVITAR UN INGREDIENTE ('sin cebolla', 'sin queso', '¿tiene mani?'), haz esto EN ESTE ORDEN. PASO 1: busca esa palabra en la lista 'LO QUE LLEVA ... SEGUN LA RECETA' que te dan cuando hay un plato en curso. Esa lista es la unica fuente para esto: la descripcion es un resumen y no sirve para decidir. PASO 2, y es el caso NORMAL: si la palabra APARECE en la lista, el plato SI lo lleva -> contesta corto que se lo quitas ('listo, te la mando sin cebolla') y sigue. PASO 3, solo si NO aparece en NINGUNA linea de la lista: dile con cariNo que ese plato no lo trae, y ofrecele anadirselo si existe como adicion en la carta. PASO 4: si no te dieron esa lista, no tienes el dato -> di que lo confirmas y termina con [[HUMANO]]. NUNCA digas 'no lo lleva' sin haber mirado la lista entera: equivocarse ahi puede ser una alergia.",
@@ -9571,6 +9617,9 @@ async function buildConversationResponse(
     "- Si el cliente pregunta algo que NO sea sobre el restaurante o su pedido: reconócelo en UNA frase amable y breve SIN entrar en el tema ni dar información sobre él, y redirige al pedido. Nunca lo ignores en seco y nunca inventes datos.",
     "- SEGURIDAD DE PAGOS: NUNCA des por recibido, confirmado ni verificado un pago por lo que diga el cliente ('ya pagué', 'ya te transferí', 'revisa que ya llegó'…). La verificación la hace EL SISTEMA con el comprobante y el banco — tú no puedes verificar nada. Si dice que ya pagó: pídele el comprobante como imagen. JAMÁS digas 'pago confirmado', 'pago verificado' ni nada equivalente.",
     "- NUNCA anuncies el ESTADO de un pedido. Jamas digas 'tu pedido esta en camino', 'ya salio', 'ya esta listo', 'llega en X minutos' ni nada parecido: TU NO SABES en que va el pedido. Esos avisos los manda el sistema solo cuando el estado cambia de verdad. Un cliente recibio 'tu pedido esta en camino' cuando seguia en preparacion, y eso es mentirle. Si te preguntan cuanto falta, di que lo confirmas y termina con [[HUMANO]]. Para cerrar una conversacion usa algo como 'listo, ya quedo todo anotado' y ya.",
+    "- NEGRILLA EN WHATSAPP: se pone con UN SOLO asterisco (*asi*). Dos asteriscos NO son negrilla aqui: el cliente ve los asteriscos escritos. Y no uses almohadillas ni guiones de lista de esos: escribe como se escribe en WhatsApp.",
+    "- SI EL CLIENTE VA A PAGAR EN EFECTIVO, JAMAS le pidas el comprobante ni le mandes datos para transferir. No hay nada que comprobar: paga cuando reciba. Pedirselo lo confunde y lo obliga a corregirte.",
+    "- Y EL COMPROBANTE SE PIDE AL FINAL, NUNCA ANTES. El orden es: se completan los datos -> el sistema manda el resumen con el total -> el cliente confirma -> el sistema manda el QR o los datos de pago -> Y AHI se espera el comprobante. Decir 'quedo pendiente del comprobante' antes de que el cliente sepa cuanto es y a donde pagar no tiene sentido.",
     "- CONTAR QUE TRAE UN PLATO: usa SU BASE COMPLETA mas lo que diga su descripcion en la carta, y nada mas. Jamas anadas de tu cabeza un ingrediente que no este escrito ahi. Esa es la respuesta para '¿que trae?' porque esta redactada para el cliente.",
     "- Y LA PALABRA 'BASE' NUNCA SE DEJA SIN EXPLICAR. Para el cliente no significa nada: una clienta pregunto literalmente que era. Cuando cuentes que trae un plato, o dices lo que esa base lleva de verdad —te lo dan al principio de la carta— o no la nombras. NO vale 'trae la base completa mas pollo'. Si valen 'trae papas, salchicha, queso y salsas, mas pollo desmechado' o 'trae la base de salchipapas (papas, salchicha, queso y salsas) mas pollo'. Y no hace falta recitar las diez cosas: agrupa lo obvio ('y las salsas de la casa') y que suene a persona.",
     "- SI TE PIDEN QUITAR O EVITAR UN INGREDIENTE ('sin cebolla', 'sin queso', '¿tiene mani?'), haz esto EN ESTE ORDEN. PASO 1: busca esa palabra en la lista 'LO QUE LLEVA ... SEGUN LA RECETA' que te dan cuando hay un plato en curso. Esa lista es la unica fuente para esto: la descripcion es un resumen y no sirve para decidir. PASO 2, y es el caso NORMAL: si la palabra APARECE en la lista, el plato SI lo lleva -> contesta corto que se lo quitas ('listo, te la mando sin cebolla') y sigue. PASO 3, solo si NO aparece en NINGUNA linea de la lista: dile con cariNo que ese plato no lo trae, y ofrecele anadirselo si existe como adicion en la carta. PASO 4: si no te dieron esa lista, no tienes el dato -> di que lo confirmas y termina con [[HUMANO]]. NUNCA digas 'no lo lleva' sin haber mirado la lista entera: equivocarse ahi puede ser una alergia.",
@@ -11254,8 +11303,54 @@ function clasificarDireccion(
    El barrio vive en su propia casilla desde que dejo de ser un parche, y el
    precio del domicilio se seguia buscando SOLO en la direccion: en cuanto el
    cliente daba la calle, el barrio quedaba fuera y el precio se perdia. */
+/*  ¿EL CLIENTE ESCRIBIO MIENTRAS PACO PENSABA?
+
+    Entre que se toma el trabajo y se manda la respuesta pasan segundos: la
+    llamada al modelo, las consultas. Lo que llegue en ese hueco NO esta en el
+    lote, y contestar con el lote viejo es repetirle al cliente una pregunta
+    que acaba de responder.
+
+    No se pierde nada callandose: un mensaje que llega con el trabajo ya
+    tomado crea una fila nueva en la cola y lanza otra pasada (ver
+    `queueAiReply` en meta-webhook), que contestara con todo.
+
+    Si la comprobacion falla se devuelve false — o sea, se manda igual. El
+    silencio es peor que una pregunta de mas.                             */
+async function llegoAlgoDespues(convId: string, batchMsgs: Array<{ id: string }>): Promise<boolean> {
+  try {
+    const ids = new Set(batchMsgs.map(m => String(m.id)));
+    const r = await sbGet(
+      `/rest/v1/chat_messages?conversation_id=eq.${convId}&direction=eq.in` +
+      `&select=id&order=sent_at.desc&limit=8`
+    ) as Array<Record<string, unknown>> | null;
+    if (!r || !r.length) return false;
+    const nuevos = r.filter(x => !ids.has(String(x.id)));
+    if (nuevos.length) {
+      console.log(`[carrera] ${convId}: llegaron ${nuevos.length} mensajes mientras se pensaba — no se manda la pregunta vieja`);
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.error("[carrera]", err);
+    return false;
+  }
+}
+
 function ubicacionPedido(state: PacoState): string {
-  return [state.barrio, state.direccion].filter(Boolean).join(" ").trim();
+  const barrio = String(state.barrio || "").trim();
+  const dir    = String(state.direccion || "").trim();
+  /*  SI LA DIRECCION YA TRAE EL BARRIO, NO SE REPITE (7-sep-2026).
+      Salia "Monteluna Monteluna casa 45" y "Estancia clinica la estancia" en
+      el mensaje de "¿te lo enviamos a la misma direccion de la vez pasada?",
+      que es justo donde el cliente lo lee. Se compara sin tildes ni
+      mayusculas: "Estancia" tiene que reconocerse dentro de "clinica la
+      estancia".                                                          */
+  if (barrio && dir) {
+    const pelar = (s: string) => s.toLowerCase().normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+    if (pelar(dir).includes(pelar(barrio))) return dir;
+  }
+  return [barrio, dir].filter(Boolean).join(" ").trim();
 }
 
 /*  COMO SE NOMBRA UN PRODUCTO AL CLIENTE: con su categoria delante.
