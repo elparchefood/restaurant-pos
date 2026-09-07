@@ -290,6 +290,40 @@ const CAT_SINONIMOS: Record<string, string[]> = {
    da igual como la escriba el dueño (tildes, mayusculas, plural). */
 let DYN_CAT_SINONIMOS: Record<string, string[]> = {};
 
+/*  Las palabras con las que la gente nombra una FAMILIA en ESTE restaurante:
+    los nombres de sus categorias, los sinonimos generales y los que aNadio el
+    dueNo. Se usa para reconocer la categoria pegada delante de un plato
+    ("...y una SALCHIPAPA carne" -> plato aparte).
+
+    Si no hay nada cargado se cae a la lista de siempre: quedarse sin
+    reconocer ninguna seria peor que reconocer de mas.                     */
+function construirCatPegadaRe(): RegExp {
+  try {
+    const palabras = new Set<string>();
+    const meter = (s: unknown) => {
+      const t = normalizarTexto(String(s || "")).trim();
+      /*  Las DOS formas de quitar el plural espaNol: "calzones" da tanto
+          "calzon" (se va el -es) como "calzone" (se va solo la -s), y en
+          Colombia se dice calzone. Sobra una de las dos y no molesta.   */
+      if (t.length >= 4) {
+        palabras.add(t);
+        palabras.add(t.replace(/es$/, ""));
+        palabras.add(t.replace(/s$/, ""));
+      }
+    };
+    for (const c of DYN_CATEGORY_NAMES) { meter(c); for (const w of String(c).split(/\s+/)) meter(w); }
+    for (const arr of Object.values(CAT_SINONIMOS)) for (const s of arr) meter(s);
+    for (const arr of Object.values(DYN_CAT_SINONIMOS)) for (const s of arr) meter(s);
+    if (!palabras.size) throw new Error("sin categorias");
+    /*  Las mas largas primero: si no, "perro" se lleva "perros calientes". */
+    const alt = [...palabras].filter(Boolean).sort((a, b2) => b2.length - a.length)
+      .map(s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+    return new RegExp("(" + alt + ")s?\\s+(?:de\\s+)?$");
+  } catch (_e) {
+    return /(salchipapas?|salchi|hamburguesas?|perros?|sandwich|sanduche|bebidas?|jugos?|gaseosas?)\s+(?:de\s+)?$/;
+  }
+}
+
 /* EL NOMBRE DE UNA CATEGORIA, EN SINGULAR Y EN ESPAÑOL (19-ago).
    Quitarle la "s" a todo dejaba "Adicione" y "Salchipapa tradicionale" en un
    mensaje que LEE el cliente. La regla del idioma: si antes de la "es" hay
@@ -4159,7 +4193,14 @@ INTENCION, no las palabras exactas.` },
           || DYN_PROD_MAP.find(e => e.key === normalizarTexto(productoDetectado!));
         const opcionesPrimero = new Set((filaPrimero?.opciones || []).map(o => normalizarTexto(o)));
         const tNormCola = normalizarTexto(clienteTexto);
-        const CAT_PEGADA_RE = /(salchipapas?|salchi|hamburguesas?|perros?|sandwich|sanduche|bebidas?|jugos?|gaseosas?)\s+(?:de\s+)?$/;
+        /*  LA PALABRA DE CATEGORIA SALE DE LA CARTA (7-sep-2026).
+            Antes era una lista escrita a mano con las categorias de El Parche.
+            Una pizzeria diciendo "y una PIZZA de pollo" no entraba, aunque
+            CAT_SINONIMOS —mas arriba— si conoce "pizza". Misma idea escrita
+            dos veces y una copia corta.
+            Ahora sale de SUS categorias, mas los sinonimos generales, mas los
+            que el dueNo aNadio en su configuracion.                       */
+        const CAT_PEGADA_RE = construirCatPegadaRe();
         /* EL PLATO LEIDO A MEDIAS NO ES OTRO PLATO (19-ago, hallado en las
            pruebas). "salchipapa MAICITOS ESPECIAL mixta personal" encolaba
            ademas la MAICITOS a secas —las dos existen en la carta— y el pedido
