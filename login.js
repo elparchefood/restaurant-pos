@@ -92,8 +92,16 @@ async function handleLogin() {
     la aplicacion. Antes mandaba a todo el mundo al tablero.               */
 const RED_NOMBRE = { google: 'Google', facebook: 'Facebook' };
 
+/*  ¿EL BOTON QUE TOCARON ERA EL DE REGISTRARSE? Los dos paneles llaman a la
+    misma funcion, asi que se mira cual esta a la vista. Y se apunta antes de
+    salir del sitio: se vuelve a esta misma pestana, asi que `sessionStorage`
+    lo conserva sin ensuciar la direccion con parametros.                  */
+const RED_MARCA = 'cobra-registro-con-red';
+
 async function entrarConRed(proveedor) {
   try {
+    const enRegistro = !!($('view-datos') && !$('view-datos').hidden);
+    try { sessionStorage.setItem(RED_MARCA, enRegistro ? '1' : ''); } catch (e) {}
     const { error } = await sb.auth.signInWithOAuth({
       provider: proveedor,
       options: { redirectTo: window.location.origin + window.location.pathname }
@@ -169,12 +177,25 @@ async function volverDeRed() {
         lo puede intentar cualquier persona del mundo. Se cierra la sesion en
         vez de dejarla a medias dentro de la aplicacion.                   */
     if (!meta.tenant_id) {
+      /*  VENIA A REGISTRARSE. Entonces NO se cierra la sesion: se sigue el
+          registro de siempre con lo que el proveedor ya sabe —su nombre y su
+          correo— y sin pedirle contrasena. Antes acababa aqui con la sesion
+          cerrada y un mensaje diciendole que se registrara: el boton de
+          registrarse le decia que se registrara.                         */
+      let queria = '';
+      try { queria = sessionStorage.getItem(RED_MARCA) || ''; sessionStorage.removeItem(RED_MARCA); } catch (e) {}
+      if (queria === '1') { arrancarRegistroConRed(u, red); return true; }
+
+      /*  Y si venia a ENTRAR, no se queda dentro. Con correo y contrasena
+          este caso casi no existe —la cuenta solo existe si alguien se
+          registro—; con Google lo puede intentar el mundo entero.        */
       await sb.auth.signOut();
       showError('login-error', 'login-error-msg',
         'Entraste con ' + red + ', pero ese correo todavía no tiene un restaurante en Cobra. ' +
         'Regístrate y te lo activamos.');
       return true;
     }
+    try { sessionStorage.removeItem(RED_MARCA); } catch (e) {}
     const role = meta.role || '';
     const esMesero = role === 'mesero' || role === 'cajero' || role === 'cajera';
     window.location.href = esMesero ? 'ventas.html' : 'dashboard.html';
@@ -183,6 +204,34 @@ async function volverDeRed() {
       'No se pudo completar la entrada: ' + ((e && e.message) || e));
   }
   return true;
+}
+
+/*  ══ SEGUIR EL REGISTRO CON LO QUE YA SABE EL PROVEEDOR ══════════════════
+
+    Se llena el nombre y el correo, se esconde la contrasena y se deja el
+    correo en solo lectura: el servidor va a usar el del token y no el que
+    diga la pantalla, asi que dejarlo editable seria enseñar una mentira.
+
+    Lo demas del registro no cambia NADA: el negocio, el plan, las sedes y el
+    pago se piden igual. Identificarse no es pagar.                        */
+function arrancarRegistroConRed(u, red) {
+  const meta = u.user_metadata || {};
+  const completo = String(meta.full_name || meta.name || '').trim();
+  const partes = completo ? completo.split(/\s+/) : [];
+
+  REG.porRed = true;
+  REG.red    = red;          // para poder nombrarlo si algo sale mal despues
+  REG.email  = String(u.email || '').trim().toLowerCase();
+
+  if ($('reg-nombre')   && partes.length) $('reg-nombre').value   = partes[0];
+  if ($('reg-apellido') && partes.length > 1) $('reg-apellido').value = partes.slice(1).join(' ');
+  if ($('reg-email'))   { $('reg-email').value = REG.email; $('reg-email').readOnly = true; }
+  if ($('reg-fila-clave')) $('reg-fila-clave').hidden = true;
+  if ($('reg-por-red'))    $('reg-por-red').hidden = false;
+  if ($('reg-red-nombre')) $('reg-red-nombre').textContent = red;
+
+  goStep('datos');
+  showToast('Listo, ' + red + ' ya te identificó. Solo faltan los datos de tu restaurante.');
 }
 
 async function handleForgot() {
@@ -210,14 +259,18 @@ function handleDatos() {
 
   if (!pila || !apellido)
     return showError('datos-error','datos-error-msg','Escribe tu nombre y tu apellido');
-  if (!negocio || !email || !pass)
+  if (!negocio || !email || (!pass && !REG.porRed))
     return showError('datos-error','datos-error-msg','Completa todos los campos obligatorios');
-  if (pass.length < 8)
-    return showError('datos-error','datos-error-msg','La contraseña debe tener al menos 8 caracteres');
-  /*  Se compara ANTES de los términos: si alguien se equivocó al repetirla,
-      lo que tiene que arreglar es eso, no marcar una casilla.              */
-  if (pass !== pass2)
-    return showError('datos-error','datos-error-msg','Las dos contraseñas no son iguales');
+  /*  Quien llega por Google o Facebook no tiene contrasena que revisar: su
+      proveedor ya lo identifico y el campo ni siquiera esta a la vista.  */
+  if (!REG.porRed) {
+    if (pass.length < 8)
+      return showError('datos-error','datos-error-msg','La contraseña debe tener al menos 8 caracteres');
+    /*  Se compara ANTES de los términos: si alguien se equivocó al repetirla,
+        lo que tiene que arreglar es eso, no marcar una casilla.            */
+    if (pass !== pass2)
+      return showError('datos-error','datos-error-msg','Las dos contraseñas no son iguales');
+  }
   if (!terms)
     return showError('datos-error','datos-error-msg','Debes aceptar los términos de servicio');
 
@@ -323,9 +376,20 @@ async function handlePago() {
       .upload(nom, uploadedFile, { contentType: uploadedFile.type, upsert: false });
     if (upErr) throw upErr;
 
+    /*  SI SE REGISTRO CON GOOGLE O FACEBOOK, VA SU SESION. El servidor la usa
+        para dos cosas: saber que la cuenta de acceso YA existe (y no intentar
+        crear otra, que era un 409 seguro) y quedarse con el correo del token
+        en vez del que diga la pantalla.                                    */
+    let cabecera = {};
+    if (REG.porRed) {
+      const { data: ses } = await sb.auth.getSession();
+      const tk = ses && ses.session && ses.session.access_token;
+      if (!tk) throw new Error('Se cerró la sesión de ' + (REG.red || 'tu cuenta') + '. Vuelve a tocar el botón.');
+      cabecera = { 'Authorization': 'Bearer ' + tk };
+    }
     const r = await fetch(SUPABASE_URL + '/functions/v1/provision', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+      headers: Object.assign({ 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY }, cabecera),
       body: JSON.stringify({
         action: 'registrar',
         nombre: REG.nombre, negocio: REG.negocio, email: REG.email, clave: REG.pass,

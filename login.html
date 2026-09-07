@@ -359,7 +359,10 @@
                 fuera de su propio restaurante el primer día, teniendo que pedir
                 recuperarla. Van las dos en una fila para no añadir un renglón:
                 el formulario tiene que caber sin bajar la pantalla.  -->
-          <div class="field-fila">
+          <!--  Quien llega por Google o Facebook no escribe contraseña: su
+                proveedor ya lo identifico. La fila se esconde entera y en su
+                lugar sale el aviso de abajo.  -->
+          <div class="field-fila" id="reg-fila-clave">
             <div>
               <label class="field-label" for="reg-pass">Contraseña</label>
               <div class="au-field">
@@ -378,6 +381,16 @@
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
               </div>
+            </div>
+          </div>
+          <div id="reg-por-red" hidden style="display:flex;align-items:center;gap:9px;padding:10px 12px;
+               border:1px solid #C7D2FE;background:#EEF2FF;border-radius:10px;margin-bottom:2px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6BFF" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+              <path d="M20 6L9 17l-5-5"/></svg>
+            <div style="font-size:12.5px;color:#475569;line-height:1.5">
+              Ya te identificaste con <b id="reg-red-nombre">Google</b>. No necesitas contraseña:
+              entrarás siempre con ese botón.
             </div>
           </div>
           <div>
@@ -664,6 +677,6 @@
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <script src="pos-nucleo.js?v=1799700000"></script>
 <script src="planes.js?v=1798956000"></script>
-  <script src="login.js?v=1799995000"></script>
+  <script src="login.js?v=1800000000"></script>
 </body>
 </html>

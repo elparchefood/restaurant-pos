@@ -79,13 +79,44 @@ Deno.serve(async (req) => {
 
          NO PIDE SESION a proposito: quien se registra todavia no tiene. */
 
-        const email    = String(body.email || "").trim().toLowerCase();
+        /*  ══ ¿YA SE IDENTIFICO CON GOOGLE O CON FACEBOOK? ═══════════════
+
+            Registrarse con Google no es entrar con Google: la cuenta de
+            Google solo dice QUIEN es. El restaurante, el plan, las sedes y el
+            pago siguen haciendo falta igual. Lo que se ahorra es la
+            contrasena — y el correo llega verificado por el proveedor.
+
+            Lo importante: esa persona YA TIENE cuenta de acceso, creada por
+            el proveedor al volver. Aqui no se crea ninguna. Sin esto la
+            funcion contestaba 409 "ese correo ya tiene una cuenta, entra con
+            tu contrasena" — y esa persona no tiene contrasena con la que
+            entrar. Registrarse con Google era imposible por definicion.
+
+            ⚠️ EL CORREO SALE DEL TOKEN, NO DEL CUERPO. Si se creyera lo que
+            manda la pantalla, cualquiera con su sesion podria dejar una
+            solicitud a nombre del correo de otro.                        */
+        let porRed: { id: string; email: string } | null = null;
+        {
+          const cab = req.headers.get("Authorization") || "";
+          if (cab.startsWith("Bearer ") && cab !== `Bearer ${ANON_KEY}` && cab !== `Bearer ${SERVICE_KEY}`) {
+            const uR = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+              headers: { "Authorization": cab, "apikey": ANON_KEY },
+            });
+            if (uR.ok) {
+              const u = await uR.json() as Record<string, unknown>;
+              const c = String(u.email || "").trim().toLowerCase();
+              if (u.id && c) porRed = { id: String(u.id), email: c };
+            }
+          }
+        }
+
+        const email    = porRed ? porRed.email : String(body.email || "").trim().toLowerCase();
         const clave    = String(body.clave || "");
         const nombre   = String(body.nombre || "").trim();
         const negocio  = String(body.negocio || "").trim();
 
         if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: "correo invalido" });
-        if (clave.length < 8) return json(400, { error: "la contrasena debe tener al menos 8 caracteres" });
+        if (!porRed && clave.length < 8) return json(400, { error: "la contrasena debe tener al menos 8 caracteres" });
         if (!nombre || !negocio) return json(400, { error: "faltan datos" });
 
         /* Si ya hay una solicitud sin resolver con ese correo, no se crea otra:
@@ -104,7 +135,9 @@ Deno.serve(async (req) => {
         const uList = await uEx.json().catch(() => ({})) as Record<string, unknown>;
         const yaHay = (uList.users as Array<Record<string, unknown>> | undefined)?.find(
           (x) => String(x.email || "").toLowerCase() === email);
-        if (yaHay) {
+        /*  Si viene por Google/Facebook, la cuenta que aparece es LA SUYA —la
+            acaba de crear el proveedor—, asi que no es un conflicto.      */
+        if (yaHay && !porRed) {
           return json(409, { error: "Ese correo ya tiene una cuenta. Entra con tu contrasena, o usa 'olvide mi contrasena'." });
         }
 
@@ -125,7 +158,19 @@ Deno.serve(async (req) => {
             confirmo, se le confirma la cuenta (ver `approve`). Pagar es mejor
             prueba de que el correo es suyo que un clic. El enlace sirve para
             enterarnos ANTES de que el correo estaba mal.                    */
-        const auRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/generate_link`, {
+        /*  CON GOOGLE/FACEBOOK NO SE CREA CUENTA NI SE MANDA VERIFICACION:
+            la cuenta existe y el correo ya lo verifico el proveedor. Solo se
+            le guardan el nombre y el negocio, que es lo que la consola
+            necesita para saber quien pide.                                */
+        if (porRed) {
+          await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${porRed.id}`, {
+            method: "PUT",
+            headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ user_metadata: { nombre, negocio, estado: "pendiente" } }),
+          });
+        }
+
+        const auRes = porRed ? null : await fetch(`${SUPABASE_URL}/auth/v1/admin/generate_link`, {
           method: "POST",
           headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -133,8 +178,8 @@ Deno.serve(async (req) => {
             data: { nombre, negocio, estado: "pendiente" },
           }),
         });
-        const auData = await auRes.json() as Record<string, unknown>;
-        if (!auRes.ok) return json(500, { error: "no se pudo crear la cuenta: " + JSON.stringify(auData).slice(0, 200) });
+        const auData = auRes ? await auRes.json() as Record<string, unknown> : {};
+        if (auRes && !auRes.ok) return json(500, { error: "no se pudo crear la cuenta: " + JSON.stringify(auData).slice(0, 200) });
 
         /*  El correo de verificacion. No se espera y no puede tumbar el
             registro: la solicitud ya esta guardada y el pago sigue su camino.
@@ -169,7 +214,10 @@ Deno.serve(async (req) => {
         if (!reg.ok) {
           /* La solicitud es lo que Sergio ve. Sin ella, la cuenta quedaria
              creada y nadie sabria que hay alguien esperando: se deshace. */
-          const uid = String((auData.id as string) || ((auData.user as Record<string, unknown>)?.id as string) || "");
+          /*  Se deshace SOLO lo que se hizo aqui. Si la cuenta venia de
+              Google, borrarla seria borrarle a la persona su forma de entrar
+              por un fallo nuestro al guardar una fila.                    */
+          const uid = porRed ? "" : String((auData.id as string) || ((auData.user as Record<string, unknown>)?.id as string) || "");
           if (uid) await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${uid}`, {
             method: "DELETE", headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}` } });
           return json(500, { error: "no se pudo guardar la solicitud" });
