@@ -17,6 +17,18 @@ Todo el diseno -los limites, los costos y la prueba A/B de la landing- esta en
 
 ---
 
+## 0-bis. Pedir tocando el menu, no escribiendolo - IDEA ANOTADA
+
+Idea de Sergio del 8-sep: Paco contesta con un boton "Ver el menu" que abre
+una pagina pequena, sin registro, colgada de la conversacion. El cliente
+escoge productos y como paga, y Paco recibe el pedido exacto en vez de
+deducirlo de una frase. **No mejora la lectura: la elimina.**
+
+Tampoco bloquea nada. El diseno, lo que hay que decidir y las trampas estan
+en **`PLAN-PEDIR-DESDE-EL-MENU.md`**.
+
+---
+
 ## 1. Permisos y PIN 🔴 EL MÁS IMPORTANTE
 
 **Dos cosas distintas, y la segunda es la de fondo.**
