@@ -206,6 +206,71 @@ async function cobrarTenant(tenant: string, periodo: string, intento: number) {
   return { estado: 200, cuerpo: { ok: true, referencia, transaccion_id: d.id, estado_cobro: d.status, monto } };
 }
 
+/*  ══ EL COBRO DE UNA SOLICITUD ══════════════════════════════════════════════
+    Igual que el de un restaurante, pero el dueno es la solicitud — todavia no
+    hay restaurante al que cobrarle.
+
+    ⚠️ EL PRECIO SALE DE `fn_precio_registro`, NO de `pos_registrations.
+    monto_total`. Ese campo lo manda el NAVEGADOR: hoy no es grave porque una
+    persona mira la solicitud antes de aprobarla, pero el pago en linea aprueba
+    solo. En cuanto sea automatico, ese numero deja de ser un dato y pasa a ser
+    una puerta — quien lo cambie se lleva el plan que quiera por lo que quiera.
+                                                                             */
+async function cobrarRegistro(regId: string, intento: number) {
+  const rRes = await db(`pos_registrations?id=eq.${regId}&select=id,email,plan,sucursales,billing,status&limit=1`);
+  const reg = (rRes.data as Array<Record<string, unknown>>)?.[0];
+  if (!reg) return { estado: 404, cuerpo: { error: "solicitud no encontrada" } };
+
+  const pRes = await db(`rpc/fn_precio_registro`, {
+    method: "POST", body: JSON.stringify({ p_registro: regId }),
+  });
+  const monto = Number(pRes.data);
+  if (!monto || monto <= 0) return { estado: 400, cuerpo: { error: "no se pudo calcular el precio" } };
+
+  const fRes = await db(`pos_wompi_fuentes?registration_id=eq.${regId}&activa=is.true&select=fuente_id,correo&limit=1`);
+  const fuente = (fRes.data as Array<Record<string, unknown>>)?.[0];
+  if (!fuente) return { estado: 409, cuerpo: { error: "esa solicitud no tiene medio de pago", sin_fuente: true } };
+
+  const referencia = `cobra-reg-${regId.slice(0, 8)}-${intento}`;
+  const cRes = await db("pos_wompi_cobros", {
+    method: "POST", headers: { Prefer: "return=representation" },
+    body: JSON.stringify({
+      registration_id: regId, referencia, periodo_fin: new Date().toISOString().slice(0, 10),
+      intento, monto, plan: reg.plan, periodo: String(reg.billing || "mensual"),
+      fuente_id: fuente.fuente_id, estado: "PENDIENTE",
+    }),
+  });
+  if (!cRes.ok) {
+    if (cRes.status === 409) return { estado: 200, cuerpo: { ok: true, repetido: true, referencia } };
+    return { estado: 500, cuerpo: { error: "no se pudo anotar el cobro" } };
+  }
+  const fila = (cRes.data as Array<Record<string, unknown>>)[0];
+
+  const centavos = monto * 100;
+  const firma = await sha256(`${referencia}${centavos}COP${K_INT}`);
+  const tx = await wompi("POST", "/transactions", K_PRV, {
+    amount_in_cents: centavos, currency: "COP",
+    customer_email: String(fuente.correo || reg.email || ""),
+    payment_source_id: fuente.fuente_id, reference: referencia,
+    recurrent: true, signature: firma, payment_method: { installments: 1 },
+  });
+  if (!tx.ok) {
+    const motivo = JSON.stringify(tx.data).slice(0, 300);
+    console.error("[wompi] el cobro del registro no salio:", tx.status, motivo);
+    await db(`pos_wompi_cobros?id=eq.${fila.id}`, {
+      method: "PATCH", headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ estado: "ERROR", motivo, resuelto_at: new Date().toISOString() }),
+    });
+    return { estado: 502, cuerpo: { error: "el cobro no se pudo enviar", detalle: tx.data } };
+  }
+  const d = (tx.data.data || {}) as Record<string, unknown>;
+  await db(`pos_wompi_cobros?id=eq.${fila.id}`, {
+    method: "PATCH", headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ transaccion_id: String(d.id || ""), estado: String(d.status || "PENDIENTE") }),
+  });
+  return { estado: 200, cuerpo: { ok: true, referencia, transaccion_id: d.id, estado_cobro: d.status, monto } };
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json(405, { error: "solo POST" });
 
@@ -250,8 +315,18 @@ Deno.serve(async (req) => {
       });
       if (!uRes.ok) return json(401, { error: "no autenticado" });
       const u = await uRes.json() as { id: string; email?: string; user_metadata?: Record<string, unknown> };
+      /*  QUIEN SE ESTA REGISTRANDO TODAVIA NO TIENE RESTAURANTE: `tenants`
+          se crea al aprobar, y el pago ocurre ANTES — es lo que dispara la
+          aprobacion. Asi que el medio de pago se le cuelga a su SOLICITUD y
+          se muda al restaurante cuando se cree.                          */
       const tenant = String((u.user_metadata || {}).tenant_id || "");
-      if (!tenant) return json(400, { error: "esta cuenta todavia no tiene un restaurante" });
+      let regId = "";
+      if (!tenant) {
+        const rr = await db(`pos_registrations?user_id=eq.${u.id}&status=eq.pending` +
+                            `&select=id&order=created_at.desc&limit=1`);
+        regId = String((rr.data as Array<Record<string, unknown>>)?.[0]?.id || "");
+        if (!regId) return json(400, { error: "esta cuenta todavia no tiene un restaurante" });
+      }
 
       const token = String(body.token || "");
       const tipo  = String(body.tipo  || "CARD").toUpperCase();
@@ -280,7 +355,8 @@ Deno.serve(async (req) => {
 
       /*  La anterior se APAGA, no se borra: el día que un cobro viejo haya
           salido de ella, hay que poder decir de dónde salió.              */
-      await db(`pos_wompi_fuentes?tenant_id=eq.${tenant}&activa=is.true`, {
+      const suyo = tenant ? `tenant_id=eq.${tenant}` : `registration_id=eq.${regId}`;
+      await db(`pos_wompi_fuentes?${suyo}&activa=is.true`, {
         method: "PATCH", headers: { Prefer: "return=minimal" },
         body: JSON.stringify({ activa: false, anulada_at: new Date().toISOString(), anulada_por: "reemplazo" }),
       });
@@ -288,7 +364,8 @@ Deno.serve(async (req) => {
       const ins = await db("pos_wompi_fuentes", {
         method: "POST", headers: { Prefer: "return=representation" },
         body: JSON.stringify({
-          tenant_id: tenant, fuente_id: f.id, tipo,
+          tenant_id: tenant || null, registration_id: regId || null,
+          fuente_id: f.id, tipo,
           /*  Los últimos 4 y la marca se guardan AHORA porque después no hay
               de dónde sacarlos, y son los que dicen el aviso: "el 18 se
               cobrará tu plan, ten saldo en tu tarjeta ***4242".
@@ -317,7 +394,9 @@ Deno.serve(async (req) => {
           guardada y se puede reintentar sin volver a pedirle nada.       */
       let cobro = null;
       if (body.cobrar_ya === true) {
-        const r2 = await cobrarTenant(tenant, String(body.periodo || "mensual"), 1);
+        const r2 = tenant
+          ? await cobrarTenant(tenant, String(body.periodo || "mensual"), 1)
+          : await cobrarRegistro(regId, 1);
         cobro = r2.cuerpo;
       }
       return json(200, { ok: true, tipo, ultimos4, marca, cobro });
@@ -374,7 +453,7 @@ Deno.serve(async (req) => {
           resuelto_at: new Date().toISOString(),
         }),
       });
-      const cobro = (upd.data as Array<Record<string, unknown>>)?.[0];
+      const cobro = (upd.data as Array<Record<string, unknown>>)?.[0] as Record<string, string>;
       if (!cobro) {
         //  Un aviso de un cobro que no es nuestro: se anota y ya.
         console.warn("[wompi] aviso de una referencia desconocida:", referencia);
@@ -384,6 +463,44 @@ Deno.serve(async (req) => {
       /*  APROBADO: se corre el periodo. Es el ÚNICO sitio donde eso pasa —
           ni el navegador ni la respuesta del cobro pueden hacerlo, porque
           las dos se pueden falsificar y esta no.                          */
+      /*  ══ UNA SOLICITUD PAGADA SE CONVIERTE EN CUENTA, SOLA ══════════════
+          Sergio: *"la cuenta se crea automaticamente con el pago en linea,
+          siempre lo decidi asi"*. Su aprobacion a mano no desaparece — sigue
+          ahi para cuando alguien le pague por fuera— pero deja de ser el
+          camino normal.
+
+          Se aprueba por la MISMA puerta que ya usa el lector de comprobantes
+          (`provision approve`, con la llave de servicio): un solo sitio crea
+          restaurantes, y sigue siendo el de siempre.                      */
+      if (estado === "APPROVED" && cobro.registration_id) {
+        try {
+          const ap = await fetch(`${SUPABASE_URL}/functions/v1/provision`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "approve", registration_id: cobro.registration_id, interno: true }),
+          });
+          console.log("[wompi] cuenta creada por pago en linea:", ap.status);
+          /*  Y el medio de pago se muda al restaurante recien creado: si se
+              quedara colgando de la solicitud, el mes siguiente no habria de
+              donde cobrar.                                                */
+          const rr = await db(`pos_registrations?id=eq.${cobro.registration_id}&select=tenant_id&limit=1`);
+          const nuevoTenant = String((rr.data as Array<Record<string, unknown>>)?.[0]?.tenant_id || "");
+          if (nuevoTenant) {
+            await db(`pos_wompi_fuentes?registration_id=eq.${cobro.registration_id}`, {
+              method: "PATCH", headers: { Prefer: "return=minimal" },
+              body: JSON.stringify({ tenant_id: nuevoTenant }),
+            });
+            await db(`pos_wompi_cobros?id=eq.${cobro.id}`, {
+              method: "PATCH", headers: { Prefer: "return=minimal" },
+              body: JSON.stringify({ tenant_id: nuevoTenant }),
+            });
+          }
+        } catch (e) {
+          console.error("[wompi] pago aprobado pero la cuenta no se creo:", String(e).slice(0, 200));
+        }
+        return json(200, { ok: true, cuenta_creada: true });
+      }
+
       if (estado === "APPROVED") {
         const meses = cobro.periodo === "anual" ? 12 : cobro.periodo === "trimestral" ? 3 : 1;
         const t2 = await db(`tenants?id=eq.${cobro.tenant_id}&select=periodo_fin,saldo_favor&limit=1`);
