@@ -158,6 +158,44 @@ Deno.serve(async (req) => {
 
             Así que `email_not_confirmed` es la prueba de que acertó. Quien
             escriba el correo de otro se queda fuera igual que antes.       */
+        /*  ══ VOLVER A INTENTARLO CON GOOGLE O FACEBOOK ═════════════════════
+
+            Con contraseña, reanudar exige comprobar que es la misma persona.
+            Con Google no hace falta comprobar nada: el proveedor YA la
+            identifico, y su token es mejor prueba que una contraseña.
+
+            Sin esto, quien se registrara con Google y no lograra pagar
+            —justo lo que le paso a Sergio el 8-sep con "Pizzeria El Flaco"—
+            creaba una solicitud NUEVA en cada intento, y en la consola
+            aparecian dos filas del mismo negocio sin saber cual aprobar. Que
+            es exactamente lo que el guardia original queria evitar y este
+            camino se saltaba.                                              */
+        if (porRed) {
+          const suPlan = String(((yaHay?.user_metadata as Record<string, unknown>) || {}).tenant_id || "");
+          if (suPlan) {
+            return json(409, { error: "Ese correo ya tiene un restaurante activo. Entra con " + "tu cuenta." });
+          }
+          if (solicitudPrevia) {
+            const regPrev = String((solicitudPrevia as Record<string, unknown>).id || "");
+            await sbAdmin("PATCH", `/rest/v1/pos_registrations?id=eq.${regPrev}`, {
+              nombre, negocio, plan: String(body.plan || "pro"),
+              sucursales: Number(body.sucursales || 1),
+              monto_total: Number(body.monto_total || 0),
+              billing: ["mensual", "trimestral", "anual"].includes(String(body.billing || ""))
+                         ? String(body.billing) : "mensual",
+              total_ciclo: Number(body.total_ciclo || 0),
+            });
+            await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${porRed.id}`, {
+              method: "PUT",
+              headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ user_metadata: { nombre, negocio, estado: "pendiente" } }),
+            });
+            console.log("[registrar] se retoma la solicitud de", porRed.email, "(por red)");
+            //  No hace falta token para entrar: ya tiene sesion del proveedor.
+            return json(200, { ok: true, reanudado: true, registration_id: regPrev });
+          }
+        }
+
         let reanudado = false;
         if ((yaHay || solicitudPrevia) && !porRed) {
           const tienePlan = String(((yaHay?.user_metadata as Record<string, unknown>) || {}).tenant_id || "");

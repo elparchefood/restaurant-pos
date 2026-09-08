@@ -180,6 +180,9 @@ window.posSuscripcion = (function (w, d) {
             '<path d="M13.4 15.1h5.2" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity=".55"/>' +
           '</svg>' +
         '</span><span><b>Tarjeta</b><span>Débito o crédito</span></span></button>' +
+      /*  El hueco del error. Sin el, cualquier fallo que devuelva a esta
+          pantalla se quedaba mudo.                                       */
+      '<div id="sus-e"></div>' +
       '<div class="sus-nota">' + fraseDelCobro() + ' Autorizas <b>una sola vez</b> y después el cobro ' +
         'sale solo el día que toca, avisándote <b>una semana antes</b>. ' +
         'Puedes cambiar el medio o cancelar cuando quieras.</div>'
@@ -207,8 +210,27 @@ window.posSuscripcion = (function (w, d) {
     setTimeout(function () { try { inp.focus(); } catch (e) {} }, 60);
   }
 
+  /*  ══ UN ERROR NUNCA SE PUEDE PERDER ════════════════════════════════════
+
+      Esto decia `if (c) ...` — o sea: si la pantalla de turno no traia el
+      hueco donde escribir, el mensaje se tiraba a la basura y no pasaba nada.
+
+      Y eso es exactamente lo que vio Sergio el 8-sep: al fallar el guardado,
+      `inscribir` llamaba a `verMedios()` —que NO tiene ese hueco— y despues a
+      `fallo()`. El selector de medios reaparecia limpio, sin una palabra de
+      lo que habia salido mal. "Luego me aparecia otra vez este modal."
+
+      Es el mismo error de siempre en este proyecto, con otra ropa: el fallo
+      callado. Ahora, si no hay hueco, se crea; y ademas queda en la consola
+      del navegador para poder mirarlo despues.                            */
   function fallo(msg) {
+    try { console.error('[suscripcion]', msg); } catch (e) {}
     var c = d.getElementById('sus-e');
+    if (!c && S.cuerpo) {
+      c = d.createElement('div');
+      c.id = 'sus-e';
+      S.cuerpo.insertBefore(c, S.cuerpo.firstChild);
+    }
     if (c) c.innerHTML = '<div class="sus-err">' + esc(msg) + '</div>';
   }
 
@@ -272,18 +294,32 @@ window.posSuscripcion = (function (w, d) {
     );
     d.getElementById('sus-atras').onclick = function () { clearInterval(S.reloj); verMedios(); };
 
-    clearInterval(S.reloj);
-    S.reloj = setInterval(async function () {
+    /*  EL RELOJ CORRE CADA SEGUNDO; SE PREGUNTA CADA TRES. Antes ambas cosas
+        iban juntas cada 3 s, asi que los primeros tres segundos la pantalla
+        no mostraba NADA debajo del texto — y una pantalla de pago sin señales
+        de vida se lee como colgada. Fue lo primero que se vio en la captura
+        de Sergio: el hueco de la cuenta atras, vacio.                     */
+    function pintarReloj() {
       var quedan = Math.max(0, Math.round((hasta - Date.now()) / 1000));
       var r = d.getElementById('sus-reloj');
-      if (r) r.textContent = quedan > 0
-        ? 'Esperando tu aprobación · ' + Math.floor(quedan / 60) + ':' + ('0' + (quedan % 60)).slice(-2)
-        : '';
+      if (r) r.textContent = 'Esperando tu aprobación · '
+        + Math.floor(quedan / 60) + ':' + ('0' + (quedan % 60)).slice(-2);
+      return quedan;
+    }
+    pintarReloj();
+    var tic = 0;
+
+    clearInterval(S.reloj);
+    S.reloj = setInterval(async function () {
+      var quedan = pintarReloj();
       if (quedan <= 0) {
         clearInterval(S.reloj);
-        fallo('Se acabó el tiempo. Vuelve a intentarlo y aprueba la notificación en Nequi.');
+        nequiSinExito('No llegó tu aprobación',
+          'Pasaron 5 minutos y Nequi no confirmó la autorización del <b>' + esc(tel) + '</b>. '
+          + '<b>No se te cobró nada.</b> Puede que la notificación no llegara, o que se cerrara sin querer.');
         return;
       }
+      if ((++tic) % 3) return;
       try {
         var q = await fetch(cfg.api + '/tokens/nequi/' + token, {
           headers: { 'Authorization': 'Bearer ' + cfg.llave_publica }
@@ -292,13 +328,41 @@ window.posSuscripcion = (function (w, d) {
         var est = dd && dd.data && dd.data.status;
         if (est === 'APPROVED') { clearInterval(S.reloj); inscribir(token, 'NEQUI'); }
         else if (est && est !== 'PENDING') {
+          /*  Antes esto solo escribia el error DEBAJO, dejando arriba el
+              "Abre tu app de Nequi · esta pantalla sigue sola" — que ya era
+              mentira. La pantalla tiene que decir una sola cosa.         */
           clearInterval(S.reloj);
-          fallo(est === 'DECLINED'
-            ? 'Rechazaste la autorización en Nequi. Puedes intentarlo otra vez.'
-            : 'Nequi respondió: ' + est);
+          nequiSinExito(
+            est === 'DECLINED' ? 'Rechazaste la autorización' : 'Nequi no pudo autorizar',
+            est === 'DECLINED'
+              ? 'Se rechazó la autorización en la app de Nequi. <b>No se te cobró nada.</b>'
+              : 'Nequi respondió <b>' + esc(est) + '</b>. <b>No se te cobró nada.</b>');
         }
       } catch (e) { /* un tropiezo de red no cancela la espera */ }
     }, 3000);
+  }
+
+  /*  Un callejon sin salida es peor que un error. Aqui se dice que no se
+      cobro nada —lo primero que uno teme— y se ofrecen las dos salidas
+      posibles: repetir con Nequi, o pagar con otra cosa.                  */
+  function nequiSinExito(titulo, texto) {
+    pintar(
+      '<div class="sus-esp">' +
+        '<div class="sus-onda" style="background:#FFFBEB;border-color:#FDE68A">' +
+          '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="1.9" ' +
+            'stroke-linecap="round" stroke-linejoin="round">' +
+            '<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l2.8 2"/></svg>' +
+        '</div>' +
+        '<div style="font-size:16px;font-weight:700;color:#0F172A">' + esc(titulo) + '</div>' +
+        '<div style="font-size:13.5px;color:#475569;line-height:1.6;margin-top:8px;max-width:330px">' +
+          texto + '</div>' +
+      '</div>' +
+      '<div id="sus-e"></div>' +
+      '<button class="sus-btn" id="sus-otra">Intentar otra vez</button>' +
+      '<button class="sus-btn2" id="sus-atras">← Escoger otro medio</button>'
+    );
+    d.getElementById('sus-otra').onclick = verNequi;
+    d.getElementById('sus-atras').onclick = verMedios;
   }
 
   function verTarjeta() {

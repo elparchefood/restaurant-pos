@@ -225,7 +225,46 @@ function arrancarRegistroConRed(u, red) {
 
   if ($('reg-nombre')   && partes.length) $('reg-nombre').value   = partes[0];
   if ($('reg-apellido') && partes.length > 1) $('reg-apellido').value = partes.slice(1).join(' ');
-  if ($('reg-email'))   { $('reg-email').value = REG.email; $('reg-email').readOnly = true; }
+  /*  ══ EL CORREO DE GOOGLE NO SE TOCA ════════════════════════════════════
+
+      Sergio, 8-sep: *"una persona se puede autenticar con un correo de Google,
+      luego ahi lo edita y pone otro, y luego no va a saber con que ingresar,
+      porque al autenticarse con Google no va a crear una contraseña... al
+      cambiar de correo queda como en el aire"*.
+
+      Exacto: quien entra por Google NO TIENE CONTRASEÑA. Su unica llave es
+      esa cuenta de Google. Si el correo de la pantalla fuera otro, quedaria
+      con un correo que no puede abrir y sin clave con que entrar.
+
+      El servidor ya se protegia solo —usa el correo del TOKEN, nunca el del
+      cuerpo—, asi que el riesgo no era de seguridad: era que la pantalla
+      enseñara una cosa y pasara otra. Y esa es justo la regla de la casa: lo
+      que se ve tiene que ser lo que sale.
+
+      `readOnly` ya estaba, pero un campo en solo lectura SE VE IGUAL que uno
+      normal — se puede hacer clic, sale el cursor, parece que se puede
+      escribir. Por eso ahora ademas se ve apagado y lo dice debajo.        */
+  if ($('reg-email')) {
+    var ce = $('reg-email');
+    ce.value = REG.email;
+    ce.readOnly = true;
+    ce.tabIndex = -1;
+    ce.style.background = '#F1F5F9';
+    ce.style.color = '#64748B';
+    ce.style.cursor = 'not-allowed';
+    ce.title = 'Es el correo de tu cuenta de ' + red;
+    if (!$('reg-email-nota') && ce.parentNode) {
+      var nota = document.createElement('div');
+      nota.id = 'reg-email-nota';
+      nota.style.cssText = 'display:flex;align-items:flex-start;gap:6px;margin-top:6px;'
+        + 'font-size:12px;color:#64748B;line-height:1.45';
+      nota.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        + 'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px">'
+        + '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
+        + '<span>Con este correo vas a entrar a Cobra. Lo pone ' + red + ', por eso no se cambia.</span>';
+      ce.parentNode.insertBefore(nota, ce.nextSibling);
+    }
+  }
   if ($('reg-fila-clave')) $('reg-fila-clave').hidden = true;
   if ($('reg-por-red'))    $('reg-por-red').hidden = false;
   if ($('reg-red-nombre')) $('reg-red-nombre').textContent = red;
@@ -251,7 +290,12 @@ function handleDatos() {
   const apellido = ($('reg-apellido') ? $('reg-apellido').value : '').trim();
   const nombre  = (pila + ' ' + apellido).trim();
   const negocio = $('reg-negocio').value.trim();
-  const email   = $('reg-email').value.trim();
+  /*  Con Google o Facebook manda el correo del proveedor, no el del campo:
+      el campo esta bloqueado, pero si algun dia se desbloqueara por error, la
+      cuenta se crearia con un correo que esa persona no puede abrir — y sin
+      contraseña con que entrar. El servidor usa el del token de todos modos;
+      esto hace que la pantalla diga lo mismo.                             */
+  const email   = REG.porRed && REG.email ? REG.email : $('reg-email').value.trim();
   const pass    = $('reg-pass').value;
   const pass2   = ($('reg-pass2') ? $('reg-pass2').value : pass);
   const ref     = $('reg-ref').value.trim();
