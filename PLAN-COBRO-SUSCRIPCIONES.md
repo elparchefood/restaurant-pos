@@ -121,9 +121,51 @@ Con las llaves de prueba se monta y se prueba el flujo entero sin mover un peso.
 
 ---
 
-## 5. Lo que queda por confirmar
+## 5. ✅ CONFIRMADO el 7-sep-2026 — el diseño se sostiene
 
-- Costo de afiliación o mensualidad de Wompi (pregunta 1 de arriba).
-- Qué papeles pide Bancolombia para aprobar el comercio.
+**Sergio abrió la cuenta de comercio y llegó hasta el final del registro.** De
+las tres cosas que estaban en el aire, dos quedaron resueltas:
+
+**1. No hay costo de afiliación ni mensualidad.** Comprobado haciéndolo: pasó
+el registro completo sin pagar nada. Solo la comisión por transacción.
+
+**2. El cobro recurrente SÍ funciona con Nequi y con Bancolombia.** Verificado
+en su documentación (`docs.wompi.co/docs/colombia/fuentes-de-pago`), no de
+oídas. Es la pieza de la que dependía todo el plan: un restaurante pequeño
+puede autorizar el débito sin tener tarjeta de crédito.
+
+Las **fuentes de pago** (*payment sources*) son el mecanismo: se guarda el medio
+de pago una vez y después se cobra desde el servidor sin que el cliente esté
+presente. Admiten **tarjeta, Nequi, DaviPlata y Bancolombia**.
+
+### Los endpoints, para no buscarlos después
+
+| Para qué | Método | Camino |
+|---|---|---|
+| Tokenizar tarjeta | POST | `/v1/tokens` |
+| Tokenizar Nequi | POST | `/v1/tokens/nequi` |
+| Tokenizar DaviPlata | POST | `/v1/tokens/daviplata` |
+| Crear la fuente de pago | POST | `/v1/payment_sources` |
+| Cobrar | POST | `/v1/transactions` |
+| Cancelar la suscripción | PUT | `/v1/payment_sources/{id}/void` |
+
+Para crear la fuente de pago hacen falta: el token del medio de pago, el
+`acceptance_token` (política de privacidad), `accept_personal_auth`
+(autorización de datos personales), el correo del pagador y **la llave privada
+— desde el servidor, nunca desde el navegador**.
+
+### Lo que ya se puede hacer HOY, sin integrar nada
+
+La cuenta trae un **enlace de cobro** que acepta tarjeta, Nequi y PSE. O sea que
+al primer cliente se le puede cobrar por WhatsApp con ese enlace mientras se
+construye lo demás. Es mejor camino que el sistema de comprobantes.
+
+⚠️ El dinero recibido **queda retenido hasta que Wompi apruebe el comercio**
+(dicen máximo 3 días hábiles).
+
+## 6. Lo único que queda por ver
+
 - Cómo se ve, para el cliente, la autorización del cobro recurrente con Nequi.
-  Es lo que más gente va a usar y nadie lo ha visto todavía.
+  La documentación del detalle está cerrada desde fuera; se verá al montarlo
+  con las llaves de prueba. **No bloquea nada**: si la experiencia resulta mala,
+  se cambia el texto de la pantalla, no el diseño.
