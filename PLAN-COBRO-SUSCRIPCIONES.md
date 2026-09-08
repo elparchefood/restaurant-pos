@@ -278,3 +278,50 @@ distintas. Tres reglas, que importan más que el diseño: **la cifra y la fecha
 en la primera línea** (quien lo abre en la cocina no va a leer un párrafo),
 **se dice con qué medio** (por eso se guardan los últimos cuatro al inscribir),
 y **nunca se amenaza**. Ni el de la pausa: dice que no ha perdido nada.
+
+---
+
+## 9. ⚠️ EL FALLO QUE APARECIÓ AL MIRAR A QUIÉN LE TOCA MAÑANA
+
+Con el reloj ya funcionando quedaba una pregunta boba: *¿a quién despertaría
+mañana a las 9?* La respuesta fue **a nadie** — y ahí estaba el fallo más caro
+de todo el sistema de cobro:
+
+> El restaurante nacía **sin fecha de periodo**. La vista que alimenta el reloj
+> solo mira a quien tiene periodo (`where periodo_fin is not null`). O sea: el
+> cliente pagaba, se le creaba la cuenta… **y no se le volvía a cobrar nunca.**
+
+Cobra habría cobrado **una sola vez a cada restaurante, para siempre**, sin que
+saltara un solo error. Todo funcionaba; simplemente no volvía a pasar nada. Es
+el tipo de fallo que no se encuentra probando la función que acabas de escribir,
+sino preguntándose qué va a hacer el sistema mañana.
+
+**Arreglado en `provision approve`**, que es donde nace la cuenta: el primer
+pago ya se cobró al registrarse, así que el periodo va de **hoy** a dentro de
+un mes, tres o doce, según lo que escogió. De ahí en adelante el webhook corre
+`periodo_fin` desde el anterior —no desde hoy— para que la fecha no se desplace
+un poquito cada mes.
+
+Se comprueba `periodo_fin` en vez de hacerlo solo al crear: si la aprobación
+falló a mitad y se reintenta, el restaurante ya existe pero puede seguir sin
+periodo. Y si ya lo tiene, no se toca.
+
+**Probado por el camino real** (`scratchpad/paco/probar-periodo-nuevo.py`): se
+crea una solicitud, se aprueba, y se comprueba que el restaurante queda con el
+periodo correcto y que **el reloj lo ve**. 18 comprobaciones para los tres
+ciclos: mensual → 30 días, trimestral → 91, anual → 365. Todo lo creado se
+borra al terminar.
+
+### Dos cosas que quedan anotadas, que no son del reloj
+
+**1. La pantalla de onboarding crea cuentas gratis.** Quien entre con sesión y
+sin restaurante llega a `onboarding.html`, que crea un tenant `starter`
+`active` sin periodo y sin pagar. Hoy es el camino de las cuentas internas,
+pero cualquiera que se registre con Google podría llegar ahí. **Es una decisión
+de negocio, no un error: no se tocó.**
+
+**2. Un restaurante no se puede borrar.** El disparador
+`trg_no_borrar_rol_sistema` impide eliminar el rol "Administrador", y al borrar
+un tenant se arrastra en cascada — así que la eliminación falla entera. Se ve
+al limpiar datos de prueba, pero importará de verdad el día del **borrado a los
+6 meses sin pagar**, que hoy no podría ejecutarse.

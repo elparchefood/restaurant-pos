@@ -13,6 +13,13 @@ const CORS = {
   "Content-Type": "application/json",
 };
 
+/*  EL DIA DE COLOMBIA, NO EL DEL SERVIDOR. El servidor vive en UTC y Colombia
+    va cinco horas atras: desde las 7 de la noche, para el servidor ya es
+    manana. Un periodo que empieza un dia antes se cobra un dia antes.     */
+function hoyEnColombia() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+}
+
 function json(status: number, body: Record<string, unknown>): Response {
   return new Response(JSON.stringify(body), { status, headers: CORS });
 }
@@ -629,6 +636,43 @@ Deno.serve(async (req) => {
         });
         if (!t.ok) return json(500, { error: "cuenta: " + t.text });
         tenant = (t.data as Array<Record<string, unknown>>)[0];
+      }
+
+      /*  ══ AQUI EMPIEZA A CORRER EL RELOJ DEL COBRO ══════════════════════
+
+          El restaurante nacia SIN fecha de periodo, y la vista que alimenta el
+          reloj solo mira a quien tiene periodo (`where periodo_fin is not
+          null`). O sea que el cliente pagaba, se le creaba la cuenta... y no
+          se le volvia a cobrar NUNCA. Cobra habria cobrado una sola vez a cada
+          restaurante, para siempre, sin que ningun error saltara: todo
+          funcionaba, simplemente no volvia a pasar nada.
+
+          Se puso al construir el reloj, mirando a quien le tocaria manana.
+
+          El primer pago ya se cobro al registrarse, asi que cubre desde hoy
+          hasta dentro de un mes (o tres, o doce, segun lo que escogio). De ahi
+          en adelante el webhook va corriendo `periodo_fin` desde el anterior
+          —no desde hoy—, para que la fecha no se desplace un poquito cada mes.
+
+          Se comprueba `periodo_fin` en vez de hacerlo solo al crear: si la
+          aprobacion fallo a mitad y se reintenta, el restaurante ya existe
+          pero puede seguir sin periodo. Y si ya lo tiene, no se toca.       */
+      if (!tenant.periodo_fin) {
+        const meses = String(reg.billing) === "anual" ? 12
+                    : String(reg.billing) === "trimestral" ? 3 : 1;
+        const desde = hoyEnColombia();
+        const hasta = new Date(desde + "T00:00:00Z");
+        hasta.setUTCMonth(hasta.getUTCMonth() + meses);
+        const pFin = hasta.toISOString().slice(0, 10);
+        const up = await sbAdmin("PATCH", `/rest/v1/tenants?id=eq.${tenant.id}`,
+          { periodo_inicio: desde, periodo_fin: pFin });
+        if (up.ok) {
+          tenant.periodo_inicio = desde; tenant.periodo_fin = pFin;
+          console.log(`[approve] periodo de ${tenant.id}: ${desde} -> ${pFin} (${meses} mes(es))`);
+        } else {
+          //  Sin periodo no se le vuelve a cobrar, asi que esto no puede pasar callado.
+          console.error("[approve] LA CUENTA QUEDO SIN PERIODO:", tenant.id, up.text.slice(0, 150));
+        }
       }
 
       const bEx = await sbAdmin("GET", `/rest/v1/brands?tenant_id=eq.${tenant.id}&limit=1`);
