@@ -119,26 +119,105 @@ Deno.serve(async (req) => {
         if (!porRed && clave.length < 8) return json(400, { error: "la contrasena debe tener al menos 8 caracteres" });
         if (!nombre || !negocio) return json(400, { error: "faltan datos" });
 
-        /* Si ya hay una solicitud sin resolver con ese correo, no se crea otra:
-           Sergio se encontraria dos filas del mismo negocio sin saber cual
-           aprobar. */
+        /* ¿Ya hay algo con este correo? Puede ser una solicitud a medias, una
+           cuenta de acceso, o las dos. */
         const yaPide = await sbAdmin("GET", `/rest/v1/pos_registrations?email=eq.${encodeURIComponent(email)}&status=eq.pending&select=id&limit=1`);
-        if (Array.isArray(yaPide.data) && yaPide.data.length) {
-          return json(409, { error: "Ya tienes una solicitud en revision con ese correo. Te avisamos apenas quede lista." });
-        }
+        const solicitudPrevia = (Array.isArray(yaPide.data) && (yaPide.data as Array<Record<string, unknown>>)[0]) || null;
 
-        /* Y si ya tiene cuenta, tampoco: o ya es cliente, o pidio antes. Se le
-           dice que entre, en vez de dejarlo intentando registrarse otra vez. */
         const uEx = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?filter=${encodeURIComponent(email)}`, {
           headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}` },
         });
         const uList = await uEx.json().catch(() => ({})) as Record<string, unknown>;
         const yaHay = (uList.users as Array<Record<string, unknown>> | undefined)?.find(
           (x) => String(x.email || "").toLowerCase() === email);
-        /*  Si viene por Google/Facebook, la cuenta que aparece es LA SUYA —la
-            acaba de crear el proveedor—, asi que no es un conflicto.      */
-        if (yaHay && !porRed) {
-          return json(409, { error: "Ese correo ya tiene una cuenta. Entra con tu contrasena, o usa 'olvide mi contrasena'." });
+
+        /*  ══ VOLVER A INTENTARLO CON EL MISMO CORREO ════════════════════════
+
+            Antes esto era un 409 seco: "ese correo ya tiene una cuenta". Y
+            como la cuenta se crea ANTES de cobrar, cualquier tropiezo —una
+            tarjeta sin cupo, un Nequi sin saldo, cerrar la pestaña— dejaba a
+            esa persona con su correo quemado y sin forma de volver. Un dueño
+            de restaurante tiene UN correo, no cinco.
+
+            Lo vio Sergio: *"eso sería un gran problema para un cliente que
+            realmente tenga un solo correo y haya fallado el pago"*.
+
+            Se reanuda, pero solo si es la MISMA persona. La prueba es su
+            contraseña, que ya está escribiendo. Y el servidor de acceso
+            distingue los dos casos (medido el 7-sep):
+
+                contraseña correcta pero sin confirmar -> email_not_confirmed
+                contraseña equivocada                  -> invalid_credentials
+
+            Así que `email_not_confirmed` es la prueba de que acertó. Quien
+            escriba el correo de otro se queda fuera igual que antes.       */
+        let reanudado = false;
+        if ((yaHay || solicitudPrevia) && !porRed) {
+          const tienePlan = String(((yaHay?.user_metadata as Record<string, unknown>) || {}).tenant_id || "");
+          if (tienePlan) {
+            return json(409, { error: "Ese correo ya tiene un restaurante activo. Entra con tu contrasena." });
+          }
+
+          const pr = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+            method: "POST",
+            headers: { "apikey": ANON_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password: clave }),
+          });
+          const prd = await pr.json().catch(() => ({})) as Record<string, unknown>;
+          const esLaMismaPersona = pr.ok
+            || String(prd.error_code || "") === "email_not_confirmed";
+
+          if (!esLaMismaPersona) {
+            return json(409, {
+              error: "Ese correo ya esta registrado. Si es tuyo, entra con tu contrasena o usa 'olvide mi contrasena'.",
+            });
+          }
+
+          /*  Es él. Se retoma su solicitud con lo que acaba de escoger —pudo
+              cambiar de plan o de sucursales entre un intento y otro— y se le
+              devuelve para que pague. No se crea nada nuevo: dos filas del
+              mismo negocio dejarían a Sergio sin saber cuál aprobar.       */
+          let regId = String(solicitudPrevia?.id || "");
+          if (regId) {
+            await sbAdmin("PATCH", `/rest/v1/pos_registrations?id=eq.${regId}`, {
+              nombre, negocio, plan: String(body.plan || "pro"),
+              sucursales: Number(body.sucursales || 1),
+              monto_total: Number(body.monto_total || 0),
+              billing: ["mensual", "trimestral", "anual"].includes(String(body.billing || ""))
+                         ? String(body.billing) : "mensual",
+              total_ciclo: Number(body.total_ciclo || 0),
+            });
+          }
+          reanudado = true;
+          if (!regId) {
+            const reg2 = await sbAdmin("POST", "/rest/v1/pos_registrations", {
+              nombre, negocio, email,
+              plan: String(body.plan || "pro"),
+              sucursales: Number(body.sucursales || 1),
+              monto_total: Number(body.monto_total || 0),
+              billing: ["mensual", "trimestral", "anual"].includes(String(body.billing || ""))
+                         ? String(body.billing) : "mensual",
+              total_ciclo: Number(body.total_ciclo || 0),
+              status: "pending",
+            });
+            const f2 = Array.isArray(reg2.data) ? (reg2.data as Array<Record<string, unknown>>)[0] : null;
+            regId = String(f2?.id || "");
+          }
+
+          /*  Un token nuevo para que entre. Es seguro darlo AQUI y no antes:
+              ya se comprobó que sabe la contraseña.                       */
+          const lnk = await fetch(`${SUPABASE_URL}/auth/v1/admin/generate_link`, {
+            method: "POST",
+            headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "signup", email, password: clave }),
+          });
+          const lnkd = await lnk.json().catch(() => ({})) as Record<string, unknown>;
+          const props2 = (lnkd.properties as Record<string, unknown>) || {};
+          console.log("[registrar] se reanuda una solicitud a medias:", email);
+          return json(200, {
+            ok: true, reanudado: true, registration_id: regId,
+            token_entrar: String(props2.hashed_token || lnkd.hashed_token || "") || null,
+          });
         }
 
         /*  ══ SE CREA SIN CONFIRMAR, PARA PODER MANDAR LA VERIFICACION ═════
