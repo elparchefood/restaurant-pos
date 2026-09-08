@@ -315,6 +315,17 @@ function handlePlanContinue() {
     ' · ' + REG.branches + ' sucursal' + (REG.branches > 1 ? 'es' : '') +
     ' · pago ' + per.largo;
   $('pago-monto').textContent = COPF(REG.totalCiclo);
+  /*  El resumen del cobro automatico. Se dice lo que se cobra HOY y lo que se
+      cobrara despues, con el periodo por delante: quien va a autorizar un
+      cobro que se repite tiene derecho a saber cada cuanto.               */
+  if ($('cobro-plan')) {
+    $('cobro-plan').textContent = (REG.plan === 'pro' ? 'Pro' : 'Starter')
+      + ' · ' + REG.branches + ' sucursal' + (REG.branches > 1 ? 'es' : '');
+    $('cobro-monto').textContent = COPF(REG.totalCiclo);
+    var cada = REG.billing === 'anual' ? 'cada año'
+             : REG.billing === 'trimestral' ? 'cada 3 meses' : 'cada mes';
+    $('cobro-luego').textContent = COPF(REG.totalCiclo) + ' ' + cada;
+  }
   goStep('pago');
 }
 
@@ -339,6 +350,111 @@ function handleDrop(e) {
   e.preventDefault();
   $('upload-zone').classList.remove('dragover');
   if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+}
+
+/*  ══ ACTIVAR EL COBRO AUTOMATICO ════════════════════════════════════════════
+
+    El orden importa y no es el de antes. La solicitud se crea PRIMERO, sin
+    comprobante, porque el medio de pago se le cuelga a ella — al registrarse
+    todavia no hay restaurante al que colgarselo.
+
+      1. se crea la solicitud
+      2. se entra con la cuenta que acaba de nacer (o ya se entro, si vino
+         por Google o Facebook)
+      3. se autoriza el medio y se cobra el primer periodo
+      4. el aviso firmado de Wompi crea el restaurante — no esta pantalla
+
+    El paso 4 pasa en el servidor y puede tardar unos segundos, asi que aqui
+    se espera mirando la cuenta, no adivinando.                             */
+async function handleCobroAuto() {
+  const btn = $('btn-cobro'), txt = $('btn-cobro-text');
+  btn.disabled = true; txt.innerHTML = '<span class="au-spin"></span> Preparando…';
+  try {
+    //  1. la solicitud, si no se creo ya (se puede volver a intentar sin
+    //     duplicarla: `registrar` rechaza una segunda con el mismo correo)
+    if (!REG.registrationId) {
+      let cabecera = {};
+      if (REG.porRed) {
+        const { data: ses } = await sb.auth.getSession();
+        const tk = ses && ses.session && ses.session.access_token;
+        if (!tk) throw new Error('Se cerró la sesión. Vuelve a tocar el botón de ' + (REG.red || 'tu cuenta') + '.');
+        cabecera = { 'Authorization': 'Bearer ' + tk };
+      }
+      const r = await fetch(SUPABASE_URL + '/functions/v1/provision', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY }, cabecera),
+        body: JSON.stringify({
+          action: 'registrar',
+          nombre: REG.nombre, negocio: REG.negocio, email: REG.email, clave: REG.pass,
+          plan: REG.plan, sucursales: REG.branches,
+          monto_total: Math.round(REG.totalCiclo), total_ciclo: Math.round(REG.totalMes),
+          billing: REG.billing,
+        })
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.ok) throw new Error(d.error || 'No se pudo completar el registro.');
+      REG.registrationId = d.registration_id;
+    }
+
+    //  2. entrar con la cuenta recien creada, para que el servidor sepa de
+    //     quien es la solicitud. Quien vino por Google ya tiene sesion.
+    if (!REG.porRed) {
+      const { error } = await sb.auth.signInWithPassword({ email: REG.email, password: REG.pass });
+      if (error) throw new Error('La cuenta se creó pero no se pudo entrar: ' + error.message);
+    }
+
+    btn.disabled = false; txt.textContent = 'Activar el cobro automático';
+
+    //  3. autorizar y cobrar
+    posSuscripcion.abrir({
+      monto: Math.round(REG.totalCiclo),
+      cobrarYa: true,
+      periodo: REG.billing,
+      alTerminar: function (r) { esperarLaCuenta(r); }
+    });
+  } catch (e) {
+    btn.disabled = false; txt.textContent = 'Activar el cobro automático';
+    showError('pago-error', 'pago-error-msg', e.message || String(e));
+  }
+}
+
+/*  El cobro sale aprobado en segundos, pero quien crea el restaurante es el
+    aviso firmado de Wompi, que llega por su cuenta. Asi que se mira la cuenta
+    hasta que aparezca — con un tope, porque nadie se queda viendo una rueda
+    sin final. Si tarda, no se pierde nada: la cuenta se crea igual y el correo
+    de bienvenida sale cuando termine.                                      */
+async function esperarLaCuenta(res) {
+  const btn = $('btn-cobro'), txt = $('btn-cobro-text');
+  btn.disabled = true;
+  const cobro = (res && res.cobro) || {};
+  if (cobro.error) {
+    btn.disabled = false;
+    showError('pago-error', 'pago-error-msg',
+      'Tu medio de pago quedó guardado, pero el cobro no pasó: ' + cobro.error +
+      ' Puedes intentarlo otra vez sin volver a escribir nada.');
+    return;
+  }
+  const caja = $('cobro-listo');
+  if (caja) {
+    caja.hidden = false;
+    $('cobro-listo-txt').innerHTML = 'Pago recibido. Estamos activando tu cuenta…';
+  }
+  txt.innerHTML = '<span class="au-spin"></span> Activando tu cuenta…';
+
+  for (let i = 0; i < 20; i++) {
+    await new Promise(r => setTimeout(r, 3000));
+    try {
+      const { data } = await sb.auth.refreshSession();
+      const meta = (data && data.user && data.user.user_metadata) || {};
+      if (meta.tenant_id) { window.location.href = 'dashboard.html'; return; }
+    } catch (e) { /* un tropiezo de red no cancela la espera */ }
+  }
+  //  Si no aparecio en un minuto, NO se dice que fallo: se dice la verdad.
+  btn.disabled = true;
+  txt.textContent = 'Tu pago quedó registrado';
+  if (caja) $('cobro-listo-txt').innerHTML =
+    'Tu pago quedó registrado. La cuenta se está activando y te avisamos por correo ' +
+    'en cuanto esté lista — normalmente es cuestión de minutos.';
 }
 
 async function handlePago() {

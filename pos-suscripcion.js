@@ -354,7 +354,14 @@ window.posSuscripcion = (function (w, d) {
     pintar('<div class="sus-esp"><div class="sus-onda"></div>' +
            '<div style="font-size:15px;color:#475569">Guardando tu autorización…</div></div>');
     try {
-      var r = await llamar({ action: 'inscribir', token: token, tipo: tipo }, true);
+      /*  `cobrarYa` viaja hasta aqui desde quien abrio la ventana. En el
+          registro va en true: se autoriza y se cobra el primer periodo de
+          una, porque si no el restaurante se lleva un mes gratis.       */
+      var r = await llamar({
+        action: 'inscribir', token: token, tipo: tipo,
+        cobrar_ya: S.opts.cobrarYa === true,
+        periodo: S.opts.periodo || 'mensual'
+      }, true);
       listo(r);
     } catch (e) {
       verMedios();
@@ -372,9 +379,14 @@ window.posSuscripcion = (function (w, d) {
           'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>' +
         '<div style="font-size:16px;font-weight:700;color:#0F172A">Quedó ' + esc(medio) + '</div>' +
         '<div style="font-size:13.5px;color:#475569;line-height:1.6;margin-top:8px;max-width:330px">' +
-          (S.opts.monto && S.opts.proximo
-            ? 'Se te cobrarán <b>' + cop(S.opts.monto) + '</b> ' + esc(fechaLarga(S.opts.proximo)) + '. '
-            : '') +
+          /*  Lo que se dice cambia segun lo que acaba de pasar: si ya se
+              cobro, decir "se te cobrara" seria confundir a quien acaba de
+              ver salir la plata.                                        */
+          (r && r.cobro && r.cobro.ok && !r.cobro.sin_cobro
+            ? 'Se cobraron <b>' + cop(r.cobro.monto || S.opts.monto) + '</b>. '
+            : (S.opts.monto && S.opts.proximo
+                ? 'Se te cobrarán <b>' + cop(S.opts.monto) + '</b> ' + esc(fechaLarga(S.opts.proximo)) + '. '
+                : '')) +
           'Te avisamos <b>una semana antes</b> de cada cobro.</div>' +
       '</div>' +
       '<button class="sus-btn" id="sus-fin">Entendido</button>'

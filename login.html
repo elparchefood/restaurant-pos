@@ -423,8 +423,8 @@
           <div class="rs-dot active">3</div>
         </div>
         <div class="form-head">
-          <h2 class="form-title">Pago inicial</h2>
-          <p class="form-sub" id="pago-sub">Realiza la transferencia y adjunta el comprobante</p>
+          <h2 class="form-title">Activa tu plan</h2>
+          <p class="form-sub" id="pago-sub">Autorizas el cobro una vez y se renueva solo</p>
         </div>
         <div id="pago-error" class="error-banner">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -439,7 +439,39 @@
 
               Todo sale de `plataforma_cobro`, que es lo que él edita en
               Consola → Cobro. Se pinta desde `cargarCuentaCobro()`.  -->
-        <div class="bank-card" id="bank-card">
+        <!--  ══ EL COBRO AUTOMATICO (7-sep-2026) ═════════════════════════════
+              Decision de Sergio: la transferencia NO se ofrece aqui. Quien
+              escoge transferencia es exactamente el que se va a olvidar de
+              pagar el mes siguiente. Se queda como extintor en su panel.
+
+              Todo lo de la transferencia sigue abajo, escondido, no borrado:
+              el dia que haga falta volver atras esta ahi.  -->
+        <div class="bank-card" id="cobro-card">
+          <div class="bank-row">
+            <span class="bank-key">Tu plan</span>
+            <span class="bank-val" id="cobro-plan">—</span>
+          </div>
+          <div class="bank-row">
+            <span class="bank-key">Se te cobrará hoy</span>
+            <span class="bank-monto" id="cobro-monto">—</span>
+          </div>
+          <div class="bank-row" id="cobro-luego-fila">
+            <span class="bank-key">Y después</span>
+            <span class="bank-val" id="cobro-luego">—</span>
+          </div>
+        </div>
+        <div id="cobro-listo" hidden style="display:flex;align-items:center;gap:10px;padding:13px 15px;
+             border:1px solid #BBF7D0;background:#F0FDF4;border-radius:12px;margin-top:14px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.4"
+               stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+            <path d="M20 6L9 17l-5-5"/></svg>
+          <div style="font-size:13px;color:#166534;line-height:1.5" id="cobro-listo-txt"></div>
+        </div>
+        <button class="au-submit" id="btn-cobro" onclick="handleCobroAuto()" style="margin-top:18px">
+          <span id="btn-cobro-text">Activar el cobro automático</span>
+        </button>
+
+        <div class="bank-card" id="bank-card" hidden>
           <div class="pay-tabs" id="pay-tabs" hidden>
             <button type="button" class="pay-tab on" data-pay="llave">Número</button>
             <button type="button" class="pay-tab" data-pay="qr">Código QR</button>
@@ -454,7 +486,7 @@
             <span class="bank-monto" id="pago-monto">—</span>
           </div>
         </div>
-        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="handleDrop(event)">
+        <div class="upload-zone" id="upload-zone" hidden onclick="document.getElementById('file-input').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="handleDrop(event)">
           <input type="file" id="file-input" accept="image/jpeg,image/png,application/pdf" hidden onchange="handleFile(this.files[0])">
           <div class="upload-ic">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
@@ -462,7 +494,7 @@
           <div id="upload-text" class="upload-text">Haz clic o arrastra el comprobante</div>
           <div class="upload-sub">JPEG, PNG o PDF · máx. 5 MB</div>
         </div>
-        <button class="au-submit" id="btn-pago" onclick="handlePago()" style="margin-top:18px">
+        <button class="au-submit" id="btn-pago" hidden onclick="handlePago()" style="margin-top:18px">
           <span id="btn-pago-text">Enviar comprobante</span>
         </button>
       </div>
@@ -677,6 +709,7 @@
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <script src="pos-nucleo.js?v=1799700000"></script>
 <script src="planes.js?v=1798956000"></script>
-  <script src="login.js?v=1800000000"></script>
+<script src="pos-suscripcion.js?v=1800040000"></script>
+  <script src="login.js?v=1800045000"></script>
 </body>
 </html>

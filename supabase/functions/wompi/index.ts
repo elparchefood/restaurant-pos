@@ -322,8 +322,14 @@ Deno.serve(async (req) => {
       const tenant = String((u.user_metadata || {}).tenant_id || "");
       let regId = "";
       if (!tenant) {
-        const rr = await db(`pos_registrations?user_id=eq.${u.id}&status=eq.pending` +
-                            `&select=id&order=created_at.desc&limit=1`);
+        /*  Se busca por CORREO, no por `user_id`: `provision/registrar` crea
+            la solicitud sin llenar esa columna —existe y nadie la usa— asi
+            que buscar por ahi no encontraba nunca nada. El correo viene del
+            token, o sea del servidor de acceso, asi que es igual de fiable
+            que el id. (Anotado: `registrar` deberia llenar `user_id`.)   */
+        const suCorreo = String(u.email || "").trim().toLowerCase();
+        const rr = await db(`pos_registrations?email=eq.${encodeURIComponent(suCorreo)}` +
+                            `&status=eq.pending&select=id&order=created_at.desc&limit=1`);
         regId = String((rr.data as Array<Record<string, unknown>>)?.[0]?.id || "");
         if (!regId) return json(400, { error: "esta cuenta todavia no tiene un restaurante" });
       }
