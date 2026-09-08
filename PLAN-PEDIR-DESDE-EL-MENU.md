@@ -103,12 +103,20 @@ la regla de la casa: **nada se manda a Meta sin que Sergio lo vea primero.**
 desconfianza, por teléfono viejo, o porque prefiere escribir. Esto reduce los
 errores de quien lo use; no elimina el lector.
 
-Decisión pendiente de Sergio: cuando alguien pide la carta, ¿se manda **solo**
-el botón, o el botón **y** la imagen? La regla vigente es que la carta va
-**siempre en imágenes, jamás en texto** — una página con las fotos de verdad la
-respeta, pero mandar solo un enlace deja fuera a quien no lo abre.
-*Recomendación: botón primero; si no lo toca y vuelve a pedir la carta, la
-imagen.*
+**DECIDIDO por Sergio (8-sep): solo el botón. Por ahora la imagen de la carta
+no se vuelve a mandar.**
+
+El texto que lo acompaña, con sus palabras: *"Claro que sí, por aquí tienes la
+carta. Ahí mismo puedes seleccionar los productos que vas a pedir para que
+hagamos tu pedido mucho más rápido."*
+
+Esto no rompe la regla de que **la carta va siempre en imágenes, jamás en
+texto**: la página lleva las fotos de verdad. Lo que cambia es que la imagen ya
+no viaja por WhatsApp.
+
+Queda anotado el único riesgo, para poder mirarlo cuando esté en la calle: quien
+no abra el enlace se queda sin ver la carta. Si aparece, la vuelta atrás es
+barata — se manda la imagen a quien no toca el botón.
 
 ### 3.6 Detalles que hunden esto si se pasan por alto
 
@@ -132,3 +140,95 @@ sigue siendo quien confirma y quien manda.
 
 Lo único que cambia es de dónde saca lo que el cliente quiere: en vez de
 deducirlo de una frase, lo recibe ya escogido.
+
+---
+
+## 5. Corregir se hace en la misma página (Sergio, 8-sep)
+
+Cuando alguien quiere corregir algo, **Paco le manda el botón otra vez**, con
+otro texto: *"Claro que sí, entra aquí y corrige lo que quieras."*
+
+Y la página **abre con su pedido ya cargado**: puede quitar algo, añadir otra
+cosa, cambiar un tamaño, y volver a terminar.
+
+Esto tiene tres consecuencias de diseño que no son obvias:
+
+1. **El pedido a medias vive en el servidor, no en el enlace.** Atado a la
+   conversación. Un enlace no puede cargar con el pedido dentro: sería enorme y
+   manipulable.
+2. **Al volver, el pedido se REEMPLAZA, no se suma.** Si no, corregir duplica.
+3. **La página tiene que saber si es la primera vez o una corrección**, porque
+   el texto y el botón de salida no dicen lo mismo ("Hacer mi pedido" contra
+   "Guardar los cambios").
+
+Esto encaja con lo que Paco ya sabe hacer: el 7-sep se le enseñó a entender que
+un cliente cambia el pedido **mientras se espera su comprobante**. Aquí es lo
+mismo, pero el cambio llega limpio en vez de haber que leerlo.
+
+---
+
+## 6. El diseño: qué recomiendo
+
+**Recomendación: diseño NUEVO, pero no desde cero.** Se reutiliza el sistema
+visual que ya existe (colores, tipografías, tarjetas, hojas inferiores), y se
+tira la ESTRUCTURA de la página de clientes.
+
+### Por qué no vale la misma estructura
+
+La página de clientes de El Parche son **9 pantallas** con barra lateral en
+escritorio y 5 pestañas abajo en móvil: Inicio, Carta, Detalle, Tu pedido,
+Billetera, Puntos, Perfil, El local, Login. Está hecha para un cliente fiel que
+entra a su casa.
+
+Esto es otra cosa:
+
+| | Página de clientes | Esta |
+|---|---|---|
+| **Quién** | Cliente registrado, con puntos y billetera | Cualquiera, muchas veces la primera vez |
+| **Dónde** | Cuando quiere, con calma | A mitad de una conversación de WhatsApp |
+| **Para qué** | Mirar sus puntos, su nivel, pedir | **Una sola cosa: escoger y salir** |
+| **Cuánto tarda** | Lo que quiera | **Menos de un minuto o se vuelve al chat** |
+
+Meterle a esta pantalla una barra de navegación con Puntos, Billetera y Perfil
+sería ofrecerle salidas a alguien que vino a una sola cosa. **Cada pestaña de
+más es una forma de perderlo.**
+
+Y hay una razón de producto todavía más fuerte: **esta página la van a tener
+todos los restaurantes**. El diseño de El Parche está construido alrededor de la
+identidad de El Parche. Este tiene que **tomar el logo y el color de cada
+restaurante** y verse bien con cualquiera de los dos. Eso es un diseño distinto,
+no el mismo con otro color.
+
+### Cómo lo haría
+
+**Una sola pantalla, hecha para el pulgar**, así:
+
+1. **Arriba, fijo:** logo y nombre del restaurante, y si está abierto o cerrado.
+   Que en dos segundos sepa que está en el sitio correcto.
+2. **Categorías en fila**, deslizables (como los chips que ya usamos).
+3. **Los productos con su foto**, en tarjetas grandes. La carta entra por los
+   ojos, no por el texto.
+4. **Al tocar un producto, una hoja que sube desde abajo**: tamaño,
+   presentación, adiciones, nota. Con la regla de la casa: **si hay que escoger
+   presentación o variante, en la reja NO va precio** — ni el menor, ni un
+   rango, ni un guion.
+5. **Abajo, fijo, siempre visible:** `Ver mi pedido · 3 · $48.000`. Que nunca
+   tenga que buscar el carrito.
+6. **Al terminar:** repaso del pedido, y cómo paga (efectivo o transferencia; en
+   El Parche también billetera). Un toque y se cierra.
+
+Sin login. Sin menú de navegación. Sin registro. **Sin ninguna salida que no
+sea terminar el pedido.**
+
+### Lo que sí se copia de la página de clientes
+
+El **lenguaje visual**: la forma de las tarjetas, los espacios, la tipografía,
+la hoja inferior, el modo claro y oscuro. Que se sienta de la misma familia y
+que no haya que inventar nada — pero con la identidad del restaurante que sea,
+no la de El Parche.
+
+### Antes de escribir una línea
+
+Sergio, 8-sep: *"podemos proponerlo aquí antes de implementarlo"*. Se le enseña
+la pantalla maquetada y se aprueba **antes** de construirla. Regla de la casa:
+lo visual se enseña antes de publicar.
