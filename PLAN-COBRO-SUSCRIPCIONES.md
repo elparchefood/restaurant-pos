@@ -163,9 +163,40 @@ construye lo demás. Es mejor camino que el sistema de comprobantes.
 ⚠️ El dinero recibido **queda retenido hasta que Wompi apruebe el comercio**
 (dicen máximo 3 días hábiles).
 
-## 6. Lo único que queda por ver
+## 6. ✅ PROBADO MEDIO POR MEDIO contra el sandbox (7-sep-2026)
 
-- Cómo se ve, para el cliente, la autorización del cobro recurrente con Nequi.
-  La documentación del detalle está cerrada desde fuera; se verá al montarlo
-  con las llaves de prueba. **No bloquea nada**: si la experiencia resulta mala,
-  se cambia el texto de la pantalla, no el diseño.
+Sergio preguntó lo correcto: yo había probado con **tarjeta**, y todo el plan
+se apoya en que funcione con **Nequi y Bancolombia** — porque sus clientes son
+restaurantes pequeños que muchas veces no tienen tarjeta de crédito.
+
+| Medio | Cobro recurrente | Cómo se inscribe el cliente |
+|---|---|---|
+| **Tarjeta** | ✅ **Probado, APROBADO** | Formulario en nuestra pantalla |
+| **Nequi** | ✅ **Probado, APROBADO** | Escribe su celular → le llega una **notificación a su app de Nequi** → aprueba |
+| **DaviPlata** | ⚠️ Tokeniza | Documento + celular → le llega un **código por SMS** que hay que validar |
+| **Cuenta Bancolombia** | ⚠️ Sin terminar | Wompi lo acepta como fuente de pago, pero la inscripción va por **redirección a la página del banco** — no se puede completar desde un script |
+
+**Lo importante está probado:** Nequi funciona de punta a punta, y es el medio
+que de verdad va a usar un restaurante pequeño. Se tokeniza, queda PENDIENTE
+esperando que la persona apruebe en su app, y una vez aprobado se le cobra sin
+que esté delante. Se cobraron $249.000 de prueba: APROBADO en 3 segundos.
+
+**Bancolombia queda por confirmar** al montar la pantalla, porque necesita que
+una persona apruebe en el banco. Que Wompi lo liste como tipo válido de fuente
+de pago es buena señal, pero no es una prueba.
+
+### Un hallazgo que solo aparece probando
+
+**Cada medio deja su identificador en un sitio distinto.** La tarjeta devuelve
+`last_four`; **Nequi no devuelve ninguno — devuelve el teléfono**. La primera
+versión del código guardaba solo `last_four`, así que a quien pagara con Nequi
+el aviso le habría dicho *"ten saldo en tu Nequi ***"*, con el hueco vacío. Y
+eso es justo el aviso del que depende que no falle el cobro.
+
+## 7. Lo único que queda por ver
+
+- Cómo se ve **exactamente** la notificación de Nequi para el cliente. Sabemos
+  que llega a su app y que hay que aprobarla; falta verla con ojos.
+- Cerrar el flujo de **cuenta Bancolombia** con la redirección real.
+
+Ninguna de las dos bloquea: se ven al montar la pantalla.

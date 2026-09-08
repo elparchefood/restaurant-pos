@@ -31,6 +31,14 @@ const K_PRV  = Deno.env.get(VIVO ? "WOMPI_PRV_PROD"       : "WOMPI_PRV_TEST")   
 const K_EVT  = Deno.env.get(VIVO ? "WOMPI_EVENTS_PROD"    : "WOMPI_EVENTS_TEST")    || "";
 const K_INT  = Deno.env.get(VIVO ? "WOMPI_INTEGRITY_PROD" : "WOMPI_INTEGRITY_TEST") || "";
 
+/*  Cómo se llama cada medio cuando hay que decírselo a una persona. Wompi
+    devuelve `brand` solo en las tarjetas ("VISA"); en los demás no viene
+    nada, y "BANCOLOMBIA_TRANSFER" no es algo que se le enseñe a nadie.   */
+const NOMBRE_MEDIO: Record<string, string> = {
+  CARD: "Tarjeta", NEQUI: "Nequi", DAVIPLATA: "DaviPlata",
+  BANCOLOMBIA_TRANSFER: "Cuenta Bancolombia", BANCOLOMBIA: "Cuenta Bancolombia",
+};
+
 const json = (c: number, b: unknown) =>
   new Response(JSON.stringify(b), { status: c, headers: { "Content-Type": "application/json" } });
 
@@ -142,6 +150,14 @@ Deno.serve(async (req) => {
       const f = (r.data.data || {}) as Record<string, unknown>;
       const pub = (f.public_data || {}) as Record<string, string>;
 
+      /*  SE CALCULAN UNA VEZ. La primera versión los sacaba dos veces —una
+          para guardar y otra para contestarle a la pantalla— y arreglé solo
+          una: la base decía "Nequi ***1111" y la pantalla decía "null".  */
+      const ultimos4 = pub.last_four
+        || (pub.phone_number ? String(pub.phone_number).slice(-4) : null)
+        || (pub.phone ? String(pub.phone).slice(-4) : null);
+      const marca = pub.brand || NOMBRE_MEDIO[tipo] || tipo;
+
       /*  La anterior se APAGA, no se borra: el día que un cobro viejo haya
           salido de ella, hay que poder decir de dónde salió.              */
       await db(`pos_wompi_fuentes?tenant_id=eq.${tenant}&activa=is.true`, {
@@ -155,9 +171,14 @@ Deno.serve(async (req) => {
           tenant_id: tenant, fuente_id: f.id, tipo,
           /*  Los últimos 4 y la marca se guardan AHORA porque después no hay
               de dónde sacarlos, y son los que dicen el aviso: "el 18 se
-              cobrará tu plan, ten saldo en tu tarjeta ***4242".          */
-          ultimos4: pub.last_four || null,
-          marca: pub.brand || (tipo === "NEQUI" ? "Nequi" : null),
+              cobrará tu plan, ten saldo en tu tarjeta ***4242".
+
+              ⚠️ CADA MEDIO LOS DEVUELVE EN UN SITIO DISTINTO, y esto lo
+              descubrí probando, no leyendo: la tarjeta trae `last_four`,
+              pero **Nequi trae el teléfono** y ningún `last_four`. Con la
+              primera versión, a quien pagara con Nequi el aviso le habría
+              dicho "ten saldo en tu Nequi ***" — con el hueco vacío.    */
+          ultimos4, marca,
           correo, estado: String(f.status || "AVAILABLE"), activa: true,
         }),
       });
@@ -165,10 +186,7 @@ Deno.serve(async (req) => {
         console.error("[wompi] no se guardo la fuente:", ins.text.slice(0, 200));
         return json(500, { error: "se autorizo el pago pero no se pudo guardar" });
       }
-      return json(200, {
-        ok: true, tipo, ultimos4: pub.last_four || null,
-        marca: pub.brand || (tipo === "NEQUI" ? "Nequi" : null),
-      });
+      return json(200, { ok: true, tipo, ultimos4, marca });
     }
 
     // ═════════════════════════════════════════════════════════════════════
