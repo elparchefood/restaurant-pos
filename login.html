@@ -467,8 +467,23 @@
             <path d="M20 6L9 17l-5-5"/></svg>
           <div style="font-size:13px;color:#166534;line-height:1.5" id="cobro-listo-txt"></div>
         </div>
-        <button class="au-submit" id="btn-cobro" onclick="handleCobroAuto()" style="margin-top:18px">
-          <span id="btn-cobro-text">Activar el cobro automático</span>
+        <!--  Sergio, 7-sep: el boton se llama PAGAR. "Activar el cobro
+              automatico" suena a amarrarse a algo; lo que la persona esta
+              haciendo aqui es pagar. Y la tranquilidad va ANTES de pagar,
+              no despues: quien duda, duda en este momento.  -->
+        <div style="display:flex;gap:9px;align-items:flex-start;margin-top:16px;padding:12px 14px;
+             background:#F8FAFC;border-radius:11px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px">
+            <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          <div style="font-size:12.5px;color:#475569;line-height:1.6">
+            Al pagar queda activo el cobro automático, para que no tengas que hacer
+            transferencias cada mes. <b>Puedes cancelarlo cuando quieras</b> desde tu panel,
+            y te avisamos una semana antes de cada cobro.
+          </div>
+        </div>
+        <button class="au-submit" id="btn-cobro" onclick="handleCobroAuto()" style="margin-top:14px">
+          <span id="btn-cobro-text">Pagar</span>
         </button>
 
         <div class="bank-card" id="bank-card" hidden>
@@ -709,7 +724,7 @@
 <script src="vendor/supabase-2.js?v=1789520000"></script>
 <script src="pos-nucleo.js?v=1799700000"></script>
 <script src="planes.js?v=1798956000"></script>
-<script src="pos-suscripcion.js?v=1800040000"></script>
-  <script src="login.js?v=1800045000"></script>
+<script src="pos-suscripcion.js?v=1800050000"></script>
+  <script src="login.js?v=1800050000"></script>
 </body>
 </html>

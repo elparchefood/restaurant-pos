@@ -394,16 +394,34 @@ async function handleCobroAuto() {
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d.ok) throw new Error(d.error || 'No se pudo completar el registro.');
       REG.registrationId = d.registration_id;
+      REG.tokenEntrar = d.token_entrar || '';
     }
 
-    //  2. entrar con la cuenta recien creada, para que el servidor sepa de
-    //     quien es la solicitud. Quien vino por Google ya tiene sesion.
+    /*  2. ENTRAR CON LA CUENTA RECIEN CREADA, para que el servidor sepa de
+        quien es la solicitud. Quien vino por Google o Facebook ya tiene
+        sesion y no pasa por aqui.
+
+        Se canjea el token que devolvio el registro: eso confirma el correo y
+        abre la sesion de una. Con contraseña NO se puede — la cuenta nace sin
+        confirmar a proposito, y el sistema de acceso responde "Email not
+        confirmed". Sergio lo vio probando el registro de verdad.
+
+        Si el token no llegara, se intenta con la contraseña igual: para una
+        cuenta ya confirmada (alguien que reintenta) eso sí funciona.       */
     if (!REG.porRed) {
-      const { error } = await sb.auth.signInWithPassword({ email: REG.email, password: REG.pass });
-      if (error) throw new Error('La cuenta se creó pero no se pudo entrar: ' + error.message);
+      let entro = false;
+      if (REG.tokenEntrar) {
+        const { error } = await sb.auth.verifyOtp({ token_hash: REG.tokenEntrar, type: 'signup' });
+        entro = !error;
+        if (error) console.warn('[registro] el token no sirvió:', error.message);
+      }
+      if (!entro) {
+        const { error } = await sb.auth.signInWithPassword({ email: REG.email, password: REG.pass });
+        if (error) throw new Error('La cuenta se creó pero no se pudo entrar: ' + error.message);
+      }
     }
 
-    btn.disabled = false; txt.textContent = 'Activar el cobro automático';
+    btn.disabled = false; txt.textContent = 'Pagar';
 
     //  3. autorizar y cobrar
     posSuscripcion.abrir({
@@ -413,7 +431,7 @@ async function handleCobroAuto() {
       alTerminar: function (r) { esperarLaCuenta(r); }
     });
   } catch (e) {
-    btn.disabled = false; txt.textContent = 'Activar el cobro automático';
+    btn.disabled = false; txt.textContent = 'Pagar';
     showError('pago-error', 'pago-error-msg', e.message || String(e));
   }
 }

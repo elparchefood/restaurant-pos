@@ -229,7 +229,35 @@ Deno.serve(async (req) => {
             sin volver a buscar por correo, que es una consulta abierta desde
             un navegador sin sesion.                                        */
         const filaReg = Array.isArray(reg.data) ? (reg.data as Array<Record<string, unknown>>)[0] : null;
-        return json(200, { ok: true, registration_id: filaReg ? filaReg.id : null });
+
+        /*  ══ EL TOKEN PARA ENTRAR DE UNA ═══════════════════════════════════
+
+            La cuenta nace SIN CONFIRMAR a proposito, y por eso no se puede
+            entrar con ella recien creada — Sergio lo vio probando el registro:
+            "la cuenta se creo pero no se pudo entrar: Email not confirmed".
+
+            Hace falta entrar YA, porque el paso siguiente es autorizar el
+            cobro y el servidor tiene que saber de quien es la solicitud.
+
+            `generate_link` devuelve, junto al enlace del correo, el mismo
+            `hashed_token` que ese enlace lleva dentro. Se entrega aqui y la
+            pantalla lo canjea: confirma el correo y abre la sesion.
+
+            NO se salta la verificacion — se hace en el momento en vez de
+            esperar un clic que esa persona iba a dar medio minuto despues. Y
+            encaja con lo ya decidido: `approve` tambien confirma el correo al
+            aprobar el pago, porque pagar es mejor prueba que un clic.
+
+            Quien llega por Google o Facebook no lo necesita: ya tiene sesion.
+        */
+        const props = (auData.properties as Record<string, unknown>) || {};
+        const tokenEntrar = String(props.hashed_token || auData.hashed_token || "");
+
+        return json(200, {
+          ok: true,
+          registration_id: filaReg ? filaReg.id : null,
+          token_entrar: tokenEntrar || null,
+        });
 
     } catch (e) { return json(500, { error: String(e).slice(0, 200) }); }
   }
