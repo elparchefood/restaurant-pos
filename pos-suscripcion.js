@@ -44,10 +44,39 @@ window.posSuscripcion = (function (w, d) {
     return 'el ' + Number(p[2]) + ' de ' + MESES[Number(p[1]) - 1];
   }
 
+  /*  ══ EL CLIENTE NO SIEMPRE ESTA EN `window` ════════════════════════════
+
+      Esto preguntaba solo por `w.sb`, y `w.sb` NO EXISTE: `pos-nucleo.js`
+      declara `const sb = ...` en el nivel superior del archivo, y un `const`
+      global no se cuelga de `window` — se ve como `sb`, no como `window.sb`.
+
+      Resultado: la comprobacion de sesion fallaba SIEMPRE, con cualquier
+      medio de pago, y el modal moria justo al guardar la autorizacion. Como
+      ademas el error se perdia por el camino (ver `fallo`), lo unico que se
+      veia era el selector de medios reapareciendo. Eso fue lo que reporto
+      Sergio el 8-sep, y no era de Nequi: el pago no podia completarse nunca.
+
+      La trampa ya estaba escrita en `pos-nucleo.js` —"varias pantallas
+      declaran su cliente como `const sb` [...] y eso NO queda en `window`"— y
+      todo el proyecto usa este mismo patron defensivo. Este archivo era el
+      unico que no.                                                        */
+  function cliente() {
+    try {
+      if (typeof sb !== 'undefined' && sb) return sb;
+    } catch (e) { /* ni declarado: se sigue buscando */ }
+    return w.sb || (w._pos && (w._pos.sb || w._pos.supabase)) || w._posSB || null;
+  }
+
   async function llamar(cuerpo, conSesion) {
     var cab = { 'Content-Type': 'application/json', 'apikey': ANON };
     if (conSesion) {
-      var s = w.sb && (await w.sb.auth.getSession()).data.session;
+      /*  Se distinguen los dos fallos: no encontrar el cliente es un problema
+          de la pagina, y no tener sesion es un problema de la persona. Decir
+          "se cerró tu sesión" cuando lo que falta es el cliente manda a
+          alguien a volver a entrar una y otra vez sin arreglar nada.     */
+      var cli = cliente();
+      if (!cli) throw new Error('No se pudo conectar con tu sesión. Recarga la página e inténtalo otra vez.');
+      var s = (await cli.auth.getSession()).data.session;
       if (!s) throw new Error('Se cerró tu sesión. Vuelve a entrar.');
       cab.Authorization = 'Bearer ' + s.access_token;
     }
