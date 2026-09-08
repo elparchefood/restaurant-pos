@@ -111,6 +111,23 @@ window.posSuscripcion = (function (w, d) {
   // ── Las pantallas ──────────────────────────────────────────────────────
   function pintar(html) { S.cuerpo.innerHTML = html; }
 
+  /*  ══ LO QUE PASA CON LA PLATA, DICHO EN UN SOLO SITIO ══════════════════
+      Este texto decia siempre "no se te cobra nada ahora" — escrito cuando el
+      cobro era para despues. Sergio decidio que se cobra de una al registrarse,
+      y el texto se quedo mintiendo justo donde mas duele: la pantalla donde
+      alguien entrega su medio de pago.
+
+      Ahora lo dice segun lo que de verdad va a pasar. Y va en una sola
+      funcion: dos copias es como se llega otra vez a que una diga lo viejo. */
+  function fraseDelCobro() {
+    if (S.opts.cobrarYa) {
+      return S.opts.monto
+        ? 'Al aprobar se cobran <b>' + cop(S.opts.monto) + '</b>.'
+        : 'Al aprobar se cobra tu plan.';
+    }
+    return 'No se te cobra nada ahora.';
+  }
+
   function verMedios() {
     S.error = '';
     pintar(
@@ -163,8 +180,8 @@ window.posSuscripcion = (function (w, d) {
             '<path d="M13.4 15.1h5.2" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity=".55"/>' +
           '</svg>' +
         '</span><span><b>Tarjeta</b><span>Débito o crédito</span></span></button>' +
-      '<div class="sus-nota">Autorizas <b>una sola vez</b>. Después el cobro sale solo el día que toca, ' +
-        'y te avisamos <b>una semana antes</b> para que no te tome por sorpresa. ' +
+      '<div class="sus-nota">' + fraseDelCobro() + ' Autorizas <b>una sola vez</b> y después el cobro ' +
+        'sale solo el día que toca, avisándote <b>una semana antes</b>. ' +
         'Puedes cambiar el medio o cancelar cuando quieras.</div>'
     );
     S.cuerpo.querySelectorAll('[data-m]').forEach(function (b) {
@@ -180,7 +197,7 @@ window.posSuscripcion = (function (w, d) {
       '<button class="sus-btn" id="sus-go">Continuar</button>' +
       '<button class="sus-btn2" id="sus-atras">← Escoger otro medio</button>' +
       '<div class="sus-nota">Te va a llegar una <b>notificación a tu app de Nequi</b> para que apruebes. ' +
-        'No se te cobra nada ahora.</div>'
+        fraseDelCobro() + '</div>'
     );
     var inp = d.getElementById('sus-tel');
     inp.oninput = function () { inp.value = inp.value.replace(/[^0-9]/g, ''); };
@@ -299,8 +316,9 @@ window.posSuscripcion = (function (w, d) {
       '<div id="sus-e"></div>' +
       '<button class="sus-btn" id="sus-go">Autorizar el cobro</button>' +
       '<button class="sus-btn2" id="sus-atras">← Escoger otro medio</button>' +
-      '<div class="sus-nota">Los datos de tu tarjeta viajan <b>directamente a la pasarela</b>. ' +
-        'Cobra nunca los ve ni los guarda: solo guardamos los últimos cuatro dígitos.</div>'
+      '<div class="sus-nota">' + fraseDelCobro() + ' Los datos de tu tarjeta viajan ' +
+        '<b>directamente a la pasarela</b>: Cobra nunca los ve ni los guarda, ' +
+        'solo los últimos cuatro dígitos.</div>'
     );
     var num = d.getElementById('sus-num'), exp = d.getElementById('sus-exp');
     num.oninput = function () {
