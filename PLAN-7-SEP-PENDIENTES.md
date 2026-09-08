@@ -57,9 +57,28 @@ el sistema, no comida.
 
 ---
 
-## 5. Wompi
-Bloqueado en Sergio: abrir la cuenta de comercio y pasar las llaves de prueba.
-El diseño entero está en `PLAN-COBRO-SUSCRIPCIONES.md`.
+## 5. Wompi — ✅ HECHO el 7-sep, salvo el botón de emergencia
+
+Ya está todo el ciclo: la pantalla de autorización (Nequi con su logo oficial,
+tarjeta, Bancolombia, DaviPlata), enganchada al registro; el cobro; y **el
+reloj**, que corre solo a las 9 de la mañana de Colombia — avisa a 7, 3 y 1
+día, cobra el día que toca, reintenta a 1, 3 y 7 días avisando cada vez, y
+pasada esa semana pausa la cuenta sin borrarla. 19 comprobaciones.
+
+Todo el detalle, y los tres fallos que solo aparecieron al probarlo, en
+`PLAN-COBRO-SUSCRIPCIONES.md` §8 y §9.
+
+**Lo que queda:**
+- El botón de **"cobrar por transferencia"** para Sergio — el extintor de la §1
+  de ese plan.
+- Que Sergio pruebe el registro completo de punta a punta.
+- Al pasar a producción: cambiar las llaves de sandbox por las de verdad.
+
+**Anotado de paso, no es del reloj** (§9 de ese plan): la pantalla de
+onboarding crea cuentas gratis sin periodo —decisión de negocio, no se tocó— y
+**un restaurante hoy no se puede borrar**, porque el guardián del rol
+"Administrador" bloquea la cascada. Eso último importará el día del borrado a
+los 6 meses sin pagar.
 
 ---
 
