@@ -39,8 +39,23 @@ const NOMBRE_MEDIO: Record<string, string> = {
   BANCOLOMBIA_TRANSFER: "Cuenta Bancolombia", BANCOLOMBIA: "Cuenta Bancolombia",
 };
 
+/*  ⚠️ SIN ESTO, DESDE UN NAVEGADOR NO ENTRA NADA. Antes de un POST con
+    cabeceras, el navegador pregunta primero con un OPTIONS; si la funcion no
+    contesta a esa pregunta, el navegador ni siquiera manda la peticion y
+    quien esta al otro lado ve un "Failed to fetch" que no dice nada.
+
+    Lo vio Sergio probando el registro: el numero de Nequi escrito, el boton
+    tocado, y un error que no era ni de Nequi ni de su numero. Las demas
+    funciones que hablan con el navegador ya lo tenian; esta nacio sin ello
+    porque la probe entera desde un script, y un script no pregunta antes. */
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 const json = (c: number, b: unknown) =>
-  new Response(JSON.stringify(b), { status: c, headers: { "Content-Type": "application/json" } });
+  new Response(JSON.stringify(b), { status: c, headers: { "Content-Type": "application/json", ...CORS } });
 
 // ── La base ────────────────────────────────────────────────────────────────
 async function db(ruta: string, opts: RequestInit = {}) {
@@ -272,6 +287,7 @@ async function cobrarRegistro(regId: string, intento: number) {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json(405, { error: "solo POST" });
 
   let body: Record<string, unknown>;
