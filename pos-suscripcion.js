@@ -114,18 +114,31 @@ window.posSuscripcion = (function (w, d) {
     S.error = '';
     pintar(
       '<button class="sus-med" data-m="NEQUI">' +
-        /*  NO se usa el logotipo de Nequi: es marca ajena y meterla en
-            nuestra pantalla sería usarla sin permiso. Un teléfono con la
-            onda del pago dice lo mismo —"pagas desde tu celular"— y va en
-            su morado, que es lo que la gente reconoce de lejos.         */
-        '<span class="sus-ic" style="background:linear-gradient(140deg,#3B0A5C,#1B0033)">' +
+        /*  ══ EL LOGO OFICIAL DE NEQUI ══════════════════════════════════════
+            Sergio, 7-sep: *"si no utilizamos el logo oficial parecería
+            pirata"*. Y tiene razón — yo había puesto un teléfono dibujado por
+            no usar marca ajena, y en una pantalla de PAGO eso es al revés:
+            el cliente busca el logo que conoce, y una imitación mía se vería
+            más pirata todavía. Los medios de pago quieren que su marca salga
+            justo en este momento.
+
+            El archivo va en `assets/brand/nequi.svg` y es el OFICIAL, bajado
+            de Nequi. Si algún día falta, el dibujo de abajo lo reemplaza solo
+            — un icono roto en la pantalla del pago sería peor que uno
+            genérico.                                                       */
+        '<span class="sus-ic" style="background:linear-gradient(140deg,#3B0A5C,#1B0033);position:relative">' +
+          /*  El dibujo va DEBAJO y el logo encima. Si el archivo falta, la
+              imagen se quita sola y queda el dibujo — un icono roto en la
+              pantalla del pago se ve peor que uno genérico.               */
           '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" ' +
             'stroke-linecap="round" stroke-linejoin="round">' +
             '<rect x="7" y="2.5" width="10" height="19" rx="2.6"/>' +
             '<path d="M10.6 18.4h2.8" stroke-width="1.9"/>' +
-            '<path d="M9.6 9.6a3.4 3.4 0 0 1 4.8 0" opacity=".95"/>' +
-            '<path d="M11.1 12a1.3 1.3 0 0 1 1.8 0" opacity=".95"/>' +
+            '<path d="M9.6 9.6a3.4 3.4 0 0 1 4.8 0"/><path d="M11.1 12a1.3 1.3 0 0 1 1.8 0"/>' +
           '</svg>' +
+          '<img src="assets/brand/nequi.svg" alt="Nequi" onerror=this.remove() ' +
+            'style="position:absolute;inset:0;width:100%;height:100%;padding:7px;' +
+            'object-fit:contain;box-sizing:border-box">' +
         '</span><span><b>Nequi</b><span>Apruebas desde tu app, sin tarjeta</span></span></button>' +
       '<button class="sus-med" data-m="CARD">' +
         /*  El CHIP es lo que hace que un rectángulo se lea como una tarjeta
