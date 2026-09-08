@@ -48,6 +48,41 @@ diferencia entre esconder y no dejar entrar.
 
 ---
 
+### 🔴 MEDIDO el 8-sep: es más grande de lo que decía esta nota
+
+Se fue a mirar la base antes de mover el PIN, y el resultado cambia el tamaño
+del trabajo:
+
+> **De las 143 políticas de seguridad de la base, UNA sola mira el rol** — y es
+> de `pos_diag`, una tabla de diagnóstico. Todas las demás aíslan por
+> **restaurante**: comprueban que seas de ese restaurante, no QUÉ eres dentro
+> de él.
+
+O sea que un cajero, con su sesión normal y sin ningún truco, puede leer y
+escribir `pos_products`, `iv_insumos`, `pos_orders` y `pos_customers` igual que
+el dueño. Esconder el botón y poner el PIN encima cambia lo que **ve**, no lo
+que **puede**. El problema no está en la consola del navegador: está en que el
+servidor nunca dice que no.
+
+**Así que esto son dos trabajos de tamaño muy distinto:**
+
+**A. Pedir el PIN ANTES de navegar** (lo que pidió Sergio). Seguro, se nota de
+inmediato: el cajero deja de entrar por accidente y la pantalla ya no carga
+datos que no debería enseñar. Hace falta que la barra sepa qué permiso pide cada
+pantalla — y esa lista hoy está repartida en **11 archivos HTML**
+(`posRequirePin(...)` al final de cada uno). Hay que juntarla en **un solo
+sitio** que usen la barra y la página, o se desincronizan como ya pasó con los
+precios.
+
+**B. Que el SERVIDOR diga que no.** El candado de verdad, y es trabajo aparte:
+tocar políticas con el restaurante funcionando es exactamente cómo se deja al
+personal encerrado fuera del sistema en mitad de un servicio. Se planea, se
+prueba con una cuenta de CADA rol, y se sube por partes. **Se le enseña el plan
+a Sergio antes de tocar nada:** ahí el riesgo no es que no funcione, es que
+funcione de más y el cajero no pueda cobrar un sábado por la noche.
+
+---
+
 ## 2. La verificación de marca de Google
 Para que la pantalla de entrar diga **Cobra POS** con su logo, en vez de
 `tblujfduscslxjmrjbdr.supabase.co`. Necesita:
