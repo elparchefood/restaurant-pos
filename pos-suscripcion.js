@@ -97,8 +97,9 @@ window.posSuscripcion = (function (w, d) {
       '.sus-err{font-size:13px;color:#DC2626;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;',
         'padding:10px 12px;margin-top:12px;line-height:1.5}',
       '.sus-esp{display:flex;flex-direction:column;align-items:center;text-align:center;padding:16px 0 4px}',
-      '.sus-onda{width:66px;height:66px;border-radius:50%;background:#EEF2FF;display:flex;align-items:center;',
-        'justify-content:center;margin-bottom:16px;animation:susLat 1.6s ease-in-out infinite}',
+      '.sus-onda{width:66px;height:66px;border-radius:50%;background:#fff;border:1px solid #ECEEF2;',
+        'position:relative;display:flex;align-items:center;justify-content:center;margin-bottom:16px;',
+        'animation:susLat 1.6s ease-in-out infinite}',
       '@keyframes susLat{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.08);opacity:.75}}',
       '@media (prefers-reduced-motion:reduce){.sus-onda{animation:none}.sus-c{animation:none}}',
       '.sus-ok{width:66px;height:66px;border-radius:50%;background:#DCFCE7;color:#16A34A;display:flex;',
@@ -126,17 +127,24 @@ window.posSuscripcion = (function (w, d) {
             de Nequi. Si algún día falta, el dibujo de abajo lo reemplaza solo
             — un icono roto en la pantalla del pago sería peor que uno
             genérico.                                                       */
-        '<span class="sus-ic" style="background:linear-gradient(140deg,#3B0A5C,#1B0033);position:relative">' +
+        /*  ⚠️ SOBRE BLANCO, NO SOBRE MORADO. La marca de Nequi es morado
+            oscuro (#200020) con el cuadro magenta: puesta sobre el fondo
+            morado que yo tenía, habría quedado invisible. El borde suave
+            evita que el cuadro blanco flote sobre la ventana, que también
+            es blanca.                                                     */
+        '<span class="sus-ic" style="background:#fff;border:1px solid #ECEEF2;position:relative">' +
           /*  El dibujo va DEBAJO y el logo encima. Si el archivo falta, la
               imagen se quita sola y queda el dibujo — un icono roto en la
               pantalla del pago se ve peor que uno genérico.               */
-          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" ' +
+          /*  El respaldo también cambia de color: sobre blanco, un dibujo
+              blanco no se vería.                                          */
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#200020" stroke-width="1.7" ' +
             'stroke-linecap="round" stroke-linejoin="round">' +
             '<rect x="7" y="2.5" width="10" height="19" rx="2.6"/>' +
             '<path d="M10.6 18.4h2.8" stroke-width="1.9"/>' +
             '<path d="M9.6 9.6a3.4 3.4 0 0 1 4.8 0"/><path d="M11.1 12a1.3 1.3 0 0 1 1.8 0"/>' +
           '</svg>' +
-          '<img src="assets/brand/nequi.svg" alt="Nequi" onerror=this.remove() ' +
+          '<img src="assets/brand/nequi.png" alt="Nequi" onerror=this.remove() ' +
             'style="position:absolute;inset:0;width:100%;height:100%;padding:7px;' +
             'object-fit:contain;box-sizing:border-box">' +
         '</span><span><b>Nequi</b><span>Apruebas desde tu app, sin tarjeta</span></span></button>' +
@@ -215,14 +223,19 @@ window.posSuscripcion = (function (w, d) {
     pintar(
       '<div class="sus-esp">' +
         '<div class="sus-onda">' +
-          /*  El mismo teléfono de la lista, para que se entienda que sigue
-              hablando de Nequi y no de otra cosa.                        */
-          '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#5B6BFF" stroke-width="1.7" ' +
+          /*  Aquí también el logo de verdad: la persona está a punto de irse a
+              la app de Nequi, y ver su marca es lo que confirma que va al
+              sitio correcto. El teléfono queda de respaldo.               */
+          '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#200020" stroke-width="1.7" ' +
             'stroke-linecap="round" stroke-linejoin="round">' +
             '<rect x="7" y="2.5" width="10" height="19" rx="2.6"/>' +
             '<path d="M10.6 18.4h2.8" stroke-width="1.9"/>' +
             '<path d="M9.6 9.6a3.4 3.4 0 0 1 4.8 0"/><path d="M11.1 12a1.3 1.3 0 0 1 1.8 0"/>' +
-          '</svg></div>' +
+          '</svg>' +
+          '<img src="assets/brand/nequi.png" alt="Nequi" onerror=this.remove() ' +
+            'style="position:absolute;inset:0;width:100%;height:100%;padding:17px;' +
+            'object-fit:contain;box-sizing:border-box">' +
+          '</div>' +
         '<div style="font-size:16px;font-weight:700;color:#0F172A">Abre tu app de Nequi</div>' +
         '<div style="font-size:13.5px;color:#475569;line-height:1.6;margin-top:8px;max-width:330px">' +
           'Te llegó una notificación al <b>' + esc(tel) + '</b> para autorizar el cobro automático de Cobra. ' +
