@@ -86,6 +86,126 @@ async function permisos() {
   };
 }
 
+/*  ══ EL COBRO ═══════════════════════════════════════════════════════════════
+    Vive aqui, fuera de las acciones, porque lo usan DOS: el `cobrar` que
+    dispara el reloj, y el `inscribir` que cobra el primer periodo en cuanto
+    el restaurante autoriza. Copiarlo habria copiado tambien la barrera
+    anti-doble, y entonces habria dos barreras que se pueden desincronizar. */
+async function cobrarTenant(tenant: string, periodo: string, intento: number) {
+  const tRes = await db(`tenants?id=eq.${tenant}&select=id,name,plan,status,periodo_fin,saldo_favor&limit=1`);
+  const ten = (tRes.data as Array<Record<string, unknown>>)?.[0];
+  if (!ten) return { estado: 404, cuerpo: { error: "restaurante no encontrado" } };
+
+  const periodoFin = String(ten.periodo_fin || "").slice(0, 10);
+  if (!periodoFin) return { estado: 400, cuerpo: { error: "ese restaurante no tiene periodo" } };
+
+  /*  EL MONTO SALE DE LA BASE, NO DEL CUERPO. `fn_precio_suscripcion` es el
+      unico sitio donde vive el precio — la misma cuenta que cotiza
+      `provision` (comprobado, 90 de 90). Si el monto viniera de fuera,
+      cualquiera podria pagarse el ano por mil pesos.                     */
+  const pRes = await db(`rpc/fn_precio_suscripcion`, {
+    method: "POST", body: JSON.stringify({ p_tenant: tenant, p_periodo: periodo }),
+  });
+  const bruto = Number(pRes.data);
+  if (!bruto || bruto <= 0) return { estado: 400, cuerpo: { error: "no se pudo calcular el precio" } };
+
+  //  El saldo a favor descuenta, pero nunca deja la factura en negativo.
+  const saldo    = Math.max(0, Number(ten.saldo_favor || 0));
+  const aplicado = Math.min(saldo, bruto);
+  const monto    = bruto - aplicado;
+  if (monto <= 0) return { estado: 200, cuerpo: { ok: true, sin_cobro: true, motivo: "el saldo a favor lo cubre" } };
+
+  const fRes = await db(`pos_wompi_fuentes?tenant_id=eq.${tenant}&activa=is.true&select=fuente_id,tipo,ultimos4,correo&limit=1`);
+  const fuente = (fRes.data as Array<Record<string, unknown>>)?.[0];
+  if (!fuente) return { estado: 409, cuerpo: { error: "ese restaurante no tiene medio de pago inscrito", sin_fuente: true } };
+
+  /*  ══ LA BARRERA CONTRA EL COBRO DOBLE ═══════════════════════════════════
+      La referencia se arma sola y siempre igual, y la fila se guarda ANTES de
+      salir a internet. Si el reloj se dispara dos veces, la segunda choca
+      contra el indice unico y no llega a cobrar.
+
+      Guardar primero y cobrar despues es a proposito: al reves, un cobro que
+      sale y una fila que no se guarda deja plata cobrada sin rastro — y eso
+      no se arregla mirando la base.                                       */
+  const referencia = `cobra-${tenant.slice(0, 8)}-${periodoFin}-${intento}`;
+  const cRes = await db("pos_wompi_cobros", {
+    method: "POST", headers: { Prefer: "return=representation" },
+    body: JSON.stringify({
+      tenant_id: tenant, referencia, periodo_fin: periodoFin, intento,
+      monto, plan: ten.plan, periodo, fuente_id: fuente.fuente_id, estado: "PENDIENTE",
+    }),
+  });
+  if (!cRes.ok) {
+    if (cRes.status === 409) {
+      console.log("[wompi] ya existia ese cobro, no se repite:", referencia);
+      return { estado: 200, cuerpo: { ok: true, repetido: true, referencia } };
+    }
+    console.error("[wompi] no se pudo anotar el cobro:", cRes.text.slice(0, 200));
+    return { estado: 500, cuerpo: { error: "no se pudo anotar el cobro" } };
+  }
+  const fila = (cRes.data as Array<Record<string, unknown>>)[0];
+
+  const centavos = monto * 100;
+  const firma = await sha256(`${referencia}${centavos}COP${K_INT}`);
+  const tx = await wompi("POST", "/transactions", K_PRV, {
+    amount_in_cents: centavos, currency: "COP",
+    customer_email: String(fuente.correo || ""),
+    payment_source_id: fuente.fuente_id,
+    reference: referencia, recurrent: true, signature: firma,
+    //  Las tarjetas exigen el numero de cuotas. Una: esto es una
+    //  suscripcion, no una compra a plazos.
+    payment_method: { installments: 1 },
+  });
+
+  if (!tx.ok) {
+    const motivo = JSON.stringify(tx.data).slice(0, 300);
+
+    /*  ══ "ESA REFERENCIA YA SE USO" NO ES UN FALLO: ES UN AVISO ══════════
+        Wompi recuerda las referencias para siempre, y la nuestra se arma
+        sola. Si contesta esto, el cobro YA EXISTE alla — normalmente porque
+        se mando, se creo, y la respuesta se perdio por el camino.
+
+        Marcarlo como ERROR seria lo peor que se puede hacer aqui: el cliente
+        pagado y nosotros apuntandolo como fallido, con el reloj listo para
+        reintentar. Asi que se le pregunta a Wompi por esa referencia y se
+        adopta el estado que tenga de verdad.                             */
+    if (/ya ha sido usada|already been used/i.test(motivo)) {
+      console.warn("[wompi] referencia ya usada, se consulta:", referencia);
+      const q = await wompi("GET", `/transactions?reference=${encodeURIComponent(referencia)}`, K_PRV);
+      const lista = (q.data.data || []) as Array<Record<string, unknown>>;
+      const vieja = lista[0];
+      if (vieja) {
+        await db(`pos_wompi_cobros?id=eq.${fila.id}`, {
+          method: "PATCH", headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({
+            transaccion_id: String(vieja.id || ""), estado: String(vieja.status || "PENDIENTE"),
+            motivo: "recuperado: la referencia ya existia en la pasarela",
+          }),
+        });
+        return { estado: 200, cuerpo: { ok: true, recuperado: true, referencia,
+                 transaccion_id: vieja.id, estado_cobro: vieja.status, monto } };
+      }
+    }
+
+    console.error("[wompi] el cobro no salio:", tx.status, motivo);
+    await db(`pos_wompi_cobros?id=eq.${fila.id}`, {
+      method: "PATCH", headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ estado: "ERROR", motivo, resuelto_at: new Date().toISOString() }),
+    });
+    return { estado: 502, cuerpo: { error: "el cobro no se pudo enviar", detalle: tx.data } };
+  }
+
+  const d = (tx.data.data || {}) as Record<string, unknown>;
+  await db(`pos_wompi_cobros?id=eq.${fila.id}`, {
+    method: "PATCH", headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ transaccion_id: String(d.id || ""), estado: String(d.status || "PENDIENTE") }),
+  });
+  /*  Aqui NO se da por pagado aunque diga APPROVED. Quien cierra el periodo
+      es el aviso firmado de Wompi (`eventos`), que es el unico que no se
+      puede fabricar desde fuera.                                          */
+  return { estado: 200, cuerpo: { ok: true, referencia, transaccion_id: d.id, estado_cobro: d.status, monto } };
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json(405, { error: "solo POST" });
 
@@ -186,7 +306,21 @@ Deno.serve(async (req) => {
         console.error("[wompi] no se guardo la fuente:", ins.text.slice(0, 200));
         return json(500, { error: "se autorizo el pago pero no se pudo guardar" });
       }
-      return json(200, { ok: true, tipo, ultimos4, marca });
+      /*  ══ Y SE COBRA EL PRIMER PERIODO DE UNA ═══════════════════════════
+          Sergio, 7-sep: *"si, se le cobra de una"*. Si solo autorizara y el
+          primer cobro saliera el mes siguiente, se llevaria Cobra un mes
+          gratis — y su registro de hoy ya exige el pago por adelantado.
+
+          Se cobra AQUI y no desde el navegador: el monto lo pone la base y
+          la referencia unica impide que dos toques al boton cobren dos
+          veces. Si el cobro falla, la autorizacion NO se deshace: quedo
+          guardada y se puede reintentar sin volver a pedirle nada.       */
+      let cobro = null;
+      if (body.cobrar_ya === true) {
+        const r2 = await cobrarTenant(tenant, String(body.periodo || "mensual"), 1);
+        cobro = r2.cuerpo;
+      }
+      return json(200, { ok: true, tipo, ultimos4, marca, cobro });
     }
 
     // ═════════════════════════════════════════════════════════════════════
@@ -196,97 +330,11 @@ Deno.serve(async (req) => {
     // ═════════════════════════════════════════════════════════════════════
     if (action === "cobrar") {
       if (cab !== `Bearer ${SERVICE_KEY}`) return json(403, { error: "no autorizado" });
-
-      const tenant  = String(body.tenant_id || "");
-      const intento = Math.max(1, Number(body.intento || 1));
+      const tenant = String(body.tenant_id || "");
       if (!tenant) return json(400, { error: "falta tenant_id" });
-
-      const tRes = await db(`tenants?id=eq.${tenant}&select=id,name,plan,status,periodo_fin,saldo_favor&limit=1`);
-      const ten = (tRes.data as Array<Record<string, unknown>>)?.[0];
-      if (!ten) return json(404, { error: "restaurante no encontrado" });
-
-      const periodo    = String(body.periodo || "mensual");
-      const periodoFin = String(ten.periodo_fin || "").slice(0, 10);
-      if (!periodoFin) return json(400, { error: "ese restaurante no tiene periodo" });
-
-      /*  EL MONTO SALE DE LA BASE, NO DEL CUERPO. `fn_precio_suscripcion` es
-          el único sitio donde vive el precio — la misma cuenta que cotiza
-          `provision` (comprobado, 90 de 90). Si el monto viniera de fuera,
-          cualquiera podría pagarse el año por mil pesos.                  */
-      const pRes = await db(`rpc/fn_precio_suscripcion`, {
-        method: "POST",
-        body: JSON.stringify({ p_tenant: tenant, p_periodo: periodo }),
-      });
-      const bruto = Number(pRes.data);
-      if (!bruto || bruto <= 0) return json(400, { error: "no se pudo calcular el precio" });
-
-      //  El saldo a favor descuenta, pero nunca deja la factura en cero.
-      const saldo    = Math.max(0, Number(ten.saldo_favor || 0));
-      const aplicado = Math.min(saldo, bruto);
-      const monto    = bruto - aplicado;
-      if (monto <= 0) return json(200, { ok: true, sin_cobro: true, motivo: "el saldo a favor lo cubre" });
-
-      const fRes = await db(`pos_wompi_fuentes?tenant_id=eq.${tenant}&activa=is.true&select=fuente_id,tipo,ultimos4,correo&limit=1`);
-      const fuente = (fRes.data as Array<Record<string, unknown>>)?.[0];
-      if (!fuente) return json(409, { error: "ese restaurante no tiene medio de pago inscrito", sin_fuente: true });
-
-      /*  ══ LA BARRERA CONTRA EL COBRO DOBLE ═══════════════════════════════
-          La referencia se arma sola y siempre igual, y la fila se guarda
-          ANTES de salir a internet. Si el reloj se dispara dos veces, la
-          segunda choca contra el índice único y no llega a cobrar.
-
-          Guardar primero y cobrar después es a propósito: al revés, un
-          cobro que sale y una fila que no se guarda deja plata cobrada sin
-          rastro — y eso no se arregla mirando la base.                    */
-      const referencia = `cobra-${tenant.slice(0, 8)}-${periodoFin}-${intento}`;
-      const cRes = await db("pos_wompi_cobros", {
-        method: "POST", headers: { Prefer: "return=representation" },
-        body: JSON.stringify({
-          tenant_id: tenant, referencia, periodo_fin: periodoFin, intento,
-          monto, plan: ten.plan, periodo, fuente_id: fuente.fuente_id, estado: "PENDIENTE",
-        }),
-      });
-      if (!cRes.ok) {
-        if (cRes.status === 409) {
-          console.log("[wompi] ya existia ese cobro, no se repite:", referencia);
-          return json(200, { ok: true, repetido: true, referencia });
-        }
-        console.error("[wompi] no se pudo anotar el cobro:", cRes.text.slice(0, 200));
-        return json(500, { error: "no se pudo anotar el cobro" });
-      }
-      const fila = (cRes.data as Array<Record<string, unknown>>)[0];
-
-      const centavos = monto * 100;
-      const firma = await sha256(`${referencia}${centavos}COP${K_INT}`);
-      const tx = await wompi("POST", "/transactions", K_PRV, {
-        amount_in_cents: centavos, currency: "COP",
-        customer_email: String(fuente.correo || ""),
-        payment_source_id: fuente.fuente_id,
-        reference: referencia, recurrent: true, signature: firma,
-        //  Las tarjetas exigen el número de cuotas. Una: esto es una
-        //  suscripción, no una compra a plazos.
-        payment_method: { installments: 1 },
-      });
-
-      if (!tx.ok) {
-        const motivo = JSON.stringify(tx.data).slice(0, 300);
-        console.error("[wompi] el cobro no salio:", tx.status, motivo);
-        await db(`pos_wompi_cobros?id=eq.${fila.id}`, {
-          method: "PATCH", headers: { Prefer: "return=minimal" },
-          body: JSON.stringify({ estado: "ERROR", motivo, resuelto_at: new Date().toISOString() }),
-        });
-        return json(502, { error: "el cobro no se pudo enviar", detalle: tx.data });
-      }
-
-      const d = (tx.data.data || {}) as Record<string, unknown>;
-      await db(`pos_wompi_cobros?id=eq.${fila.id}`, {
-        method: "PATCH", headers: { Prefer: "return=minimal" },
-        body: JSON.stringify({ transaccion_id: String(d.id || ""), estado: String(d.status || "PENDIENTE") }),
-      });
-      /*  Aquí NO se da por pagado aunque diga APPROVED. Quien cierra el
-          periodo es el aviso firmado de Wompi (`eventos`), que es el único
-          que no se puede fabricar desde fuera.                            */
-      return json(200, { ok: true, referencia, transaccion_id: d.id, estado: d.status, monto });
+      const r = await cobrarTenant(tenant, String(body.periodo || "mensual"),
+                                   Math.max(1, Number(body.intento || 1)));
+      return json(r.estado, r.cuerpo);
     }
 
     // ═════════════════════════════════════════════════════════════════════
