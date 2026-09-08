@@ -144,7 +144,11 @@ window.posSuscripcion = (function (w, d) {
             '<path d="M10.6 18.4h2.8" stroke-width="1.9"/>' +
             '<path d="M9.6 9.6a3.4 3.4 0 0 1 4.8 0"/><path d="M11.1 12a1.3 1.3 0 0 1 1.8 0"/>' +
           '</svg>' +
-          '<img src="assets/brand/nequi.png" alt="Nequi" onerror=this.remove() ' +
+          /*  Y el respaldo se QUITA en cuanto el logo carga. Sin esto se veia
+              asomando por detras — que fue justo lo que Sergio vio: una
+              esquina rara junto a la N.                                    */
+          '<img src="assets/brand/nequi.png" alt="Nequi" '
+            + 'onload=this.previousElementSibling.remove() onerror=this.remove() ' +
             'style="position:absolute;inset:0;width:100%;height:100%;padding:7px;' +
             'object-fit:contain;box-sizing:border-box">' +
         '</span><span><b>Nequi</b><span>Apruebas desde tu app, sin tarjeta</span></span></button>' +
@@ -232,7 +236,11 @@ window.posSuscripcion = (function (w, d) {
             '<path d="M10.6 18.4h2.8" stroke-width="1.9"/>' +
             '<path d="M9.6 9.6a3.4 3.4 0 0 1 4.8 0"/><path d="M11.1 12a1.3 1.3 0 0 1 1.8 0"/>' +
           '</svg>' +
-          '<img src="assets/brand/nequi.png" alt="Nequi" onerror=this.remove() ' +
+          /*  Y el respaldo se QUITA en cuanto el logo carga. Sin esto se veia
+              asomando por detras — que fue justo lo que Sergio vio: una
+              esquina rara junto a la N.                                    */
+          '<img src="assets/brand/nequi.png" alt="Nequi" '
+            + 'onload=this.previousElementSibling.remove() onerror=this.remove() ' +
             'style="position:absolute;inset:0;width:100%;height:100%;padding:17px;' +
             'object-fit:contain;box-sizing:border-box">' +
           '</div>' +
