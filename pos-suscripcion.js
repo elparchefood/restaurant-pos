@@ -114,12 +114,29 @@ window.posSuscripcion = (function (w, d) {
     S.error = '';
     pintar(
       '<button class="sus-med" data-m="NEQUI">' +
-        '<span class="sus-ic" style="background:#200020">N</span>' +
-        '<span><b>Nequi</b><span>Apruebas desde tu app, sin tarjeta</span></span></button>' +
+        /*  NO se usa el logotipo de Nequi: es marca ajena y meterla en
+            nuestra pantalla sería usarla sin permiso. Un teléfono con la
+            onda del pago dice lo mismo —"pagas desde tu celular"— y va en
+            su morado, que es lo que la gente reconoce de lejos.         */
+        '<span class="sus-ic" style="background:linear-gradient(140deg,#3B0A5C,#1B0033)">' +
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" ' +
+            'stroke-linecap="round" stroke-linejoin="round">' +
+            '<rect x="7" y="2.5" width="10" height="19" rx="2.6"/>' +
+            '<path d="M10.6 18.4h2.8" stroke-width="1.9"/>' +
+            '<path d="M9.6 9.6a3.4 3.4 0 0 1 4.8 0" opacity=".95"/>' +
+            '<path d="M11.1 12a1.3 1.3 0 0 1 1.8 0" opacity=".95"/>' +
+          '</svg>' +
+        '</span><span><b>Nequi</b><span>Apruebas desde tu app, sin tarjeta</span></span></button>' +
       '<button class="sus-med" data-m="CARD">' +
-        '<span class="sus-ic" style="background:#5B6BFF">' +
-          '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
-          '<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>' +
+        /*  El CHIP es lo que hace que un rectángulo se lea como una tarjeta
+            a este tamaño. Sin él parece un sobre.                        */
+        '<span class="sus-ic" style="background:linear-gradient(140deg,#5B6BFF,#3F4BD6)">' +
+          '<svg width="21" height="21" viewBox="0 0 24 24" fill="none">' +
+            '<rect x="2.2" y="5.2" width="19.6" height="13.6" rx="2.6" stroke="#fff" stroke-width="1.6"/>' +
+            '<path d="M2.2 9.4h19.6" stroke="#fff" stroke-width="1.6"/>' +
+            '<rect x="5" y="12.4" width="4.2" height="3.1" rx="0.8" fill="#fff" opacity=".92"/>' +
+            '<path d="M13.4 15.1h5.2" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity=".55"/>' +
+          '</svg>' +
         '</span><span><b>Tarjeta</b><span>Débito o crédito</span></span></button>' +
       '<div class="sus-nota">Autorizas <b>una sola vez</b>. Después el cobro sale solo el día que toca, ' +
         'y te avisamos <b>una semana antes</b> para que no te tome por sorpresa. ' +
@@ -185,9 +202,14 @@ window.posSuscripcion = (function (w, d) {
     pintar(
       '<div class="sus-esp">' +
         '<div class="sus-onda">' +
-          '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#5B6BFF" stroke-width="2" ' +
-          'stroke-linecap="round"><path d="M6 8.5a7 7 0 0 1 12 0"/><path d="M8.5 11.5a3.5 3.5 0 0 1 7 0"/>' +
-          '<circle cx="12" cy="15" r="1"/></svg></div>' +
+          /*  El mismo teléfono de la lista, para que se entienda que sigue
+              hablando de Nequi y no de otra cosa.                        */
+          '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#5B6BFF" stroke-width="1.7" ' +
+            'stroke-linecap="round" stroke-linejoin="round">' +
+            '<rect x="7" y="2.5" width="10" height="19" rx="2.6"/>' +
+            '<path d="M10.6 18.4h2.8" stroke-width="1.9"/>' +
+            '<path d="M9.6 9.6a3.4 3.4 0 0 1 4.8 0"/><path d="M11.1 12a1.3 1.3 0 0 1 1.8 0"/>' +
+          '</svg></div>' +
         '<div style="font-size:16px;font-weight:700;color:#0F172A">Abre tu app de Nequi</div>' +
         '<div style="font-size:13.5px;color:#475569;line-height:1.6;margin-top:8px;max-width:330px">' +
           'Te llegó una notificación al <b>' + esc(tel) + '</b> para autorizar el cobro automático de Cobra. ' +
