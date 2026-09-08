@@ -200,3 +200,81 @@ eso es justo el aviso del que depende que no falle el cobro.
 - Cerrar el flujo de **cuenta Bancolombia** con la redirección real.
 
 Ninguna de las dos bloquea: se ven al montar la pantalla.
+
+---
+
+## 8. ✅ EL RELOJ, CONSTRUIDO Y PROBADO (7-sep-2026)
+
+El calendario de la §2 ya corre solo. Es la función `wompi-reloj`, y el cron
+`wompi-reloj` la despierta **una vez al día a las 14:00 UTC = 9 a.m. en
+Colombia**. La hora no es un detalle: un aviso que dice *"mañana se cobra tu
+plan, ten saldo en tu Nequi ····3265"* sirve si llega por la mañana y no sirve
+si llega de madrugada.
+
+Hace, en este orden: **avisa** a 7, 3 y 1 día · **cobra** el día que toca ·
+**reintenta** a 1, 3 y 7 días avisando cada vez · **pausa** pasada esa semana.
+La cuenta nunca se borra.
+
+**Correrlo de más no hace daño.** Los avisos chocan contra la llave primaria de
+`pos_wompi_avisos (tenant, periodo, clase)` y los cobros contra la referencia
+única de `pos_wompi_cobros`. Está comprobado corriéndolo dos veces seguidas en
+cada paso: la segunda vez no manda nada. Un reloj nervioso no puede convertir
+un recordatorio amable en acoso.
+
+### Lo que se probó — 19 comprobaciones, todas pasan
+
+`scratchpad/paco/probar-reloj.py` mueve la fecha de vencimiento del Restaurante
+de Prueba a 7, 3, 1 y 0 días, finge cobros fallidos con la antigüedad que haga
+falta, y al terminar le devuelve su fecha de verdad. No se espera una semana:
+se mueve el calendario.
+
+Cubre que sin medio de pago inscrito no molesta a nadie; los tres avisos de
+antes y que no se repiten; el cobro del día y que queda como intento 1; el
+reintento a los 2 días y que sube a intento 2, con su aviso; que al día
+siguiente **todavía no** reintenta; y la pausa, con el restaurante intacto.
+
+### Dos fallos que solo aparecieron al probarlo
+
+**1. El servidor y Colombia no viven en el mismo día.** La vista contaba los
+días contra `CURRENT_DATE`, que es UTC. Colombia va cinco horas atrás, así que
+todas las noches —de 7 p.m. en adelante— la base ya está en el día siguiente.
+Se vio en la primera prueba: con el vencimiento a "dentro de 1 día" el reloj
+**cobró** en vez de avisar. En producción eso serían dos cosas que el cliente
+sí nota: el aviso llegando el día equivocado, y el cobro cayendo a las 9 de la
+noche del día anterior. El día del cobro es ahora el día de Colombia, y se
+arregló **en la vista** —el único sitio donde se cuentan esos días— porque
+copiar el cálculo al código nos dejaría con dos relojes que se desincronizan.
+
+**2. Un 403 que no explotaba, sino que se disfrazaba.** La vista no tenía
+permiso de lectura para el servidor; PostgREST devolvió un objeto de error, el
+código lo trató como si fuera la lista de restaurantes y reventó con *"susc is
+not iterable"* — un mensaje que no dice nada de lo que pasaba. Es el mismo
+tropiezo que ya dejó muda la traza del gerente durante semanas. Ahora se mira
+`ok` y, si falla, se dice cuál era el problema.
+
+Y uno de la misma familia, encontrado leyendo: el correo pedía `owner_nombre` a
+`tenants`, donde esa columna no existe. Un `select` de una columna que no existe
+no da error — devuelve la fila sin el dato, y el aviso habría salido diciendo
+*"Hola"* a secas. El nombre vive en la cuenta de acceso.
+
+### La puerta
+
+Dispara cobros de verdad, así que se entra por una de dos y **nunca sin
+ninguna**: el cron manda un secreto propio y estrecho que vive en la bóveda
+(así el cron no lleva encima la llave maestra, y el `.sql` puede estar en un
+repositorio público, que lo está), o una persona con la llave de servicio, para
+dispararlo a mano. Comprobado: sin llave 403, con la llave pública 403, con un
+secreto inventado 403.
+
+La otra función del proyecto que usa este patrón se queda **abierta** si su
+variable de entorno falta (`if (SECRETO && ...)`). Aquí no: si falta la llave,
+no entra nadie.
+
+### Los correos
+
+Un solo tipo (`aviso_cobro`) para las siete clases, porque lo que cambia entre
+ellas es el texto, no la forma — siete plantillas acaban diciendo cosas
+distintas. Tres reglas, que importan más que el diseño: **la cifra y la fecha
+en la primera línea** (quien lo abre en la cocina no va a leer un párrafo),
+**se dice con qué medio** (por eso se guardan los últimos cuatro al inscribir),
+y **nunca se amenaza**. Ni el de la pausa: dice que no ha perdido nada.

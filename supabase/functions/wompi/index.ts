@@ -34,6 +34,13 @@ const K_INT  = Deno.env.get(VIVO ? "WOMPI_INTEGRITY_PROD" : "WOMPI_INTEGRITY_TES
 /*  Cómo se llama cada medio cuando hay que decírselo a una persona. Wompi
     devuelve `brand` solo en las tarjetas ("VISA"); en los demás no viene
     nada, y "BANCOLOMBIA_TRANSFER" no es algo que se le enseñe a nadie.   */
+/*  EL DIA DE COLOMBIA, NO EL DEL SERVIDOR. El servidor vive en UTC y Colombia
+    va cinco horas atras: desde las 7 de la noche, para el servidor ya es
+    manana. Un cobro que se adelanta un dia el cliente lo nota.            */
+function hoyEnColombia() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+}
+
 const NOMBRE_MEDIO: Record<string, string> = {
   CARD: "Tarjeta", NEQUI: "Nequi", DAVIPLATA: "DaviPlata",
   BANCOLOMBIA_TRANSFER: "Cuenta Bancolombia", BANCOLOMBIA: "Cuenta Bancolombia",
@@ -250,7 +257,7 @@ async function cobrarRegistro(regId: string, intento: number) {
   const cRes = await db("pos_wompi_cobros", {
     method: "POST", headers: { Prefer: "return=representation" },
     body: JSON.stringify({
-      registration_id: regId, referencia, periodo_fin: new Date().toISOString().slice(0, 10),
+      registration_id: regId, referencia, periodo_fin: hoyEnColombia(),
       intento, monto, plan: reg.plan, periodo: String(reg.billing || "mensual"),
       fuente_id: fuente.fuente_id, estado: "PENDIENTE",
     }),
