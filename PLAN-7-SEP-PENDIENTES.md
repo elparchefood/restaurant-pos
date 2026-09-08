@@ -5,6 +5,18 @@
 
 ---
 
+## 0. La demo de Cobra - EN PARALELO, no bloquea nada
+
+Decidido el 8-sep: Cobra **se lanza con el registro que ya esta probado**, y
+la demo ("entra y miralo por dentro", con pago desde dentro) se construye
+mientras Sergio hace contenido y trae trafico. Cuando este, se implementa; no
+se espera a tenerla para lanzar.
+
+Todo el diseno -los limites, los costos y la prueba A/B de la landing- esta en
+**`PLAN-SANDBOX-DEMO.md`**.
+
+---
+
 ## 1. Permisos y PIN 🔴 EL MÁS IMPORTANTE
 
 **Dos cosas distintas, y la segunda es la de fondo.**
@@ -79,6 +91,32 @@ onboarding crea cuentas gratis sin periodo —decisión de negocio, no se tocó�
 **un restaurante hoy no se puede borrar**, porque el guardián del rol
 "Administrador" bloquea la cascada. Eso último importará el día del borrado a
 los 6 meses sin pagar.
+
+---
+
+## 5-bis. 🔴 BUG: el aviso de lo que falta por comprar no le llega al gerente
+
+Reportado por Sergio el 8-sep, para mirarlo mañana: **el mensaje del cierre de
+caja con lo que falta por comprar no está llegando a los números de los
+gerentes.**
+
+No se ha diagnosticado todavía. Lo que hay que comprobar, en este orden —y
+midiendo, no deduciendo—:
+
+1. **¿Se está intentando enviar siquiera?** Buscar el rastro en los registros:
+   si no hay ni intento, el problema está antes (no se dispara, o la lista de
+   destinatarios sale vacía).
+2. **¿De dónde salen los números del gerente?** Es candidato de primera: un
+   `select` sin la columna no da error, devuelve la fila sin el dato — ya pasó
+   en cinco sitios el mismo día. Y si se filtra sin sede, puede traer los de
+   otra.
+3. **¿Se envía y se pierde?** Entonces es saldo de SMS, plantilla de WhatsApp
+   no aprobada, o número mal formateado (indicativo).
+4. **¿Y falla callado?** Si el envío devuelve un 4xx que nadie mira, no salta
+   ningún error. Es el fallo de la casa: `res.ok` sin comprobar.
+
+⚠️ Y una vez arreglado, **comprobarlo por el camino de Sergio** —cerrando una
+caja de verdad y mirando si llega el mensaje—, no por el panel.
 
 ---
 
