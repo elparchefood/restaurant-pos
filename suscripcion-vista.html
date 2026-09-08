@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cobro automático — cómo se ve</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:#FAFAFB;font-family:'DM Sans',system-ui,sans-serif;color:#0F172A;
+       display:flex;align-items:center;justify-content:center;padding:28px}
+  .caja{max-width:520px;width:100%}
+  .eyebrow{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#94A3B8;font-weight:700}
+  h1{font-size:25px;font-weight:800;letter-spacing:-.025em;margin:8px 0 10px}
+  p{font-size:14px;color:#475569;line-height:1.65;margin:0 0 14px}
+  .aviso{font-size:12.5px;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;border-radius:11px;
+         padding:12px 14px;line-height:1.6;margin:16px 0 20px}
+  .btn{display:inline-flex;align-items:center;gap:8px;background:#5B6BFF;color:#fff;border:none;
+       padding:13px 20px;border-radius:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;
+       box-shadow:0 2px 8px -2px rgba(91,107,255,.45)}
+  .btn:hover{background:#4F5BE3}
+  ul{font-size:13.5px;color:#475569;line-height:1.8;padding-left:20px;margin:6px 0 0}
+  code{background:#F1F5F9;padding:1px 6px;border-radius:5px;font-size:12.5px}
+</style>
+</head>
+<body>
+  <div class="caja">
+    <div class="eyebrow">Cobra POS · para revisar</div>
+    <h1>Así se ve activar el cobro automático</h1>
+    <p>Es la pantalla que verá un restaurante cuando autorice el débito de su plan.
+       Puedes recorrerla entera: escoger el medio, ver la espera de Nequi y el formulario
+       de la tarjeta.</p>
+
+    <div class="aviso">
+      <b>Esto es solo la vista.</b> No está conectada a ningún cobro: los botones
+      de <i>continuar</i> no van a llamar a la pasarela desde aquí. Es para que
+      mires los textos y el orden antes de que la conecte al registro.
+    </div>
+
+    <button class="btn" onclick="posSuscripcion.abrir({ monto: 249000, proximo: '2026-10-18' })">
+      Ver la pantalla
+    </button>
+
+    <p style="margin-top:24px"><b>Tres decisiones que quiero que revises:</b></p>
+    <ul>
+      <li><b>Nequi va primero</b>, antes que la tarjeta. Tus clientes son restaurantes
+          pequeños: muchos no tienen tarjeta de crédito y casi todos tienen Nequi.</li>
+      <li>Dice <b>“te avisamos una semana antes”</b> desde el primer momento. Es la
+          promesa que hace que el cobro no sorprenda a nadie.</li>
+      <li>En la tarjeta dice que <b>Cobra nunca ve los datos</b>. Es verdad: viajan
+          del navegador a la pasarela sin pasar por nuestro servidor.</li>
+    </ul>
+  </div>
+
+<script src="pos-suscripcion.js?v=1800020000"></script>
+</body>
+</html>
