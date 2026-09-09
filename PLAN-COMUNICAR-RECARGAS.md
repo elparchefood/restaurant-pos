@@ -99,6 +99,60 @@ nuestras, no suyas.
 
 ---
 
+## 4-bis. La idea de Sergio: la recomendación al final (8-sep)
+
+> *"No molestar a las personas durante todo el pedido. Podemos darle una pequeña
+> recomendación al finalizar… como darle a entender al cliente que la próxima
+> vez, si paga con billetera El Parche, le va a salir más económico."*
+
+**Su instinto es mejor que la propuesta de arriba, y hay que decirlo.** Yo
+proponía ofrecerlo *en el momento de pagar*; eso mete un obstáculo entre el
+cliente y su compra. Y el ofrecimiento es sobre el **próximo** pedido, así que
+va **al final**, cuando ya está contento y no le estorba. Nunca se pone algo
+entre alguien y su checkout.
+
+Con tres correcciones, todas medidas:
+
+### a) Quitar la app del camino ⭐ lo más importante
+
+Una recarga hoy es: **transferir + mandar el comprobante**. El sistema lo lee y
+acredita solo.
+
+**Eso es exactamente lo que los clientes YA hacen en el chat todos los días**
+para pagar sus pedidos. La app no es necesaria para recargar: es un paso que le
+estamos poniendo en medio.
+
+Si Paco acepta el comprobante de recarga por el chat, la petición pasa de *"baja
+una app y luego recarga"* a *"mándame el comprobante, como siempre"*. **De dos
+pasos nuevos a ninguno.**
+
+La app sigue teniendo sentido para ver saldo, puntos y nivel — pero no puede ser
+el peaje para recargar.
+
+### b) Un mensaje, una sola petición
+
+La idea trae dos: *descarga la app* **y** *recarga*. Dos peticiones en un
+mensaje = no se hace ninguna. Al final del pedido va **una**: la recarga.
+
+### c) "Ganas dinero" no, y no es un detalle
+
+El saldo **no es dinero**: es cupo para gastar aquí. Quien recargue creyendo que
+gana dinero y luego descubra que solo lo puede gastar en El Parche, se siente
+engañado — y esa persona no vuelve a recargar nunca.
+
+Lo que sí es verdad y suena igual de bien: **le rinde más**.
+
+> *"La próxima vez te puede salir más barato: con $50.000 en tu billetera comes
+> $55.000."*
+
+### d) No en cada pedido
+
+Una vez, y se repite solo si no hizo nada. Repetido en cada pedido deja de ser
+una recomendación y se vuelve publicidad — y Paco deja de sonar a alguien que
+ayuda.
+
+---
+
 ## 5. Cómo sabremos si funcionó
 
 Hoy: **0 recargas de clientes reales**. Cualquier recarga es señal.
