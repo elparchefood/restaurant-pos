@@ -121,6 +121,44 @@ clientes). **Los puntos sí se venden.**
 
 ---
 
+## 5-bis. ⚠️ REGLA ABSOLUTA: la página se toca UNA VEZ por pedido
+
+Sergio, 8-sep: *"si ya se va al chat, ya se queda en el chat. La página sí toca
+una sola vez por pedido."*
+
+Nada de estar escogiendo, tener que ir al chat a tocar un botón, y volver. Ese
+ir y venir entre dos aplicaciones es donde la gente se pierde y abandona.
+
+**Consecuencia, y es la que ordena todo el diseño:**
+
+> **La página nunca confirma ni gasta nada. Solo recoge la intención.**
+
+| Dónde | Qué pasa |
+|---|---|
+| **La página** (una sola vez) | Escoge productos y dice cómo quiere pagar. Si toca saldo, ve cuánto tiene y cuánto cubriría. **No descuenta nada.** |
+| **El chat, con Paco** | Dirección → resumen → *"vas a pagar $20.000 con tu saldo, quedan $7.000 + domicilio"* → confirma → **ahí sí se descuenta**. |
+
+Tres cosas se caen solas con esta regla:
+
+1. **El código de confirmación: fuera.** No hace falta ninguno. La confirmación
+   ocurre en el chat, desde su número — que era toda la garantía que buscábamos.
+2. **La página queda de solo lectura frente al dinero.** No puede descontar
+   saldo ni gastar puntos aunque alguien la manipule. Todo lo que toca plata
+   pasa por Paco, en un solo sitio.
+3. **La pantalla del saldo no puede prometer.** Dice *"Tienes $32.000 — cubriría
+   $20.000 de este pedido"*, nunca *"ya está pagado"*: el descuento pasa después
+   y el saldo pudo cambiar. Paco lo vuelve a mirar al confirmar.
+
+**Y esto respondió lo que faltaba:** la dirección y el nombre los pregunta Paco
+(Sergio: *"antes de eso procede a preguntar la dirección"*). Paco calcula el
+excedente más el domicilio, como ya lo hace.
+
+**Lo único a confirmar:** corregir el pedido reabre la página, pero eso empieza
+EN EL CHAT (Paco manda el botón otra vez), así que no es un ir y venir a mitad
+de camino. Pendiente de que Sergio lo confirme.
+
+---
+
 ## 6. Saldo y puntos: lo que se puede saber sin que la persona se registre
 
 La página sabe el teléfono, porque el enlace va atado a la conversación. Con eso
@@ -134,11 +172,11 @@ alcanza:
 
 Puede decir *"Tu saldo: $32.000 — te alcanza"* o *"te faltan $8.500"*.
 
-**Confirmar es un botón en el chat, no un código que haya que copiar.** Idea de
-Sergio, mejorada: Paco manda un mensaje con botón *"Confirmar pago con mi
-saldo"*; al tocarlo, el mensaje entra **desde el número de esa persona**, que es
-justo la prueba que hace falta. Sin digitar nada, y reenviar el enlace no sirve
-de nada: quien no tenga ese WhatsApp no puede confirmar.
+**Confirmar NO pasa en la página** (ver la regla absoluta de la §5-bis): la
+página solo dice *"quiero pagar con mi saldo"* y se cierra. Paco confirma en el
+chat, donde la persona ya está, con un botón. El mensaje entra **desde su
+número**, que es justo la prueba que hace falta — y así no hay que inventar
+ningún código ni mandar a nadie de vuelta a la página.
 
 **Dos reglas o esto se rompe con dinero de verdad:**
 
@@ -198,11 +236,10 @@ otro podría ver el saldo — y peor, gastarlo.
 
 ## 7. Lo que falta decidir
 
-- **¿La página pide dirección y nombre, o eso queda con Paco?** Recomendación:
-  con Paco. La página no sabe quién es esa persona —a propósito, no hay
-  registro—, así que pediría la dirección desde cero cada vez; Paco sí la
-  reconoce por su número y puede preguntar *"¿te lo llevo a la misma dirección
-  de la última vez?"*.
+- ~~¿La página pide dirección y nombre?~~ **RESUELTO el 8-sep: los pregunta
+  Paco.** La página no sabe quién es esa persona —a propósito, no hay registro—,
+  así que pediría la dirección desde cero cada vez; Paco sí la reconoce por su
+  número.
 - Si el saldo no alcanza: ¿pago partido desde el principio, o todo-o-nada
   primero? (La caja ya soporta el partido.)
 - ¿Después de escoger una bebida en el upsell se vuelve a ofrecer, o se va
