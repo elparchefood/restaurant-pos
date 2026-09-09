@@ -24,8 +24,16 @@ preguntado nunca cómo funciona — o sea que no es que la rechacen, es que no
 existe para ellos. Sergio: *"primero la estrategia de comunicación; si después
 escucho quejas de que el porcentaje es poco, ahí ya es la señal para subirlo"*.
 
-El plan, con los momentos, los borradores y cómo se mide:
+**⏰ RECORDARLE A SERGIO:** dedicarle un rato a armar la estrategia de marketing
+completa. Él tiene cuatro canales —el chat, las plantillas de WhatsApp, los SMS
+de Twilio y las notificaciones de la app— y quiere hacerla bien, no a medias.
+No se hace hasta que él diga.
+
+Lo que ya está pensado, con los datos medidos, los momentos y qué NO hacer:
 **`PLAN-COMUNICAR-RECARGAS.md`**. No toca ningún número.
+
+Y lo primero de esa sesión: preguntarle **qué dijo y cómo** en la campaña que
+logró las 63 instalaciones de la app. Esa forma ya funcionó.
 
 ---
 

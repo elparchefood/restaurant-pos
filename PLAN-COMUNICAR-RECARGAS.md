@@ -70,6 +70,29 @@ construido y probado** — no hay que inventarlo, hay que usarlo para recargas.
 
 ---
 
+## 3-bis. Los cuatro canales que hay (Sergio, 8-sep)
+
+> *"Poco a poco también tenemos otros canales: las plantillas de WhatsApp, los
+> mensajes de texto de Twilio, y las notificaciones de las personas que ya
+> tengan instalada la app."*
+
+| Canal | A quién llega | Estado |
+|---|---|---|
+| **El chat** (conversación viva) | a quien escribe | probado — así se logró la app |
+| **Plantillas de WhatsApp** | a los 271, escriban o no | existe el módulo de envíos; la plantilla la aprueba Meta |
+| **SMS (Twilio)** | a cualquiera con número | existe; cuesta por mensaje |
+| **Notificaciones de la app** | a los 63 instalados | por confirmar qué está listo |
+
+⚠️ **La estrategia exacta NO se hace ahora.** Sergio: *"simplemente recuérdame
+hacerlo y ya nos dedicaremos un momento a eso"*. Esto queda como recordatorio,
+no como tarea a medio hacer.
+
+Cuando se haga, lo primero es preguntarle **qué dijo y cómo** en la campaña que
+llevó a las 63 instalaciones: la forma que ya funcionó vale más que cualquier
+mensaje nuevo.
+
+---
+
 ## 4-bis. La idea de Sergio: la recomendación al final (8-sep)
 
 > *"No molestar a las personas durante todo el pedido. Podemos darle una pequeña
