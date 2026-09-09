@@ -5,6 +5,18 @@
 
 ---
 
+## ⭐ LO PRIMERO DE MAÑANA (9-sep): probar la carta
+
+Está construida y **apagada**. Sergio la enciende cuando esté mirando el chat,
+abre el horario, hace el recorrido y lo vuelve a cerrar.
+
+El guion con los doce pasos y lo que debe pasar en cada uno:
+**`PRUEBA-CARTA-MANANA.md`**.
+
+Si algo sale mal: se apaga `carta_web.activo` y todo vuelve a como está hoy.
+
+---
+
 ## 0. La demo de Cobra - EN PARALELO, no bloquea nada
 
 Decidido el 8-sep: Cobra **se lanza con el registro que ya esta probado**, y
