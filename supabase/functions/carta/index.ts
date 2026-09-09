@@ -479,9 +479,18 @@ Deno.serve(async (req) => {
           la lista que se envía a la pantalla. Muchos premios son adiciones, y
           esa categoría suele estar escondida de la carta pública: buscándolos
           ahí, la "Adición Salsa · Rosada" salía llamándose "Combo · Rosada".  */
-      const npRes = await db(`pos_products?tenant_id=eq.${tenant}&select=id,name`);
+      /*  Con sus presentaciones: la pagina necesita el id de la presentacion
+          para poder aNadir el premio como una linea mas. Sin filtro de
+          "disponible" ni de categoria — un premio puede vivir en una
+          categoria escondida de la carta, y de hecho la mayoria vive ahi:
+          cinco de los catorce premios son salsas.                        */
+      const npRes = await db(`pos_products?tenant_id=eq.${tenant}&select=id,name,presentations`);
       const nomProd = new Map<string, string>();
-      for (const p of filas(npRes.data)) nomProd.set(String(p.id), String(p.name || "").trim());
+      const presProd = new Map<string, Fila[]>();
+      for (const p of filas(npRes.data)) {
+        nomProd.set(String(p.id), String(p.name || "").trim());
+        presProd.set(String(p.id), filas(p.presentations));
+      }
       const premios = filas(prRes.data)
         .filter((x) => x.activo !== false)
         .map((x) => {
@@ -490,9 +499,17 @@ Deno.serve(async (req) => {
           /*  `pid` y `pres` viajan para poder cruzar el premio con lo que el
               cliente YA tiene en el carrito. Cruzarlo por el nombre bonito
               seria comparar texto — justo lo que aqui no se hace.        */
+          /*  La presentacion exacta: la que se llama igual, o la unica que
+              tenga. Si no se encuentra, `pres_id` va vacio y la pagina lo
+              manda por el chat en vez de aNadir una linea equivocada.    */
+          const lista = presProd.get(String(x.product_id)) || [];
+          const elegida = pn
+            ? lista.find((y) => String(y.name || "").trim().toLowerCase() === pn.toLowerCase())
+            : (lista.length === 1 ? lista[0] : null);
           return { n: pn ? `${base} · ${pn}` : base, pts: Number(x.puntos) || 0,
                    dinero: Number(x.dinero) || 0,
-                   pid: String(x.product_id || ""), pres: pn };
+                   pid: String(x.product_id || ""), pres: pn,
+                   pres_id: String(elegida?.id || "") };
         });
 
       /*  ══ EL BOTÓN DE VOLVER AL CHAT ════════════════════════════════════

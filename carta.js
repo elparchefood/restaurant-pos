@@ -1224,20 +1224,31 @@
             identificadores, no con nombres. Si ese premio no está en la carta
             visible —las adiciones suelen estar ocultas— no se puede añadir
             como línea, y se dice en vez de fallar en silencio.           */
+        /*  El premio ya trae el producto y la presentación. Si además está en
+            la carta visible se usa ese —así el detalle sale con sus nombres
+            de siempre—; si no (las adiciones suelen estar escondidas), se
+            arma uno mínimo: para mandarlo solo hacen falta los dos ids.  */
         var prod = (D.prods || []).find(function (p) { return String(p.id) === String(pm.pid); });
-        var pres = prod && (prod.pres.find(function (y) {
-          return String(y.n || '').trim().toLowerCase() === String(pm.pres || '').trim().toLowerCase();
-        }) || (prod.pres.length === 1 ? prod.pres[0] : null));
-        if (!prod || !pres) {
+        var presId = pm.pres_id || '';
+        if (prod) {
+          var pr = prod.pres.find(function (y) {
+            return String(y.id) === String(pm.pres_id)
+              || String(y.n || '').trim().toLowerCase() === String(pm.pres || '').trim().toLowerCase();
+          }) || (prod.pres.length === 1 ? prod.pres[0] : null);
+          if (pr) presId = pr.id;
+        }
+        if (!presId) {
           $('hojaCuerpo').insertAdjacentHTML('beforeend',
             '<div class="ct-nota-chica" style="margin-top:12px">Ese premio te lo confirmamos por el chat 🙏</div>');
           return;
         }
         var l = {
-          prod: prod, n: prod.n, presId: pres.id, base: 0, cant: 1,
+          prod: prod || { id: pm.pid, n: pm.n, pres: [{ id: presId, n: pm.pres || '' }], vg: [], adic: {} },
+          n: prod ? prod.n : pm.n, presId: presId, base: 0, cant: 1,
           adic: [], vars: {}, nota: '', premio: true, pts: pm.pts, anadido: true
         };
-        l.det = detalleDe(l); l.total = 0;
+        l.det = prod ? detalleDe(l) : (pm.pres || '');
+        l.total = 0;
         pedido.push(l);
         pintarBarra();
         verPuntos();
