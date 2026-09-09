@@ -37,6 +37,9 @@
   var D = null;                 // lo que devolvió el servidor
   var pedido = [];
   var abierto = null, elegido = {}, ultima = null, pagoElegido = null;
+  /*  A donde va el pedido. `domi` es lo que contesto el servidor: aqui no
+      se calcula ni un peso de domicilio.                                */
+  var entrega = { modo: '', barrio: '', direccion: '', conjunto: '', unidad: '', domi: 0, conocida: false };
   var trasBebida = false;
 
   /* ── hablar con el servidor ─────────────────────────────────────────── */
@@ -598,7 +601,7 @@
     $('hojaPie').hidden = false;
     $('btnPrincipal').disabled = false;
     $('btnPrincipal').innerHTML = 'Sí, terminar mi pedido';
-    $('btnPrincipal').onclick = function () { cerrarHoja(); irAlPago(); };
+    $('btnPrincipal').onclick = function () { cerrarHoja(); irAEntrega(); };
     otroBoton(true, 'Seguir pidiendo', cerrarHoja);
   }
 
@@ -772,6 +775,165 @@
     $('hoja').classList.add('on');
   };
 
+  /* ── a dónde va el pedido ────────────────────────────────────────────── */
+
+  /*  La cabecera de estas pantallas: el mismo hueso que la hoja del producto,
+      para que no parezca otra aplicación a mitad del pedido.              */
+  function cabEntrega(titulo, atras) {
+    return '<div class="ct-paso">'
+      + (atras ? '<button class="ct-atras" id="entAtras">'
+          + '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>'
+          + '</button>' : '')
+      + '<div class="ct-paso-tit"><b>' + esc(titulo) + '</b></div></div>';
+  }
+
+  function abrirEntrega(html, alAtras) {
+    $('hojaCuerpo').innerHTML = html;
+    $('hojaCuerpo').scrollTop = 0;
+    if ($('entAtras')) $('entAtras').onclick = alAtras;
+    $('velo').classList.add('on');
+    $('hoja').classList.add('on');
+  }
+
+  /*  1. ¿Domicilio o lo recoge?
+      Un restaurante que no hace domicilios no ve esta pantalla: se va derecho
+      al pago. Cobra se vende a otros, y esto no puede dar por hecho que todos
+      llevan a domicilio.                                                   */
+  function irAEntrega() {
+    if (D.domicilios === false) { entrega.modo = 'recoger'; return irAlPago(); }
+    var h = cabEntrega('Tu pedido', function () { pintarCierre(); })
+      + '<div class="ct-preg">¿Cómo lo quieres?</div>'
+      + '<div class="ct-sub">Toca una opción para seguir.</div>'
+      + '<button class="ct-op" data-ent="domicilio"><span>Domicilio</span><i>›</i></button>'
+      + '<button class="ct-op" data-ent="recoger"><span>Yo lo recojo</span><i>›</i></button>';
+    abrirEntrega(h, function () { pintarCierre(); });
+    $('hojaPie').hidden = true;
+    otroBoton(false);
+    $('hojaCuerpo').querySelectorAll('[data-ent]').forEach(function (btn) {
+      btn.onclick = function () {
+        entrega.modo = btn.dataset.ent;
+        if (entrega.modo === 'recoger') {
+          entrega.barrio = entrega.direccion = entrega.conjunto = entrega.unidad = '';
+          entrega.domi = 0; entrega.conocida = true;
+          cerrarHoja(); return irAlPago();
+        }
+        var g = D.cliente && D.cliente.direccion;
+        if (g && g.direccion) return irADireccionGuardada(g);
+        irADireccionNueva();
+      };
+    });
+  }
+
+  /*  2. La de siempre, de un toque.
+      Hoy la tienen 147 de 303 clientes, y cada pedido por aquí suma uno más.
+      SIN precio a la vista: el domicilio se ve una sola vez, ya sumado, en el
+      pago. Regla de Sergio.                                               */
+  function irADireccionGuardada(g) {
+    var linea = [g.direccion, g.barrio].filter(Boolean).join(', ');
+    var h = cabEntrega('Tu pedido', irAEntrega)
+      + '<div class="ct-preg">¿Va para tu dirección de siempre?</div>'
+      + '<div class="ct-dir-guardada">'
+      + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 21s-7-5.6-7-11a7 7 0 1 1 14 0c0 5.4-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>'
+      + '<span>' + esc(linea) + '</span></div>'
+      + '<button class="ct-op" id="dirSi"><span>Sí, para allá</span><i>›</i></button>'
+      + '<button class="ct-op" id="dirOtra"><span>Otra dirección</span><i>›</i></button>';
+    abrirEntrega(h, irAEntrega);
+    $('hojaPie').hidden = true;
+    otroBoton(false);
+    $('dirSi').onclick = function () {
+      entrega.direccion = g.direccion; entrega.barrio = g.barrio || '';
+      entrega.conjunto = ''; entrega.unidad = '';
+      cotizarYSeguir();
+    };
+    $('dirOtra').onclick = irADireccionNueva;
+  }
+
+  /*  3. Una dirección nueva.
+      Casa normal: barrio y dirección, los dos obligatorios.
+      Conjunto: nombre y casa/apto obligatorios; barrio y dirección opcionales.
+
+      La regla, dicha una sola vez: es obligatorio el campo QUE ENCUENTRA LA
+      ZONA. Con 68 conjuntos configurados, el nombre del conjunto ya da el
+      precio y por eso ahí el barrio sobra; en una casa normal el barrio es lo
+      único que la encuentra.                                              */
+  var tipoDir = 'casa';
+  function irADireccionNueva() {
+    var esConj = tipoDir === 'conjunto';
+    var h = cabEntrega('Tu pedido', irAEntrega)
+      + '<div class="ct-preg">¿Para dónde va?</div>'
+      + '<div class="ct-seg">'
+      + '<button data-tipo="casa" aria-pressed="' + (!esConj) + '">Casa normal</button>'
+      + '<button data-tipo="conjunto" aria-pressed="' + esConj + '">Conjunto</button>'
+      + '</div>';
+
+    if (esConj) {
+      h += campo('Nombre del conjunto', 'conjunto', entrega.conjunto, 'Balmoral', true)
+         + campo('Casa o apartamento', 'unidad', entrega.unidad, 'Casa 21', true)
+         + campo('Barrio', 'barrio', entrega.barrio, '', false)
+         + campo('Dirección', 'direccion', entrega.direccion, '', false);
+    } else {
+      h += campo('Barrio', 'barrio', entrega.barrio, 'Bella Vista', true)
+         + campo('Dirección', 'direccion', entrega.direccion, 'Carrera 9b # 63-58', true);
+    }
+    abrirEntrega(h, irAEntrega);
+
+    $('hojaCuerpo').querySelectorAll('[data-tipo]').forEach(function (btn) {
+      btn.onclick = function () { tipoDir = btn.dataset.tipo; irADireccionNueva(); };
+    });
+    $('hojaCuerpo').querySelectorAll('[data-campo]').forEach(function (inp) {
+      inp.oninput = function () {
+        entrega[inp.dataset.campo] = inp.value.slice(0, 120);
+        revisarDir();
+      };
+    });
+    $('hojaPie').hidden = false;
+    otroBoton(false);
+    $('btnPrincipal').innerHTML = 'Continuar';
+    $('btnPrincipal').onclick = cotizarYSeguir;
+    revisarDir();
+  }
+
+  function campo(rotulo, id, valor, ejemplo, obligatorio) {
+    return '<div class="ct-campo"><div class="ct-campo-tit">' + esc(rotulo)
+      + (obligatorio ? '' : ' <span class="ct-opcional">(opcional)</span>') + '</div>'
+      + '<input class="ct-input" data-campo="' + id + '" value="' + esc(valor) + '"'
+      + ' placeholder="' + esc(ejemplo) + '" autocomplete="off"></div>';
+  }
+
+  /*  Solo se deja seguir con lo que hace falta para saber a dónde va. Nada
+      más: cada campo obligatorio de sobra es una persona que se va.       */
+  function dirCompleta() {
+    if (tipoDir === 'conjunto') {
+      return !!(String(entrega.conjunto).trim() && String(entrega.unidad).trim());
+    }
+    return !!(String(entrega.barrio).trim() && String(entrega.direccion).trim());
+  }
+  function revisarDir() { $('btnPrincipal').disabled = !dirCompleta(); }
+
+  /*  El precio lo dice el SERVIDOR. Aquí no se calcula ni se guarda la tabla de
+      zonas: además de que la plata la decide el servidor, los precios de
+      domicilio de un restaurante no tienen por qué quedar a la vista de
+      cualquiera que abra la página.
+
+      Si la consulta falla no se frena el pedido: se sigue sin precio, que es
+      exactamente lo que pasa hoy con un barrio que no conocemos.          */
+  async function cotizarYSeguir() {
+    var b = $('btnPrincipal');
+    if (!$('hojaPie').hidden) { b.disabled = true; b.textContent = 'Un momento…'; }
+    try {
+      var r = await llamar({
+        action: 'cotizar', barrio: entrega.barrio, direccion: entrega.direccion,
+        conjunto: entrega.conjunto, unidad: entrega.unidad
+      });
+      entrega.domi = Number(r.domicilio) || 0;
+      entrega.conocida = r.conocida === true;
+    } catch (e) {
+      entrega.domi = 0; entrega.conocida = false;
+    }
+    cerrarHoja();
+    irAlPago();
+  }
+
   /* ── el pago: los medios del restaurante ─────────────────────────────── */
   var ICONO = {
     efectivo: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.8"/><path d="M5.5 9.5h.01M18.5 14.5h.01"/></svg>',
@@ -833,11 +995,23 @@
         $('btnEnviar').disabled = false;
       };
     });
-    $('totPago').textContent = cop(totalPedido());
+    /*  ══ EL DESGLOSE, LA UNICA VEZ QUE SE VE EL DOMICILIO ═════════════
+        Aquí sí, porque aquí es donde el cliente decide con cuánto paga. Y si
+        no conocemos su zona no se inventa un número: se le dice que se lo
+        confirmamos por el chat, que es justo lo que va a pasar.          */
+    var cuerpoTot = '';
+    if (entrega.modo === 'domicilio') {
+      cuerpoTot = '<div class="ct-linea"><span>Productos</span><i>' + cop(totalPedido()) + '</i></div>'
+        + '<div class="ct-linea"><span>Domicilio</span><i>'
+        + (entrega.conocida ? cop(entrega.domi) : '<em>te lo confirmamos por el chat</em>')
+        + '</i></div>';
+    }
+    $('pagoDesglose').innerHTML = cuerpoTot;
+    $('totPago').textContent = cop(totalPedido() + (entrega.conocida ? entrega.domi : 0));
     $('btnEnviar').disabled = true;
     $('vPago').hidden = false;
   }
-  $('pagoAtras').onclick = function () { $('vPago').hidden = true; };
+  $('pagoAtras').onclick = function () { $('vPago').hidden = true; irAEntrega(); };
 
   function abrirPanel(pinta) {
     abierto = null;
@@ -921,6 +1095,11 @@
     try {
       var r = await llamar({
         action: 'guardar',
+        /*  A dónde va. El servidor vuelve a cotizarlo: lo que se enseñó aquí
+            no se cree, igual que con los precios de los productos.       */
+        entrega: entrega.modo,
+        barrio: entrega.barrio, direccion: entrega.direccion,
+        conjunto: entrega.conjunto, unidad: entrega.unidad,
         pago: pagoElegido.id || pagoElegido.n,
         saldo_usar: pagoElegido.tipo === 'saldo' ? pagoElegido.cubre : 0,
         premio: pagoElegido.premio ? pagoElegido.premio.n : '',

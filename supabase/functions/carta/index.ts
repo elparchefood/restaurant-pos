@@ -126,6 +126,164 @@ function hora12(s: string): string {
   return `${h12}${mi ? ":" + String(mi).padStart(2, "0") : ""} ${ap}`;
 }
 
+
+/*  Lo que se busca en las zonas: todo lo que el cliente escribio, junto. El
+    buscador rastrea el nombre del barrio o del conjunto DENTRO del texto —es
+    lo que hace hoy con lo que le escriben a Paco—, asi que darle las cuatro
+    casillas pegadas es darle mas donde encontrar, no menos.              */
+function textoDireccion(body: Fila): string {
+  return [body.conjunto, body.barrio, body.direccion, body.unidad]
+    .map((x) => String(x || "").trim()).filter(Boolean).join(" ").slice(0, 200);
+}
+
+/*  ══ EL BUSCADOR DE ZONAS ═════════════════════════════════════════════════
+
+    Copiado TAL CUAL de delay-reply, y a proposito: el precio del domicilio lo
+    tiene que decidir el MISMO algoritmo aqui y alla. Si aqui se calculara de
+    otra forma, el cliente veria un precio en la pantalla de pago y Paco le
+    diria otro en el resumen — y el que se equivoca siempre parece el
+    restaurante.
+
+    No se puede compartir el archivo: cada funcion de Supabase se despliega
+    como UN solo archivo, sin modulos comunes.
+
+    ⚠️ SI SE TOCA EL BUSCADOR, SE TOCA EN LOS DOS SITIOS.                   */
+function normalizarTexto(s: string): string {
+  return s.toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function levenshtein(a: string, b: string): number {
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prevDiag = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j];
+      prev[j] = a[i - 1] === b[j - 1] ? prevDiag : 1 + Math.min(prev[j], prev[j - 1], prevDiag);
+      prevDiag = tmp;
+    }
+  }
+  return prev[b.length];
+}
+
+function fuzzyBarrioMatch(direccion: string, barrio: string): boolean {
+  const dirNorm = normalizarTexto(direccion);
+  const barNorm = normalizarTexto(barrio);
+  if (!dirNorm || !barNorm) return false;
+
+  // 1) El nombre aparece tal cual. Este camino nunca fallo y se conserva.
+  if (dirNorm.includes(barNorm)) return true;
+  const dirSinEsp = dirNorm.replace(/[ ]/g, "");
+  const barSinEsp = barNorm.replace(/[ ]/g, "");
+  if (dirSinEsp.includes(barSinEsp)) return true;
+
+  // 2) Palabras de relleno de una direccion: aparecen en casi todas y no
+  //    pueden ser las que hagan coincidir un barrio. Sin esto, "Catay"
+  //    coincidia con el "casa" de "Monteluna casa 45".
+  const RELLENO: Record<string, boolean> = {
+    calle: true, carrera: true, cra: true, kra: true, cr: true, kr: true,
+    avenida: true, av: true, transversal: true, diagonal: true, via: true,
+    casa: true, apto: true, apartamento: true, torre: true, bloque: true,
+    manzana: true, mz: true, lote: true, piso: true, interior: true,
+    barrio: true, conjunto: true, edificio: true, urbanizacion: true,
+    norte: true, sur: true, este: true, oeste: true, numero: true, no: true,
+  };
+
+  const dirWords = dirNorm.split(" ").filter(w => w && !RELLENO[w] && !/^[0-9#-]+$/.test(w));
+  const barWords = barNorm.split(" ").filter(Boolean);
+  if (!dirWords.length || !barWords.length) return false;
+
+  // 3) Un barrio de UNA palabra corta exige coincidencia exacta: con "Catay"
+  //    o "Toez" cualquier tolerancia produce falsos.
+  if (barWords.length === 1 && barSinEsp.length <= 6) {
+    return dirWords.includes(barNorm);
+  }
+
+  // 4) Tolerancia estricta: 1 letra en palabras cortas, 2 solo en largas.
+  //    Antes una palabra de 5 letras admitia 2 cambios (40% de la palabra) y
+  //    por eso "calle" pasaba por "bella".
+  const cerca = (a: string, b: string): boolean => {
+    if (a === b) return true;
+    const maxDist = b.length >= 8 ? 2 : 1;
+    if (levenshtein(a, b) > maxDist) return false;
+    /* PARA NOMBRES DE UNA SOLA PALABRA la errata ademas tiene que EMPEZAR
+       igual (20-ago-2026, pedido real de Fernanda): "viento" —de "Villa del
+       viento", un barrio de verdad— quedaba a 1 letra del conjunto "Vivento"
+       y el pedido salio con una direccion que la clienta nunca dijo. Un
+       error de dedo real ("balmorral" por "Balmoral") conserva el arranque;
+       dos palabras distintas casi nunca. */
+    if (barWords.length === 1) return a.slice(0, 3) === b.slice(0, 3);
+    return true;
+  };
+
+  // Cada palabra del barrio debe encontrar SU propia palabra en la direccion:
+  // dos palabras del barrio no pueden apoyarse en la misma.
+  const usadas: Record<number, boolean> = {};
+  const todasCoinciden = barWords.every(bw => {
+    if (bw.length <= 2) {
+      const i = dirWords.findIndex((dw, k) => !usadas[k] && dw === bw);
+      if (i < 0) return false;
+      usadas[i] = true;
+      return true;
+    }
+    const i = dirWords.findIndex((dw, k) => !usadas[k] && cerca(dw, bw));
+    if (i < 0) return false;
+    usadas[i] = true;
+    return true;
+  });
+  if (todasCoinciden) return true;
+
+  // 5) Nombre largo escrito de corrido o con erratas ("bellohorizonte").
+  //    Se mantiene, pero mas estricto: 1 error cada 10 letras.
+  if (barSinEsp.length >= 10) {
+    const L = barSinEsp.length;
+    const maxDist = Math.floor(L / 10);
+    for (let i = 0; i <= dirSinEsp.length - L; i++) {
+      if (levenshtein(dirSinEsp.slice(i, i + L), barSinEsp) <= maxDist) return true;
+    }
+  }
+  return false;
+}
+
+function lookupDomiPrice(direccion: string, domicilios: Record<string, unknown> | null | undefined): number | null {
+  if (!domicilios) return null;
+  const zonas = (domicilios.zonas as Array<{ nombre?: string; barrios?: string[]; conjuntos?: string[]; precio: number }>) || [];
+  for (const z of zonas) {
+    const barrios = z.barrios ?? (z.nombre ? z.nombre.split(",").map((b: string) => b.trim()) : []);
+    for (const b of barrios) { if (fuzzyBarrioMatch(direccion, b)) return z.precio; }
+    /* LOS CONJUNTOS TAMBIÉN TIENEN PRECIO. Vivían en su propia lista y esta
+       búsqueda solo miraba la de barrios: en cuanto un sitio se marcaba como
+       conjunto, el domicilio se quedaba sin precio y Paco pasaba la
+       conversación al humano por algo que sí estaba configurado.
+       La lista dice CÓMO se pregunta la dirección (torre y apto, o completa);
+       el precio es del sitio, esté en la lista que esté. */
+    for (const c of (z.conjuntos || [])) { if (c && fuzzyBarrioMatch(direccion, c)) return z.precio; }
+  }
+  return null;
+}
+
+function esConjunto(
+  text: string,
+  domicilios: Record<string, unknown> | null | undefined,
+): string | null {
+  if (!domicilios || !text) return null;
+  const zonas = (domicilios.zonas as Array<{ conjuntos?: string[] }>) || [];
+  for (const z of zonas) {
+    for (const c of (z.conjuntos || [])) {
+      if (c && fuzzyBarrioMatch(text, c)) return c;
+    }
+  }
+  return null;
+}
+
+
 function estadoHorario(horarios: Fila | null, tzOffset: number) {
   if (!horarios || !Object.keys(horarios).length) return { abierto: true, texto: "" };
   const ahora = new Date(Date.now() + tzOffset * 3600000);
@@ -286,6 +444,35 @@ Deno.serve(async (req) => {
       }
       const puntos = Number(filas(ptRes.data)[0]?.puntos) || 0;
 
+      /*  ══ SU DIRECCION DE SIEMPRE ═══════════════════════════════════════
+          Para poder ofrecerle "¿va otra vez para alla?" de un toque. Hoy la
+          tienen 147 de 303 clientes, y cada pedido por aqui suma uno mas.
+
+          Sale de `fn_cliente_direccion_principal` —la de MAS pedidos, con
+          empate por la mas reciente—, que es la regla que Sergio ya decidio y
+          que Paco ya usa. Si esa no dice nada, la de la ficha.            */
+      let dirGuardada: Fila | null = null;
+      if (cliente?.id) {
+        try {
+          const pr = await db(`rpc/fn_cliente_direccion_principal`, {
+            method: "POST", body: JSON.stringify({ p_cliente: cliente.id }),
+          });
+          const d0 = filas(pr.data)[0];
+          if (d0?.direccion) dirGuardada = { direccion: String(d0.direccion), barrio: String(d0.barrio || "") };
+        } catch (e) { console.error("[carta] direccion principal:", String(e).slice(0, 120)); }
+        if (!dirGuardada) {
+          const fr = await db(`pos_clientes?id=eq.${cliente.id}&select=direccion,barrio&limit=1`);
+          const f0 = filas(fr.data)[0];
+          if (f0?.direccion) dirGuardada = { direccion: String(f0.direccion), barrio: String(f0.barrio || "") };
+        }
+      }
+
+      /*  ¿Este restaurante hace domicilios? Un negocio que solo recoge no
+          tiene por que ver la pantalla de la entrega.                     */
+      const dmRes = await db(`ia_config?tenant_id=eq.${tenant}&select=domicilios&limit=1`);
+      const dmCfg = (filas(dmRes.data)[0]?.domicilios as Fila) || {};
+      const hayDomicilios = dmCfg.activo !== false;
+
       //  el catálogo de premios, para poder decirle qué alcanza
       const prRes = await db(`pos_puntos_catalogo?tenant_id=eq.${tenant}&select=product_id,pres_nombre,puntos,dinero,activo&order=puntos.asc`);
       /*  Los nombres de los premios salen de `pos_products` directamente, NO de
@@ -359,11 +546,32 @@ Deno.serve(async (req) => {
         pagos,
         upsell,
         premios,
-        cliente: { saldo, puntos, nombre: cliente?.nombre || "" },
+        cliente: { saldo, puntos, nombre: cliente?.nombre || "", direccion: dirGuardada },
+        domicilios: hayDomicilios,
         empaque_activo: cfg.empaquesActivo === true,
         volver,
         borrador,
       });
+    }
+
+    /*  ══ CUANTO CUESTA EL DOMICILIO HASTA ALLA ════════════════════════════
+
+        La pagina manda la direccion y recibe UN NUMERO. Nunca la tabla de
+        zonas: los precios de domicilio de un restaurante no tienen por que
+        quedar a la vista de cualquiera que abra la carta, y ademas la plata la
+        calcula el servidor — la misma regla de los productos.
+
+        `conocida: false` no es un error: es el caso de siempre. El pedido
+        entra igual, a la persona le sale el modal del precio y Paco sigue.  */
+    if (action === "cotizar") {
+      const v = await abrirLink(token);
+      if (v.error) return json(404, { error: v.error });
+      const link = v.link as Fila;
+      const dmRes = await db(`ia_config?tenant_id=eq.${String(link.tenant_id)}&select=domicilios&limit=1`);
+      const dm = (filas(dmRes.data)[0]?.domicilios as Fila) || {};
+      const texto = textoDireccion(body);
+      const precio = texto ? lookupDomiPrice(texto, dm) : null;
+      return json(200, { ok: true, domicilio: precio ?? 0, conocida: precio !== null });
     }
 
     // ── GUARDAR ───────────────────────────────────────────────────────────
@@ -515,13 +723,37 @@ Deno.serve(async (req) => {
       const m = metodos.find((x) => String(x.id) === pedido || String(x.nombre) === pedido);
       if (!m) return json(400, { error: "ese medio de pago no existe" });
 
+      /*  ══ LA DIRECCION, COTIZADA OTRA VEZ ══════════════════════════════
+          Lo que el navegador enseNo no se cree. Se vuelve a buscar la zona
+          desde cero, igual que se rehacen los precios de los productos: entre
+          que se cotizo y que se guardo pudieron pasar veinte minutos, y ahi
+          cabe desde un cambio de zonas hasta alguien tocando la pagina.   */
+      const dmG = await db(`ia_config?tenant_id=eq.${tenant}&select=domicilios&limit=1`);
+      const dmCfgG = (filas(dmG.data)[0]?.domicilios as Fila) || {};
+      const recoge = String(body.entrega || "") === "recoger";
+      const textoDir = recoge ? "" : textoDireccion(body);
+      const domiPrecio = textoDir ? lookupDomiPrice(textoDir, dmCfgG) : null;
+
+      /*  "Yo lo recojo" se guarda con una frase que el motor YA reconoce
+          (LLEVAR_REGEX). Inventar un segundo mecanismo de "para llevar"
+          seria tener dos sitios que se pueden desincronizar.             */
+      const dirBorrador = recoge ? "Paso a recogerlo (para llevar)" : String(body.direccion || "").slice(0, 120);
+
       const total = subtotal + empaque;
       const borrador = {
         productos, subtotal, empaque, total,
         telefono: String(link.telefono || "").replace(/\D/g, "").slice(-10),
         pago: m.nombre, pago_id: m.id,
         branch_id: sede.id || link.branch_id || null,
-        tipo: "", direccion: "", barrio: "", cliente: "", notas: "",
+        tipo: recoge ? "llevar" : "domicilio",
+        entrega: recoge ? "recoger" : "domicilio",
+        direccion: dirBorrador,
+        barrio: recoge ? "" : String(body.barrio || "").slice(0, 80),
+        conjunto: recoge ? "" : String(body.conjunto || "").slice(0, 80),
+        unidad: recoge ? "" : String(body.unidad || "").slice(0, 40),
+        es_conjunto: !recoge && !!String(body.conjunto || "").trim(),
+        domi_precio: domiPrecio,
+        cliente: "", notas: "",
         /*  Lo que la persona DIJO que quiere hacer con su saldo. Es una
             intención, no un cobro: aquí no se descuenta nada. Paco lo
             confirma en el chat y ahí sí se toca el dinero.               */

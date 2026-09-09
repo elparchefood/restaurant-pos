@@ -1822,6 +1822,32 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
           }
         }
 
+        /*  ══ PERO SI LA PAGINA LA TRAE, MANDA LA PAGINA ═══════════════════
+
+            Manda el ULTIMO QUE PREGUNTO. Si el borrador trae direccion es
+            porque el cliente la acaba de escribir o de confirmar en la pagina,
+            hace segundos; lo que hubiera en el chat es mas viejo — puede ser
+            de otro pedido, o la sembrada de su ficha.
+
+            Va DESPUES del bloque de arriba a proposito: primero se conserva lo
+            del chat, y luego lo de la pagina pisa lo que si trajo.        */
+        const dirPag = String(br.direccion || "").trim();
+        if (dirPag) {
+          st.direccion = dirPag;
+          st.direccion_heredada = false;
+          st.barrio = String(br.barrio || "").trim() || null;
+          const conjPag = String(br.conjunto || "").trim();
+          st.lugar_conjunto = conjPag || null;
+          st.es_conjunto = !!conjPag;
+          st.complemento_dir_pendiente = null;
+          /*  La unidad va PEGADA a la direccion, que es donde el resto del
+              motor la busca: "Balmoral Casa 21", no dos campos sueltos que
+              nadie mas sabe juntar.                                       */
+          const uniPag = String(br.unidad || "").trim();
+          if (conjPag) st.direccion = [conjPag, uniPag].filter(Boolean).join(" ").slice(0, 120);
+          console.log(`[carta] la direccion viene de la pagina: "${st.direccion}"`);
+        }
+
         const ultimo = prods[prods.length - 1];
         st.items = prods.slice(0, -1).map(comoItem);
         const pAct = comoItem(ultimo);
