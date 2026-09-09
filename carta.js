@@ -841,7 +841,13 @@
     $('hojaPie').hidden = true;
     otroBoton(false);
     $('dirSi').onclick = function () {
-      entrega.direccion = g.direccion; entrega.barrio = g.barrio || '';
+      /*  Se manda LA LINEA COMPLETA, la misma que acaba de leer y aprobar.
+          Su ficha puede tener la casa guardada en el campo del barrio —la de
+          Sergio la tiene—, y mandando solo el campo "dirección" el motor ve un
+          conjunto sin unidad y vuelve a preguntar algo que el cliente ya
+          contestó. Lo que confirmó es la línea, no una de sus mitades.    */
+      entrega.direccion = linea;
+      entrega.barrio = g.barrio || '';
       entrega.conjunto = ''; entrega.unidad = '';
       cotizarYSeguir();
     };
