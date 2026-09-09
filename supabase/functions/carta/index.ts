@@ -1,4 +1,4 @@
-// ═══════════════════════════════════════════════════════════════════════════
+// c��══════════════════════════════════════════════════════════════════════════
 //  carta — la carta que abre el cliente desde WhatsApp
 //
 //  Sirve dos cosas y nada más:
@@ -580,7 +580,17 @@ Deno.serve(async (req) => {
           const iaQ = await db(`ia_config?branch_id=eq.${sede.id || link.branch_id}&select=activo,delay_segundos&limit=1`);
           const cQ = filas(iaQ.data)[0];
           if (cQ && cQ.activo) {
-            const seg = Math.max(1, Math.min(30, Number(cQ.delay_segundos) || 5));
+            /*  ══ AQUI NO SE ESPERA ═══════════════════════════════════════
+                `delay_segundos` existe para AGRUPAR a quien escribe de a
+                poquitos: se aguantan unos segundos por si manda tres mensajes
+                seguidos y se le contesta una sola vez.
+
+                Aqui no hay nadie escribiendo. El aviso lo pone esta misma
+                funcion al terminar el pedido, y ya viene completo. Esperar no
+                agrupa nada — solo deja al cliente mirando la pantalla,
+                creyendo que lo que hizo en la pagina no sirvio. Sergio:
+                *"tiene que ser de inmediato"*.                            */
+            const seg = 0;
             await db(`chat_ai_queue?conversation_id=eq.${link.conv_id}&processed=eq.true`, { method: "DELETE" });
             await db("chat_ai_queue", {
               method: "POST", headers: { Prefer: "return=minimal" },

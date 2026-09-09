@@ -190,6 +190,52 @@ igual (Familiar, Mixta, Jalapeños, "Solo ajo", $90.000).
 
 ---
 
+## Sin espera, y sin volver a preguntar la dirección (9-sep)
+
+### Los 15 segundos, fuera
+
+> *"No quiero que se espere los 15 segundos... si no, la persona va a creer que
+> lo que hizo en la página no sirvió. Tiene que ser de inmediato."*
+
+Esa espera existe para **agrupar** a quien escribe de a poquitos: Paco aguanta
+unos segundos por si mandas tres mensajes seguidos y contesta una sola vez.
+
+Pero al terminar en la página **no hay nadie escribiendo** — el aviso lo pone la
+propia página y ya viene completo. Ahí esperar no agrupa nada, solo deja al
+cliente mirando la pantalla. **Medido después del cambio: 3 segundos**, y eso
+incluye el arranque del servidor.
+
+⚠️ Solo en el camino de la carta. Quien escriba por el chat sigue con tus 15
+segundos de siempre, que ahí sí sirven.
+
+### Corregir ya no borra la conversación
+
+> *"Paco ya me había tomado totalmente el pedido, toqué corregir algo, entré,
+> volví a terminar y Paco me volvió a preguntar la dirección."*
+
+El traspaso de la página a Paco arrancaba con la hoja **en blanco**. Para un
+pedido nuevo está bien; al corregir era tirar a la basura todo lo hablado.
+
+La regla ahora es la que siempre debió ser:
+
+| Manda la **página** | Manda el **chat** |
+|---|---|
+| productos, tamaños, variantes | dirección y barrio |
+| adiciones, notas, cantidades | nombre |
+| método de pago | datos de factura |
+
+Corregir cambia lo de la izquierda y **no toca lo de la derecha**.
+
+Y si la dirección ya se sabe, Paco no se detiene a preguntarla: dice *"¡Listo,
+ya quedó tu pedido con los cambios! 🙌"* y sigue derecho al **resumen con los
+dos botones**. Si faltara otra cosa (el nombre, por ejemplo), la pide como
+siempre — eso lo decide el flujo, no el traspaso.
+
+**Probado con tu conversación:** salieron los dos mensajes, con la dirección,
+Bella Vista y tu nombre intactos, y ninguna pregunta repetida.
+
+---
+
 ## El recorrido, y qué debe pasar
 
 | # | Qué haces | Qué debe pasar |

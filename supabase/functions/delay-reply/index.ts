@@ -1702,8 +1702,9 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
 
       El borrador se marca consumido en cuanto se toma. Si no, cada mensaje
       posterior volvería a cargarlo y el pedido se reiniciaría solo.        */
+  let vinoDeLaCarta = false;
   {
-    const brRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=pedido_borrador&limit=1`);
+    const brRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=pedido_borrador,pending_order_data&limit=1`);
     const br = (brRes?.[0]?.pedido_borrador || null) as Record<string, unknown> | null;
     if (br && br.desde_carta === true && !br._tomado) {
       const prods = Array.isArray(br.productos) ? br.productos as Array<Record<string, unknown>> : [];
@@ -1728,6 +1729,33 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
             El actual es el ÚLTIMO y los demás quedan archivados en su orden:
             así el resumen los lista una sola vez y en el orden en que los
             escogió.                                                        */
+        /*  ══ LO QUE YA SE HABLO NO SE BORRA (9-sep-2026) ══════════════════
+
+            Sergio: *"Paco ya me habia tomado totalmente el pedido, toque
+            corregir algo, volvi a terminar y Paco me volvio a preguntar la
+            direccion"*.
+
+            Arrancar con un estado en blanco esta bien para un pedido nuevo;
+            al corregir es tirar a la basura toda la conversacion.
+
+            La division es la misma de siempre: la PAGINA manda en lo del
+            pedido (productos, adiciones, tamanos, pago) y el CHAT manda en lo
+            suyo (direccion, barrio, nombre, factura). Corregir cambia lo
+            primero y no puede tocar lo segundo.                           */
+        const prev = (brRes?.[0]?.pending_order_data || null) as Record<string, unknown> | null;
+        if (prev) {
+          const DEL_CHAT = [
+            "direccion", "barrio", "lugar_conjunto", "es_conjunto", "entrega_porteria",
+            "direccion_heredada", "complemento_dir_pendiente",
+            "nombre", "telefono", "factura", "programado",
+          ];
+          for (const k of DEL_CHAT) {
+            if (prev[k] !== undefined && prev[k] !== null) {
+              (st as unknown as Record<string, unknown>)[k] = prev[k];
+            }
+          }
+        }
+
         const ultimo = prods[prods.length - 1];
         st.items = prods.slice(0, -1).map(comoItem);
         const pAct = comoItem(ultimo);
@@ -1781,14 +1809,40 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
           || "¿Para dónde va tu pedido? 😊\n(Escribe el barrio y la direccion completa)";
         const acuse = String(((cfg.carta_web as Record<string, unknown>) || {}).texto_recibido
           || "¡Perfecto, ya tengo tu pedido! 🙌");
-        const msgCarta = `${acuse}\n\n${preguntaDir}`;
-        await sendWaAndSave(convId, tenantId, msgCarta, fromPhone, phoneId, accessToken);
-        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
-          last_message: msgCarta, last_message_at: new Date().toISOString(),
-          last_sender: "agent", last_read: false, ai_typing: false,
-        });
-        console.log(`[carta] pedido recogido: ${st.items.length} items, pago ${st.pago}`);
-        return;
+
+        /*  ══ SI YA SABEMOS PARA DONDE VA, NO SE PREGUNTA OTRA VEZ ═════════
+
+            Quien vuelve de CORREGIR ya dio su direccion hace un minuto.
+            Volversela a pedir hace pensar que se perdio todo — y es
+            exactamente lo que Sergio vio.
+
+            En ese caso se acusa recibo y NO se corta: el flujo sigue de largo
+            y llega solo al resumen con sus dos botones, que es lo que el
+            cliente espera despues de corregir. Si de paso faltara otra cosa
+            (el nombre, por ejemplo), el flujo la pide como siempre — decide
+            el, no este bloque.                                            */
+        if (st.direccion) {
+          const yaVa = String(((cfg.carta_web as Record<string, unknown>) || {}).texto_corregido
+            || "¡Listo, ya quedó tu pedido con los cambios! 🙌");
+          await sendWaAndSave(convId, tenantId, yaVa, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+            last_message: yaVa, last_message_at: new Date().toISOString(),
+            last_sender: "agent", last_read: false,
+          });
+          console.log(`[carta] pedido corregido: ${st.items.length + 1} productos, sigue al resumen`);
+          vinoDeLaCarta = true;
+          /*  Sin `return`: el estado ya esta guardado y `convRow` se lee mas
+              abajo, asi que el flujo continua con el pedido nuevo.        */
+        } else {
+          const msgCarta = `${acuse}\n\n${preguntaDir}`;
+          await sendWaAndSave(convId, tenantId, msgCarta, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+            last_message: msgCarta, last_message_at: new Date().toISOString(),
+            last_sender: "agent", last_read: false, ai_typing: false,
+          });
+          console.log(`[carta] pedido recogido: ${st.items.length} items, pago ${st.pago}`);
+          return;
+        }
       }
     }
   }
@@ -1830,8 +1884,14 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
       asi que no es un viaje por mensaje. Ver `ejemplosDeLaCarta`.        */
   const ej = await ejemplosDeLaCarta(branchId);
   let intenciones: Record<string, unknown> = {};
+  /*  El aviso de la pagina ("Hizo su pedido desde la carta") no lo escribio
+      nadie: es nuestro. Clasificarlo es pagarle al modelo por adivinar la
+      intencion de un texto que escribimos nosotros — y ademas contiene la
+      palabra "carta", que es justo la que dispara el envio de la carta. Sin
+      intenciones, los detectores se quedan quietos y el flujo sigue derecho al
+      resumen.                                                             */
   try {
-    const rInt = await fetch("https://api.openai.com/v1/chat/completions", {
+    const rInt = vinoDeLaCarta ? null : await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1970,7 +2030,9 @@ INTENCION, no las palabras exactas.` },
         ],
       }),
     });
-    if (rInt.ok) {
+    if (!rInt) {
+      console.log("[intencion] el aviso de la carta no se clasifica: es nuestro");
+    } else if (rInt.ok) {
       const dInt = await rInt.json();
       intenciones = JSON.parse(dInt.choices?.[0]?.message?.content || "{}");
     } else {
@@ -2279,7 +2341,7 @@ INTENCION, no las palabras exactas.` },
         `soloSaludoLote` ya existia 160 lineas arriba y solo es cierto cuando
         el mensaje ENTERO es saludo, asi que "hola, me mandas la carta" sigue
         llevando la carta como siempre.                                    */
-    const wantsMenu = !extraRespondido && !cartaSuprimida   // la categoría en texto ya respondió: la carta sobra
+    const wantsMenu = !vinoDeLaCarta && !extraRespondido && !cartaSuprimida   // la categoría en texto ya respondió: la carta sobra
       && !soloSaludoLote
       && intenciones.precio !== true && intenciones.domicilio !== true
       && (intenciones.carta === true || isExact || palabraSuelta || pideCartaPregunta || menuKw.some(kw => {
