@@ -69,6 +69,52 @@ hay al menos 5). Hoy esa respuesta ya no sale: va a una persona.
 Si Sergio prefiere que Paco conteste el promedio cuando lo tiene, y solo pase a
 una persona cuando no, es un cambio de una línea.
 
+## ⚠️ La raíz, encontrada al probarlo en vivo (9-sep)
+
+Sergio, con un pedido de verdad en preparación: *"le escribí «¿sabes si ya
+salió mi pedido?» y me mandó el botón de la carta como si fuera a pedir desde
+cero"*.
+
+La compuerta estaba bien. **Lo que fallaba es que la conversación había perdido
+el enlace con su pedido** (`order_id` en null), así que no había ningún pedido
+que encontrar.
+
+### De dónde salía ese null
+
+El 1-sep se arregló un fallo real: `order_id` no se limpiaba nunca y apuntaba
+al último pedido **para siempre**. A Linda Isabela le costó el pedido entero —
+Paco se lo tomó completo, ella dijo *"sí gracias"* y nunca se creó, porque el
+chat "ya tenía pedido": uno de tres semanas antes. La solución fue soltarlo al
+empezar una sesión nueva.
+
+**Pero "sesión nueva" es cualquier mensaje que llegue sin un pedido a medio
+armar** — y justo después de crear un pedido, el estado se limpia. O sea: el
+pedido entraba a cocina y **el primer mensaje que escribiera el cliente rompía
+el enlace**. Desde ahí Paco no sabía que esa persona tenía un pedido.
+
+**No es de la carta ni de hoy.** Medido: **371 conversaciones** sin `order_id`
+teniendo un pedido en curso en su misma sede.
+
+### El arreglo
+
+Un pedido **en preparación no es "el pedido viejo"**. Se suelta solo cuando de
+verdad terminó —entregado o cancelado— o cuando pasaron 6 horas. El caso de
+Linda sigue cubierto: el suyo era de tres semanas antes.
+
+Y se añadió lo que faltaba copiar del bloque de 22-ago: si la conversación no
+tiene enlace, se busca el último pedido **por el teléfono** de quien escribe.
+Así Paco reconoce también el pedido hecho por la página, por la caja o por la
+app, que nunca tocan el chat.
+
+### Y una trampa que casi se cuela
+
+La condición nueva lee `convRow.order_id`, pero esa consulta **no pedía esa
+columna**. Un `select` sin la columna no da error: devuelve la fila sin el
+dato. La condición habría sido siempre falsa, el pedido viejo no se soltaría
+nunca y volvería el fallo de Linda Isabela. Se añadió a la lista de campos.
+
+---
+
 ## Probado
 
 Ocho situaciones, en una conversación de prueba con un número que no existe —

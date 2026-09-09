@@ -2169,7 +2169,27 @@ INTENCION, no las palabras exactas.` },
       los dos sitios.                                                       */
   if (!vinoDeLaCarta) try {
     const cvEst = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=order_id,contact_name&limit=1`) as Array<Record<string, unknown>> | null;
-    const oidEst = cvEst?.[0]?.order_id;
+    let oidEst = cvEst?.[0]?.order_id;
+
+    /*  ══ VENGA POR DONDE VENGA ════════════════════════════════════════════
+        El enlace solo existe cuando el pedido NACIO en este chat. Los de la
+        pagina, la caja y la app no tocan la conversacion, y su cliente
+        escribe igual preguntando si ya salio. Se busca su ultimo pedido por
+        el TELEFONO de quien escribe — lo mismo que ya hacia el bloque de
+        contexto desde el 22-ago, a peticion de Sergio.                    */
+    if (!oidEst) {
+      const telEst = telLocal(String(fromPhone || "").replace(/\D/g, ""));
+      const cliEst = await sbGet(
+        `/rest/v1/pos_clientes?tenant_id=eq.${tenantId}&telefono=in.(${encodeURIComponent(telEst)},${encodeURIComponent(String(fromPhone || "").replace(/\D/g, ""))})&select=id&limit=1`
+      ) as Array<Record<string, unknown>> | null;
+      if (cliEst?.[0]?.id) {
+        const ultEst = await sbGet(
+          `/rest/v1/pos_orders?cliente_id=eq.${cliEst[0].id}&branch_id=eq.${branchId}&select=id&order=created_at.desc&limit=1`
+        ) as Array<Record<string, unknown>> | null;
+        if (ultEst?.[0]?.id) oidEst = ultEst[0].id;
+      }
+    }
+
     if (oidEst) {
       const oEst = await sbGet(`/rest/v1/pos_orders?id=eq.${oidEst}&select=estado,delivery_status,status,channel,created_at,opened_at&limit=1`) as Array<Record<string, unknown>> | null;
       const pEst = oEst?.[0];
@@ -2791,7 +2811,7 @@ INTENCION, no las palabras exactas.` },
   const menuText = await buildMenuText(branchId);
 
   // 8. Cargar fila de conversación
-  const convRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=contact_name,human_takeover,pago_pendiente,sin_nomenclatura,domi_tipo_humano,pending_order_data&limit=1`);
+  const convRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=contact_name,human_takeover,pago_pendiente,sin_nomenclatura,domi_tipo_humano,pending_order_data,order_id&limit=1`);
   const convRow = convRes?.[0] as Record<string, unknown> | undefined;
   const senderName = (convRow?.contact_name as string) || fromPhone;
   const nombreWa = detectarNombreWa(senderName);       // null si nombre raro/emojis/números
@@ -3417,10 +3437,39 @@ INTENCION, no las palabras exactas.` },
       ⚠️ Se suelta SOLO cuando la sesion empieza de cero. A mitad de un pedido
       ese `order_id` es el bueno: es el que manda la conversacion a una
       persona cuando el cliente cambia la direccion con el pedido ya salido. */
-  if (sesionNueva) {
+  /*  ⚠️ Y "VIEJO" QUIERE DECIR TERMINADO, NO "DE OTRO MENSAJE" (9-sep-2026).
+
+      Tal como estaba, se soltaba en CUALQUIER sesion nueva. Y sesion nueva es
+      cualquier mensaje que llegue sin pedido a medio armar — que es
+      exactamente el estado en que queda la conversacion justo despues de
+      crear un pedido.
+
+      O sea: el pedido entraba a cocina y el PRIMER mensaje que escribiera el
+      cliente rompia el enlace. Desde ahi Paco no sabia que esa persona tenia
+      un pedido, y le contestaba como a un desconocido. Sergio: *"me atiende
+      como si me atendiera desde cero"*. Medido el 9-sep: 371 conversaciones
+      sin `order_id` con un pedido en curso en su sede.
+
+      Un pedido EN PREPARACION no es el pedido viejo. Se suelta cuando de
+      verdad termino —entregado o cancelado— o cuando pasaron 6 horas, el
+      mismo limite que usa el resto. El caso de Linda Isabela sigue cubierto:
+      el suyo era de tres semanas antes.                                    */
+  if (sesionNueva && convRow?.order_id) {
     try {
-      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { order_id: null });
-    } catch (e) { console.error("[pedido viejo] no se pudo soltar:", e); }
+      const oViejo = await sbGet(`/rest/v1/pos_orders?id=eq.${convRow.order_id}&select=estado,delivery_status,status,created_at,opened_at&limit=1`) as Array<Record<string, unknown>> | null;
+      const ov = oViejo?.[0];
+      const desdeV = ov?.opened_at || ov?.created_at;
+      const minsV = desdeV ? (Date.now() - new Date(String(desdeV)).getTime()) / 60000 : 99999;
+      const sigueVivo = !!ov && String(ov.status || "") !== "cancelled"
+        && String(ov.estado || "") !== "entregado"
+        && String(ov.delivery_status || "") !== "entregado"
+        && minsV < 360;
+      if (!sigueVivo) {
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { order_id: null });
+      } else {
+        console.log(`[pedido viejo] ${convId}: NO se suelta, sigue en "${ov?.estado}"`);
+      }
+    } catch (e) { console.error("[pedido viejo] no se pudo comprobar:", e); }
   }
 
   /* POR DONDE LLEGO ESTA CONVERSACION. Se pone en el estado para que los
