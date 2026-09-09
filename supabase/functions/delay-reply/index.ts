@@ -1968,7 +1968,17 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
  "rechaza_direccion":bool,"agregados":[string],
  "confirma":bool,"rechaza_mas":bool,"corrige":bool,
  "pregunta":bool,"despedida":bool,"queja":bool,"quiere_humano":bool,"fuera_tema":bool,
- "categoria":string|null}
+ "categoria":string|null,"mi_pedido":"estado"|"otra"|null}
+
+- "mi_pedido": el cliente habla de un pedido QUE YA HIZO, no de uno nuevo.
+  · "estado" -> pregunta COMO VA o DONDE ESTA: "ya salio?", "en que va lo
+    mio", "ya lo mandaron?", "esta listo?", "donde va mi pedido", "ya viene?".
+  · "otra"   -> cualquier otra cosa sobre ese pedido: cuanto se demora,
+    cambiar algo, agregar algo a lo que ya pidio, que llego mal o incompleto,
+    cancelarlo, el precio que le cobraron.
+  · null     -> no habla de un pedido ya hecho.
+  OJO: "quiero pedir una premium" NO es mi_pedido, es "pedir". Y "cuanto se
+  demora" SI es mi_pedido:"otra" — es sobre el suyo, aunque no lo nombre.
 
 - "pregunta": true si el mensaje contiene una pregunta que espera respuesta
   (con o sin signo de interrogacion: "cuanto vale", "hasta que hora", "sera
@@ -2142,6 +2152,130 @@ INTENCION, no las palabras exactas.` },
     return porIntencion || porTexto;
   };
 
+
+  /*  ══ CON UN PEDIDO EN COCINA, LA CONVERSACION ES SOBRE ESE PEDIDO ═══════
+
+      Sergio: *"si un cliente le escribe y el pedido todavia esta en proceso,
+      Paco no va a contestar desde cero como si estuviera tomando nuevamente un
+      pedido"*.
+
+      Va AQUI, encima de todos los detectores, porque "mi pedido ya salio?"
+      contiene la palabra "pedido" y abajo se lo llevaba la rama de cliente
+      nuevo — que es justo lo que pasaba.
+
+      El estado NO se adivina: sale de `pos_orders.estado`, y la frase sale de
+      la pantalla de Estados del restaurante, la MISMA que se manda sola cuando
+      el estado cambia. Una sola fuente: si Sergio cambia ese texto, cambia en
+      los dos sitios.                                                       */
+  if (!vinoDeLaCarta) try {
+    const cvEst = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=order_id,contact_name&limit=1`) as Array<Record<string, unknown>> | null;
+    const oidEst = cvEst?.[0]?.order_id;
+    if (oidEst) {
+      const oEst = await sbGet(`/rest/v1/pos_orders?id=eq.${oidEst}&select=estado,delivery_status,status,channel,created_at,opened_at&limit=1`) as Array<Record<string, unknown>> | null;
+      const pEst = oEst?.[0];
+      const desdeEst = pEst?.opened_at || pEst?.created_at;
+      const minsEst = desdeEst ? (Date.now() - new Date(String(desdeEst)).getTime()) / 60000 : 99999;
+
+      /*  ══ EL ESTADO, SIN DEDUCIR DE MAS ═══════════════════════════════════
+          Manda `estado`, que es el que mueven la cocina y el panel. Si esta
+          vacio se mira el de la app del domiciliario, pero SOLO para lo que
+          es inequivoco: entregado y en_camino. Cualquier otra cosa cuenta
+          como preparacion.
+
+          Quedarse corto se arregla con el siguiente aviso; decirle "va en
+          camino" a quien todavia lo tiene en la plancha es exactamente el
+          error que reporto Sergio.                                        */
+      const dEst = String(pEst?.delivery_status || "");
+      const estadoReal = String(pEst?.estado || "")
+        || (dEst === "entregado" ? "entregado" : dEst === "en_camino" ? "en_camino" : "en_preparacion");
+
+      const enProceso = !!pEst && String(pEst.status || "") !== "cancelled"
+        && estadoReal !== "entregado" && minsEst < 360;
+
+      if (enProceso) {
+        const tipoEst = String(pEst.channel || "").toLowerCase() === "domicilio" ? "domicilio" : "llevar";
+        const cfgEst = (cfg.estados_config as Record<string, Record<string, { mensaje?: string }>>) || {};
+        /*  Los de reserva solo se usan si la casilla esta VACIA. El texto del
+            restaurante siempre manda; esto evita que Paco se quede mudo en un
+            estado que nadie lleno todavia (hoy: "listo" a domicilio).     */
+        const RESERVA: Record<string, Record<string, string>> = {
+          domicilio: {
+            en_preparacion: "Tu pedido está en preparación 😋 Apenas esté en camino te avisamos ☺️",
+            listo: "¡Tu pedido ya está listo! 🍟 En un momento arranca el domiciliario para allá.",
+            en_camino: "🛵 Tu pedido está en camino, esperamos que lo disfrutes 😋",
+          },
+          llevar: {
+            en_preparacion: "Tu pedido está en preparación 😋 Apenas esté listo te avisamos para que pases ☺️",
+            listo: "¡Tu pedido ya está listo! 🍟 Puedes pasar a recogerlo cuando gustes.",
+            en_camino: "Tu pedido ya está listo 🍟 Puedes pasar a recogerlo cuando gustes.",
+          },
+        };
+        const fraseEstado = String((cfgEst[tipoEst] && cfgEst[tipoEst][estadoReal] || {}).mensaje || "").trim()
+          || RESERVA[tipoEst][estadoReal] || "";
+
+        const decirEst = async (m: string) => {
+          await sendWaAndSave(convId, tenantId, m, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+            last_message: m, last_message_at: new Date().toISOString(),
+            last_sender: "agent", last_read: false, ai_typing: false,
+          });
+        };
+        const miPedido = String(intenciones.mi_pedido || "");
+
+        /*  (a) PREGUNTA COMO VA. Se le contesta con la frase de SU estado, sin
+            pasar por el modelo: aqui no hay nada que redactar, hay un dato. */
+        if (miPedido === "estado" && fraseEstado) {
+          await decirEst(fraseEstado);
+          console.log(`[estado] ${convId}: preguntó por su pedido, está en "${estadoReal}"`);
+          return;
+        }
+
+        /*  (b) QUIERE PEDIR MAS. Regla de Sergio: con el pedido ya en cocina
+            eso no lo resuelve un bot — hay que mirar si alcanza a entrar en la
+            misma entrega, y eso lo decide una persona.                     */
+        /*  El lector devuelve "agregame otra premium" como `agregados`, no
+            como `pedir` — y con razon, es lo que es. Los dos casos son lo
+            mismo aqui: quiere MAS comida con el pedido ya en cocina.     */
+        const quierePedirMas = intenciones.pedir === true
+          || (Array.isArray(intenciones.agregados) && (intenciones.agregados as unknown[]).length > 0);
+        if (quierePedirMas) {
+          await decirEst(fraseEstado
+            ? `${fraseEstado}\n\nPara agregarle algo más te comunico con una persona del equipo 🙏`
+            : "Para agregarle algo más a tu pedido te comunico con una persona del equipo 🙏");
+          await pasarAHumano(convId, tenantId,
+            `Quiere pedir MÁS y su pedido ya está en "${estadoReal}"`,
+            cfg as Record<string, unknown>, fromPhone, phoneId, accessToken);
+          return;
+        }
+
+        /*  (c) OTRA COSA SOBRE SU PEDIDO —cuanto demora, un cambio, un
+            reclamo—. Sergio: *"ahi pasara la conversacion al humano"*. Se le
+            dice primero el estado, que es lo que Paco SI sabe, para que no se
+            quede sin ninguna respuesta mientras llega la persona.         */
+        if (miPedido === "otra" || intenciones.queja === true || intenciones.quiere_humano === true) {
+          await decirEst(fraseEstado
+            ? `${fraseEstado}\n\nYa le aviso a una persona del equipo para que te ayude con eso 🙏`
+            : "Ya le aviso a una persona del equipo para que te ayude con eso 🙏");
+          await pasarAHumano(convId, tenantId,
+            `Pregunta algo de su pedido que Paco no contesta (está en "${estadoReal}")`,
+            cfg as Record<string, unknown>, fromPhone, phoneId, accessToken);
+          return;
+        }
+
+        /*  (d) CUALQUIER OTRA COSA. Sergio: *"Paco va a saludar y va a
+            preguntar si tiene alguna duda con su pedido actual"*. Nunca desde
+            cero: quien tiene un pedido en la plancha no es un desconocido. */
+        /*  El nombre sale del contacto, que ya vino en la consulta de arriba:
+            `state` y `nombreParaBot` todavia no existen en este punto del
+            programa y leerlos lanzaria — el error de esta manana.        */
+        const nombreEst = String(cvEst?.[0]?.contact_name || "").trim().split(" ")[0];
+        await decirEst(`¡Hola${nombreEst ? " " + nombreEst : ""}! 😊 ${fraseEstado}`.trim()
+          + "\n\n¿Tienes alguna duda con tu pedido?");
+        console.log(`[estado] ${convId}: escribió con un pedido en "${estadoReal}" — saludo y pregunta`);
+        return;
+      }
+    }
+  } catch (e) { console.error("[estado] no se pudo mirar el pedido en curso:", String(e).slice(0, 200)); }
 
   /* 5-bis. ENTENDER ANTES QUE TODO (FASE A, 15-ago). Va AQUI, arriba de la
      rama de la carta, porque "no quiero hablar con un robot" contiene
