@@ -249,6 +249,38 @@ Deno.serve(async (req) => {
           return { n: pn ? `${base} · ${pn}` : base, pts: Number(x.puntos) || 0, dinero: Number(x.dinero) || 0 };
         });
 
+      /*  ══ EL BOTÓN DE VOLVER AL CHAT ════════════════════════════════════
+          Sergio preguntó si la página se puede cerrar sola al terminar. No:
+          `window.close()` solo cierra ventanas que abrió el propio código, y
+          esta la abre WhatsApp — en su navegador interno no hace nada.
+
+          Lo que sí se puede, y es mejor, es devolverla A LA CONVERSACIÓN. Y
+          tiene que ser a la SUYA: alguien puede estar escribiendo por
+          Instagram o por Facebook, y mandarlo a WhatsApp sería dejarlo en un
+          chat que no es el suyo, con su pedido esperando en otro.
+          ⚠️ De `meta` solo se saca lo público. Ahí viven los tokens.      */
+      let volver = "";
+      const chRes = await db(`chat_conversations?id=eq.${link.conv_id}&select=channel,channel_id&limit=1`);
+      const conv = filas(chRes.data)[0] || {};
+      if (conv.channel_id) {
+        const caRes = await db(`chat_channels?id=eq.${conv.channel_id}&select=channel,handle,meta&limit=1`);
+        const ca = filas(caRes.data)[0];
+        if (ca) {
+          const meta = (ca.meta as Fila) || {};
+          const canal = String(ca.channel || conv.channel || "");
+          if (canal === "whatsapp") {
+            const num = String(ca.handle || "").replace(/\D/g, "");
+            if (num) volver = "https://wa.me/" + num;
+          } else if (canal === "instagram") {
+            const u = String(meta.username || ca.handle || "").replace(/^@/, "");
+            if (u) volver = "https://ig.me/m/" + u;
+          } else if (canal === "facebook") {
+            const pid = String(meta.page_id || "");
+            if (pid) volver = "https://m.me/" + pid;
+          }
+        }
+      }
+
       //  si vuelve a corregir, su pedido tal como quedó
       let borrador: unknown = null;
       if (link.motivo === "correccion") {
@@ -268,6 +300,7 @@ Deno.serve(async (req) => {
         premios,
         cliente: { saldo, puntos, nombre: cliente?.nombre || "" },
         empaque_activo: cfg.empaquesActivo === true,
+        volver,
         borrador,
       });
     }

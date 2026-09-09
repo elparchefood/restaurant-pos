@@ -224,6 +224,7 @@ img{display:block;max-width:100%}
   display:flex;align-items:center;justify-content:center;margin-bottom:19px}
 .ct-fin h3{font-size:21px;font-weight:800;letter-spacing:-.025em;margin:0 0 9px;text-wrap:balance}
 .ct-fin p{font-size:14.5px;color:var(--tinta-2);line-height:1.6;margin:0;max-width:290px}
+.ct-volver{margin-top:24px;max-width:300px;text-decoration:none}
 .ct-fin small{display:block;margin-top:22px;font-size:12px;color:var(--tinta-3)}
 
 /* Si alguien la abre en un computador, que no quede una tira de 400px en

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="carta.css?v=1800200000">
+<link rel="stylesheet" href="carta.css?v=1800210000">
 </head>
 <body>
 
@@ -90,10 +90,17 @@
     </div>
     <h3 id="finTit">Listo, ya tenemos tu pedido</h3>
     <p id="finTxt"></p>
-    <small id="finPie">Puedes volver al chat.</small>
+    <!-- La página no se puede cerrar sola: `window.close()` solo cierra
+         ventanas que abrió el propio código, y esta la abre WhatsApp. Así que
+         en vez de intentar cerrarla, se devuelve a la conversación. -->
+    <a class="ct-btn ct-volver" id="btnVolver" href="#" hidden>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.6 7.3L3 20.5l1.8-5.2A8.4 8.4 0 1 1 21 11.5z"/></svg>
+      Volver al chat
+    </a>
+    <small id="finPie" hidden>Ya puedes cerrar esta ventana.</small>
   </div>
 </div>
 
-<script src="carta.js?v=1800200000"></script>
+<script src="carta.js?v=1800210000"></script>
 </body>
 </html>

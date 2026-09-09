@@ -758,6 +758,15 @@
       txt = 'Vuelve al chat: allí te pedimos la dirección y te confirmamos todo antes de mandarlo a la cocina.';
     }
     $('finTxt').textContent = txt;
+    /*  Devolverlo a SU conversación, que puede ser WhatsApp, Instagram o
+        Facebook. Si por lo que sea no sabemos a dónde, se le dice que ya
+        puede cerrar — pero nunca se le deja mirando una pantalla sin salida. */
+    if (D.volver) {
+      $('btnVolver').href = D.volver;
+      $('btnVolver').hidden = false;
+    } else {
+      $('finPie').hidden = false;
+    }
     $('vPago').hidden = true;
     $('vFin').hidden = false;
   }
