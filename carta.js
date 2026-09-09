@@ -980,7 +980,9 @@
         alcanza es una decepción justo al pagar.                           */
     metodos = (D.pagos || []).filter(function (m) {
       var esSaldo = m.tipo === 'saldo' || /billetera/i.test(m.n || '');
-      if (m.tipo === 'puntos') return premiosQueAlcanzan().length > 0;
+      /*  Se enseNa si alcanza para algo O si ya reclamó: sin lo segundo, quien
+          gasta casi todos sus puntos se queda sin cómo deshacerlo.       */
+      if (m.tipo === 'puntos') return premiosQueAlcanzan().length > 0 || puntosUsados() > 0;
       if (esSaldo) return ((D.cliente && D.cliente.saldo) || 0) > 0;
       return true;
     });
