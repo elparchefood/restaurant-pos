@@ -487,7 +487,12 @@ Deno.serve(async (req) => {
         .map((x) => {
           const base = nomProd.get(String(x.product_id)) || "Combo";
           const pn = String(x.pres_nombre || "").trim();
-          return { n: pn ? `${base} · ${pn}` : base, pts: Number(x.puntos) || 0, dinero: Number(x.dinero) || 0 };
+          /*  `pid` y `pres` viajan para poder cruzar el premio con lo que el
+              cliente YA tiene en el carrito. Cruzarlo por el nombre bonito
+              seria comparar texto — justo lo que aqui no se hace.        */
+          return { n: pn ? `${base} · ${pn}` : base, pts: Number(x.puntos) || 0,
+                   dinero: Number(x.dinero) || 0,
+                   pid: String(x.product_id || ""), pres: pn };
         });
 
       /*  ══ EL BOTÓN DE VOLVER AL CHAT ════════════════════════════════════
@@ -628,6 +633,12 @@ Deno.serve(async (req) => {
       const cats = new Map<string, Fila>();
       for (const c of filas(cRes.data)) cats.set(String(c.id), c);
 
+      /*  El catalogo de premios de este restaurante, para comprobar contra el
+          las lineas que vienen marcadas como premio.                      */
+      const cpRes = await db(`pos_puntos_catalogo?tenant_id=eq.${tenant}&select=product_id,pres_nombre,puntos,activo`);
+      const premiosCat = filas(cpRes.data).filter((x) => x.activo !== false);
+      let puntosPedidos = 0;
+
       const productos: Fila[] = [];
       let subtotal = 0, empaque = 0;
 
@@ -685,9 +696,29 @@ Deno.serve(async (req) => {
           unit += Number(o.price) || 0;
         }
 
+        /*  ══ ¿ESTA LINEA ES UN PREMIO? ═══════════════════════════════════
+            Si lo es, cuesta 0 y suma sus puntos. Pero solo si el catalogo lo
+            confirma: mismo producto y misma presentacion, y activo. Si no
+            cuadra, no se rechaza el pedido entero —seria perder una venta por
+            un premio— se cobra normal y el cliente lo ve en el resumen.  */
+        let esPremio = false;
+        if (it.premio === true) {
+          const pm = premiosCat.find((x) => String(x.product_id) === String(p.id)
+            && String(x.pres_nombre || "").trim().toLowerCase() === String(pr.name || "").trim().toLowerCase());
+          if (pm) {
+            esPremio = true;
+            /*  Un premio es UNA unidad. Pedir tres y que las tres salgan
+                gratis por los puntos de una seria regalar el doble.      */
+            puntosPedidos += (Number(pm.puntos) || 0) * cant;
+            unit = 0;
+          } else {
+            console.error("[carta] premio que no esta en el catalogo:", p.name, pr.name);
+          }
+        }
+
         const catId = String(p.category_id || "");
         const cat = cats.get(catId) || {};
-        const emp = empaqueDe(cfg, String(p.id), catId, presId, Number(pr.price) || 0);
+        const emp = esPremio ? 0 : empaqueDe(cfg, String(p.id), catId, presId, Number(pr.price) || 0);
 
         //  el nombre, igual que en la comanda: presentación · producto · variantes
         const etiqueta = String(pr.name || "") || String(cat.comanda_alias || cat.name || "");
@@ -706,12 +737,32 @@ Deno.serve(async (req) => {
           variantes: varsObj, adiciones,
           notas: String(it.notas || "").slice(0, 200),
           matched: true,
+          /*  Para que la comanda y el resumen digan que eso va con puntos, y
+              no parezca un producto que se regalo porque si.             */
+          premio: esPremio,
           /*  De dónde salió. El día que un pedido llegue raro, esto dice si lo
               escribió alguien o lo tocó en la carta.                       */
           origen: "carta",
         });
         subtotal += unit * cant;
         empaque  += emp * cant;
+      }
+
+      /*  ══ LOS PREMIOS, COMPROBADOS CONTRA EL CATALOGO ══════════════════
+
+          Una linea marcada como premio sale gratis, asi que aqui no se cree
+          nada: se comprueba que ese producto y esa presentacion esten en el
+          catalogo de premios y activos, y que al cliente le alcancen los
+          puntos SUMADOS de todos los que pidio.
+
+          Es la misma regla de los precios: lo que decide el navegador es lo
+          que el cliente escogio, nunca lo que cuesta.                     */
+      if (puntosPedidos > 0) {
+        const ptRes2 = await db(`pos_puntos?tenant_id=eq.${tenant}&telefono=eq.${encodeURIComponent(String(link.telefono || "").replace(/\D/g, "").slice(-10))}&select=puntos&limit=1`);
+        const tienePts = Number(filas(ptRes2.data)[0]?.puntos) || 0;
+        if (puntosPedidos > tienePts) {
+          return json(400, { error: `no te alcanzan los puntos: necesitas ${puntosPedidos} y tienes ${tienePts}` });
+        }
       }
 
       /*  El medio de pago tiene que ser uno de los que el restaurante tiene
@@ -770,6 +821,10 @@ Deno.serve(async (req) => {
             intención, no un cobro: aquí no se descuenta nada. Paco lo
             confirma en el chat y ahí sí se toca el dinero.               */
         saldo_intencion: Number(body.saldo_usar) || 0,
+        /*  Los puntos que dijo que quiere usar. Igual que el saldo: es una
+            INTENCION, aqui no se descuenta ni uno. Se descuentan cuando el
+            pedido se crea de verdad.                                     */
+        puntos_usar: puntosPedidos,
         desde_carta: true,
         /*  "nuevo" o "correccion". El enlace ya lo sabe; guardarlo evita que
             el motor tenga que adivinar si el cliente cambio algo o si es su

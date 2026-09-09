@@ -582,7 +582,7 @@
              despues y en gris, para que no sea la salida facil.          */
          + '<div class="ct-lineabtn"><button class="ct-editar" data-e="' + i + '">Editar</button>'
          + '<button class="ct-quitar" data-q="' + i + '">Quitar</button></div></div>'
-         + '<div class="ct-item-p">' + cop(l.total) + '</div></div>';
+         + '<div class="ct-item-p">' + (l.premio ? '<span class="ct-conpuntos">' + (l.pts || 0) + ' pts</span>' : cop(l.total)) + '</div></div>';
     });
     h += '<div class="ct-total"><span>Total</span><i>' + cop(totalPedido()) + '</i></div>';
     $('hojaCuerpo').innerHTML = h;
@@ -960,8 +960,17 @@
     saldo: 'Con el saldo de tu cuenta'
   };
 
+  /*  Los puntos que ya comprometió en este pedido. Se calculan sumando las
+      líneas marcadas como premio: así no hay un contador aparte que se pueda
+      desincronizar con lo que de verdad hay en el carrito.               */
+  function puntosUsados() {
+    return pedido.reduce(function (s, l) { return s + (l.premio ? (l.pts || 0) * l.cant : 0); }, 0);
+  }
+  function puntosLibres() {
+    return ((D.cliente && D.cliente.puntos) || 0) - puntosUsados();
+  }
   function premiosQueAlcanzan() {
-    var p = (D.cliente && D.cliente.puntos) || 0;
+    var p = puntosLibres();
     return (D.premios || []).filter(function (x) { return x.pts <= p; });
   }
 
@@ -981,6 +990,11 @@
       var ic = '<span class="ct-pago-ic" style="background:' + (FONDO[t] || FONDO.efectivo) + '">'
              + (ICONO[t] || ICONO.efectivo) + '</span>';
       var sub = PIE[t] || '';
+      if (m.tipo === 'puntos') {
+        var uso = puntosUsados();
+        sub = uso > 0 ? ('Vas a usar ' + uso + ' puntos · toca para cambiar')
+                      : ('Tienes ' + ((D.cliente && D.cliente.puntos) || 0) + ' puntos');
+      }
       if (t === 'transferencia' && m.banco) sub = 'Te mandamos los datos de ' + esc(m.banco) + ' por el chat';
       h += '<button class="ct-pago" data-i="' + i + '">' + ic
          + '<span><b>' + esc(m.n) + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</span></button>';
@@ -994,6 +1008,8 @@
       b.onclick = function () {
         var m = metodos[Number(b.dataset.i)];
         if (m.tipo === 'saldo' || /billetera/i.test(m.n || '')) { $('vPago').hidden = true; abrirPanel(verSaldo); return; }
+        /*  Puntos NO es un método de pago: es un paso. Se abre su pantalla y
+            al volver hay que escoger con qué se paga el resto.           */
         if (m.tipo === 'puntos') { $('vPago').hidden = true; abrirPanel(verPuntos); return; }
         $('pagoLista').querySelectorAll('[data-i]').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); });
         b.setAttribute('aria-pressed', 'true');
@@ -1006,6 +1022,10 @@
         no conocemos su zona no se inventa un número: se le dice que se lo
         confirmamos por el chat, que es justo lo que va a pasar.          */
     var cuerpoTot = '';
+    var ptsUsados = puntosUsados();
+    if (ptsUsados > 0) {
+      cuerpoTot += '<div class="ct-linea"><span>Con tus puntos</span><i>' + ptsUsados + ' pts</i></div>';
+    }
     if (entrega.modo === 'domicilio') {
       cuerpoTot = '<div class="ct-linea"><span>Productos</span><i>' + cop(totalPedido()) + '</i></div>'
         + '<div class="ct-linea"><span>Domicilio</span><i>'
@@ -1060,35 +1080,167 @@
   }
 
   /*  Los puntos canjean premios, no pagan el pedido. */
+  /*  ══ TUS PUNTOS ═══════════════════════════════════════════════════════
+
+      Los puntos NO pagan la cuenta: reclaman productos. Casi nunca alcanzan
+      para el pedido entero, y tratarlos como si lo pagaran era el error de
+      fondo — se mandaba el pedido sin saber con qué se paga el resto.
+
+      Dos caminos, los que pidió Sergio:
+        · lo que YA pediste y se puede reclamar  -> esa línea pasa a $0
+        · si no hay nada, el catálogo             -> se añade al pedido gratis
+
+      Y al salir, el método de pago sigue siendo obligatorio.             */
+
+  /*  ¿Esta línea del carrito es uno de los premios? Se cruza por PRODUCTO y
+      PRESENTACIÓN, nunca por el nombre: el nombre del premio se compone para
+      que se lea bonito ("Adición Salsa · Ajo") y compararlo sería comparar
+      texto, que es justo lo que aquí no se hace.                         */
+  function premioDeLinea(l) {
+    return (D.premios || []).find(function (x) {
+      if (String(x.pid || '') !== String(l.prod.id)) return false;
+      var pres = (l.prod.pres.find(function (y) { return y.id === l.presId; }) || {}).n || '';
+      return String(x.pres || '').trim().toLowerCase() === String(pres).trim().toLowerCase();
+    });
+  }
+
   function verPuntos() {
     var pts = (D.cliente && D.cliente.puntos) || 0;
-    var puede = premiosQueAlcanzan();
+    var libres = puntosLibres();
+
+    /*  De lo que ya pidió, lo que se puede reclamar y todavía no reclamó. */
+    var enElPedido = [];
+    pedido.forEach(function (l, i) {
+      if (l.premio) return;
+      var pm = premioDeLinea(l);
+      if (pm && pm.pts <= libres) enElPedido.push({ i: i, l: l, pm: pm });
+    });
+
     var h = '<div class="ct-paso"><button class="ct-atras" id="volverPago2">'
           + '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>'
-          + '</button><div class="ct-paso-tit"><b>Tus puntos</b></div></div>'
-          + '<div class="ct-preg">Tienes ' + pts + ' puntos</div>'
-          + '<div class="ct-sub">Puedes reclamar una de estas. Te lo confirmamos en el chat.</div>';
-    puede.forEach(function (x, i) {
-      h += '<button class="ct-op" data-premio="' + i + '"><span>' + esc(x.n) + '</span><i>' + x.pts + ' pts</i></button>';
-    });
-    var sigue = (D.premios || []).find(function (x) { return x.pts > pts; });
-    if (sigue) {
-      h += '<div class="ct-nota-chica" style="margin-top:14px">Con ' + (sigue.pts - pts)
-         + ' puntos más puedes reclamar ' + esc(sigue.n) + '.</div>';
+          + '</button><div class="ct-paso-tit"><b>Tus puntos</b>'
+          + '<span>' + libres + ' de ' + pts + ' disponibles</span></div></div>';
+
+    /*  Lo que ya reclamó, para que vea en qué se le fueron los puntos. */
+    var yaHay = pedido.some(function (l) { return l.premio; });
+    if (yaHay) {
+      h += '<div class="ct-campo"><div class="ct-campo-tit">Ya vas a reclamar</div></div>';
+      pedido.forEach(function (l, i) {
+        if (!l.premio) return;
+        h += '<button class="ct-adic" data-quitarpremio="' + i + '" aria-pressed="true">'
+           + '<span>' + esc(l.n) + (l.det ? ' · ' + esc(l.det) : '') + '</span>'
+           + '<i>' + ((l.pts || 0) * l.cant) + ' pts</i></button>';
+      });
     }
+
+    if (enElPedido.length) {
+      h += '<div class="ct-campo"><div class="ct-campo-tit">De lo que pediste</div></div>';
+      enElPedido.forEach(function (x) {
+        h += '<button class="ct-op" data-cobrar="' + x.i + '">'
+           + '<span>' + esc(x.l.n) + (x.l.det ? ' · ' + esc(x.l.det) : '') + '</span>'
+           + '<i>' + x.pm.pts + ' pts</i></button>';
+      });
+    } else if (!yaHay) {
+      h += '<div class="ct-sub" style="margin-top:14px">Ninguno de los productos que pediste se puede reclamar con puntos.</div>';
+    }
+
+    /*  El catálogo, siempre a un toque. Aunque algo de su pedido califique,
+        puede preferir otra cosa — no somos quién para decidírselo.       */
+    var puede = premiosQueAlcanzan();
+    if (puede.length) {
+      h += '<button class="ct-op" id="verCatalogo" style="margin-top:14px">'
+         + '<span>Ver lo que puedo reclamar</span><i>' + puede.length + '</i></button>';
+    } else {
+      var sigue = (D.premios || []).filter(function (x) { return x.pts > libres; })
+                    .sort(function (a, c) { return a.pts - c.pts; })[0];
+      if (sigue) {
+        h += '<div class="ct-nota-chica" style="margin-top:14px">Con ' + (sigue.pts - libres)
+           + ' puntos más puedes reclamar ' + esc(sigue.n) + '.</div>';
+      }
+    }
+
     $('hojaCuerpo').innerHTML = h;
     $('hojaCuerpo').scrollTop = 0;
     $('volverPago2').onclick = function () { cerrarHoja(); irAlPago(); };
-    $('hojaCuerpo').querySelectorAll('[data-premio]').forEach(function (b) {
-      b.onclick = function () {
-        var m = (D.pagos || []).find(function (x) { return x.tipo === 'puntos'; });
-        pagoElegido = { n: m ? m.n : 'Puntos', id: m ? m.id : '', tipo: 'puntos',
-                        premio: puede[Number(b.dataset.premio)] };
-        cerrarHoja();
-        enviar();
+
+    /*  Reclamar algo que ya está en el pedido: esa línea pasa a $0. No se
+        añade otra igual — el cliente pidió una, no dos.                  */
+    $('hojaCuerpo').querySelectorAll('[data-cobrar]').forEach(function (btn) {
+      btn.onclick = function () {
+        var l = pedido[Number(btn.dataset.cobrar)];
+        var pm = premioDeLinea(l);
+        if (!pm || pm.pts > puntosLibres()) return;
+        l.premio = true; l.pts = pm.pts; l.total = 0;
+        pintarBarra(); verPuntos();
       };
     });
+
+    /*  Y quitarlo: los puntos vuelven y la línea recupera su precio. */
+    $('hojaCuerpo').querySelectorAll('[data-quitarpremio]').forEach(function (btn) {
+      btn.onclick = function () {
+        var i = Number(btn.dataset.quitarpremio), l = pedido[i];
+        if (l.anadido) { pedido.splice(i, 1); }        // el que se añadió, se va
+        else { l.premio = false; l.pts = 0; l.total = lineaTotal(l); }
+        pintarBarra(); verPuntos();
+      };
+    });
+
+    if ($('verCatalogo')) $('verCatalogo').onclick = verCatalogoPremios;
+
+    $('hojaPie').hidden = !yaHay;
+    if (yaHay) {
+      otroBoton(false);
+      $('btnPrincipal').disabled = false;
+      $('btnPrincipal').innerHTML = 'Continuar';
+      $('btnPrincipal').onclick = function () { cerrarHoja(); irAlPago(); };
+    }
+  }
+
+  /*  El catálogo de lo que puede reclamar. Lo que escoja se AÑADE al pedido,
+      gratis en dinero: es un producto más, no un descuento.              */
+  function verCatalogoPremios() {
+    var libres = puntosLibres();
+    var puede = premiosQueAlcanzan();
+    var h = '<div class="ct-paso"><button class="ct-atras" id="volverPuntos">'
+          + '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>'
+          + '</button><div class="ct-paso-tit"><b>Lo que puedes reclamar</b>'
+          + '<span>' + libres + ' puntos disponibles</span></div></div>'
+          + '<div class="ct-sub">Lo que escojas se agrega a tu pedido sin costo.</div>';
+    puede.forEach(function (x, i) {
+      h += '<button class="ct-op" data-premio="' + i + '"><span>' + esc(x.n)
+         + '</span><i>' + x.pts + ' pts</i></button>';
+    });
+    $('hojaCuerpo').innerHTML = h;
+    $('hojaCuerpo').scrollTop = 0;
+    $('volverPuntos').onclick = verPuntos;
     $('hojaPie').hidden = true;
+    $('hojaCuerpo').querySelectorAll('[data-premio]').forEach(function (btn) {
+      btn.onclick = function () {
+        var pm = puede[Number(btn.dataset.premio)];
+        if (!pm || pm.pts > puntosLibres()) return;
+        /*  Se busca el producto de verdad en la carta: el pedido viaja con
+            identificadores, no con nombres. Si ese premio no está en la carta
+            visible —las adiciones suelen estar ocultas— no se puede añadir
+            como línea, y se dice en vez de fallar en silencio.           */
+        var prod = (D.prods || []).find(function (p) { return String(p.id) === String(pm.pid); });
+        var pres = prod && (prod.pres.find(function (y) {
+          return String(y.n || '').trim().toLowerCase() === String(pm.pres || '').trim().toLowerCase();
+        }) || (prod.pres.length === 1 ? prod.pres[0] : null));
+        if (!prod || !pres) {
+          $('hojaCuerpo').insertAdjacentHTML('beforeend',
+            '<div class="ct-nota-chica" style="margin-top:12px">Ese premio te lo confirmamos por el chat 🙏</div>');
+          return;
+        }
+        var l = {
+          prod: prod, n: prod.n, presId: pres.id, base: 0, cant: 1,
+          adic: [], vars: {}, nota: '', premio: true, pts: pm.pts, anadido: true
+        };
+        l.det = detalleDe(l); l.total = 0;
+        pedido.push(l);
+        pintarBarra();
+        verPuntos();
+      };
+    });
   }
 
   /* ── mandarlo ────────────────────────────────────────────────────────── */
@@ -1108,14 +1260,17 @@
         conjunto: entrega.conjunto, unidad: entrega.unidad,
         pago: pagoElegido.id || pagoElegido.n,
         saldo_usar: pagoElegido.tipo === 'saldo' ? pagoElegido.cubre : 0,
-        premio: pagoElegido.premio ? pagoElegido.premio.n : '',
         productos: pedido.map(function (l) {
           /*  Solo QUÉ escogió. El precio lo pone el servidor. */
           return {
             product_id: l.prod.id, pres_id: l.presId, cantidad: l.cant,
             variantes: l.vars,
             adiciones: l.adic.map(function (n) { return { name: n }; }),
-            notas: l.nota
+            notas: l.nota,
+            /*  Que va con puntos. El servidor lo comprueba contra el catálogo
+                y contra los puntos que de verdad tiene: aquí solo se dice
+                qué escogió.                                              */
+            premio: l.premio === true
           };
         })
       });
@@ -1144,16 +1299,18 @@
         Prometer un paso que no va a pasar deja al cliente esperándolo.    */
     var yaHayDir = entrega.modo === 'recoger'
       || !!(String(entrega.direccion || '').trim() || String(entrega.conjunto || '').trim());
+    /*  Si se llevó algo con puntos se dice, porque es lo que más va a querer
+        ver confirmado: nadie regala 1.000 puntos sin mirar.              */
+    var ptsFin = puntosUsados();
+    var conPuntos = ptsFin > 0 ? 'Usas ' + ptsFin + ' puntos en este pedido. ' : '';
     var cierre = yaHayDir
       ? 'Vuelve al chat: allí te confirmamos todo antes de mandarlo a la cocina.'
       : 'Vuelve al chat: allí te pedimos la dirección y te confirmamos todo antes de mandarlo a la cocina.';
     if (pagoElegido.tipo === 'saldo') {
       txt = 'Pagas ' + cop(pagoElegido.cubre) + ' con tu saldo'
           + (pagoElegido.falta ? ' y quedan ' + cop(pagoElegido.falta) : '') + '. ' + cierre;
-    } else if (pagoElegido.tipo === 'puntos' && pagoElegido.premio) {
-      txt = 'Vuelve al chat: allí te confirmamos tu pedido y el canje de ' + pagoElegido.premio.n + '.';
     } else {
-      txt = cierre;
+      txt = conPuntos + cierre;
     }
     $('finTxt').textContent = txt;
     /*  Devolverlo a SU conversación, que puede ser WhatsApp, Instagram o
