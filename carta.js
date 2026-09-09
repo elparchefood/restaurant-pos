@@ -74,9 +74,18 @@
         carta se puede MIRAR —es bueno que la vea y vuelva— pero el pedido no
         sale. Y el servidor lo vuelve a comprobar al mandar, porque entre
         abrir y terminar pueden pasar veinte minutos.                      */
+    /*  ══ CERRADO: SE MIRA, PERO NO SE PIDE ═════════════════════════════
+        La primera versión cerraba la página entera, y eso era un retroceso:
+        antes, con las imágenes, quien preguntaba de noche al menos VEÍA la
+        carta. Que la mire es bueno — se antoja y vuelve mañana.
+
+        Lo que no sale es el pedido: sin botón de agregar y sin barra. Y el
+        servidor lo rechaza igual, por si alguien lo intenta por su cuenta. */
     if (D.abierto === false) {
-      return morir('Ahora estamos cerrados',
-        (D.horario_txt || 'Escríbenos por el chat y te contamos cuándo abrimos.'));
+      document.body.classList.add('ct-cerrado');
+      $('avisoCerrado').hidden = false;
+      $('cerradoTxt').textContent = D.horario_txt
+        || 'Escríbenos por el chat y te contamos cuándo abrimos.';
     }
     pintarCabecera();
     if (D.motivo === 'correccion') {
@@ -251,6 +260,7 @@
   }
 
   function abrirHoja(i) {
+    if (D.abierto === false) return;    // cerrado: se mira, no se pide
     abierto = D.prods[i];
     var unaSola = abierto.pres.length === 1 && !abierto.pres[0].n;
     elegido = { cant: 1, adic: [], nota: '', vars: {}, verAdic: false,

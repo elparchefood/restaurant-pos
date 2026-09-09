@@ -64,6 +64,14 @@ img{display:block;max-width:100%}
 .ct-corrigiendo{flex:none;display:flex;gap:8px;padding:10px 16px;background:var(--marca-suave);
   border-bottom:1px solid var(--linea-2);font-size:12px;line-height:1.45}
 .ct-corrigiendo svg{flex:none;margin-top:1px}
+/* Cerrado: el aviso arriba, y sin botones de pedir. */
+.ct-cerrado-aviso{flex:none;display:flex;gap:8px;padding:11px 16px;background:#FFF7E8;
+  color:#7A5A16;border-bottom:1px solid var(--linea-2);font-size:12.5px;line-height:1.5}
+.ct-cerrado-aviso svg{flex:none;margin-top:2px}
+@media (prefers-color-scheme:dark){ .ct-cerrado-aviso{background:#2C2413;color:#E8C97A} }
+body.ct-cerrado .ct-mas{display:none}
+body.ct-cerrado .ct-prod:active{background:var(--panel)}
+
 .ct-lista{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
   padding-bottom:calc(96px + env(safe-area-inset-bottom))}
 
