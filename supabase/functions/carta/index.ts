@@ -771,6 +771,10 @@ Deno.serve(async (req) => {
             confirma en el chat y ahí sí se toca el dinero.               */
         saldo_intencion: Number(body.saldo_usar) || 0,
         desde_carta: true,
+        /*  "nuevo" o "correccion". El enlace ya lo sabe; guardarlo evita que
+            el motor tenga que adivinar si el cliente cambio algo o si es su
+            primer pedido — y de eso depende que se le hable de "cambios". */
+        motivo: String(link.motivo || "nuevo"),
         carta_at: new Date().toISOString(),
       };
 

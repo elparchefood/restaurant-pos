@@ -1914,8 +1914,12 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
             (el nombre, por ejemplo), el flujo la pide como siempre — decide
             el, no este bloque.                                            */
         if (st.direccion) {
-          const yaVa = String(((cfg.carta_web as Record<string, unknown>) || {}).texto_corregido
-            || "¡Listo, ya quedó tu pedido con los cambios! 🙌");
+          /*  A quien no cambio nada no se le habla de cambios: el enlace ya
+              dice si venia a corregir o a pedir por primera vez.         */
+          const cwA = (cfg.carta_web as Record<string, unknown>) || {};
+          const yaVa = String(br.motivo) === "correccion"
+            ? String(cwA.texto_corregido || "¡Listo, ya quedó tu pedido con los cambios! 🙌")
+            : acuse;
           await sendWaAndSave(convId, tenantId, yaVa, fromPhone, phoneId, accessToken);
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
             last_message: yaVa, last_message_at: new Date().toISOString(),
@@ -4107,7 +4111,12 @@ INTENCION, no las palabras exactas.` },
     return;
   }
 
-  if (!clienteTexto) { await setTyping(convId, false); return; }
+  /*  ⚠️ Salvo cuando el pedido acaba de llegar de la carta. Ahi el mensaje se
+      vacia a proposito —lo escribimos nosotros y ningun extractor tiene nada
+      que buscar en el—, pero SI hay trabajo: el pedido entro con su direccion
+      y su pago, y falta seguir hasta el resumen. Sin esta excepcion Paco
+      acusaba recibo y se quedaba mudo.                                    */
+  if (!clienteTexto && !vinoDeLaCarta) { await setTyping(convId, false); return; }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 13. Resumen enviado → confirmar o corregir
