@@ -2253,7 +2253,31 @@ INTENCION, no las palabras exactas.` },
       el estado cambia. Una sola fuente: si Sergio cambia ese texto, cambia en
       los dos sitios.                                                       */
   if (!vinoDeLaCarta) try {
-    const cvEst = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=order_id,contact_name&limit=1`) as Array<Record<string, unknown>> | null;
+    const cvEst = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=order_id,contact_name,pending_order_data&limit=1`) as Array<Record<string, unknown>> | null;
+
+    /*  ══ QUIEN ESTA PIDIENDO AHORA MANDA ══════════════════════════════════
+
+        Sergio toco "Sí, confirmo" y en vez de crearse el pedido, Paco le
+        contesto "tu pedido esta en preparacion": el respaldo por telefono
+        encontro un pedido VIEJO suyo, aun en la plancha, y trato el mensaje
+        como una pregunta sobre ese.
+
+        Dos guardas, que son la misma idea dicha de dos formas:
+
+          · hay un pedido a medio armar en esta conversacion — la guarda que
+            el bloque de contexto de 22-ago ya tenia y yo no copie;
+          · o el mensaje es uno de NUESTROS botones. "Sí, confirmo" no es una
+            pregunta sobre un pedido viejo: es la respuesta a algo que Paco
+            acaba de preguntar.                                            */
+    const stEst = (cvEst?.[0]?.pending_order_data || null) as Record<string, unknown> | null;
+    const pidiendoAhora = !!stEst && (!!stEst.producto
+      || (Array.isArray(stEst.items) && (stEst.items as unknown[]).length > 0));
+    const tocoNuestroBoton = batchMsgs.some((m) => {
+      const a = String((m.payload as Record<string, unknown> | null)?.accion || "");
+      return a === BTN_OK || a === BTN_FIX;
+    });
+    if (pidiendoAhora || tocoNuestroBoton) throw new Error("pidiendo ahora: la compuerta no aplica");
+
     let oidEst = cvEst?.[0]?.order_id;
 
     /*  ══ VENGA POR DONDE VENGA ════════════════════════════════════════════
@@ -2427,7 +2451,12 @@ INTENCION, no las palabras exactas.` },
         }
       }
     }
-  } catch (e) { console.error("[estado] no se pudo mirar el pedido en curso:", String(e).slice(0, 200)); }
+  } catch (e) {
+    /*  El "pidiendo ahora" no es un fallo: es la compuerta apartandose. Solo
+        se queja de lo que si es un error.                                 */
+    const m = String(e);
+    if (!m.includes("pidiendo ahora")) console.error("[estado] no se pudo mirar el pedido en curso:", m.slice(0, 200));
+  }
 
   /* 5-bis. ENTENDER ANTES QUE TODO (FASE A, 15-ago). Va AQUI, arriba de la
      rama de la carta, porque "no quiero hablar con un robot" contiene
