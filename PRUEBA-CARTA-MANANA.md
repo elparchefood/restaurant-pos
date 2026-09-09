@@ -54,6 +54,45 @@ no una reescritura.
 
 ---
 
+## ⚠️ Segundo arreglo del 9-sep: volviste del chat y Paco no dijo nada
+
+El pedido **sí llegó bien** (2 productos, $90.000, efectivo). Lo que fallaba era
+lo de después.
+
+**Paco se estaba cayendo.** Una línea de rastreo leía un dato que en ese punto
+del programa todavía no existe. Eso no devuelve un valor vacío: **revienta la
+función entera**. Paco no contestaba nada y el pedido se quedaba ahí.
+
+Solo saltaba con una combinación rara: que el texto del cliente diga *"carta"*
+y el lector diga que **no** está pidiendo la carta. Por eso llevaba días ahí
+sin que nadie lo viera — hasta que llegó el aviso de la propia página (*"Hizo
+su pedido desde la carta"*), que la cumple **siempre**.
+
+**Miré si le pasó a algún cliente real en 30 días: no.** Los únicos casos sin
+respuesta son mensajes de publicidad en chats que ya estaban en manos de una
+persona.
+
+### Y una segunda cosa que apareció al arreglar la primera
+
+Ya recogía el pedido, pero antes **te mandaba la carta otra vez** — el aviso
+dice "…desde la carta", y el detector de texto hacía su trabajo.
+
+Ese mensaje no lo escribe el cliente: lo escribe nuestra propia página, y ya
+trae el pedido con los identificadores exactos. **No hay nada que interpretar**,
+así que ahora se recoge *antes* de todos los detectores. De paso se ahorra una
+consulta a la IA en cada pedido de la carta.
+
+### Comprobado
+
+Repetí tu mismo pedido desde cero: sale **un solo mensaje** —*"¡Perfecto, ya
+tengo tu pedido! 🙌"* y la pregunta de la dirección— y **ninguna carta
+repetida**. El pedido quedó con sus 2 productos y el pago en efectivo.
+
+**Tu conversación quedó en ese punto**: contéstale la dirección y el nombre y
+sigues la prueba desde el paso 9.
+
+---
+
 ## El recorrido, y qué debe pasar
 
 | # | Qué haces | Qué debe pasar |

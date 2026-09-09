@@ -987,6 +987,15 @@ Deno.serve(async (req) => {
   } catch (err) {
     console.error("delay-reply error:", err);
     try { await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { ai_typing: false }); } catch {}
+    /* TEMPORAL (9-sep): el error tambien se devuelve, porque los registros de
+       este proyecto no guardan casi nada y sin verlo no hay como arreglarlo. */
+    /*  El error se DEVUELVE, pero solo a quien llama con la llave del
+        servidor. Los registros de este proyecto casi no guardan nada y sin ver
+        la excepcion no hay como arreglar nada; enseñarsela a cualquiera que
+        sepa la direccion, en cambio, es regalar el mapa de la casa.        */
+    if ((req.headers.get("Authorization") || "").includes(SUPABASE_KEY)) {
+      return new Response("ERR " + String((err as Error)?.stack || err).slice(0, 1200), { status: 200 });
+    }
   }
 
   return new Response("OK", { status: 200 });
@@ -1667,6 +1676,96 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
   // tomar pedidos (lo garantiza puedeTomarPedidos + la regla estricta del prompt).
   if (modoAsistente === "auto" && isOpen) { await setTyping(convId, false); return; }
 
+  /*  ══ VA ARRIBA A PROPOSITO (9-sep-2026) ═══════════════════════════════════
+
+      Este mensaje no lo escribio el cliente: lo escribio nuestra propia
+      pagina, y ya trae el pedido con los identificadores exactos. No hay nada
+      que interpretar.
+
+      Estaba 700 lineas mas abajo, despues de todos los detectores, y pasaba lo
+      previsible: el acuse dice "Hizo su pedido desde la CARTA", el detector de
+      texto veia esa palabra y le mandaba la carta OTRA VEZ, justo despues de
+      que el cliente terminara de usarla.
+
+      Aqui arriba tambien se ahorra la llamada al modelo — no hay intencion que
+      adivinar.                                                              */
+  /*  ══ EL PEDIDO QUE LLEGO DE LA CARTA ══════════════════════════════════════
+
+      Cuando el cliente pide desde la página, el pedido queda en
+      `pedido_borrador` con los IDENTIFICADORES exactos. Aquí no hay nada que
+      leer: no hay frase que interpretar ni producto que adivinar. Es lo que
+      buscábamos con toda esta función — *"esto no mejora la lectura, la
+      elimina"*.
+
+      Se convierte a lo que Paco ya usa (`pending_order_data`) y se sigue con
+      lo único que la página no puede saber: la dirección y el nombre.
+
+      El borrador se marca consumido en cuanto se toma. Si no, cada mensaje
+      posterior volvería a cargarlo y el pedido se reiniciaría solo.        */
+  {
+    const brRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=pedido_borrador&limit=1`);
+    const br = (brRes?.[0]?.pedido_borrador || null) as Record<string, unknown> | null;
+    if (br && br.desde_carta === true && !br._tomado) {
+      const prods = Array.isArray(br.productos) ? br.productos as Array<Record<string, unknown>> : [];
+      if (prods.length) {
+        const st = newPacoState();
+        st.items = prods.map((p) => ({
+          producto:  String(p.nombre || p.product_name || ""),
+          tamano:    String(p.tamano || "") || null,
+          tipo:      String(p.tipo_txt || "") || null,
+          cantidad:  Number(p.cantidad) || 1,
+          /*  "" = ya se preguntó y dijo que no. null sería "sin preguntar", y
+              Paco volvería a ofrecerlas — cuando la página ya lo hizo.    */
+          adiciones: String(p.adiciones_txt || ""),
+          preferencias: String(p.notas || "") || null,
+          categoria: String(p.categoria || "") || null,
+        }));
+        const p0 = st.items[0];
+        st.producto = p0.producto;
+        st.producto_categoria = p0.categoria || null;
+        st.tamano = p0.tamano;
+        st.tipo = p0.tipo;
+        st.cantidad = p0.cantidad;
+        st.adiciones = p0.adiciones;
+        st.preferencias = p0.preferencias || null;
+        /*  El upsell ya se ofreció EN LA PÁGINA. En "" para que Paco no lo
+            vuelva a ofrecer: sería preguntarle dos veces lo mismo.       */
+        st.upsell = "";
+        st.pago = String(br.pago || "") || null;
+        st.canal = await canalDe(convId);
+        st.last_activity = new Date().toISOString();
+        st.resumen_enviado = false;
+
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+          pending_order_data: st,
+          pedido_borrador: { ...br, _tomado: new Date().toISOString() },
+        });
+
+        /*  Sergio escogió acusar recibo antes de preguntar: quien acaba de
+            salir de otra pantalla necesita ver que su pedido llegó.
+
+            Y la pregunta es LA SUYA, la que ya tiene configurada — completa,
+            con el barrio. Inventar aquí una más corta sería tener dos frases
+            que se desincronizan.                                          */
+        const pasosCfg = (cfg.flujo_pasos as Array<Record<string, unknown>>) || [];
+        const pasoDir = pasosCfg.find((x) => x.campo === "direccion");
+        const preguntaDir = String(pasoDir?.texto || "")
+          || "¿Para dónde va tu pedido? 😊\n(Escribe el barrio y la direccion completa)";
+        const acuse = String(((cfg.carta_web as Record<string, unknown>) || {}).texto_recibido
+          || "¡Perfecto, ya tengo tu pedido! 🙌");
+        const msgCarta = `${acuse}\n\n${preguntaDir}`;
+        await sendWaAndSave(convId, tenantId, msgCarta, fromPhone, phoneId, accessToken);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+          last_message: msgCarta, last_message_at: new Date().toISOString(),
+          last_sender: "agent", last_read: false, ai_typing: false,
+        });
+        console.log(`[carta] pedido recogido: ${st.items.length} items, pago ${st.pago}`);
+        return;
+      }
+    }
+  }
+
+
   /* ══════════════════════════════════════════════════════════════════
      QUE QUIERE EL CLIENTE (intencion, no texto exacto)
      Regla de Sergio: "absolutamente todos los mensajes el bot debe detectar
@@ -2162,7 +2261,10 @@ INTENCION, no las palabras exactas.` },
     /*  FAMILIA 3: se anota cuando la carta la pide el TEXTO y el lector no lo
         vio. Si no aparece en unos dias, sobran cuatro heuristicas.      */
     if (wantsMenu && intenciones.carta !== true) {
-      console.log(`[familia3] carta: la vio el TEXTO y no el lector | ${clienteTexto.slice(0, 90)}`);
+      /*  `textoDelCliente` y no `clienteTexto`: el segundo se declara 660
+          lineas mas abajo y aqui todavia no existe. Leerlo lanzaba, y la
+          excepcion dejaba a Paco mudo con el pedido a medias.              */
+      console.log(`[familia3] carta: la vio el TEXTO y no el lector | ${textoDelCliente.slice(0, 90)}`);
     }
     await cargarCombos(branchId);
   /* ══ PIDIO UN COMBO ══════════════════════════════════════════════════════
@@ -2863,81 +2965,6 @@ INTENCION, no las palabras exactas.` },
     console.error("[carta] no se pudo crear el enlace de correccion para", convId);
   }
 
-  /*  ══ EL PEDIDO QUE LLEGO DE LA CARTA ══════════════════════════════════════
-
-      Cuando el cliente pide desde la página, el pedido queda en
-      `pedido_borrador` con los IDENTIFICADORES exactos. Aquí no hay nada que
-      leer: no hay frase que interpretar ni producto que adivinar. Es lo que
-      buscábamos con toda esta función — *"esto no mejora la lectura, la
-      elimina"*.
-
-      Se convierte a lo que Paco ya usa (`pending_order_data`) y se sigue con
-      lo único que la página no puede saber: la dirección y el nombre.
-
-      El borrador se marca consumido en cuanto se toma. Si no, cada mensaje
-      posterior volvería a cargarlo y el pedido se reiniciaría solo.        */
-  {
-    const brRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=pedido_borrador&limit=1`);
-    const br = (brRes?.[0]?.pedido_borrador || null) as Record<string, unknown> | null;
-    if (br && br.desde_carta === true && !br._tomado) {
-      const prods = Array.isArray(br.productos) ? br.productos as Array<Record<string, unknown>> : [];
-      if (prods.length) {
-        const st = newPacoState();
-        st.items = prods.map((p) => ({
-          producto:  String(p.nombre || p.product_name || ""),
-          tamano:    String(p.tamano || "") || null,
-          tipo:      String(p.tipo_txt || "") || null,
-          cantidad:  Number(p.cantidad) || 1,
-          /*  "" = ya se preguntó y dijo que no. null sería "sin preguntar", y
-              Paco volvería a ofrecerlas — cuando la página ya lo hizo.    */
-          adiciones: String(p.adiciones_txt || ""),
-          preferencias: String(p.notas || "") || null,
-          categoria: String(p.categoria || "") || null,
-        }));
-        const p0 = st.items[0];
-        st.producto = p0.producto;
-        st.producto_categoria = p0.categoria || null;
-        st.tamano = p0.tamano;
-        st.tipo = p0.tipo;
-        st.cantidad = p0.cantidad;
-        st.adiciones = p0.adiciones;
-        st.preferencias = p0.preferencias || null;
-        /*  El upsell ya se ofreció EN LA PÁGINA. En "" para que Paco no lo
-            vuelva a ofrecer: sería preguntarle dos veces lo mismo.       */
-        st.upsell = "";
-        st.pago = String(br.pago || "") || null;
-        st.canal = await canalDe(convId);
-        st.last_activity = new Date().toISOString();
-        st.resumen_enviado = false;
-
-        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
-          pending_order_data: st,
-          pedido_borrador: { ...br, _tomado: new Date().toISOString() },
-        });
-
-        /*  Sergio escogió acusar recibo antes de preguntar: quien acaba de
-            salir de otra pantalla necesita ver que su pedido llegó.
-
-            Y la pregunta es LA SUYA, la que ya tiene configurada — completa,
-            con el barrio. Inventar aquí una más corta sería tener dos frases
-            que se desincronizan.                                          */
-        const pasosCfg = (cfg.flujo_pasos as Array<Record<string, unknown>>) || [];
-        const pasoDir = pasosCfg.find((x) => x.campo === "direccion");
-        const preguntaDir = String(pasoDir?.texto || "")
-          || "¿Para dónde va tu pedido? 😊\n(Escribe el barrio y la direccion completa)";
-        const acuse = String(((cfg.carta_web as Record<string, unknown>) || {}).texto_recibido
-          || "¡Perfecto, ya tengo tu pedido! 🙌");
-        const msgCarta = `${acuse}\n\n${preguntaDir}`;
-        await sendWaAndSave(convId, tenantId, msgCarta, fromPhone, phoneId, accessToken);
-        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
-          last_message: msgCarta, last_message_at: new Date().toISOString(),
-          last_sender: "agent", last_read: false, ai_typing: false,
-        });
-        console.log(`[carta] pedido recogido: ${st.items.length} items, pago ${st.pago}`);
-        return;
-      }
-    }
-  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 9. Estado del pedido (PacoState)
