@@ -170,7 +170,27 @@ alcanza:
 
 ### La billetera
 
-Puede decir *"Tu saldo: $32.000 — te alcanza"* o *"te faltan $8.500"*.
+**La página SÍ informa cuánto cubre el saldo** (Sergio insistió en esto, y con
+razón: es el número que le dice a la persona con qué se va a quedar). Lo que no
+hace es descontar.
+
+Dice los tres números que de verdad sabe, y nombra el que no:
+
+> **Tienes $32.000 de saldo.**
+> Cubre **$20.000** de los **$27.000** de tu pedido.
+> Quedarían **$7.000**, más el domicilio si lo pides.
+> Paco te lo confirma en el chat.
+
+⚠️ **No puede decir un total exacto**, porque el domicilio todavía no existe: la
+dirección la pregunta Paco después. Poner una cifra que luego cambia es
+exactamente el problema del empaque otra vez —*"pero si decía otra cosa"*—, y ya
+sabemos lo que cuesta.
+
+Y si el saldo cubre todos los productos, tampoco dice *"ya está pagado"*: dice
+**"cubre todos tus productos"**, porque el domicilio puede seguir vivo.
+
+Después, en el chat, Paco calcula el excedente **más el domicilio**, como ya lo
+hace hoy.
 
 **Confirmar NO pasa en la página** (ver la regla absoluta de la §5-bis): la
 página solo dice *"quiero pagar con mi saldo"* y se cierra. Paco confirma en el
