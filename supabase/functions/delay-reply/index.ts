@@ -25,7 +25,13 @@ interface SlotItem {
   // preferencia fuera del pedido, las dos saldrían iguales.
   preferencias?: string | null;
   categoria?: string | null;  // categoría del producto (desambiguación de nombres repetidos)
+  /* Este producto se reclamo con PUNTOS: no se cobra. Lo decide la pagina al
+     guardarlo y el servidor de la carta ya lo comprobo contra el catalogo de
+     premios; aqui solo se respeta. */
+  premio?: boolean;
+  pts?: number;
 }
+
 
 interface PacoState {
   producto:           string | null;
@@ -38,6 +44,10 @@ interface PacoState {
      punto de cocción…) y antes se daban todos por respondidos en cuanto
      llegaba el primero. */
   tipos?:             Record<string, string>;
+  /* El producto EN CURSO se reclamo con puntos. Va aparte de `items` porque
+     el ultimo producto vive en campos sueltos, no en la lista — y en la
+     primera prueba el premio era justo el ultimo. */
+  premio?:            boolean;
   cantidad:           number;
   adiciones:          string | null;  // null=no preguntado, ""=rechazado, "texto"=pidió
   /* Lo que TU le ofreces, no lo que el pide. Va aparte de `adiciones` porque
@@ -1786,6 +1796,9 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
           adiciones: String(p.adiciones_txt || ""),
           preferencias: String(p.notas || "") || null,
           categoria: String(p.categoria || "") || null,
+          /*  Reclamado con puntos: la pagina lo marco y el servidor de la
+              carta ya lo comprobo contra el catalogo.                    */
+          premio: p.premio === true,
         });
 
         /*  ⚠️ `items` son los YA RESUELTOS; `producto` es el que está en curso.
@@ -1858,6 +1871,7 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
         st.cantidad = pAct.cantidad;
         st.adiciones = pAct.adiciones;
         st.preferencias = pAct.preferencias || null;
+        st.premio = pAct.premio === true;
 
         /*  ══ LAS VARIANTES, POR SU GRUPO ═══════════════════════════════════
 
@@ -10838,7 +10852,7 @@ async function buildSummaryFromState(
 
     const allItems: SlotItem[] = [
       ...(state.items || []),
-      { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, preferencias: state.preferencias, categoria: state.producto_categoria },
+      { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, preferencias: state.preferencias, categoria: state.producto_categoria, premio: state.premio === true },
     ];
 
     /* ANTES DE ESCRIBIR NADA: que lo que se va a mostrar sea lo que el pedido
@@ -10937,6 +10951,14 @@ async function buildSummaryFromState(
         ? ((matchedProd.presentations as Array<Record<string, unknown>>) || [])
             .find(p => normalizarTexto(String(p.name || "")) === normalizarTexto(item.tamano || ""))
         : undefined;
+      /*  ══ LO QUE SE RECLAMO CON PUNTOS NO SE COBRA ═══════════════════════
+          Ni el producto ni su empaque. Y se dice en la linea: un producto
+          que aparece sin costo y sin explicacion parece un error de la
+          cuenta, y el cliente pregunta — o peor, no pregunta.           */
+      if (item.premio === true) {
+        productoLines[productoLines.length - 1] += "  (con tus puntos)";
+        continue;
+      }
       itemsEmpaque.push({
         cantidad: Number(item.cantidad) || 1,
         precio: getPrecioItem(item.producto, item.tamano, item.tipo, item.cantidad, item.categoria),
@@ -11084,7 +11106,7 @@ async function buildSummaryFromState(
       const lineaItem = lineas[idxItem];
       const allItemsForTemplate: SlotItem[] = [
         ...(state.items || []),
-        { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, preferencias: state.preferencias },
+        { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, preferencias: state.preferencias, premio: state.premio === true },
       ];
       const itemsRendered = allItemsForTemplate.filter(i => i.producto).map(item => {
         const tamStr = [item.tipo, item.tamano].filter(Boolean).join(" ");
@@ -11282,7 +11304,7 @@ async function calcularPreciosPedido(
     ) as Array<Record<string, unknown>> | null;
     const allItems: SlotItem[] = [
       ...(state.items || []),
-      { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, preferencias: state.preferencias, categoria: state.producto_categoria },
+      { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, preferencias: state.preferencias, categoria: state.producto_categoria, premio: state.premio === true },
     ];
     for (const item of allItems) {
       if (!item.producto || !allProducts) continue;
@@ -11302,6 +11324,10 @@ async function calcularPreciosPedido(
         }
       }
       const cant = Math.max(1, Number(item.cantidad) || 1);
+      /*  Lo que se reclamo con puntos no se cobra — ni el producto ni su
+          empaque. Sin esto Paco decia un total y la pagina otro, y el que
+          parece equivocado siempre es el restaurante.                    */
+      if (item.premio === true) continue;
       pedido += price * cant;
       itemsEmpaque.push({
         cantidad: cant,
@@ -11330,7 +11356,7 @@ async function calcularPreciosPedido(
 function buildOrderArgs(state: PacoState, domiPrecio: number): Record<string, unknown> {
   const allItems: SlotItem[] = [
     ...(state.items || []),
-    { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, preferencias: state.preferencias, categoria: state.producto_categoria },
+    { producto: state.producto || "", tamano: state.tamano, tipo: state.tipo, cantidad: state.cantidad, adiciones: state.adiciones, preferencias: state.preferencias, categoria: state.producto_categoria, premio: state.premio === true },
   ];
   return {
     cliente:     state.nombre    || "Cliente WhatsApp",
