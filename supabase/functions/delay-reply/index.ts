@@ -2885,6 +2885,82 @@ INTENCION, no las palabras exactas.` },
     console.error("[carta] no se pudo crear el enlace de correccion para", convId);
   }
 
+  /*  ══ EL PEDIDO QUE LLEGO DE LA CARTA ══════════════════════════════════════
+
+      Cuando el cliente pide desde la página, el pedido queda en
+      `pedido_borrador` con los IDENTIFICADORES exactos. Aquí no hay nada que
+      leer: no hay frase que interpretar ni producto que adivinar. Es lo que
+      buscábamos con toda esta función — *"esto no mejora la lectura, la
+      elimina"*.
+
+      Se convierte a lo que Paco ya usa (`pending_order_data`) y se sigue con
+      lo único que la página no puede saber: la dirección y el nombre.
+
+      El borrador se marca consumido en cuanto se toma. Si no, cada mensaje
+      posterior volvería a cargarlo y el pedido se reiniciaría solo.        */
+  {
+    const brRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=pedido_borrador&limit=1`);
+    const br = (brRes?.[0]?.pedido_borrador || null) as Record<string, unknown> | null;
+    if (br && br.desde_carta === true && !br._tomado) {
+      const prods = Array.isArray(br.productos) ? br.productos as Array<Record<string, unknown>> : [];
+      if (prods.length) {
+        const st = newPacoState();
+        st.items = prods.map((p) => ({
+          producto:  String(p.nombre || p.product_name || ""),
+          tamano:    String(p.tamano || "") || null,
+          tipo:      String(p.tipo_txt || "") || null,
+          cantidad:  Number(p.cantidad) || 1,
+          /*  "" = ya se preguntó y dijo que no. null sería "sin preguntar", y
+              Paco volvería a ofrecerlas — cuando la página ya lo hizo.    */
+          adiciones: String(p.adiciones_txt || ""),
+          preferencias: String(p.notas || "") || null,
+          categoria: String(p.categoria || "") || null,
+        }));
+        const p0 = st.items[0];
+        st.producto = p0.producto;
+        st.producto_categoria = p0.categoria || null;
+        st.tamano = p0.tamano;
+        st.tipo = p0.tipo;
+        st.cantidad = p0.cantidad;
+        st.adiciones = p0.adiciones;
+        st.preferencias = p0.preferencias || null;
+        /*  El upsell ya se ofreció EN LA PÁGINA. En "" para que Paco no lo
+            vuelva a ofrecer: sería preguntarle dos veces lo mismo.       */
+        st.upsell = "";
+        st.pago = String(br.pago || "") || null;
+        st.canal = await canalDe(convId);
+        st.last_activity = new Date().toISOString();
+        st.resumen_enviado = false;
+
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+          pending_order_data: st,
+          pedido_borrador: { ...br, _tomado: new Date().toISOString() },
+        });
+
+        /*  Sergio escogió acusar recibo antes de preguntar: quien acaba de
+            salir de otra pantalla necesita ver que su pedido llegó.
+
+            Y la pregunta es LA SUYA, la que ya tiene configurada — completa,
+            con el barrio. Inventar aquí una más corta sería tener dos frases
+            que se desincronizan.                                          */
+        const pasosCfg = (cfg.flujo_pasos as Array<Record<string, unknown>>) || [];
+        const pasoDir = pasosCfg.find((x) => x.campo === "direccion");
+        const preguntaDir = String(pasoDir?.texto || "")
+          || "¿Para dónde va tu pedido? 😊\n(Escribe el barrio y la direccion completa)";
+        const acuse = String(((cfg.carta_web as Record<string, unknown>) || {}).texto_recibido
+          || "¡Perfecto, ya tengo tu pedido! 🙌");
+        const msgCarta = `${acuse}\n\n${preguntaDir}`;
+        await sendWaAndSave(convId, tenantId, msgCarta, fromPhone, phoneId, accessToken);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+          last_message: msgCarta, last_message_at: new Date().toISOString(),
+          last_sender: "agent", last_read: false, ai_typing: false,
+        });
+        console.log(`[carta] pedido recogido: ${st.items.length} items, pago ${st.pago}`);
+        return;
+      }
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // 9. Estado del pedido (PacoState)
   // ═══════════════════════════════════════════════════════════════════════════

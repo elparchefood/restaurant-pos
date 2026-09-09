@@ -410,6 +410,13 @@ Deno.serve(async (req) => {
         const etiqueta = String(pr.name || "") || String(cat.comanda_alias || cat.name || "");
         productos.push({
           product_id: p.id, cat: catId,
+          /*  El nombre COMPUESTO es para la comanda y el resumen; el limpio y
+              el de la categoría son para que Paco arme su estado sin tener que
+              partir la cadena por los puntos. Partir texto que uno mismo
+              compuso es una forma elegante de equivocarse.               */
+          nombre: p.name, categoria: cat.name || "",
+          tipo_txt: partes.join(", "),
+          adiciones_txt: adiciones.map((a) => String(a.name)).join(", "),
           product_name: [etiqueta, p.name].concat(partes).filter(Boolean).join(" · "),
           unit_price: unit, cantidad: cant,
           tamano: pr.name || "", pres_id: presId,
@@ -463,6 +470,71 @@ Deno.serve(async (req) => {
         method: "PATCH", headers: { Prefer: "return=minimal" },
         body: JSON.stringify({ usado_at: new Date().toISOString() }),
       });
+
+      /*  ══ DESPERTAR A PACO ══════════════════════════════════════════════
+          Paco solo se entera de algo cuando LLEGA UN MENSAJE. Sin esto, el
+          cliente termina su pedido, vuelve al chat esperando que le pregunten
+          la dirección… y no pasa nada. El mismo tipo de fallo que el de los
+          botones: todo parece funcionar hasta que no.
+
+          Se deja constancia en la conversación con `origen: "carta"` — no
+          finge ser un mensaje del cliente— y de paso Sergio lo ve en el chat.
+          Después se encola la respuesta igual que hace el webhook.        */
+      try {
+        const ch = await db(`chat_conversations?id=eq.${link.conv_id}&select=channel,channel_id&limit=1`);
+        const cv2 = filas(ch.data)[0] || {};
+        let phoneId = "", accessToken = "";
+        if (cv2.channel_id) {
+          const cc = await db(`chat_channels?id=eq.${cv2.channel_id}&select=meta&limit=1`);
+          const mt = (filas(cc.data)[0]?.meta as Fila) || {};
+          phoneId = String(mt.phone_id || mt.page_id || "");
+          accessToken = String(mt.access_token || mt.page_token || "");
+        }
+        const cuando = new Date().toISOString();
+        await db("chat_messages", {
+          method: "POST", headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({
+            conversation_id: link.conv_id, tenant_id: tenant,
+            direction: "in", origen: "carta",
+            body: `🧾 Hizo su pedido desde la carta · ${productos.length} producto${productos.length === 1 ? "" : "s"} · ${total}`,
+            payload: { accion: "cobra_carta" },
+            delivery_status: "delivered", sent_at: cuando,
+          }),
+        });
+        if (phoneId && accessToken) {
+          const iaQ = await db(`ia_config?branch_id=eq.${sede.id || link.branch_id}&select=activo,delay_segundos&limit=1`);
+          const cQ = filas(iaQ.data)[0];
+          if (cQ && cQ.activo) {
+            const seg = Math.max(1, Math.min(30, Number(cQ.delay_segundos) || 5));
+            await db(`chat_ai_queue?conversation_id=eq.${link.conv_id}&processed=eq.true`, { method: "DELETE" });
+            await db("chat_ai_queue", {
+              method: "POST", headers: { Prefer: "return=minimal" },
+              body: JSON.stringify({
+                conversation_id: link.conv_id, branch_id: sede.id || link.branch_id, tenant_id: tenant,
+                from_phone: String(link.telefono || ""), phone_id: phoneId, access_token: accessToken,
+                batch_start: cuando, fire_at: new Date(Date.now() + seg * 1000).toISOString(),
+                processed: false,
+              }),
+            });
+            await db(`chat_conversations?id=eq.${link.conv_id}`, {
+              method: "PATCH", headers: { Prefer: "return=minimal" },
+              body: JSON.stringify({ ai_typing: true, last_message: "Pedido desde la carta",
+                                     last_message_at: cuando, last_sender: "contact", last_read: false }),
+            });
+            fetch(`${SUPABASE_URL}/functions/v1/delay-reply`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ convId: link.conv_id }),
+            }).catch((e) => console.error("[carta] no se pudo lanzar a Paco:", String(e).slice(0, 150)));
+          }
+        } else {
+          console.error("[carta] sin credenciales del canal: Paco no se entera del pedido", link.conv_id);
+        }
+      } catch (e) {
+        /*  El pedido YA está guardado. Que no se pueda despertar a Paco es
+            malo, pero perder el pedido por eso sería peor.                */
+        console.error("[carta] pedido guardado pero no se pudo avisar a Paco:", String(e).slice(0, 200));
+      }
 
       console.log(`[carta] pedido de ${borrador.telefono}: ${productos.length} productos, ${total}`);
       return json(200, { ok: true, total, subtotal, empaque, pago: m.nombre });
