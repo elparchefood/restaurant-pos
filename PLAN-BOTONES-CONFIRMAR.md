@@ -9,6 +9,32 @@
 
 ---
 
+## 0. ⚠️ REGLA QUE MANDA SOBRE TODO EL RESTO
+
+> **Paco NO pierde ninguna habilidad. Los dos caminos viven a la vez.**
+
+Sergio, 8-sep, y ya lo había dicho al empezar: *"puede que un cliente no quiera
+tocar el botón y directamente diga 'una premium personal'. Ahí Paco tiene que
+tener la habilidad de atenderlo tal cual lo está atendiendo en este momento.
+Todo cambia si el cliente toca el botón."*
+
+| El cliente… | Qué pasa |
+|---|---|
+| **Escribe** *"una premium personal con ripio"* | **Exactamente lo de hoy.** El lector del pedido, las variantes, el upsell, la dirección: todo igual. Ese camino no se toca. |
+| **Toca un botón** | Camino nuevo: se sabe cuál tocó por su id, sin interpretar nada. |
+| **No toca el botón de la carta y escribe** | Paco lee, como siempre. |
+| **Contesta "sí, así está" en vez de tocar** | Paco lo entiende, como hoy. |
+
+**Lo del id es SOLO para nuestros propios botones**, para no tener que
+reconocerlos por su texto: si Paco identificara "Sí, confirmo" por la frase,
+bastaría con cambiarla mañana —o con que alguien la escriba a mano— para que
+dejara de funcionar. El id no cambia nunca.
+
+Esto no tiene nada que ver con leer al cliente. Es la regla de la casa de
+siempre: **ante dos formas de operar, se implementan las dos.**
+
+---
+
 ## 1. Por qué vale la pena
 
 Hoy el resumen termina en `{{confirmacion}}`, que es **una pregunta al aire**:
