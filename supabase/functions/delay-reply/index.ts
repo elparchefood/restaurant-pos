@@ -1676,6 +1676,66 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
   // tomar pedidos (lo garantiza puedeTomarPedidos + la regla estricta del prompt).
   if (modoAsistente === "auto" && isOpen) { await setTyping(convId, false); return; }
 
+  /*  ══ ESTA COMPUERTA VA LA PRIMERA, Y POR ALGO (9-sep-2026) ═══════════════
+
+      Estaba 400 lineas mas abajo y hoy le pase algo por encima: el bloque que
+      recoge el pedido de la carta. Resultado: un pedido hecho desde la pagina
+      en una conversacion APARTADA se recogia igual y Paco contestaba. Lo vio
+      Sergio: *"ese numero yo lo tenia como en humano pero Paco me contesto
+      normalmente"*.
+
+      Es el mismo error del 15-ago que el comentario de abajo ya contaba. Por
+      eso no se parchea el bloque de la carta: se sube la compuerta hasta
+      arriba del todo. Si hay una persona atendiendo no hay nada mas que
+      decidir —ni carta, ni clasificador (que ademas se paga), ni detectores— y
+      lo que se meta manana queda por debajo solo.                         */
+  /* 5-pre. CON HUMANO AL MANDO, PACO CALLADO — DESDE AQUI (15-ago). La
+     compuerta de human_takeover vivia mas abajo (donde se carga convRow), y
+     todas las ramas que responden antes de llegar alla —despedida, queja,
+     categoria en texto, carta— se la saltaban: Sergio apago a Paco en una
+     conversacion, la clienta dijo "gracias" y Paco contesto igual. La
+     compuerta de abajo se queda como respaldo. */
+  try {
+    const tkRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=human_takeover,order_id,handoff_at&limit=1`);
+    if (tkRes?.[0]?.human_takeover === true) {
+      /* ══ EL RELEVO SE ACABA CUANDO SE ACABA EL MOTIVO (23-ago-2026) ══
+         Una conversacion que pasa a una persona se quedaba en manos de esa
+         persona PARA SIEMPRE. Al dia siguiente habia 10 asi: todas con su
+         pedido ya entregado y quietas 13 horas. Ese cliente escribe otra vez
+         y Paco no le contesta nunca mas, aunque lo que lo aparto —un pago
+         raro, una foto, un domicilio sin precio— se resolvio anoche.
+
+         Se devuelve solo cuando se cumplen las TRES: hay un pedido detras,
+         ese pedido ya termino, y pasaron 6 horas desde el relevo. Sin pedido
+         no se toca: los numeros de los domiciliarios (MOTOS AL DIA, INTER-
+         DOMIS) tambien viven aqui y Paco no tiene nada que hablar con ellos.
+
+         Y si el cliente vuelve molesto, el clasificador lo devuelve a una
+         persona en el mismo mensaje: eso ya existe y no se toca. */
+      let devolver = false;
+      try {
+        const oidTk = tkRes[0].order_id;
+        const hAt = tkRes[0].handoff_at;
+        const horas = hAt ? (Date.now() - new Date(String(hAt)).getTime()) / 3600000 : 0;
+        if (oidTk && horas >= 6) {
+          const pTk = await sbGet(`/rest/v1/pos_orders?id=eq.${oidTk}&select=status,estado,delivery_status&limit=1`) as Array<Record<string, unknown>> | null;
+          const q = pTk?.[0];
+          devolver = !!q && (q.status === 'cancelled' || String(q.estado || '') === 'entregado'
+            || String(q.delivery_status || '') === 'entregado');
+        }
+      } catch (_e) { /* si no se puede comprobar, se queda en manos de la persona */ }
+      if (devolver) {
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+          human_takeover: false, handoff_motivo: null, handoff_at: null,
+        });
+        console.log(`[relevo] ${convId}: el pedido ya termino y pasaron 6h — Paco retoma`);
+      } else {
+        await setTyping(convId, false);
+        return;
+      }
+    }
+  } catch { /* si no se puede leer el flag, mejor atender que dejar mudo el negocio */ }
+
   /*  ══ VA ARRIBA A PROPOSITO (9-sep-2026) ═══════════════════════════════════
 
       Este mensaje no lo escribio el cliente: lo escribio nuestra propia
@@ -2082,52 +2142,6 @@ INTENCION, no las palabras exactas.` },
     return porIntencion || porTexto;
   };
 
-  /* 5-pre. CON HUMANO AL MANDO, PACO CALLADO — DESDE AQUI (15-ago). La
-     compuerta de human_takeover vivia mas abajo (donde se carga convRow), y
-     todas las ramas que responden antes de llegar alla —despedida, queja,
-     categoria en texto, carta— se la saltaban: Sergio apago a Paco en una
-     conversacion, la clienta dijo "gracias" y Paco contesto igual. La
-     compuerta de abajo se queda como respaldo. */
-  try {
-    const tkRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=human_takeover,order_id,handoff_at&limit=1`);
-    if (tkRes?.[0]?.human_takeover === true) {
-      /* ══ EL RELEVO SE ACABA CUANDO SE ACABA EL MOTIVO (23-ago-2026) ══
-         Una conversacion que pasa a una persona se quedaba en manos de esa
-         persona PARA SIEMPRE. Al dia siguiente habia 10 asi: todas con su
-         pedido ya entregado y quietas 13 horas. Ese cliente escribe otra vez
-         y Paco no le contesta nunca mas, aunque lo que lo aparto —un pago
-         raro, una foto, un domicilio sin precio— se resolvio anoche.
-
-         Se devuelve solo cuando se cumplen las TRES: hay un pedido detras,
-         ese pedido ya termino, y pasaron 6 horas desde el relevo. Sin pedido
-         no se toca: los numeros de los domiciliarios (MOTOS AL DIA, INTER-
-         DOMIS) tambien viven aqui y Paco no tiene nada que hablar con ellos.
-
-         Y si el cliente vuelve molesto, el clasificador lo devuelve a una
-         persona en el mismo mensaje: eso ya existe y no se toca. */
-      let devolver = false;
-      try {
-        const oidTk = tkRes[0].order_id;
-        const hAt = tkRes[0].handoff_at;
-        const horas = hAt ? (Date.now() - new Date(String(hAt)).getTime()) / 3600000 : 0;
-        if (oidTk && horas >= 6) {
-          const pTk = await sbGet(`/rest/v1/pos_orders?id=eq.${oidTk}&select=status,estado,delivery_status&limit=1`) as Array<Record<string, unknown>> | null;
-          const q = pTk?.[0];
-          devolver = !!q && (q.status === 'cancelled' || String(q.estado || '') === 'entregado'
-            || String(q.delivery_status || '') === 'entregado');
-        }
-      } catch (_e) { /* si no se puede comprobar, se queda en manos de la persona */ }
-      if (devolver) {
-        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
-          human_takeover: false, handoff_motivo: null, handoff_at: null,
-        });
-        console.log(`[relevo] ${convId}: el pedido ya termino y pasaron 6h — Paco retoma`);
-      } else {
-        await setTyping(convId, false);
-        return;
-      }
-    }
-  } catch { /* si no se puede leer el flag, mejor atender que dejar mudo el negocio */ }
 
   /* 5-bis. ENTENDER ANTES QUE TODO (FASE A, 15-ago). Va AQUI, arriba de la
      rama de la carta, porque "no quiero hablar con un robot" contiene
