@@ -93,6 +93,51 @@ sigues la prueba desde el paso 9.
 
 ---
 
+## ⚠️ Tercera tanda del 9-sep: te preguntó la variante
+
+*"Me preguntó la variable, pero ya está todo, incluso en el borrador ya está
+todo."* — y era exacto. El borrador tenía la Mixta guardada. **Tres errores,
+todos en el mismo traspaso de la página a Paco.**
+
+### a) La variante se perdía en el camino
+
+Paco no mira el texto *"Mixta"* para saber si ya preguntó. Mira una lista
+interna de **grupo → opción escogida** (Tipo → Mixta). Yo le pasaba solo el
+texto, así que esa lista llegaba **vacía** y el flujo veía el grupo "Tipo" sin
+contestar.
+
+Comprobé que el identificador del grupo es el mismo de los dos lados
+(`vg_2wsvmc` en la página y en tu catálogo), así que ahora encaja.
+
+### b) El primer producto se contaba dos veces
+
+El resumen se arma como *(productos ya resueltos) + (el que está en curso)*. Yo
+metía **todos** en la primera lista y además ponía el primero como "en curso":
+en el resumen la Premium habría salido **dos veces**. Todavía no lo habías
+visto porque la prueba se frenaba antes.
+
+### c) El barrio de tu ficha se quedó pegado a la dirección nueva
+
+Esto es lo que produjo el *"déjame confirmarte el valor del domicilio"*:
+
+| | |
+|---|---|
+| Tu ficha guardada | dirección *Conjunto Residencial Balmoral*, barrio *Casa 21* |
+| Como el pedido de la carta no trae dirección | Paco sembró las dos |
+| Escribiste | *Carrera 9 b # 63 n 58 bellavista* |
+| Se cambió la dirección… | …**y el barrio se quedó en "Casa 21"** |
+| Lo que buscó en tus zonas | *"Casa 21 Carrera 9 b # 63 n 58"* — sin la palabra bellavista |
+
+**Bella Vista sí está configurada, a $5.000.** No la encontró porque la palabra
+ya no estaba en el texto.
+
+Esto **no es solo de la carta**: le pasa a cualquier cliente que ya pidió antes
+y esta vez da otra dirección. Se le habría cobrado la zona equivocada. Ahora,
+si se cambia la dirección sembrada, **su barrio se va con ella** y se vuelve a
+leer del mensaje.
+
+---
+
 ## El recorrido, y qué debe pasar
 
 | # | Qué haces | Qué debe pasar |

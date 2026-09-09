@@ -1709,7 +1709,7 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
       const prods = Array.isArray(br.productos) ? br.productos as Array<Record<string, unknown>> : [];
       if (prods.length) {
         const st = newPacoState();
-        st.items = prods.map((p) => ({
+        const comoItem = (p: Record<string, unknown>) => ({
           producto:  String(p.nombre || p.product_name || ""),
           tamano:    String(p.tamano || "") || null,
           tipo:      String(p.tipo_txt || "") || null,
@@ -1719,15 +1719,43 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
           adiciones: String(p.adiciones_txt || ""),
           preferencias: String(p.notas || "") || null,
           categoria: String(p.categoria || "") || null,
-        }));
-        const p0 = st.items[0];
-        st.producto = p0.producto;
-        st.producto_categoria = p0.categoria || null;
-        st.tamano = p0.tamano;
-        st.tipo = p0.tipo;
-        st.cantidad = p0.cantidad;
-        st.adiciones = p0.adiciones;
-        st.preferencias = p0.preferencias || null;
+        });
+
+        /*  ⚠️ `items` son los YA RESUELTOS; `producto` es el que está en curso.
+            El resumen se arma como `items + el actual`, así que meter TODOS en
+            items y además poner uno como actual lo cuenta DOS VECES.
+
+            El actual es el ÚLTIMO y los demás quedan archivados en su orden:
+            así el resumen los lista una sola vez y en el orden en que los
+            escogió.                                                        */
+        const ultimo = prods[prods.length - 1];
+        st.items = prods.slice(0, -1).map(comoItem);
+        const pAct = comoItem(ultimo);
+        st.producto = pAct.producto;
+        st.producto_categoria = pAct.categoria || null;
+        st.tamano = pAct.tamano;
+        st.tipo = pAct.tipo;
+        st.cantidad = pAct.cantidad;
+        st.adiciones = pAct.adiciones;
+        st.preferencias = pAct.preferencias || null;
+
+        /*  ══ LAS VARIANTES, POR SU GRUPO ═══════════════════════════════════
+
+            Paco no mira el texto "Mixta" para saber si ya preguntó: mira
+            `tipos`, un mapa GRUPO → OPCIÓN ESCOGIDA. Trayendo solo el texto,
+            ese mapa quedaba vacío y el flujo veía el grupo "Tipo" sin
+            contestar — así que le volvía a preguntar al cliente algo que ya
+            había tocado en la página. Lo cazó Sergio: *"me preguntó la
+            variable, pero ya está todo, incluso en el borrador ya está todo"*.
+
+            La página lo guarda tal cual:
+              variantes: { vg_2wsvmc: { id, name: "Mixta", group: "Tipo" } }  */
+        const vars = (ultimo.variantes || {}) as Record<string, Record<string, unknown>>;
+        st.tipos = {};
+        for (const [grupoId, op] of Object.entries(vars)) {
+          const nombre = String((op || {}).name || "").trim();
+          if (nombre) st.tipos[grupoId] = nombre;
+        }
         /*  El upsell ya se ofreció EN LA PÁGINA. En "" para que Paco no lo
             vuelva a ofrecer: sería preguntarle dos veces lo mismo.       */
         st.upsell = "";
@@ -8659,9 +8687,22 @@ function runExtractors(
     }
   }
 
+  /*  ══ SI SE CAMBIA LA DIRECCION SEMBRADA, SU BARRIO SE VA CON ELLA ═════
+
+      El barrio sembrado describe la direccion sembrada, no la que el cliente
+      acaba de escribir. Mezclarlos deja "Casa 21 Carrera 9 b # 63 n 58": la
+      zona no se encuentra, el domicilio se cobra mal o Paco tiene que pasar la
+      conversacion a una persona — le paso a Sergio el 9-sep probando la carta.
+
+      El bloque de "¿va a la misma direccion de la vez pasada?" ya lo hacia;
+      faltaba aqui, en el camino general, que es el que se usa cuando la
+      direccion se pregunta de una — justo el de la carta.                  */
+  const cambioLaSembrada = state.direccion_heredada === true && !!result.direccion;
+  if (cambioLaSembrada && result.barrio === undefined) result.barrio = null;
+
   /* El barrio puede llegar en cualquier momento: en la direccion completa, o
      solo, o mucho despues. Se lee siempre. */
-  if (!state.barrio) {
+  if (!state.barrio || cambioLaSembrada) {
     const b = extraerBarrio(text, (cfgGlobal.domicilios as Record<string, unknown> | null | undefined));
     if (b) result.barrio = b;
     /* UN BARRIO QUE NO ESTÁ EN LAS ZONAS TAMBIÉN ES UN BARRIO.
