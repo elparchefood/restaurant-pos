@@ -2203,6 +2203,51 @@ INTENCION, no las palabras exactas.` },
     }
 
     if (wantsMenu) {
+      /*  ══ LA CARTA COMO BOTON, NO COMO IMAGEN (8-sep-2026) ═══════════════
+
+          Sergio: *"por aqui tienes la carta, ahi mismo puedes seleccionar los
+          productos que vas a pedir para que hagamos tu pedido mucho mas
+          rapido"*. El boton abre una pagina donde el cliente TOCA lo que
+          quiere, y el pedido llega con los identificadores exactos en vez de
+          una frase que hay que interpretar.
+
+          Esto no mejora la lectura del pedido: la ELIMINA. Los pedidos que
+          Paco falla casi nunca son frases claras mal leidas — son frases
+          ambiguas ("una premium de 69").
+
+          ⚠️ VA COMO INTERRUPTOR, no como cambio a secas. Esto atiende el
+          restaurante en vivo: si un sabado por la noche algo sale raro, se
+          apaga `carta_web.activo` desde la configuracion y vuelven las
+          imagenes, sin tocar codigo ni desplegar nada.
+
+          Y si el enlace no se puede crear, se mandan las imagenes como
+          siempre: quedarse sin carta seria peor que mandarla como antes.   */
+      let cartaPorBoton = false;
+      const cartaWeb = (cfg.carta_web as Record<string, unknown>) || {};
+      if (cartaWeb.activo === true) {
+        const tokCarta = await sbRpcDR("fn_carta_link",
+          { p_conv: convId, p_motivo: "nuevo", p_minutos: 120 });
+        const tCarta = typeof tokCarta === "string" ? tokCarta : "";
+        if (!tCarta) {
+          console.error("[carta] no se pudo crear el enlace; se manda en imagenes");
+        } else {
+          const base = String(cartaWeb.url || "https://cobrapos.app/carta.html");
+          const txtCarta = String(cartaWeb.texto
+            || "¡Claro que sí! Por aquí tienes la carta 😋 Ahí mismo puedes seleccionar los productos que vas a pedir, para que hagamos tu pedido mucho más rápido.");
+          /*  El titulo del boton no puede pasar de 20 caracteres: Meta lo
+              rechaza entero, y entonces no llega ni el boton ni la carta.  */
+          const btnCarta = String(cartaWeb.boton || "Ver el menú").slice(0, 20);
+          await sendWaBotonApp(convId, tenantId, txtCarta, btnCarta,
+            `${base}?t=${tCarta}`, fromPhone, phoneId, accessToken);
+          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+            last_message: txtCarta, last_message_at: new Date().toISOString(),
+            last_sender: "agent", last_read: false, ai_typing: false,
+          });
+          cartaPorBoton = true;
+        }
+      }
+
+      if (!cartaPorBoton) {
       /* LA CARTA SE SUBE A META UNA VEZ Y SE REUTILIZA EL ID.
 
          Antes se mandaba `image: { link: url }` con la direccion de GitHub.
@@ -2311,6 +2356,7 @@ INTENCION, no las palabras exactas.` },
       await sbPost(`/rest/v1/chat_messages`, { conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot", body: followUp, delivery_status: waText.ok ? "sent" : "failed", external_id: sentId || null, sent_at: new Date().toISOString() });
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: followUp, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
       }
+      }   // fin de: si la carta no se mandó como botón
       extraRespondido = true;   // NO salir: puede que también pida ubicación en el mismo mensaje
     }
   }

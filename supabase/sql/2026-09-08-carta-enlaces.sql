@@ -128,3 +128,19 @@ alter table pos_categories add column if not exists oculta_carta boolean not nul
 
 comment on column pos_categories.oculta_carta is
   'true = no aparece en la carta que abre el cliente desde WhatsApp. Sigue viva en el POS.';
+
+-- ── El interruptor de la carta por boton ───────────────────────────────────
+--  Paco manda la carta como IMAGENES (lo de siempre) o como un BOTON que abre
+--  la pagina donde el cliente toca lo que quiere. Va como interruptor y no
+--  como cambio a secas porque esto atiende el restaurante en vivo: si un
+--  sabado por la noche algo sale raro, se apaga desde aqui y vuelven las
+--  imagenes, sin tocar codigo ni desplegar nada.
+--
+--    { "activo": false,
+--      "url":   "https://cobrapos.app/carta.html",
+--      "texto": "¡Claro que sí! Por aquí tienes la carta...",
+--      "boton": "Ver el menú" }          <- max 20 caracteres, lo exige Meta
+alter table ia_config add column if not exists carta_web jsonb;
+
+comment on column ia_config.carta_web is
+  'Carta como boton en vez de imagenes. activo=false -> se mandan las imagenes de siempre.';
