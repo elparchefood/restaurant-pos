@@ -1247,7 +1247,9 @@
           n: prod ? prod.n : pm.n, presId: presId, base: 0, cant: 1,
           adic: [], vars: {}, nota: '', premio: true, pts: pm.pts, anadido: true
         };
-        l.det = prod ? detalleDe(l) : (pm.pres || '');
+        /*  Sin detalle cuando el nombre del premio ya lo trae dentro: si no,
+            sale "Adición Salsa · Rosada · Rosada".                       */
+        l.det = prod ? detalleDe(l) : '';
         l.total = 0;
         pedido.push(l);
         pintarBarra();
