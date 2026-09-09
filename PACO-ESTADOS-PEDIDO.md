@@ -115,6 +115,61 @@ nunca y volvería el fallo de Linda Isabela. Se añadió a la lista de campos.
 
 ---
 
+## ⚠️ Se me fue la mano: apagué la conversación entera (9-sep)
+
+Sergio: *"le respondí «muchas gracias» y volvió a decirme «Hola Sergio, tu
+pedido está en camino, ¿tienes alguna duda?». Tenía que responderme de manera
+natural, como ya lo venía haciendo."*
+
+**Tenía razón, y es un fallo de diseño mío.** Su regla era *"no contestar desde
+cero"* y yo la implementé como *"contestar siempre lo mismo"*. No es lo mismo:
+eso no es dejar de empezar de cero, es **dejar de escuchar**. Y de paso apagó
+algo que ya funcionaba desde el 22-ago — el modelo respondiendo natural con el
+pedido en contexto.
+
+### La línea correcta
+
+Se fija **solo lo que se estaba equivocando**, no la conversación:
+
+| Lo que dice el cliente | Qué hace Paco |
+|---|---|
+| Algo salió mal (*"llegó frío"*) | **A una persona**, sin frase de catálogo |
+| Pregunta cómo va (*"ya salió?"*) | La frase exacta de su estado |
+| Quiere pedir más (o pide la carta) | Le dice el estado y **a una persona** |
+| Otra cosa de su pedido | Le dice el estado y **a una persona** |
+| Un saludo **a secas** | Saluda, dice el estado y pregunta si tiene dudas |
+| **Todo lo demás** | El camino de siempre: natural, con el pedido en contexto |
+
+**El reclamo va primero a propósito.** Aunque el lector se equivoque al
+clasificar, a quien está molesto nunca le llega una frase enlatada.
+
+### Dos cosas que aprendió el lector
+
+- **Contar no es preguntar.** *"Ya me llegó"*, *"quedó delicioso"* no son
+  preguntas por el estado: el cliente está contando.
+- **Si algo salió mal es un problema**, no una pregunta de estado.
+
+### Y el contexto del modelo llevaba el fallo original
+
+Solo sabía decir *"en camino"* o *"en preparación"* — un pedido en **listo** se
+contaba como preparación. De ahí salía el *"dijo que estaba en camino cuando
+estaba en preparación"*. Ahora lleva el estado exacto **y la frase que el
+restaurante escribió**.
+
+### Los siete caminos, probados
+
+| El cliente dice | Paco responde |
+|---|---|
+| llegó frío | *Ya le aviso a una persona* → **a una persona** |
+| me faltó la gaseosa | *Ya le aviso a una persona* → **a una persona** |
+| muchas gracias | *Con muchísimo gusto, estamos para servirte* 🤟🏼 |
+| perfecto, ya me llegó | *¡Dale! Me alegra que ya te haya llegado…* |
+| hola | *¡Hola Sergio! 😊 Tu pedido está en camino… ¿Tienes alguna duda?* |
+| ya salió mi pedido? | *🛵 Tu pedido está en camino, esperamos que lo disfrutes* |
+| me sumas unas papas | el estado + *te comunico con una persona* → **a una persona** |
+
+---
+
 ## El saludo: "Hola El" (9-sep)
 
 Sergio, probando con el pedido en *listo*: *"Paco me saludó con el nombre de
