@@ -278,6 +278,42 @@ esperar ahí no agrupa nada, solo hace pensar que no funcionó.
 
 ---
 
+## La tercera puerta: el saludo a secas (9-sep)
+
+Sergio, después de marcar su pedido como entregado: *"volví a escribir y me dijo
+el mensaje de siempre, que escriba el pedido lo más claro posible. No me envió
+el botón."*
+
+Faltaba una puerta. Ahora las tres llevan botón:
+
+| Cómo escribe el cliente | ¿Botón? |
+|---|---|
+| *"me mandas la carta"* | ✅ desde el 9-sep, mañana |
+| *"buenas, para un pedido"* | ✅ desde el 9-sep, mañana |
+| *"hola buenas tardes"* — **la bienvenida** | ✅ **ahora** |
+
+La bienvenida sale como **cuerpo del botón**: un solo mensaje, no dos. Y si el
+botón no se puede mandar —el interruptor apagado, Instagram, un enlace que no se
+creó— sale el texto solo, como siempre.
+
+### ⚠️ Un texto que ahora se contradice
+
+Tu bienvenida dice:
+
+> ¡Hola! 😊 Soy *Paco*, el asistente virtual de El Parche Food 🍟
+> Cuéntame, ¿qué deseas pedir? **Escríbeme tu pedido lo más claro posible** y con
+> gusto te lo tomo 😋
+
+Con el botón debajo, esa última frase pide justo lo que la carta vino a evitar.
+Sigue siendo cierta —quien prefiera escribir, escribe— pero conviene cambiarla.
+Se edita en el nodo **Saludo** del canvas. Algo como:
+
+> ¡Hola! 😊 Soy *Paco*, el asistente virtual de El Parche Food 🍟
+> Toca el botón de abajo y arma tu pedido en dos minutos. Si prefieres,
+> escríbemelo y con gusto te lo tomo 😋
+
+---
+
 ## El recorrido, y qué debe pasar
 
 | # | Qué haces | Qué debe pasar |

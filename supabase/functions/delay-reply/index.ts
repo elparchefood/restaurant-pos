@@ -3983,6 +3983,19 @@ INTENCION, no las palabras exactas.` },
         const restNm   = String(vd.restaurante || "");
         bienvenida = `¡Hola! Soy ${botNm}${restNm ? `, el asistente virtual de ${restNm}` : ""} 🤖 ¿Qué deseas pedir?${emo()}`;
       }
+      /*  ══ LA TERCERA PUERTA: EL SALUDO A SECAS ═════════════════════════
+          Sergio, tras marcar su pedido entregado: *"volvi a escribir y me dijo
+          el mensaje de siempre... no me envio el boton"*.
+
+          Ya llevaban boton la de "me mandas la carta" y la de "buenas, para un
+          pedido". Faltaba esta —"hola buenas tardes"—, que es por donde entra
+          casi todo el mundo cuando no viene con prisa.
+
+          La bienvenida va como CUERPO del boton: un solo mensaje, no dos. Y si
+          el boton no se puede mandar —el interruptor apagado, Instagram, un
+          enlace que no se creo— sale el texto solo, como siempre.          */
+      if (await mandarCartaBoton(convId, tenantId, cfg, fromPhone, phoneId, accessToken, bienvenida)) return;
+
       await sendWaAndSave(convId, tenantId, bienvenida, fromPhone, phoneId, accessToken);
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: bienvenida, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
       return;
