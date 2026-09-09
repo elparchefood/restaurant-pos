@@ -153,9 +153,37 @@ Tres cosas se caen solas con esta regla:
 (Sergio: *"antes de eso procede a preguntar la dirección"*). Paco calcula el
 excedente más el domicilio, como ya lo hace.
 
-**Lo único a confirmar:** corregir el pedido reabre la página, pero eso empieza
-EN EL CHAT (Paco manda el botón otra vez), así que no es un ir y venir a mitad
-de camino. Pendiente de que Sergio lo confirme.
+### La regla, dicha con precisión (Sergio, 8-sep)
+
+> **Nunca se OBLIGA a volver a la página para terminar el pedido. Volver a
+> entrar para corregir, voluntariamente, sí se puede.**
+
+*"Cuando una persona se arrepiente, cuando quiere no pedir esa salchipapa sino
+otra, cuando quiere agregar la bebida... eso sí se puede."*
+
+Lo que se prohíbe es el ir y venir forzado a mitad de camino. Arrepentirse es
+otra cosa, y empieza en el chat.
+
+### Los dos botones del resumen
+
+Hoy el resumen de Paco termina con `{{confirmacion}}`, que es una **pregunta al
+aire**: *"¿Lo confirmamos o hay algo que cambiar?"*. Quien contesta cualquier
+cosa obliga a Paco a interpretarla — y ahí es donde ya se han perdido pedidos.
+
+**Cambia por dos botones:**
+
+| Botón | Qué hace |
+|---|---|
+| **Sí, confirmo** | El flujo de siempre: a cocina. |
+| **Corregir algo** | Manda el enlace otra vez. La página abre **con su pedido cargado**, corrige, vuelve al chat, y Paco manda el resumen actualizado. |
+
+⚠️ **Los botones de WhatsApp aceptan máximo 20 caracteres de título** y tres
+botones por mensaje. *"Quiero corregir algo"* mide justo 20 — al filo. Mejor
+**"Corregir algo"** (13), que además se lee más rápido.
+
+Y esto encaja con lo que ya existe: el 7-sep se le enseñó a Paco a entender que
+un cliente cambia el pedido mientras se espera su comprobante. Aquí el cambio
+llega limpio en vez de haber que leerlo.
 
 ---
 
