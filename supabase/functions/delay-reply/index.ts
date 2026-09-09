@@ -2225,30 +2225,8 @@ INTENCION, no las palabras exactas.` },
 
           Y si el enlace no se puede crear, se mandan las imagenes como
           siempre: quedarse sin carta seria peor que mandarla como antes.   */
-      let cartaPorBoton = false;
-      const cartaWeb = (cfg.carta_web as Record<string, unknown>) || {};
-      if (cartaWeb.activo === true) {
-        const tokCarta = await sbRpcDR("fn_carta_link",
-          { p_conv: convId, p_motivo: "nuevo", p_minutos: 120 });
-        const tCarta = typeof tokCarta === "string" ? tokCarta : "";
-        if (!tCarta) {
-          console.error("[carta] no se pudo crear el enlace; se manda en imagenes");
-        } else {
-          const base = String(cartaWeb.url || "https://cobrapos.app/carta.html");
-          const txtCarta = String(cartaWeb.texto
-            || "¡Claro que sí! Por aquí tienes la carta 😋 Ahí mismo puedes seleccionar los productos que vas a pedir, para que hagamos tu pedido mucho más rápido.");
-          /*  El titulo del boton no puede pasar de 20 caracteres: Meta lo
-              rechaza entero, y entonces no llega ni el boton ni la carta.  */
-          const btnCarta = String(cartaWeb.boton || "Ver el menú").slice(0, 20);
-          await sendWaBotonApp(convId, tenantId, txtCarta, btnCarta,
-            `${base}?t=${tCarta}`, fromPhone, phoneId, accessToken);
-          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
-            last_message: txtCarta, last_message_at: new Date().toISOString(),
-            last_sender: "agent", last_read: false, ai_typing: false,
-          });
-          cartaPorBoton = true;
-        }
-      }
+      const cartaPorBoton = await mandarCartaBoton(
+        convId, tenantId, cfg, fromPhone, phoneId, accessToken);
 
       if (!cartaPorBoton) {
       /* LA CARTA SE SUBE A META UNA VEZ Y SE REUTILIZA EL ID.
@@ -5393,6 +5371,19 @@ INTENCION, no las palabras exactas.` },
            "No manejamos un producto con ese nombre 🙈 Esta es nuestra carta ☺️ ¿Cuál se te antoja?")
         : null;
       let fraseProd = rellenarVariables(fraseNoExisteRaw || fraseProdRaw, state, cfg).texto;
+
+      /*  ══ Y AQUI TAMBIEN VA EL BOTON (9-sep-2026) ═══════════════════════
+
+          Esta es la puerta por la que entra la gente de verdad: "buenas, para
+          un pedido". Sergio la probo asi y le llegaron las imagenes, porque
+          el boton solo estaba en la puerta de "mandame la carta".
+
+          Si el cliente nombro algo que no manejamos, el boton sale con ESA
+          frase: enterarse de que no lo tenemos es mas importante que la
+          invitacion bonita.                                                */
+      if (await mandarCartaBoton(convId, tenantId, cfg, fromPhone, phoneId, accessToken,
+            productoInexistente ? fraseProd : undefined)) return;
+
       /*  SE MIRA SI LA CARTA SALIO DE VERDAD (7-sep-2026).
           Antes esto disparaba los enlaces y soltaba la frase pasara lo que
           pasara. Meta rechaza un enlace sin lanzar ninguna excepcion, asi que
@@ -12974,6 +12965,54 @@ async function sendWaResumen(
 
 /* Mensaje con BOTON que abre la app (pedido de Sergio: boton, no enlace
    pelado). Si Meta rechaza el interactivo, cae a texto con el enlace. */
+/*  ══ MANDAR LA CARTA COMO BOTON ══════════════════════════════════════════
+
+    Vive aqui, en un solo sitio, porque hay DOS momentos en los que Paco
+    manda la carta y los dos tienen que comportarse igual:
+
+      · el cliente la PIDE    ("me mandas la carta")       → bloque wantsMenu
+      · el cliente va a PEDIR ("buenas, para un pedido")   → bloque 14f
+
+    El 9-sep-2026 solo el primero tenia el boton. Sergio probo escribiendo
+    "Hola para un pedido" —que es como escribe la gente de verdad— y le
+    llegaron las imagenes de siempre. El segundo camino es el mas transitado.
+
+    Devuelve `true` si la carta ya salio por boton. Si devuelve `false`, quien
+    llama manda las imagenes: quedarse sin carta seria peor que mandarla como
+    antes.                                                                  */
+async function mandarCartaBoton(
+  convId: string, tenantId: string, cfg: Record<string, unknown>,
+  fromPhone: string, phoneId: string, accessToken: string,
+  textoOverride?: string,
+): Promise<boolean> {
+  const cw = (cfg.carta_web as Record<string, unknown>) || {};
+  if (cw.activo !== true) return false;
+  /*  El boton `cta_url` solo existe en WhatsApp. En Instagram y Facebook Meta
+      lo rechaza, y sin esta comprobacion el cliente se quedaba sin carta.  */
+  if ((await canalDe(convId)) !== "whatsapp") return false;
+
+  const tok = await sbRpcDR("fn_carta_link",
+    { p_conv: convId, p_motivo: "nuevo", p_minutos: 120 });
+  const t = typeof tok === "string" ? tok : "";
+  if (!t) { console.error("[carta] no se pudo crear el enlace; se manda en imagenes"); return false; }
+
+  const base = String(cw.url || "https://cobrapos.app/carta.html");
+  const txt  = String(textoOverride || cw.texto
+    || "¡Claro que sí! Por aquí tienes la carta 😋 Ahí mismo puedes seleccionar los productos que vas a pedir, para que hagamos tu pedido mucho más rápido.");
+  /*  El titulo del boton no puede pasar de 20 caracteres: Meta rechaza el
+      mensaje entero, y entonces no llega ni el boton ni la carta.          */
+  const btn  = String(cw.boton || "Ver el menú").slice(0, 20);
+
+  await sendWaBotonApp(convId, tenantId, txt, btn, `${base}?t=${t}`,
+    fromPhone, phoneId, accessToken);
+  await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+    last_message: txt, last_message_at: new Date().toISOString(),
+    last_sender: "agent", last_read: false, ai_typing: false,
+  });
+  console.log("[carta] enviada por boton a " + fromPhone);
+  return true;
+}
+
 async function sendWaBotonApp(
   convId: string, tenantId: string, texto: string, botonTexto: string, url: string,
   fromPhone: string, phoneId: string, accessToken: string,

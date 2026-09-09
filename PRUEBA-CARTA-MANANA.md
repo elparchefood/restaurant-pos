@@ -19,6 +19,41 @@ Si no tienes dónde tocarlo todavía, dímelo y lo enciendo yo en el momento.
 
 ---
 
+## ⚠️ Corregido el 9-sep, con tu prueba
+
+Escribiste **"Hola para un pedido"** y llegaron las imágenes. La causa, medida:
+
+**Paco manda la carta desde DOS sitios distintos**, y el botón solo estaba en uno.
+
+| Cómo escribe el cliente | Qué bloque atiende | Tenía botón |
+|---|---|---|
+| *"me mandas la carta"* | el que pide la carta | ✅ sí |
+| *"buenas, para un pedido"* | el de "quiere pedir pero no dijo qué" | ❌ **no** |
+
+Entraste por el segundo — que además es por donde entra casi todo el mundo,
+porque nadie escribe "mándame la carta". Ahora el envío del botón vive en **un
+solo sitio** y lo usan los dos caminos. Tener el mismo código copiado dos veces
+es justo como nace este error.
+
+De paso quedó tapado otro hueco: el botón `cta_url` **solo existe en
+WhatsApp**. Por Instagram y Facebook, Meta lo rechaza — ahí van las imágenes de
+siempre, que antes no era así y esos clientes se habrían quedado sin carta.
+
+### Y lo del saludo
+
+No es un fallo nuevo, es una regla que ya estaba:
+
+- **"Hola" a secas** → Paco se presenta. *(Te pasó el 8-sep a las 00:41.)*
+- **"Hola para un pedido"** → la presentación solo sale si Paco **nunca** ha
+  hablado en esa conversación. En la tuya lleva **411 mensajes** desde el
+  16-ago, así que no se presentó.
+
+**Con un cliente nuevo esa misma frase sí lo saluda.** Si prefieres que salude
+también cuando ya hablaron pero hace días, dímelo y lo cambio — es un número,
+no una reescritura.
+
+---
+
 ## El recorrido, y qué debe pasar
 
 | # | Qué haces | Qué debe pasar |
