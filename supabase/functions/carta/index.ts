@@ -737,7 +737,19 @@ Deno.serve(async (req) => {
       /*  "Yo lo recojo" se guarda con una frase que el motor YA reconoce
           (LLEVAR_REGEX). Inventar un segundo mecanismo de "para llevar"
           seria tener dos sitios que se pueden desincronizar.             */
-      const dirBorrador = recoge ? "Paso a recogerlo (para llevar)" : String(body.direccion || "").slice(0, 120);
+      /*  ══ LA DIRECCION DE QUIEN VIVE EN UN CONJUNTO ═══════════════════
+          En un conjunto el campo de dirección es opcional, así que puede
+          llegar vacío: la dirección de esa persona es "Balmoral Casa 21".
+
+          Se compone AQUI y no en el motor para que el borrador quede completo
+          por sí solo — quien lo lea después no tiene que saber armarlo, y ya
+          somos tres los que lo leemos.                                    */
+      const conjB = String(body.conjunto || "").trim();
+      const uniB  = String(body.unidad || "").trim();
+      const dirEscrita = String(body.direccion || "").trim();
+      const dirBorrador = recoge
+        ? "Paso a recogerlo (para llevar)"
+        : (conjB ? [conjB, uniB, dirEscrita].filter(Boolean).join(" ") : dirEscrita).slice(0, 120);
 
       const total = subtotal + empaque;
       const borrador = {

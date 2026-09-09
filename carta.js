@@ -1134,14 +1134,20 @@
     var corr = D.motivo === 'correccion';
     $('finTit').textContent = corr ? 'Listo, guardamos los cambios' : 'Listo, ya tenemos tu pedido';
     var txt;
+    /*  Ya no se promete pedir la dirección si el cliente acaba de darla aquí.
+        Prometer un paso que no va a pasar deja al cliente esperándolo.    */
+    var yaHayDir = entrega.modo === 'recoger'
+      || !!(String(entrega.direccion || '').trim() || String(entrega.conjunto || '').trim());
+    var cierre = yaHayDir
+      ? 'Vuelve al chat: allí te confirmamos todo antes de mandarlo a la cocina.'
+      : 'Vuelve al chat: allí te pedimos la dirección y te confirmamos todo antes de mandarlo a la cocina.';
     if (pagoElegido.tipo === 'saldo') {
       txt = 'Pagas ' + cop(pagoElegido.cubre) + ' con tu saldo'
-          + (pagoElegido.falta ? ' y quedan ' + cop(pagoElegido.falta) : '')
-          + '. Vuelve al chat: allí te pedimos la dirección y te confirmamos el total.';
+          + (pagoElegido.falta ? ' y quedan ' + cop(pagoElegido.falta) : '') + '. ' + cierre;
     } else if (pagoElegido.tipo === 'puntos' && pagoElegido.premio) {
       txt = 'Vuelve al chat: allí te confirmamos tu pedido y el canje de ' + pagoElegido.premio.n + '.';
     } else {
-      txt = 'Vuelve al chat: allí te pedimos la dirección y te confirmamos todo antes de mandarlo a la cocina.';
+      txt = cierre;
     }
     $('finTxt').textContent = txt;
     /*  Devolverlo a SU conversación, que puede ser WhatsApp, Instagram o

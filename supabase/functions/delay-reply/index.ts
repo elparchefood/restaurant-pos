@@ -1923,6 +1923,17 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
           });
           console.log(`[carta] pedido corregido: ${st.items.length + 1} productos, sigue al resumen`);
           vinoDeLaCarta = true;
+          /*  ══ Y EL AVISO DEJA DE SER TEXTO DEL CLIENTE ═══════════════════
+              Aquí el flujo NO se corta —hay que llegar al resumen—, así que
+              el texto del aviso pasaría por los extractores. Y el de
+              direcciones se lo tragó entero: el estado quedó con "🧾 Hizo su
+              pedido desde la carta · 1 producto · 7000" como dirección.
+
+              Ese texto lo escribimos nosotros. Se vacía y ningún extractor
+              tiene ya nada que buscar ahí.                               */
+          for (const m of batchMsgs) {
+            if ((m.payload as Record<string, unknown> | null)?.accion === "cobra_carta") m.body = "";
+          }
           /*  Sin `return`: el estado ya esta guardado y `convRow` se lee mas
               abajo, asi que el flujo continua con el pedido nuevo.        */
         } else {
