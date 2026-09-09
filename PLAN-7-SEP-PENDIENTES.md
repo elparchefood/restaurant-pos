@@ -17,6 +17,18 @@ Si algo sale mal: se apaga `carta_web.activo` y todo vuelve a como está hoy.
 
 ---
 
+## 8. Que la gente sepa que existen las recargas
+
+De El Parche, no de Cobra. **0 recargas de clientes reales**, y nadie ha
+preguntado nunca cómo funciona — o sea que no es que la rechacen, es que no
+existe para ellos. Sergio: *"primero la estrategia de comunicación; si después
+escucho quejas de que el porcentaje es poco, ahí ya es la señal para subirlo"*.
+
+El plan, con los momentos, los borradores y cómo se mide:
+**`PLAN-COMUNICAR-RECARGAS.md`**. No toca ningún número.
+
+---
+
 ## 0. La demo de Cobra - EN PARALELO, no bloquea nada
 
 Decidido el 8-sep: Cobra **se lanza con el registro que ya esta probado**, y
