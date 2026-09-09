@@ -69,6 +69,15 @@
     } catch (e) {
       return morir('No pudimos abrir la carta', (e && e.message) || 'Vuelve al chat y pídela otra vez.');
     }
+    /*  ══ SI ESTA CERRADO, NO SE PIDE ═══════════════════════════════════
+        Sergio: alguien con el enlace podria pedir un dia que esta cerrado. La
+        carta se puede MIRAR —es bueno que la vea y vuelva— pero el pedido no
+        sale. Y el servidor lo vuelve a comprobar al mandar, porque entre
+        abrir y terminar pueden pasar veinte minutos.                      */
+    if (D.abierto === false) {
+      return morir('Ahora estamos cerrados',
+        (D.horario_txt || 'Escríbenos por el chat y te contamos cuándo abrimos.'));
+    }
     pintarCabecera();
     if (D.motivo === 'correccion') {
       $('avisoCorregir').hidden = false;
@@ -85,8 +94,12 @@
     $('restNombre').textContent = D.restaurante.nombre || '';
     /*  La sede solo si dice algo distinto del restaurante. En El Parche las
         dos se llaman igual y salia "El Parche Food / El Parche Food".   */
+    /*  Debajo del nombre va el estado —"Abierto · cierra a las 10 p.m."—
+        antes que la sede: al cliente le importa mas si puede pedir ahora que
+        como se llama la sucursal.                                        */
     var sede = D.restaurante.sede || '';
-    $('restSede').textContent = (sede && sede !== D.restaurante.nombre) ? sede : '';
+    var abajo = D.horario_txt || ((sede && sede !== D.restaurante.nombre) ? sede : '');
+    $('restSede').textContent = abajo;
     if (D.restaurante.logo) { $('logo').src = D.restaurante.logo; $('logo').hidden = false; }
     var tel = String(D.telefono || '');
     $('vinculoTxt').innerHTML = 'Tu pedido va a la conversación de <b>····'
@@ -735,6 +748,11 @@
       terminar(r);
     } catch (e) {
       b.disabled = false; b.textContent = 'Hacer mi pedido';
+      /*  Si cerraron mientras escogia, no se le deja intentando: se le dice
+          y se cierra la carta. Insistir no va a abrir la cocina.         */
+      if (/cerramos/i.test((e && e.message) || '')) {
+        return morir('Justo cerramos', (e.message || '').replace(/^Justo cerramos\s*😔\s*/, ''));
+      }
       /*  Nunca callado: si algo falló, se dice. */
       var n = document.createElement('div');
       n.className = 'ct-pago-nota';

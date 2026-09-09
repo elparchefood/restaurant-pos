@@ -97,6 +97,60 @@ function empaqueDe(cfg: Fila, prodId: string, catId: string, presId: string, pre
   return fee;
 }
 
+/*  ══ ¿ESTA ABIERTO? ══════════════════════════════════════════════════════
+    Sergio, 8-sep: *"una persona que tenga el enlace podria entrar y hacer un
+    pedido en un dia que tengamos cerrado"*. El enlace dura dos horas, y el
+    restaurante puede cerrar en medio.
+
+    La cuenta es la MISMA que hace Paco en `buildHorariosText`: el dia de la
+    semana en la zona del restaurante y los minutos desde medianoche. Si aqui
+    se calculara distinto, la pagina diria una cosa y Paco otra.
+
+    Se comprueba DOS VECES: al abrir la carta y al mandar el pedido. Entre una
+    y otra pueden pasar veinte minutos, y a las 22:30 eso es la diferencia
+    entre un pedido y una cocina apagada.                                   */
+const DIAS = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+const NOMBRE_DIA: Record<string, string> = {
+  domingo: "domingo", lunes: "lunes", martes: "martes", miercoles: "miércoles",
+  jueves: "jueves", viernes: "viernes", sabado: "sábado",
+};
+function hhmm(s: string): number {
+  const p = String(s || "").split(":");
+  return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0);
+}
+function hora12(s: string): string {
+  const m = hhmm(s), h = Math.floor(m / 60), mi = m % 60;
+  /*  Sin el punto final: la frase ya lo pone y salia "6:30 p.m..".  */
+  const ap = h >= 12 ? "p.m" : "a.m";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${mi ? ":" + String(mi).padStart(2, "0") : ""} ${ap}`;
+}
+
+function estadoHorario(horarios: Fila | null, tzOffset: number) {
+  if (!horarios || !Object.keys(horarios).length) return { abierto: true, texto: "" };
+  const ahora = new Date(Date.now() + tzOffset * 3600000);
+  const hoy = DIAS[ahora.getUTCDay()];
+  const min = ahora.getUTCHours() * 60 + ahora.getUTCMinutes();
+  const d = horarios[hoy] as Fila | undefined;
+
+  if (d && d.activo && min >= hhmm(String(d.abre)) && min < hhmm(String(d.cierra))) {
+    return { abierto: true, texto: `Abierto · cierra a las ${hora12(String(d.cierra))}` };
+  }
+  //  Cuando vuelve a abrir: hoy más tarde, o el próximo día con servicio.
+  if (d && d.activo && min < hhmm(String(d.abre))) {
+    return { abierto: false, texto: `Hoy abrimos a las ${hora12(String(d.abre))}.` };
+  }
+  for (let i = 1; i <= 7; i++) {
+    const k = DIAS[(ahora.getUTCDay() + i) % 7];
+    const dd = horarios[k] as Fila | undefined;
+    if (dd && dd.activo) {
+      const cuando = i === 1 ? "mañana" : `el ${NOMBRE_DIA[k]}`;
+      return { abierto: false, texto: `Volvemos ${cuando} a las ${hora12(String(dd.abre))}.` };
+    }
+  }
+  return { abierto: false, texto: "" };
+}
+
 /*  El enlace: existe, no ha caducado y no se ha usado. Las tres cosas, o no
     se abre. Un enlace usado que siguiera abriendo dejaría pedir dos veces.  */
 async function abrirLink(token: string) {
@@ -288,9 +342,16 @@ Deno.serve(async (req) => {
         borrador = filas(cvRes.data)[0]?.pedido_borrador || null;
       }
 
+      /*  El horario del restaurante, con la zona que tenga configurada.  */
+      const horaRes = await db(`ia_config?tenant_id=eq.${tenant}&select=horarios,zona_horaria&limit=1`);
+      const hCfg = filas(horaRes.data)[0] || {};
+      const est = estadoHorario((hCfg.horarios as Fila) || null, Number(hCfg.zona_horaria ?? -5));
+
       return json(200, {
         ok: true,
         motivo: link.motivo,
+        abierto: est.abierto,
+        horario_txt: est.texto,
         restaurante: { nombre: marca.name || "", logo: marca.logo_url || "", sede: sede.name || "" },
         telefono: tel10,
         cats: cats.map((c) => String(c.name)),
@@ -311,6 +372,20 @@ Deno.serve(async (req) => {
       if (v.error) return json(404, { error: v.error });
       const link = v.link as Fila;
       const tenant = String(link.tenant_id);
+
+      /*  ⚠️ SE VUELVE A MIRAR EL HORARIO. Entre abrir la carta y darle a
+          "hacer mi pedido" pueden pasar veinte minutos: a las 22:30 esa es la
+          diferencia entre un pedido y una cocina apagada. Comprobarlo solo al
+          abrir seria como mirar el saldo y no volver a mirarlo al cobrar.  */
+      const hRes2 = await db(`ia_config?tenant_id=eq.${tenant}&select=horarios,zona_horaria&limit=1`);
+      const h2 = filas(hRes2.data)[0] || {};
+      const est2 = estadoHorario((h2.horarios as Fila) || null, Number(h2.zona_horaria ?? -5));
+      if (!est2.abierto) {
+        return json(409, {
+          error: "Justo cerramos 😔 " + (est2.texto || "Escríbenos por el chat y te contamos."),
+          cerrado: true,
+        });
+      }
 
       const items = filas(body.productos);
       if (!items.length) return json(400, { error: "el pedido está vacío" });
