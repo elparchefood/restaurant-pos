@@ -314,6 +314,41 @@ Se edita en el nodo **Saludo** del canvas. Algo como:
 
 ---
 
+## La bienvenida tiene su propio texto y su propio botón (9-sep)
+
+Sergio: *"el botón dice «ver el menú» pero el cliente no ha pedido el menú"*. Y
+el texto de arriba encima le pedía que escribiera.
+
+Son **dos momentos distintos**: a quien PIDE la carta se le enseña la carta; a
+quien SALUDA se le está ofreciendo hacer el pedido. Ahora se configuran aparte,
+en la misma casilla `carta_web`:
+
+| | Cuando **pide** la carta | Cuando **saluda** |
+|---|---|---|
+| texto | `texto` | `texto_saludo` |
+| botón | `boton` → *Ver el menú* | `boton_saludo` → *Hacer mi pedido* |
+
+Si `texto_saludo` o `boton_saludo` están vacíos, se usan los de siempre.
+
+### Lo que quedó puesto
+
+> ¡Hola! 😊 Soy *Paco*, el asistente virtual de El Parche Food 🍟
+>
+> Toca *Hacer mi pedido* y ahí tienes la carta completa, con fotos y precios,
+> para que escojas todo lo que se te antoje.
+>
+> Es la forma más rápida de pedir, y así tu pedido queda exacto ⚡
+>
+> **[ Hacer mi pedido ]**
+
+Escogido por Sergio entre tres opciones. **El pie ya no ofrece escribir**:
+regla suya — *"lo que queremos es que la mayoría toquen el botón"*. Quien
+prefiera escribir lo sigue pudiendo hacer; simplemente ya no se le sugiere.
+
+Se cambia **sin desplegar nada**: es un dato en `carta_web`.
+
+---
+
 ## El recorrido, y qué debe pasar
 
 | # | Qué haces | Qué debe pasar |

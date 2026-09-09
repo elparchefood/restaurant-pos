@@ -3994,7 +3994,13 @@ INTENCION, no las palabras exactas.` },
           La bienvenida va como CUERPO del boton: un solo mensaje, no dos. Y si
           el boton no se puede mandar —el interruptor apagado, Instagram, un
           enlace que no se creo— sale el texto solo, como siempre.          */
-      if (await mandarCartaBoton(convId, tenantId, cfg, fromPhone, phoneId, accessToken, bienvenida)) return;
+      /*  Con su propio texto y su propio boton si el restaurante los escribio;
+          si no, la bienvenida del canvas y el boton de siempre.           */
+      const cwSal = (cfg.carta_web as Record<string, unknown>) || {};
+      const txtSaludo = String(cwSal.texto_saludo || "").trim() || bienvenida;
+      const btnSaludo = String(cwSal.boton_saludo || "").trim() || undefined;
+      if (await mandarCartaBoton(convId, tenantId, cfg, fromPhone, phoneId, accessToken,
+                                 txtSaludo, btnSaludo)) return;
 
       await sendWaAndSave(convId, tenantId, bienvenida, fromPhone, phoneId, accessToken);
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: bienvenida, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
@@ -13414,6 +13420,11 @@ async function mandarCartaBoton(
   convId: string, tenantId: string, cfg: Record<string, unknown>,
   fromPhone: string, phoneId: string, accessToken: string,
   textoOverride?: string,
+  /*  El titulo del boton tambien puede cambiar segun el momento. A quien PIDE
+      la carta se le enseNa la carta; a quien SALUDA se le esta ofreciendo
+      hacer el pedido, y llamarlo igual confunde — lo vio Sergio: *"el boton
+      dice ver el menu pero el cliente no ha pedido el menu"*.             */
+  botonOverride?: string,
 ): Promise<boolean> {
   const cw = (cfg.carta_web as Record<string, unknown>) || {};
   if (cw.activo !== true) return false;
@@ -13431,7 +13442,7 @@ async function mandarCartaBoton(
     || "¡Claro que sí! Por aquí tienes la carta 😋 Ahí mismo puedes seleccionar los productos que vas a pedir, para que hagamos tu pedido mucho más rápido.");
   /*  El titulo del boton no puede pasar de 20 caracteres: Meta rechaza el
       mensaje entero, y entonces no llega ni el boton ni la carta.          */
-  const btn  = String(cw.boton || "Ver el menú").slice(0, 20);
+  const btn  = String(botonOverride || cw.boton || "Ver el menú").slice(0, 20);
 
   await sendWaBotonApp(convId, tenantId, txt, btn, `${base}?t=${t}`,
     fromPhone, phoneId, accessToken);
