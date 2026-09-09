@@ -2036,7 +2036,13 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
  "rechaza_direccion":bool,"agregados":[string],
  "confirma":bool,"rechaza_mas":bool,"corrige":bool,
  "pregunta":bool,"despedida":bool,"queja":bool,"quiere_humano":bool,"fuera_tema":bool,
- "categoria":string|null,"mi_pedido":"estado"|"otra"|null,"nombre_persona":bool}
+ "categoria":string|null,"mi_pedido":"estado"|"otra"|null,"nombre_persona":bool,
+ "saludo":bool}
+
+- "saludo": true si el mensaje es SOLO un saludo y no pide nada mas, aunque
+  este mal escrito o le falten letras: "hola", "hooa", "olaaa", "buenas",
+  "buenass", "qbn", "buenas noches", "hey". OJO: "hola, quiero una premium" NO
+  es saludo — es un pedido. Y "gracias" o "chao" tampoco: eso es despedida.
 
 - "nombre_persona": mira la linea NOMBRE DEL CONTACTO del final. true SOLO si
   es el nombre de una PERSONA con el que se le puede saludar ("Daniela",
@@ -2355,7 +2361,8 @@ INTENCION, no las palabras exactas.` },
             del estado recien mandado, el lector lee ese "hola" como una
             pregunta por el pedido —y no le falta razon—, pero Sergio pidio
             que ahi Paco salude y pregunte, no que suelte el estado a secas. */
-        const esSaludoSolo = SALUDO_REGEX.test(String(textoDelCliente || "").trim());
+        const esSaludoSolo = intenciones.saludo === true
+          || SALUDO_REGEX.test(String(textoDelCliente || "").trim());
 
         /*  (a) PREGUNTA COMO VA. Se le contesta con la frase de SU estado, sin
             pasar por el modelo: aqui no hay nada que redactar, hay un dato. */
@@ -4001,7 +4008,18 @@ INTENCION, no las palabras exactas.` },
   // 10. Saludo → bienvenida Paco
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const esGaludo = SALUDO_REGEX.test(clienteTexto.trim());
+  /*  La lista de formas escritas se queda de RESPALDO: si el modelo falla o
+      se demora, Paco se comporta como antes y nunca peor. Pero manda el
+      lector — "Hooa buenas noches" es un saludo y ninguna lista lo cubre. */
+  const esGaludo = SALUDO_REGEX.test(clienteTexto.trim())
+    /*  Del lector, SOLO si no viene nada mas dentro. "Hola, quiero una
+        premium" trae un saludo, pero lo que manda es el pedido — es la misma
+        guarda que el saludo implicito de aqui abajo ya tenia.            */
+    || (intenciones.saludo === true
+        && intenciones.pedir !== true && intenciones.carta !== true
+        && intenciones.pregunta !== true && intenciones.precio !== true
+        && !(Array.isArray(intenciones.agregados) && (intenciones.agregados as unknown[]).length > 0)
+        && !mencionaProductoCatalogo(clienteTexto));
   const minutosInactivo = state.last_activity
     ? (Date.now() - new Date(state.last_activity).getTime()) / 60000
     : 999;
