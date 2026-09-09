@@ -236,6 +236,48 @@ Bella Vista y tu nombre intactos, y ninguna pregunta repetida.
 
 ---
 
+## La tarjeta que se quedó en borrador (9-sep)
+
+> *"El pedido se creó y todo quedó perfecto pero la tarjeta se quedó en
+> borrador... si le toco ahí se enviaría doble."*
+
+La tarjeta pregunta **primero** *"¿hay borrador?"* y solo después *"¿hay
+pedido?"*. El camino manual **borra** el borrador al enviar a cocina, así que
+ese orden nunca falló en dos años. El de la carta **lo deja** —marcado, para que
+se pueda corregir— y por eso la tarjeta se quedaba con su botón de enviar.
+
+Dos arreglos, porque son dos fallos distintos:
+
+1. **Quien crea el pedido limpia el borrador.** Ya limpiaba lo demás; le
+   faltaba este. Un borrador que ya es pedido no es un borrador.
+2. **Y la tarjeta no se fía de eso.** Compara fechas: un borrador **más
+   antiguo** que el pedido de esa conversación es el que lo produjo, no uno
+   nuevo. No basta con *"si hay pedido gana el pedido"* — un cliente puede
+   empezar **otro** pedido teniendo uno ya enviado, y ese sí tiene que verse.
+
+Tu conversación ya la limpié a mano (comprobando antes que ese borrador fuera el
+del pedido). **Recarga la caja** para que tome el código nuevo.
+
+## Tocar un botón tampoco espera
+
+> *"Las respuestas después de que el cliente toque un botón tampoco deberían
+> tener la espera... la espera sirve para cuando un cliente realmente escriba."*
+
+Exacto, y esa es la razón por la que existe: agrupar a quien manda *"hola"*,
+*"para un pedido"*, *"una premium"* en tres mensajes seguidos y contestarle una
+sola vez.
+
+**Un botón no se toca de a pedazos.** Se toca una vez y ya está todo dicho:
+esperar ahí no agrupa nada, solo hace pensar que no funcionó.
+
+| Cómo llega | Espera |
+|---|---|
+| El cliente escribe | tus 15 segundos, igual que siempre |
+| El cliente toca un botón | **ninguna** |
+| Termina el pedido en la página | **ninguna** |
+
+---
+
 ## El recorrido, y qué debe pasar
 
 | # | Qué haces | Qué debe pasar |
