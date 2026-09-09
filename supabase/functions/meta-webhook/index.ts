@@ -588,11 +588,24 @@ Deno.serve(async (req) => {
             const dupCheck = await sbGet(`/rest/v1/chat_messages?external_id=eq.${encodeURIComponent(externalId)}&limit=1`);
             if (dupCheck?.length) continue;
 
-            // Guardar mensaje entrante
+            /*  ══ SE GUARDA EL ID DEL BOTON, NO SOLO SU TEXTO ══════════════
+                Hasta ahora del boton solo quedaba el TITULO en `body`, y el id
+                se tiraba —aunque el webhook ya lo tenia y hasta se lo mandaba a
+                las funciones del inventario del gerente.
+
+                Importa porque la regla de la casa es no reconocer nada por su
+                texto: si Paco identificara "Si, confirmo" por la frase,
+                bastaria con cambiarla manana, o con que alguien la escriba a
+                mano, para que dejara de funcionar. El id no cambia nunca.
+
+                ⚠️ Esto NO tiene nada que ver con leer al cliente. Quien
+                escriba "una premium personal" se sigue atendiendo exactamente
+                igual que hoy: el id es solo para NUESTROS botones.        */
             await sbPost(`/rest/v1/chat_messages`, {
               conversation_id: convId, tenant_id,
               direction: "in", origen: "cliente", body: bodyText,
               media_url: mediaUrl, media_type: mediaType,
+              payload: accionId ? { accion: accionId } : null,
               delivery_status: "delivered", external_id: externalId,
               sent_at: new Date(parseInt(msg.timestamp as string) * 1000).toISOString(),
             });
@@ -603,9 +616,26 @@ Deno.serve(async (req) => {
               unread_count: unread + 1, contact_name: senderName,
             });
 
-            // ── Encolar respuesta IA (texto o AUDIO — el bot transcribe las notas
-            // de voz con Whisper en delay-reply) o verificar transferencia (imagen) ──
-            if (((msgType === "text" && bodyText) || msgType === "audio") && phoneId && accessToken) {
+            /*  ══ TOCAR UN BOTON TAMBIEN DESPIERTA A PACO (8-sep-2026) ═════
+                Hasta ahora solo despertaba con TEXTO o AUDIO. Un `interactive`
+                —que es lo que llega cuando alguien toca un boton nuestro— se
+                guardaba en el chat y ahi moria: el cliente tocaria "Si,
+                confirmo", veria su mensaje en la conversacion, y Paco no
+                contestaria nunca. El tipo de fallo que se descubre con un
+                cliente de verdad esperando.
+
+                Se anade `interactive` y NO `button`: los interactivos son los
+                botones que Paco manda dentro de la conversacion; `button` son
+                los de las plantillas de marketing, que hoy no contesta y no
+                hay motivo para cambiarles el comportamiento de paso.
+
+                Los botones que abren una pagina (`cta_url`) no mandan nada de
+                vuelta, asi que no entran por aqui: solo los de respuesta.
+
+                El camino del gerente no se ve afectado — sale antes con
+                `continue`, sin llegar hasta aqui.                          */
+            const tocoBoton = msgType === "interactive" && !!bodyText;
+            if (((msgType === "text" && bodyText) || msgType === "audio" || tocoBoton) && phoneId && accessToken) {
               const msgSentAt = new Date(parseInt(msg.timestamp as string) * 1000).toISOString();
               await queueAiReply({
                 branchId: branch_id as string,

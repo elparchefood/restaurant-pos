@@ -1265,13 +1265,16 @@ async function processConversation(convId: string, relectura = false): Promise<v
   } catch (e) { console.error("blacklist check:", e); }
 
 
-  const SEL_BATCH = `select=id,body,external_id,media_url,media_type`;
+  /*  `payload` trae el id del boton que toco el cliente. Sin el habria que
+      reconocerlo por su texto, que es justo lo que este proyecto tiene
+      prohibido: el titulo se puede cambiar o escribir a mano; el id no. */
+  const SEL_BATCH = `select=id,body,external_id,media_url,media_type,payload`;
   const msgsRes = await sbGet(
     `/rest/v1/chat_messages?conversation_id=eq.${convId}&direction=eq.in` +
     `&sent_at=gte.${encodeURIComponent(batchStart)}&order=sent_at.asc&${SEL_BATCH}`
   );
   /* `leida`: la foto ya se convirtio en texto y NO debe ir a un humano. */
-  type BatchMsg = { id: string; body: string; external_id: string; media_url?: string | null; media_type?: string | null; leida?: boolean };
+  type BatchMsg = { id: string; body: string; external_id: string; media_url?: string | null; media_type?: string | null; leida?: boolean; payload?: Record<string, unknown> | null };
   let batchMsgs = (msgsRes || []) as Array<BatchMsg>;
 
   if (!batchMsgs.length) {
@@ -2829,12 +2832,58 @@ INTENCION, no las palabras exactas.` },
     }
   }
 
+  /*  ══ ¿TOCO UN BOTON NUESTRO? ═══════════════════════════════════════════
+      Si lo hizo, sabemos EXACTAMENTE cual sin interpretar nada. Si escribió,
+      esto queda vacío y todo sigue por el camino de siempre — que no se toca.
+      Se mira el último del lote: si tocó y además escribió, manda lo último. */
+  const accionBoton = (() => {
+    for (let i = batchMsgs.length - 1; i >= 0; i--) {
+      const a = String((batchMsgs[i].payload as Record<string, unknown> | null)?.accion || "").trim();
+      if (a) return a;
+    }
+    return "";
+  })();
+
   const clienteTexto = batchMsgs
     .map(m => m.body)
     .filter(b => !b.startsWith("[imagen]") && !b.startsWith("[image]") &&
                  !b.startsWith("[audio]") && !b.startsWith("[sticker]") && !b.startsWith("[video]"))
     .join("\n")
     .trim();
+
+  /*  ══ TOCO "CORREGIR ALGO" ══════════════════════════════════════════════
+      Se le manda un enlace NUEVO con `motivo=correccion`: la página abre con
+      su pedido ya cargado, quita o cambia lo que quiera, y vuelve al chat.
+
+      El enlace se crea SOLO para quien lo pide —fresco y con su caducidad— en
+      vez de repartirlos por si acaso.
+
+      Si el pedido ya está en cocina no se le manda nada: cambiar algo que ya
+      se está preparando no lo arregla una página, lo arregla una llamada.   */
+  if (accionBoton === BTN_FIX) {
+    const cw = (cfg.carta_web as Record<string, unknown>) || {};
+    const cv = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=order_id&limit=1`);
+    if (cv?.[0]?.order_id) {
+      const yaVa = "Tu pedido ya está en preparación, así que no puedo cambiarlo desde aquí 🙏 Escríbenos y lo miramos.";
+      await sendWaAndSave(convId, tenantId, yaVa, fromPhone, phoneId, accessToken);
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: yaVa, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+      return;
+    }
+    const tFix = await sbRpcDR("fn_carta_link", { p_conv: convId, p_motivo: "correccion", p_minutos: 120 });
+    const tokFix = typeof tFix === "string" ? tFix : "";
+    if (tokFix) {
+      const base = String(cw.url || "https://cobrapos.app/carta.html");
+      const txt = String(cw.texto_corregir
+        || "¡Claro que sí! Entra aquí y corrige lo que quieras 😊 Tu pedido ya está cargado.");
+      await sendWaBotonApp(convId, tenantId, txt, "Corregir mi pedido",
+        `${base}?t=${tokFix}`, fromPhone, phoneId, accessToken);
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: txt, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+      return;
+    }
+    /*  Si no se pudo crear el enlace NO se deja callado: sigue el flujo normal
+        y el modelo atiende la corrección hablando, como siempre.           */
+    console.error("[carta] no se pudo crear el enlace de correccion para", convId);
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 9. Estado del pedido (PacoState)
@@ -2869,7 +2918,7 @@ INTENCION, no las palabras exactas.` },
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pago_pendiente: false, pending_order_data: stPend, recordar_at: null });
       try {
         const sumMsg = await buildSummaryFromState(stPend, cfg, branchId, domiciliosCfg);
-        await sendWaAndSave(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken);
+        await sendWaResumen(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken, cfg);
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: sumMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
       } catch (err) { console.error("reabrir pendiente como efectivo:", err); }
       return;
@@ -3638,7 +3687,7 @@ INTENCION, no las palabras exactas.` },
           const sumMsg = await buildSummaryFromState(state, cfg, branchId, domiciliosCfg);
           state.resumen_enviado = true;
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
-          await sendWaAndSave(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken);
+          await sendWaResumen(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken, cfg);
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: sumMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
         } catch (err) { console.error("re-resumen tras quitar:", err); }
         return;
@@ -3700,7 +3749,7 @@ INTENCION, no las palabras exactas.` },
           const sumMsg = await buildSummaryFromState(state, cfg, branchId, domiciliosCfg);
           state.resumen_enviado = true;
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
-          await sendWaAndSave(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken);
+          await sendWaResumen(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken, cfg);
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: sumMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
         } catch (err) { console.error("re-resumen tras cambiar direccion:", err); }
         return;
@@ -3814,7 +3863,7 @@ INTENCION, no las palabras exactas.` },
         try {
           const sumMsg = await buildSummaryFromState(state, cfg, branchId, domiciliosCfg);
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
-          await sendWaAndSave(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken);
+          await sendWaResumen(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken, cfg);
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: sumMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
         } catch (err) { console.error("re-resumen por cambio de pago:", err); }
         return;
@@ -3838,7 +3887,10 @@ INTENCION, no las palabras exactas.` },
       console.log(`[resumen] el pago llegó en la respuesta al resumen: ${pagoDelMensaje} — vale como confirmación`);
     }
 
-    const isConfirmacion = !!pagoDelMensaje || esConfirmacion(clienteTexto, intenciones);
+    /*  El botón confirma sin interpretar nada. Y quien escriba "ahí está
+        bien" sigue confirmando igual que hoy: `esConfirmacion` no se toca. */
+    const isConfirmacion = accionBoton === BTN_OK || !!pagoDelMensaje
+      || esConfirmacion(clienteTexto, intenciones);
 
     if (isConfirmacion) {
       // Si el método de pago quedó liberado (caso "para llevar + efectivo"), capturarlo
@@ -4062,7 +4114,7 @@ INTENCION, no las palabras exactas.` },
           const sumMsg = await buildSummaryFromState(state, cfg, branchId, domiciliosCfg);
           state.resumen_enviado = true;
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
-          await sendWaAndSave(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken);
+          await sendWaResumen(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken, cfg);
           await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: sumMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
         } catch (err) { console.error("buildSummaryFromState error (corrección):", err); }
         return;
@@ -5640,7 +5692,7 @@ INTENCION, no las palabras exactas.` },
       const sumMsg = await buildSummaryFromState(state, cfg, branchId, domiciliosCfg);
       state.resumen_enviado = true;
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
-      await sendWaAndSave(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken);
+      await sendWaResumen(convId, tenantId, sumMsg, fromPhone, phoneId, accessToken, cfg);
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: sumMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
     } catch (err) {
       console.error("buildSummaryFromState error:", err);
@@ -12771,6 +12823,79 @@ async function enviarCodigoPagoDR(tenantId: string, tel10: string, monto: number
   if (!r.ok) { console.error("[billetera] SMS:", (await r.text()).slice(0, 200)); return false; }
   return true;
 }
+/*  ══ EL RESUMEN, CON DOS BOTONES ═════════════════════════════════════════
+
+    Hasta ahora el resumen terminaba en una PREGUNTA AL AIRE: *"¿Lo confirmamos
+    o hay algo que cambiar?"*. Quien contesta "ahí está bien", "sí señor" o
+    "listo pero sin cebolla" obliga a Paco a interpretarlo — y ahí ya se perdió
+    un pedido de verdad: el caso de Kevin del 17-ago empieza exactamente así.
+
+    Con dos botones eso desaparece. Es la misma idea de la carta: quitar el
+    texto de en medio.
+
+    ⚠️ QUIEN PREFIERA ESCRIBIR SIGUE ATENDIDO IGUAL. Los botones son una
+    puerta más, no la única: el camino de texto no se toca. Regla de Sergio.
+
+    Y si Meta rechaza el interactivo —o el canal no los admite, como Instagram
+    y Facebook— cae al texto de siempre. Un resumen que no llega es un pedido
+    perdido; uno sin botones solo es menos cómodo.                          */
+const BTN_OK  = "cobra_ok";
+const BTN_FIX = "cobra_fix";
+
+async function sendWaResumen(
+  convId: string, tenantId: string, msg: string,
+  fromPhone: string, phoneId: string, accessToken: string,
+  cfg: Record<string, unknown>,
+): Promise<void> {
+  const cartaWeb = (cfg.carta_web as Record<string, unknown>) || {};
+  const canal = await canalDe(convId);
+  if (cartaWeb.activo !== true || canal !== "whatsapp") {
+    return await sendWaAndSave(convId, tenantId, msg, fromPhone, phoneId, accessToken);
+  }
+
+  /*  El cuerpo de un interactivo no puede pasar de 1024 caracteres. Un resumen
+      largo —muchos productos, notas— se pasa, y Meta rechaza el mensaje
+      ENTERO: el cliente se quedaría sin resumen. Ahí va como texto.        */
+  const cuerpo = conEtiqueta(msg);
+  if (cuerpo.length > 1024) {
+    return await sendWaAndSave(convId, tenantId, msg, fromPhone, phoneId, accessToken);
+  }
+
+  const cuerpoBtn = {
+    messaging_product: "whatsapp", to: fromPhone, recipient_type: "individual",
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: { text: cuerpo },
+      action: {
+        /*  Los títulos no pueden pasar de 20 caracteres: Meta rechaza el
+            mensaje entero, no solo el botón.                              */
+        buttons: [
+          { type: "reply", reply: { id: BTN_OK,  title: "Sí, confirmo" } },
+          { type: "reply", reply: { id: BTN_FIX, title: "Corregir algo" } },
+        ],
+      },
+    },
+  };
+
+  const r = await enviarAMeta(convId, phoneId, accessToken, cuerpoBtn);
+  if (!r.ok) {
+    console.error("[resumen botones] Meta:", (await r.text()).slice(0, 200));
+    return await sendWaAndSave(convId, tenantId, msg, fromPhone, phoneId, accessToken);
+  }
+  const d = await r.json().catch(() => ({})) as Record<string, unknown>;
+  const sentId = ((d.messages as Array<Record<string, unknown>>)?.[0]?.id as string) || "";
+  /*  Se guarda el BOTON, no su transcripción: en la bandeja Sergio tiene que
+      ver lo mismo que vio el cliente.                                     */
+  const rec = loQueRecibio(canal, cuerpoBtn);
+  await sbPost(`/rest/v1/chat_messages`, {
+    conversation_id: convId, tenant_id: tenantId, direction: "out", origen: "bot",
+    body: String(rec.tipo) === "botones" ? cuerpo : String(rec.texto || cuerpo),
+    payload: rec, delivery_status: "sent", external_id: sentId || null,
+    sent_at: new Date().toISOString(),
+  });
+}
+
 /* Mensaje con BOTON que abre la app (pedido de Sergio: boton, no enlace
    pelado). Si Meta rechaza el interactivo, cae a texto con el enlace. */
 async function sendWaBotonApp(
