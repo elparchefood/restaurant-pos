@@ -191,7 +191,13 @@ body.ct-cerrado .ct-prod:active{background:var(--panel)}
 .ct-item-nom{font-size:14px;font-weight:700;line-height:1.3}
 .ct-item-det{font-size:12px;color:var(--tinta-2);line-height:1.45;margin-top:3px}
 .ct-item-p{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
-.ct-quitar{font-size:12px;font-weight:700;color:var(--tinta-3);margin-top:5px;padding:4px 0}
+/*  Los dos botones de cada linea del pedido. EDITAR va primero y en color
+    de marca porque es lo que casi siempre se quiere hacer; QUITAR va al lado,
+    en gris, para que no sea la salida facil: antes era la UNICA, y para
+    cambiar una salsa habia que borrar el plato entero y rehacerlo.        */
+.ct-lineabtn{display:flex;gap:16px;margin-top:5px}
+.ct-editar{font-size:12px;font-weight:800;color:var(--marca);padding:4px 0}
+.ct-quitar{font-size:12px;font-weight:700;color:var(--tinta-3);padding:4px 0}
 .ct-total{display:flex;align-items:center;justify-content:space-between;padding:15px 0 4px;
   font-size:17px;font-weight:800;letter-spacing:-.02em}
 .ct-total i{font-style:normal;font-variant-numeric:tabular-nums}

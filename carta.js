@@ -96,6 +96,22 @@
     pintarBarra();
     $('cargando').hidden = true;
     $('app').hidden = false;
+
+    /*  ══ AL CORREGIR, EL PEDIDO SE ABRE SOLO ═══════════════════════════
+        Sergio: *"toca tocar ahi para poder verlo; es mejor que aparezca
+        abierto desde el principio... de una vez ve su pedido y se va directo
+        a hacer los cambios"*.
+
+        Quien entra por el botón de corregir viene a una cosa concreta: lo
+        primero que ve tiene que ser esa. Se puede cerrar como siempre.
+
+        Solo al corregir — quien entra a pedir por primera vez tiene que ver
+        la CARTA, no un pedido vacío.                                     */
+    if (D.motivo === 'correccion' && pedido.length) {
+      pintarCierre();
+      $('velo').classList.add('on');
+      $('hoja').classList.add('on');
+    }
   })();
 
   function pintarCabecera() {
@@ -559,12 +575,19 @@
       h += '<div class="ct-item"><span class="ct-item-n">' + l.cant + '</span>'
          + '<div class="ct-item-t"><div class="ct-item-nom">' + esc(l.n) + '</div>'
          + (l.det ? '<div class="ct-item-det">' + esc(l.det) + '</div>' : '')
-         + '<button class="ct-quitar" data-q="' + i + '">Quitar</button></div>'
+         + (l.nota ? '<div class="ct-item-det">📝 ' + esc(l.nota) + '</div>' : '')
+         /*  Editar primero: es lo que casi siempre se quiere. Quitar va
+             despues y en gris, para que no sea la salida facil.          */
+         + '<div class="ct-lineabtn"><button class="ct-editar" data-e="' + i + '">Editar</button>'
+         + '<button class="ct-quitar" data-q="' + i + '">Quitar</button></div></div>'
          + '<div class="ct-item-p">' + cop(l.total) + '</div></div>';
     });
     h += '<div class="ct-total"><span>Total</span><i>' + cop(totalPedido()) + '</i></div>';
     $('hojaCuerpo').innerHTML = h;
     $('hojaCuerpo').scrollTop = 0;
+    $('hojaCuerpo').querySelectorAll('[data-e]').forEach(function (b) {
+      b.onclick = function () { abrirEditar(Number(b.dataset.e)); };
+    });
     $('hojaCuerpo').querySelectorAll('[data-q]').forEach(function (b) {
       b.onclick = function () {
         pedido.splice(Number(b.dataset.q), 1);
@@ -578,6 +601,163 @@
     $('btnPrincipal').innerHTML = 'Sí, terminar mi pedido';
     $('btnPrincipal').onclick = function () { cerrarHoja(); irAlPago(); };
     otroBoton(true, 'Seguir pidiendo', cerrarHoja);
+  }
+
+  /*  == EDITAR UNA LINEA DEL PEDIDO ========================================
+
+      Sergio, probando la correccion: *"me da la opcion de quitar la
+      salchipapa entera pero solo quiero quitar la adicion... un cliente asi se
+      enredaria demasiado"*.
+
+      Aqui se ve TODO lo de ese producto de una vez -tamano, tipo, adiciones,
+      cantidad y nota- y se toca solo lo que se quiere cambiar.
+
+      Va todo junto y no por pasos, al reves que al agregar: no es una
+      incoherencia, son dos tareas distintas. Quien agrega va decidiendo y se
+      le guia de a una; quien corrige YA SABE a que vino, y pasarlo por cuatro
+      pantallas para cambiar una salsa es justo lo que Sergio senala.
+
+      Usa el MISMO estado que el paso a paso (`abierto` + `elegido`), asi que
+      el precio, el empaque y las adiciones por tamano salen de las mismas
+      funciones. Dos juegos de cuentas serian dos sitios donde equivocarse. */
+  function abrirEditar(idx) {
+    var l = pedido[idx];
+    if (!l) return;
+    abierto = l.prod;
+    elegido = {
+      cant: l.cant, adic: (l.adic || []).slice(), nota: l.nota || '',
+      vars: Object.assign({}, l.vars), presId: l.presId,
+      verAdic: true, paso: 0, editIdx: idx
+    };
+    pintarEditar();
+    $('velo').classList.add('on');
+    $('hoja').classList.add('on');
+  }
+
+  function pintarEditar() {
+    var p = abierto, h = '';
+    var ad = adicionesDe(p, elegido.presId);
+    var res = resumenElegido();
+
+    h += '<div class="ct-paso"><button class="ct-atras" id="pasoAtras">'
+       + '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>'
+       + '</button><div class="ct-paso-tit"><b>' + esc(p.n) + '</b>'
+       + (res.length ? '<span>' + esc(res.join(' \u00b7 ')) + '</span>' : '') + '</div></div>'
+       + '<div class="ct-preg">Cambia lo que quieras</div>'
+       + '<div class="ct-sub">Toca solo lo que quieres cambiar. Lo dem\u00e1s se queda igual.</div>';
+
+    /*  Tamano. Si el producto viene de una sola forma no hay nada que
+        escoger y la seccion sobra.                                       */
+    if (p.pres.length > 1) {
+      var precia = (p.vg || []).some(function (g) { return g.precia; });
+      h += '<div class="ct-campo"><div class="ct-campo-tit">Tama\u00f1o</div></div>';
+      p.pres.forEach(function (x) {
+        h += '<button class="ct-op" data-epres="' + esc(x.id) + '" aria-pressed="'
+           + (elegido.presId === x.id) + '"><span>' + esc(x.n) + '</span>'
+           + '<i>' + (!precia && x.p ? cop(x.p + empDe(p, x.id)) : '') + '</i></button>';
+      });
+    }
+
+    /*  Un bloque por grupo de variantes: la SUPER QUESO tiene dos, y los dos
+        se tienen que poder cambiar.                                      */
+    var iP = p.pres.findIndex(function (x) { return x.id === elegido.presId; });
+    (p.vg || []).forEach(function (g, gi) {
+      h += '<div class="ct-campo"><div class="ct-campo-tit">' + esc(g.n) + '</div></div>';
+      g.ops.forEach(function (o) {
+        var extra = '';
+        if (g.precia && iP >= 0 && o.prs && o.prs[iP] != null) extra = cop(o.prs[iP] + empDe(p, elegido.presId));
+        else if (!g.precia && o.p) extra = '+' + cop(o.p);
+        h += '<button class="ct-op" data-eg="' + gi + '" data-eop="' + esc(o.id) + '" aria-pressed="'
+           + (elegido.vars[g.id] === o.id) + '"><span>' + esc(o.n) + '</span><i>' + extra + '</i></button>';
+      });
+    });
+
+    /*  Las adiciones SIEMPRE abiertas aqui: quitar la que tiene, o cambiarla
+        por otra, es de las cosas que mas se vienen a hacer. Esconderlas
+        detras de "quieres agregar algo?" seria el mismo enredo de antes.  */
+    if (ad) {
+      h += '<div class="ct-campo"><div class="ct-campo-tit">Adiciones</div></div>';
+      ad.ops.forEach(function (a) {
+        h += '<button class="ct-adic" data-adic="' + esc(a.n) + '" aria-pressed="'
+           + (elegido.adic.indexOf(a.n) >= 0) + '"><span>' + esc(a.n) + '</span>'
+           + '<i>+' + cop(a.p) + '</i></button>';
+      });
+    }
+
+    h += '<div class="ct-campo"><div class="ct-campo-tit">Cantidad</div>'
+       + '<div class="ct-cant"><button data-cant="-1">\u2212</button><span>' + elegido.cant
+       + '</span><button data-cant="1">+</button></div></div>'
+       + '<div class="ct-campo"><div class="ct-campo-tit">Nota para la cocina</div>'
+       + '<textarea class="ct-nota" rows="2" placeholder="Sin cebolla, bien caliente\u2026">'
+       + esc(elegido.nota) + '</textarea></div>';
+
+    $('hojaCuerpo').innerHTML = h;
+    $('pasoAtras').onclick = pintarCierre;
+
+    $('hojaCuerpo').querySelectorAll('[data-epres]').forEach(function (btn) {
+      btn.onclick = function () {
+        elegido.presId = btn.dataset.epres;
+        /*  Cambiar de tamano puede dejar sin sentido una adicion que solo
+            existe en el otro: se quita en vez de cobrarla igual.        */
+        var ad2 = adicionesDe(abierto, elegido.presId);
+        elegido.adic = !ad2 ? [] : elegido.adic.filter(function (n) {
+          return ad2.ops.some(function (o) { return o.n === n; });
+        });
+        pintarEditar();
+      };
+    });
+    $('hojaCuerpo').querySelectorAll('[data-eop]').forEach(function (btn) {
+      btn.onclick = function () {
+        elegido.vars[abierto.vg[Number(btn.dataset.eg)].id] = btn.dataset.eop;
+        pintarEditar();
+      };
+    });
+    $('hojaCuerpo').querySelectorAll('[data-adic]').forEach(function (btn) {
+      btn.onclick = function () {
+        var n = btn.dataset.adic, k = elegido.adic.indexOf(n);
+        if (k >= 0) elegido.adic.splice(k, 1); else elegido.adic.push(n);
+        pintarEditar();
+      };
+    });
+    $('hojaCuerpo').querySelectorAll('[data-cant]').forEach(function (btn) {
+      btn.onclick = function () {
+        elegido.cant = Math.max(1, Math.min(20, elegido.cant + Number(btn.dataset.cant)));
+        pintarEditar();
+      };
+    });
+    var ta = $('hojaCuerpo').querySelector('.ct-nota');
+    if (ta) ta.oninput = function () { elegido.nota = ta.value.slice(0, 200); };
+
+    var t = totalHoja();
+    $('hojaPie').hidden = false;
+    $('btnPrincipal').disabled = (t == null);
+    $('btnPrincipal').innerHTML = t == null ? 'Escoge una opci\u00f3n' : 'Guardar <i>' + cop(t) + '</i>';
+    $('btnPrincipal').onclick = guardarEdicion;
+    otroBoton(true, 'Quitar del pedido', function () {
+      pedido.splice(elegido.editIdx, 1);
+      pintarBarra();
+      if (!pedido.length) return cerrarHoja();
+      pintarCierre();
+    });
+  }
+
+  function guardarEdicion() {
+    var t = totalHoja();
+    if (t == null) return;
+    var l = pedido[elegido.editIdx];
+    if (!l) return pintarCierre();
+    l.presId = elegido.presId;
+    l.vars   = Object.assign({}, elegido.vars);
+    l.adic   = elegido.adic.slice();
+    l.cant   = elegido.cant;
+    l.nota   = elegido.nota;
+    /*  El precio se rehace desde los identificadores, nunca se ajusta el
+        anterior: es la misma regla que usa el servidor al guardar.      */
+    l.base   = precioDe(abierto, elegido.presId, elegido.vars);
+    l.det    = detalleDe(l);
+    l.total  = lineaTotal(l);
+    pintarBarra();
+    pintarCierre();
   }
 
   /* ── la barra ────────────────────────────────────────────────────────── */
