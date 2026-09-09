@@ -1676,6 +1676,11 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
   // tomar pedidos (lo garantiza puedeTomarPedidos + la regla estricta del prompt).
   if (modoAsistente === "auto" && isOpen) { await setTyping(convId, false); return; }
 
+  /*  El nombre que el cliente se puso a si mismo en WhatsApp. Se guarda aqui
+      porque el clasificador —que corre mas abajo— tiene que poder mirarlo, y
+      hacer un viaje aparte solo para eso seria pagarlo dos veces.          */
+  let nombreDelPerfil = "";
+
   /*  ══ ESTA COMPUERTA VA LA PRIMERA, Y POR ALGO (9-sep-2026) ═══════════════
 
       Estaba 400 lineas mas abajo y hoy le pase algo por encima: el bloque que
@@ -1696,7 +1701,8 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
      conversacion, la clienta dijo "gracias" y Paco contesto igual. La
      compuerta de abajo se queda como respaldo. */
   try {
-    const tkRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=human_takeover,order_id,handoff_at&limit=1`);
+    const tkRes = await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=human_takeover,order_id,handoff_at,contact_name&limit=1`);
+    nombreDelPerfil = String(tkRes?.[0]?.contact_name || "").trim();
     if (tkRes?.[0]?.human_takeover === true) {
       /* ══ EL RELEVO SE ACABA CUANDO SE ACABA EL MOTIVO (23-ago-2026) ══
          Una conversacion que pasa a una persona se quedaba en manos de esa
@@ -1968,7 +1974,16 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
  "rechaza_direccion":bool,"agregados":[string],
  "confirma":bool,"rechaza_mas":bool,"corrige":bool,
  "pregunta":bool,"despedida":bool,"queja":bool,"quiere_humano":bool,"fuera_tema":bool,
- "categoria":string|null,"mi_pedido":"estado"|"otra"|null}
+ "categoria":string|null,"mi_pedido":"estado"|"otra"|null,"nombre_persona":bool}
+
+- "nombre_persona": mira la linea NOMBRE DEL CONTACTO del final. true SOLO si
+  es el nombre de una PERSONA con el que se le puede saludar ("Daniela",
+  "Sergio Abadia", "Juan Carlos", "Maria Jose"). false si es un negocio ("El
+  Parche Comidas Rapidas", "RAPISER.COM.."), un apodo o algo con emojis
+  ("Maicol🥷🏻"), un cargo, un numero, o cualquier cosa que suene raro dicha en
+  voz alta ("La Vecina Del 5"). Ante la duda: false — saludar sin nombre no
+  molesta a nadie, saludar con el nombre equivocado si. Si no hay linea de
+  NOMBRE DEL CONTACTO, false.
 
 - "mi_pedido": el cliente habla de un pedido QUE YA HIZO, no de uno nuevo.
   · "estado" -> pregunta COMO VA o DONDE ESTA: "ya salio?", "en que va lo
@@ -2094,9 +2109,10 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
 Puede haber varias en true. Si no estas seguro, pon false.
 La gente escribe con errores, sin tildes y con espacios de mas: interpreta la
 INTENCION, no las palabras exactas.` },
-          { role: "user", content: contextoCorto
+          { role: "user", content: (contextoCorto
             ? `Contexto (mensajes anteriores):\n${contextoCorto}\n\nMENSAJE ACTUAL DEL CLIENTE:\n${textoDelCliente}`
-            : textoDelCliente },
+            : textoDelCliente)
+            + (nombreDelPerfil ? `\n\nNOMBRE DEL CONTACTO: ${nombreDelPerfil}` : "") },
         ],
       }),
     });
@@ -2177,17 +2193,18 @@ INTENCION, no las palabras exactas.` },
         escribe igual preguntando si ya salio. Se busca su ultimo pedido por
         el TELEFONO de quien escribe — lo mismo que ya hacia el bloque de
         contexto desde el 22-ago, a peticion de Sergio.                    */
-    if (!oidEst) {
-      const telEst = telLocal(String(fromPhone || "").replace(/\D/g, ""));
-      const cliEst = await sbGet(
-        `/rest/v1/pos_clientes?tenant_id=eq.${tenantId}&telefono=in.(${encodeURIComponent(telEst)},${encodeURIComponent(String(fromPhone || "").replace(/\D/g, ""))})&select=id&limit=1`
+    /*  La ficha del cliente sirve para DOS cosas aqui: su nombre de verdad y,
+        si la conversacion no tiene enlace, su ultimo pedido. Un solo viaje. */
+    const telEst = telLocal(String(fromPhone || "").replace(/\D/g, ""));
+    const cliEst = await sbGet(
+      `/rest/v1/pos_clientes?tenant_id=eq.${tenantId}&telefono=in.(${encodeURIComponent(telEst)},${encodeURIComponent(String(fromPhone || "").replace(/\D/g, ""))})&select=id,nombre&limit=1`
+    ) as Array<Record<string, unknown>> | null;
+
+    if (!oidEst && cliEst?.[0]?.id) {
+      const ultEst = await sbGet(
+        `/rest/v1/pos_orders?cliente_id=eq.${cliEst[0].id}&branch_id=eq.${branchId}&select=id&order=created_at.desc&limit=1`
       ) as Array<Record<string, unknown>> | null;
-      if (cliEst?.[0]?.id) {
-        const ultEst = await sbGet(
-          `/rest/v1/pos_orders?cliente_id=eq.${cliEst[0].id}&branch_id=eq.${branchId}&select=id&order=created_at.desc&limit=1`
-        ) as Array<Record<string, unknown>> | null;
-        if (ultEst?.[0]?.id) oidEst = ultEst[0].id;
-      }
+      if (ultEst?.[0]?.id) oidEst = ultEst[0].id;
     }
 
     if (oidEst) {
@@ -2285,10 +2302,24 @@ INTENCION, no las palabras exactas.` },
         /*  (d) CUALQUIER OTRA COSA. Sergio: *"Paco va a saludar y va a
             preguntar si tiene alguna duda con su pedido actual"*. Nunca desde
             cero: quien tiene un pedido en la plancha no es un desconocido. */
-        /*  El nombre sale del contacto, que ya vino en la consulta de arriba:
-            `state` y `nombreParaBot` todavia no existen en este punto del
-            programa y leerlos lanzaria — el error de esta manana.        */
-        const nombreEst = String(cvEst?.[0]?.contact_name || "").trim().split(" ")[0];
+        /*  ══ EL NOMBRE, DE LA FICHA — NUNCA DEL PERFIL ═══════════════════
+
+            Aqui salia del nombre del perfil de WhatsApp, y a Sergio lo saludo
+            como "El": su perfil se llama "El Parche Comidas Rapidas".
+
+            Ese nombre lo escribe cada quien para si mismo — un negocio, un
+            apodo, un emoji ("Maicol🥷🏻")— y nunca fue para dirigirse a nadie.
+            El bueno es el de la ficha, el que el restaurante guardo al
+            tomarle un pedido.
+
+            Y si no tiene ficha NO se inventa: se saluda sin nombre. Saludar
+            sin nombre no le molesta a nadie; con el nombre equivocado, si. */
+        /*  1º la ficha —el nombre que escribio el restaurante, y el mismo que
+            se guarda al renombrar un contacto desde el panel—; 2º el del
+            perfil de WhatsApp, pero SOLO si el lector dice que es el nombre de
+            una persona; 3º sin nombre, que es mejor que uno equivocado.   */
+        const nombreEst = (String(cliEst?.[0]?.nombre || "").trim()
+          || (intenciones.nombre_persona === true ? nombreDelPerfil : "")).split(" ")[0];
         await decirEst(`¡Hola${nombreEst ? " " + nombreEst : ""}! 😊 ${fraseEstado}`.trim()
           + "\n\n¿Tienes alguna duda con tu pedido?");
         console.log(`[estado] ${convId}: escribió con un pedido en "${estadoReal}" — saludo y pregunta`);

@@ -115,6 +115,43 @@ nunca y volvería el fallo de Linda Isabela. Se añadió a la lista de campos.
 
 ---
 
+## El saludo: "Hola El" (9-sep)
+
+Sergio, probando con el pedido en *listo*: *"Paco me saludó con el nombre de
+«El», ¿por qué?"*.
+
+Porque yo usaba el **nombre del perfil de WhatsApp** y le cortaba la primera
+palabra. Su perfil se llama *"El Parche Comidas Rapidas"*.
+
+El fallo no era el corte: era **la fuente**. Ese nombre lo escribe cada quien
+para sí mismo — un negocio, un apodo, emojis (*"Maicol🥷🏻"*), *"RAPISER.COM.."* —
+y nunca fue un nombre para dirigirse a alguien.
+
+### Las tres fuentes, en orden
+
+1. **La ficha del cliente.** Es el nombre que escribió el restaurante. Y cuando
+   alguien **renombra un contacto desde el panel**, se guarda ahí *y* en el
+   chat a la vez — o sea que *"el nombre guardado en Cobra"* es exactamente
+   éste.
+2. **Sin ficha, el perfil de WhatsApp — pero solo si de verdad es de una
+   persona.** Lo decide el lector, no una lista de palabras: ninguna lista
+   cubre apodos, emojis y nombres de negocio. Se añadió un campo al
+   clasificador que **ya corre en cada mensaje**, así que no cuesta un viaje
+   más.
+3. **Si no, sin nombre.** Saludar sin nombre no le molesta a nadie; con el
+   nombre equivocado, sí.
+
+### Probado
+
+| Perfil de WhatsApp | Ficha | Paco saluda |
+|---|---|---|
+| El Parche Comidas Rapidas | Sergio Abadía | **¡Hola Sergio!** |
+| El Parche Comidas Rapidas | — | ¡Hola! *(sin nombre)* |
+| Daniela Martinez | — | **¡Hola Daniela!** |
+| Maicol🥷🏻 | — | ¡Hola! *(sin nombre)* |
+
+---
+
 ## Probado
 
 Ocho situaciones, en una conversación de prueba con un número que no existe —
