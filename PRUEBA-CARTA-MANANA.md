@@ -138,6 +138,58 @@ leer del mensaje.
 
 ---
 
+## Corregir sin borrar (9-sep, pedido de Sergio)
+
+> *"Me da la opción de quitar la salchipapa entera pero solo quiero quitar la
+> adición... un cliente así se enredaría demasiado."*
+
+Tenía razón, y va contra el propósito de la página: existe para **quitar**
+trabajo, no para que el cliente repita cuatro decisiones para cambiar una salsa.
+
+**Cada línea del pedido ahora tiene "Editar".** Dentro está todo lo de ese
+producto **a la vez**:
+
+| Sección | Qué se puede hacer |
+|---|---|
+| Tamaño | cambiar Familiar ↔ Personal |
+| Tipo (y cada grupo que tenga) | Mixta / Carne / Pollo |
+| Adiciones | quitar la que tiene, o cambiarla por otra |
+| Cantidad | subir o bajar |
+| Nota | reescribirla |
+
+Se toca solo lo que se quiere cambiar; el botón de abajo dice **Guardar** con el
+precio nuevo ya calculado. *Quitar del pedido* sigue estando, pero abajo.
+
+**Al editar se ve todo junto, no por pasos.** Es a propósito y no es una
+incoherencia con el paso a paso de cuando se agrega: quien agrega va decidiendo
+y se le guía de a una; quien corrige **ya sabe a qué vino**.
+
+Y si se cambia el tamaño, las adiciones que ese tamaño no tiene **se sueltan
+solas** en vez de cobrarse igual.
+
+### Y el panel se abre solo
+
+> *"Toca tocar ahí para poder verlo; es mejor que aparezca abierto desde el
+> principio... de una vez ve su pedido y se va directo a hacer los cambios."*
+
+Entrando por **Corregir algo**, el pedido aparece abierto. Se puede cerrar como
+siempre. Solo al corregir: quien entra a pedir por primera vez ve la carta.
+
+### Probado en el navegador, con tu pedido real
+
+| Acción | Precio |
+|---|---|
+| Como estaba | $82.000 |
+| Quitando Jalapeños | $70.000 |
+| Cambiando a Ranchera | $98.000 |
+| Y pasándola a Personal | $49.000 *(y Ranchera se mantuvo)* |
+
+Guardado quedó *"Personal · Mixta · con Ranchera · «Con ajo y rosada»"*. **Nada
+de eso se envió**: probé en la página sin guardar, tu pedido en la base sigue
+igual (Familiar, Mixta, Jalapeños, "Solo ajo", $90.000).
+
+---
+
 ## El recorrido, y qué debe pasar
 
 | # | Qué haces | Qué debe pasar |
