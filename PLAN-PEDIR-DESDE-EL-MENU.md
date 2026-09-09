@@ -232,3 +232,16 @@ no la de El Parche.
 Sergio, 8-sep: *"podemos proponerlo aquí antes de implementarlo"*. Se le enseña
 la pantalla maquetada y se aprueba **antes** de construirla. Regla de la casa:
 lo visual se enseña antes de publicar.
+
+---
+
+## 7. La maqueta, y todo lo que se decidió con ella
+
+Se maquetó el 8-sep con los productos, precios y fotos **reales** de El Parche
+(artefacto *«Carta interactiva de Cobra»*), y de enseñársela salieron muchas
+decisiones: cómo se navega, el paso a paso, el empaque ya sumado en el precio,
+el upsell, la pantalla del pago, y qué se puede hacer con el saldo y los puntos
+sin que la persona se registre.
+
+**Todo eso está en `PLAN-PEDIR-MENU-DECISIONES.md`**, con los números medidos
+contra la base — no supuestos.
