@@ -272,6 +272,169 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── GUARDAR ───────────────────────────────────────────────────────────
+    if (action === "guardar") {
+      const v = await abrirLink(token);
+      if (v.error) return json(404, { error: v.error });
+      const link = v.link as Fila;
+      const tenant = String(link.tenant_id);
+
+      const items = filas(body.productos);
+      if (!items.length) return json(400, { error: "el pedido está vacío" });
+      if (items.length > 40) return json(400, { error: "demasiados productos" });
+
+      /*  ══ LOS PRECIOS SE RECALCULAN AQUÍ, SIEMPRE ═══════════════════════
+          La pantalla manda QUÉ escogió, nunca CUÁNTO vale. Si se creyera el
+          precio que manda el navegador, cualquiera podría pedirse una
+          Premium familiar por mil pesos — es exactamente el agujero que ya
+          hubo con el monto del registro, donde la pantalla decía $1.000 y se
+          cobraban $249.000 solo porque el servidor lo recalculaba.
+
+          Aquí igual: del cuerpo se leen ids y cantidades; los precios salen
+          de la base.                                                      */
+      const ids = [...new Set(items.map((x) => String(x.product_id || "")))].filter(Boolean);
+      const pRes = await db(`pos_products?tenant_id=eq.${tenant}&id=in.(${ids.join(",")})` +
+        `&select=id,name,category_id,presentations,variables,mod_group_ids,mod_group_pres,available,agotado`);
+      const porId = new Map<string, Fila>();
+      for (const p of filas(pRes.data)) porId.set(String(p.id), p);
+
+      const bRes = await db(link.branch_id
+        ? `branches?id=eq.${link.branch_id}&select=id,operacion_config&limit=1`
+        : `branches?tenant_id=eq.${tenant}&select=id,operacion_config&limit=1`);
+      const sede = filas(bRes.data)[0] || {};
+      const cfg = (sede.operacion_config as Fila) || {};
+
+      const gRes = await db(`pos_modifier_groups?tenant_id=eq.${tenant}&select=id,name,options`);
+      const grupos = new Map<string, Fila>();
+      for (const g of filas(gRes.data)) grupos.set(String(g.id), g);
+
+      const cRes = await db(`pos_categories?tenant_id=eq.${tenant}&select=id,name,comanda_alias`);
+      const cats = new Map<string, Fila>();
+      for (const c of filas(cRes.data)) cats.set(String(c.id), c);
+
+      const productos: Fila[] = [];
+      let subtotal = 0, empaque = 0;
+
+      for (const it of items) {
+        const p = porId.get(String(it.product_id || ""));
+        if (!p) return json(400, { error: "un producto de tu pedido ya no está disponible" });
+        if (p.available === false || p.agotado === true) {
+          return json(409, { error: `Se acabó ${p.name}. Quita ese producto y vuelve a intentar.` });
+        }
+        const pres = filas(p.presentations);
+        const presId = String(it.pres_id || "");
+        const pr = pres.find((x) => String(x.id) === presId);
+        if (!pr) return json(400, { error: "falta escoger el tamaño de un producto" });
+
+        const cant = Math.max(1, Math.min(20, Number(it.cantidad) || 1));
+        const vars = (it.variantes as Record<string, string> | undefined) || {};
+
+        //  el precio base: por matriz si algún grupo fija el precio
+        const vgs = filas(p.variables);
+        const precia = vgs.find((g) => g.isPricing === true);
+        let unit = Number(pr.price) || 0;
+        const varsObj: Fila = {};
+        const partes: string[] = [];
+
+        for (const g of vgs) {
+          const escogida = String(vars[String(g.id)] || "");
+          const o = filas(g.options).find((x) => String(x.id) === escogida);
+          if (!o) return json(400, { error: `falta escoger ${g.name} en ${p.name}` });
+          varsObj[String(g.id)] = { id: o.id, name: o.name, price: Number(o.price) || 0, group: g.name };
+          partes.push(String(o.name));
+          if (g === precia) {
+            const i = pres.findIndex((x) => String(x.id) === presId);
+            const prs = filas(o.prices).map((y) => Number(y) || 0);
+            unit = prs[i] != null ? prs[i] : (prs[0] != null ? prs[0] : Number(o.price) || 0);
+          } else {
+            unit += Number(o.price) || 0;
+          }
+        }
+
+        //  las adiciones, con el precio del grupo QUE LE TOCA a esa presentación
+        const mgp = (p.mod_group_pres as Record<string, string[]> | null) || {};
+        let grupoAdic: Fila | null = null;
+        for (const [gid, presIds] of Object.entries(mgp)) {
+          if ((presIds || []).includes(presId)) { grupoAdic = grupos.get(gid) || null; break; }
+        }
+        if (!grupoAdic) {
+          const uno = filas(p.mod_group_ids).map(String)[0];
+          grupoAdic = uno ? (grupos.get(uno) || null) : null;
+        }
+        const adiciones: Fila[] = [];
+        for (const nombre of filas(it.adiciones).map((x) => String((x as Fila).name ?? x))) {
+          const o = grupoAdic ? filas(grupoAdic.options).find((x) => String(x.name) === nombre) : null;
+          if (!o) return json(400, { error: `esa adición ya no está disponible en ${p.name}` });
+          adiciones.push({ id: o.id, name: o.name, price: Number(o.price) || 0 });
+          unit += Number(o.price) || 0;
+        }
+
+        const catId = String(p.category_id || "");
+        const cat = cats.get(catId) || {};
+        const emp = empaqueDe(cfg, String(p.id), catId, presId, Number(pr.price) || 0);
+
+        //  el nombre, igual que en la comanda: presentación · producto · variantes
+        const etiqueta = String(pr.name || "") || String(cat.comanda_alias || cat.name || "");
+        productos.push({
+          product_id: p.id, cat: catId,
+          product_name: [etiqueta, p.name].concat(partes).filter(Boolean).join(" · "),
+          unit_price: unit, cantidad: cant,
+          tamano: pr.name || "", pres_id: presId,
+          variantes: varsObj, adiciones,
+          notas: String(it.notas || "").slice(0, 200),
+          matched: true,
+          /*  De dónde salió. El día que un pedido llegue raro, esto dice si lo
+              escribió alguien o lo tocó en la carta.                       */
+          origen: "carta",
+        });
+        subtotal += unit * cant;
+        empaque  += emp * cant;
+      }
+
+      /*  El medio de pago tiene que ser uno de los que el restaurante tiene
+          activos. Si no, alguien podría mandar "pago: gratis".            */
+      const iaRes = await db(`ia_config?tenant_id=eq.${tenant}&select=pagos&limit=1`);
+      const metodos = filas((filas(iaRes.data)[0]?.pagos as Fila | undefined)?.metodos)
+        .filter((m) => m.activo !== false);
+      const pedido = String(body.pago || "");
+      const m = metodos.find((x) => String(x.id) === pedido || String(x.nombre) === pedido);
+      if (!m) return json(400, { error: "ese medio de pago no existe" });
+
+      const total = subtotal + empaque;
+      const borrador = {
+        productos, subtotal, empaque, total,
+        telefono: String(link.telefono || "").replace(/\D/g, "").slice(-10),
+        pago: m.nombre, pago_id: m.id,
+        branch_id: sede.id || link.branch_id || null,
+        tipo: "", direccion: "", barrio: "", cliente: "", notas: "",
+        /*  Lo que la persona DIJO que quiere hacer con su saldo. Es una
+            intención, no un cobro: aquí no se descuenta nada. Paco lo
+            confirma en el chat y ahí sí se toca el dinero.               */
+        saldo_intencion: Number(body.saldo_usar) || 0,
+        desde_carta: true,
+        carta_at: new Date().toISOString(),
+      };
+
+      const up = await db(`chat_conversations?id=eq.${link.conv_id}`, {
+        method: "PATCH", headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ pedido_borrador: borrador }),
+      });
+      if (!up.ok) {
+        console.error("[carta] no se pudo guardar el borrador:", up.status, up.text.slice(0, 200));
+        return json(502, { error: "no se pudo guardar tu pedido. Inténtalo otra vez." });
+      }
+
+      /*  El enlace se quema. Recargar la pantalla no puede mandar el pedido
+          dos veces — y si quiere corregir, Paco le manda uno nuevo.       */
+      await db(`pos_carta_links?token=eq.${encodeURIComponent(token)}`, {
+        method: "PATCH", headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ usado_at: new Date().toISOString() }),
+      });
+
+      console.log(`[carta] pedido de ${borrador.telefono}: ${productos.length} productos, ${total}`);
+      return json(200, { ok: true, total, subtotal, empaque, pago: m.nombre });
+    }
+
     return json(400, { error: "acción desconocida" });
   } catch (e) {
     console.error("[carta]", String(e).slice(0, 300));
