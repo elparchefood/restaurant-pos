@@ -199,6 +199,23 @@
     return (l.base + extra) * l.cant;
   }
 
+  /*  El nombre completo: CATEGORIA + producto. Los nombres de esta carta son
+      adjetivos —"Sencilla", "Especial", "Premium"— y solos no dicen nada:
+      "1x Sencilla" no es un pedido, es una adivinanza.
+
+      Vive aqui y no dentro de cada pantalla porque lo enseñan tres (el
+      resumen, la pantalla de puntos y el editor), y tres copias del mismo
+      texto se desincronizan a la primera.                                */
+  function nombreCompleto(l) {
+    var cat = String((l.prod && l.prod.cat) || '').trim();
+    var n = String(l.n || '').trim();
+    if (!cat) return n;
+    /*  Sin repetir: si el producto ya se llama como su categoría —"Bebidas ·
+        QUATRO"— ponerla otra vez sobra.                                  */
+    if (n.toLowerCase().indexOf(cat.toLowerCase()) >= 0) return n;
+    return cat + ' ' + n;
+  }
+
   function detalleDe(l) {
     var d = [], i = l.prod.pres.findIndex(function (x) { return x.id === l.presId; });
     if (i >= 0 && l.prod.pres[i].n) d.push(l.prod.pres[i].n);
@@ -576,7 +593,7 @@
           + '<div class="ct-sub">Si está bien, con esto terminamos y vuelves al chat.</div>';
     pedido.forEach(function (l, i) {
       h += '<div class="ct-item"><span class="ct-item-n">' + l.cant + '</span>'
-         + '<div class="ct-item-t"><div class="ct-item-nom">' + esc(l.n) + '</div>'
+         + '<div class="ct-item-t"><div class="ct-item-nom">' + esc(nombreCompleto(l)) + '</div>'
          + (l.det ? '<div class="ct-item-det">' + esc(l.det) + '</div>' : '')
          /*  Editar primero: es lo que casi siempre se quiere. Quitar va
              despues y en gris, para que no sea la salida facil.          */
@@ -1130,7 +1147,7 @@
       pedido.forEach(function (l, i) {
         if (!l.premio) return;
         h += '<button class="ct-adic" data-quitarpremio="' + i + '" aria-pressed="true">'
-           + '<span>' + esc(l.n) + (l.det ? ' · ' + esc(l.det) : '') + '</span>'
+           + '<span>' + esc(nombreCompleto(l)) + (l.det ? ' · ' + esc(l.det) : '') + '</span>'
            + '<i>' + ((l.pts || 0) * l.cant) + ' pts</i></button>';
       });
     }
@@ -1139,7 +1156,7 @@
       h += '<div class="ct-campo"><div class="ct-campo-tit">De lo que pediste</div></div>';
       enElPedido.forEach(function (x) {
         h += '<button class="ct-op" data-cobrar="' + x.i + '">'
-           + '<span>' + esc(x.l.n) + (x.l.det ? ' · ' + esc(x.l.det) : '') + '</span>'
+           + '<span>' + esc(nombreCompleto(x.l)) + (x.l.det ? ' · ' + esc(x.l.det) : '') + '</span>'
            + '<i>' + x.pm.pts + ' pts</i></button>';
       });
     } else if (!yaHay) {

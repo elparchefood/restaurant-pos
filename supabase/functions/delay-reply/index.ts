@@ -48,6 +48,9 @@ interface PacoState {
      el ultimo producto vive en campos sueltos, no en la lista — y en la
      primera prueba el premio era justo el ultimo. */
   premio?:            boolean;
+  /* Los puntos que se van a restar cuando el pedido se cree. Hasta entonces
+     es una INTENCION: aqui no se toca el saldo de nadie. */
+  puntos_usar?:       number;
   cantidad:           number;
   adiciones:          string | null;  // null=no preguntado, ""=rechazado, "texto"=pidió
   /* Lo que TU le ofreces, no lo que el pide. Va aparte de `adiciones` porque
@@ -1872,6 +1875,10 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
         st.adiciones = pAct.adiciones;
         st.preferencias = pAct.preferencias || null;
         st.premio = pAct.premio === true;
+        /*  Lo que la pagina dijo que se va a reclamar. Ya viene comprobado
+            contra el catalogo y contra el saldo, pero se vuelve a comprobar
+            al restar: entre la pagina y la cocina pasan minutos.        */
+        st.puntos_usar = Number(br.puntos_usar) || 0;
 
         /*  ══ LAS VARIANTES, POR SU GRUPO ═══════════════════════════════════
 
@@ -11365,6 +11372,7 @@ function buildOrderArgs(state: PacoState, domiPrecio: number): Record<string, un
        dice "casa 12" y no hay forma de saber de que conjunto o barrio. */
     barrio:      state.barrio    || "",
     pago:        state.pago      || "efectivo",
+    puntos_usar: Number(state.puntos_usar) || 0,
     mensaje:     "¡Pedido confirmado!",
     domi_precio: domiPrecio,
     productos:   allItems.filter(i => i.producto).map(i => ({
@@ -11379,6 +11387,10 @@ function buildOrderArgs(state: PacoState, domiPrecio: number): Record<string, un
          "ranchera + super queso" confirmada en $40.000 se creo en $27.000 y
          la comanda salio sin el queso. El dato ya estaba; nadie lo pasaba. */
       adiciones: i.adiciones || null,
+      /*  Reclamado con puntos: la linea entra en $0. La comanda la sigue
+          enseNando —hay que prepararla— pero no puede sumar como venta en
+          efectivo: eso descuadra la caja y el informe de ventas.       */
+      premio:    i.premio === true,
       // Cómo lo quiere preparado. Va como nota del PRODUCTO (no del pedido)
       // para que la comanda de cocina lo muestre pegado a su plato: si va
       // suelta al final, el cocinero no sabe a cuál de los dos aplica.
@@ -11516,14 +11528,22 @@ async function createWhatsappOrder(
       adiPrecio += a.precio;
     }
 
-    const itemTotal   = (price + adiPrecio) * cantidad;
+    /*  ══ LO RECLAMADO CON PUNTOS NO ES UNA VENTA EN EFECTIVO ══════════════
+        Entra en $0 y no suma al total. Y se dice en el nombre, para que en
+        cocina y en la caja se vea POR QUE va en cero: un producto en $0 sin
+        explicacion parece un error de digitacion, y alguien lo "corrige".  */
+    const esPremioItem = prod.premio === true;
+    const precioItem  = esPremioItem ? 0 : price;
+    const itemTotal   = esPremioItem ? 0 : (price + adiPrecio) * cantidad;
     const displayName = nombreComanda(
       String(matched.name), presName, tipoGPT,
-      matched.category_id as Record<string, unknown> | null);
-    items.push({ product_id: String(matched.id), name: displayName, product_name: displayName, product_price: price, unit_price: price, total: itemTotal, quantity: cantidad, selections: { mods: modsMap, pres: presName, vars: varsMap }, branch_id: branchId, tenant_id: tenantId || null, notes: notaItem });
+      matched.category_id as Record<string, unknown> | null)
+      + (esPremioItem ? " (con puntos)" : "");
+    items.push({ product_id: String(matched.id), name: displayName, product_name: displayName, product_price: precioItem, unit_price: precioItem, total: itemTotal, quantity: cantidad, selections: { mods: modsMap, pres: presName, vars: varsMap }, branch_id: branchId, tenant_id: tenantId || null, notes: notaItem });
     orderTotal += itemTotal;
     /* El empaque puede depender del producto, de su presentacion o de la
        categoria, asi que se guarda con que se cobro cada linea. */
+    if (esPremioItem) continue;   // sobre un premio tampoco se cobra el empaque
     const presRow = presName
       ? ((matched.presentations as Array<Record<string, unknown>>) || [])
           .find(p => normalizarTexto(String(p.name || "")) === normalizarTexto(presName))
@@ -11631,6 +11651,32 @@ async function createWhatsappOrder(
      VIEJO de la conversacion, la pastilla de estado no aparecia y la etiqueta
      "En preparacion" nunca se ponia. sin_mensaje porque Paco ya manda su frase
      de cierre — el aviso configurado del estado seria decirlo dos veces. */
+  /*  ══ AHORA SI SE RESTAN LOS PUNTOS ═══════════════════════════════════════
+
+      Hasta aqui eran una intencion. Se restan con `fn_puntos_consumir`, que ya
+      existe y ya es la que usa la caja: bloquea la fila, comprueba el saldo,
+      descuenta y deja el movimiento como 'canje'. Una segunda forma de restar
+      puntos serian dos verdades sobre el mismo saldo.
+
+      Va DESPUES de crear el pedido y con su `order_id`: si el pedido no llega
+      a existir, nadie pierde puntos. Y si el descuento falla, el pedido NO se
+      deshace —ya esta en cocina— pero queda escrito para revisarlo: perder el
+      pedido seria peor que deber unos puntos.                              */
+  const ptsUsar = Number((data as Record<string, unknown>).puntos_usar) || 0;
+  if (ptsUsar > 0) {
+    try {
+      const res = await sbRpcDR("fn_puntos_consumir", {
+        p_tenant: tenantId, p_branch: branchId, p_telefono: fromPhone,
+        p_puntos: ptsUsar, p_order: orderId,
+        p_detalle: "Reclamado desde la carta", p_quien: "carta",
+      });
+      if (res === null) console.error(`[puntos] NO se pudieron restar ${ptsUsar} puntos del pedido ${orderId}`);
+      else console.log(`[puntos] restados ${ptsUsar}; le quedan ${res}`);
+    } catch (e) {
+      console.error("[puntos] fallo al restar:", String(e).slice(0, 200));
+    }
+  }
+
   if (convIdPedido) {
     try {
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convIdPedido}`, { order_id: orderId });
