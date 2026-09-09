@@ -1994,6 +1994,13 @@ Lee lo que escribio el CLIENTE y responde SOLO este JSON:
   · null     -> no habla de un pedido ya hecho.
   OJO: "quiero pedir una premium" NO es mi_pedido, es "pedir". Y "cuanto se
   demora" SI es mi_pedido:"otra" — es sobre el suyo, aunque no lo nombre.
+  ⚠️ CONTAR NO ES PREGUNTAR. Si el cliente AVISA que ya lo tiene o que todo
+  salio bien —"ya me llego", "ya lo recibi", "llego delicioso", "perfecto, ya
+  esta aqui"— eso es null, NO "estado": no esta preguntando nada, esta
+  contando. Solo es "estado" cuando QUIERE SABER como va o donde esta.
+  ⚠️ Y SI ALGO SALIO MAL es "otra", NUNCA "estado": "llego frio", "llego
+  incompleto", "falta la gaseosa", "me cobraron de mas", "ya lleva una hora y
+  nada". Ahi no pregunta como va: esta diciendo que hay un problema.
 
 - "pregunta": true si el mensaje contiene una pregunta que espera respuesta
   (con o sin signo de interrogacion: "cuanto vale", "hasta que hora", "sera
@@ -2258,10 +2265,27 @@ INTENCION, no las palabras exactas.` },
           });
         };
         const miPedido = String(intenciones.mi_pedido || "");
+        /*  ¿El mensaje es SOLO un saludo? Se mira antes que nada: con el aviso
+            del estado recien mandado, el lector lee ese "hola" como una
+            pregunta por el pedido —y no le falta razon—, pero Sergio pidio
+            que ahi Paco salude y pregunte, no que suelte el estado a secas. */
+        const esSaludoSolo = SALUDO_REGEX.test(String(textoDelCliente || "").trim());
 
         /*  (a) PREGUNTA COMO VA. Se le contesta con la frase de SU estado, sin
             pasar por el modelo: aqui no hay nada que redactar, hay un dato. */
-        if (miPedido === "estado" && fraseEstado) {
+        /*  ⚠️ El reclamo va ANTES que el estado, y a proposito: a quien dice
+            "llego frio" no se le puede contestar "tu pedido esta en camino".
+            Puesto aqui, aunque el lector se equivoque al clasificar, quien
+            esta molesto nunca recibe una frase de catalogo.              */
+        if (intenciones.queja === true || intenciones.quiere_humano === true) {
+          await decirEst("Ya le aviso a una persona del equipo para que te ayude con eso 🙏");
+          await pasarAHumano(convId, tenantId,
+            `Algo pasó con su pedido (está en "${estadoReal}")`,
+            cfg as Record<string, unknown>, fromPhone, phoneId, accessToken);
+          return;
+        }
+
+        if (!esSaludoSolo && miPedido === "estado" && fraseEstado) {
           await decirEst(fraseEstado);
           console.log(`[estado] ${convId}: preguntó por su pedido, está en "${estadoReal}"`);
           return;
@@ -2274,6 +2298,7 @@ INTENCION, no las palabras exactas.` },
             como `pedir` — y con razon, es lo que es. Los dos casos son lo
             mismo aqui: quiere MAS comida con el pedido ya en cocina.     */
         const quierePedirMas = intenciones.pedir === true
+          || intenciones.carta === true      // pedir la carta con el pedido en cocina es lo mismo
           || (Array.isArray(intenciones.agregados) && (intenciones.agregados as unknown[]).length > 0);
         if (quierePedirMas) {
           await decirEst(fraseEstado
@@ -2289,7 +2314,7 @@ INTENCION, no las palabras exactas.` },
             reclamo—. Sergio: *"ahi pasara la conversacion al humano"*. Se le
             dice primero el estado, que es lo que Paco SI sabe, para que no se
             quede sin ninguna respuesta mientras llega la persona.         */
-        if (miPedido === "otra" || intenciones.queja === true || intenciones.quiere_humano === true) {
+        if (miPedido === "otra") {
           await decirEst(fraseEstado
             ? `${fraseEstado}\n\nYa le aviso a una persona del equipo para que te ayude con eso 🙏`
             : "Ya le aviso a una persona del equipo para que te ayude con eso 🙏");
@@ -2299,9 +2324,22 @@ INTENCION, no las palabras exactas.` },
           return;
         }
 
-        /*  (d) CUALQUIER OTRA COSA. Sergio: *"Paco va a saludar y va a
-            preguntar si tiene alguna duda con su pedido actual"*. Nunca desde
-            cero: quien tiene un pedido en la plancha no es un desconocido. */
+        /*  (d) UN SALUDO A SECAS. Sergio: *"Paco va a saludar y va a preguntar
+            si tiene alguna duda con su pedido actual"*. Quien solo dice "hola"
+            con un pedido en la plancha esta preguntando por el, aunque no lo
+            escriba.
+
+            ⚠️ SOLO el saludo a secas. Al principio puse aqui "cualquier otra
+            cosa" y eso apago la conversacion entera: Sergio contesto "muchas
+            gracias" y Paco le repitio el estado. Su regla era *"no contestar
+            desde cero"*, y yo la lei como "contestar siempre lo mismo" — que
+            no es lo mismo, es no escuchar.                                */
+        if (!esSaludoSolo) {
+          /*  Todo lo demas sigue el camino de siempre, con el pedido puesto en
+              el contexto unas lineas mas abajo. Un "muchas gracias" merece un
+              "con mucho gusto", no el estado por segunda vez.             */
+          console.log(`[estado] ${convId}: tiene pedido en "${estadoReal}", sigue el camino normal`);
+        } else {
         /*  ══ EL NOMBRE, DE LA FICHA — NUNCA DEL PERFIL ═══════════════════
 
             Aqui salia del nombre del perfil de WhatsApp, y a Sergio lo saludo
@@ -2320,10 +2358,11 @@ INTENCION, no las palabras exactas.` },
             una persona; 3º sin nombre, que es mejor que uno equivocado.   */
         const nombreEst = (String(cliEst?.[0]?.nombre || "").trim()
           || (intenciones.nombre_persona === true ? nombreDelPerfil : "")).split(" ")[0];
-        await decirEst(`¡Hola${nombreEst ? " " + nombreEst : ""}! 😊 ${fraseEstado}`.trim()
-          + "\n\n¿Tienes alguna duda con tu pedido?");
-        console.log(`[estado] ${convId}: escribió con un pedido en "${estadoReal}" — saludo y pregunta`);
-        return;
+          await decirEst(`¡Hola${nombreEst ? " " + nombreEst : ""}! 😊 ${fraseEstado}`.trim()
+            + "\n\n¿Tienes alguna duda con tu pedido?");
+          console.log(`[estado] ${convId}: saludó con un pedido en "${estadoReal}"`);
+          return;
+        }
       }
     }
   } catch (e) { console.error("[estado] no se pudo mirar el pedido en curso:", String(e).slice(0, 200)); }
@@ -3669,7 +3708,24 @@ INTENCION, no las palabras exactas.` },
         const itsPed = await sbGet(`/rest/v1/pos_order_items?order_id=eq.${oidPed}&select=quantity,name,product_name&limit=12`) as Array<Record<string, unknown>> | null;
         const listaPed = (itsPed || []).map(i => `${i.quantity}x ${String(i.name || i.product_name || "")}`.trim())
           .filter(x => x.length > 3).join(", ");
-        const enCamino = String(p.estado || "") === "en_camino" || String(p.delivery_status || "") === "en_camino";
+        /*  ══ EL ESTADO EXACTO, TAMBIEN EN EL CONTEXTO (9-sep-2026) ═════════
+            Aqui solo habia dos: "en camino" o "en preparacion". Un pedido en
+            "listo" se contaba como preparacion, y de ahi salia el *"dijo que
+            estaba en camino cuando estaba en preparacion"* de Sergio.
+            Ahora se nombra el estado de verdad y se le pasa al modelo la
+            MISMA frase que el restaurante escribio en su pantalla.        */
+        const dCtx = String(p.delivery_status || "");
+        const estadoCtx = String(p.estado || "")
+          || (dCtx === "entregado" ? "entregado" : dCtx === "en_camino" ? "en_camino" : "en_preparacion");
+        const tipoCtx = String(p.channel || "").toLowerCase() === "domicilio" ? "domicilio" : "llevar";
+        const cfgCtx = (cfg.estados_config as Record<string, Record<string, { mensaje?: string }>>) || {};
+        const fraseCtx = String((cfgCtx[tipoCtx] && cfgCtx[tipoCtx][estadoCtx] || {}).mensaje || "").trim();
+        const COMO_VA: Record<string, string> = {
+          en_preparacion: "esta EN PREPARACION",
+          listo: "ya esta LISTO",
+          en_camino: "YA VA EN CAMINO",
+        };
+        const enCamino = estadoCtx === "en_camino";
         /* La demora que se dice es el promedio REAL de la cocina (lo que
            midieron los ultimos pedidos en pos_domi_tiempos), no un numero
            inventado. Sin datos suficientes, no se promete tiempo. */
@@ -3684,9 +3740,12 @@ INTENCION, no las palabras exactas.` },
         const totPed = Number(p.total_final || p.total || 0);
         (cfg as Record<string, unknown>)._pedidoHecho =
           `EL CLIENTE YA TIENE UN PEDIDO HECHO${String(p.origen || "") === "web" ? " (lo hizo por la PAGINA WEB)" : ""}: entro hace ${minsPed} minutos y ` +
-          (enCamino ? "YA VA EN CAMINO" : "esta EN PREPARACION") +
+          (COMO_VA[estadoCtx] || "esta EN PREPARACION") +
           (listaPed ? ` (${listaPed})` : "") +
           (totPed > 0 ? `, total $${totPed.toLocaleString("es-CO")}` : "") + "." + demoraPed + "\n" +
+          (fraseCtx ? `\nSi te PREGUNTA en que va, dilo con ESTAS palabras: "${fraseCtx}"` : "") + "\n" +
+          "Si NO te esta preguntando por el pedido —te agradece, se despide, o te avisa que ya le llego— " +
+          "contestale natural y corto, y NO le repitas en que va: ya lo sabe.\n" +
           "Si pregunta CUALQUIER cosa de su pedido (cuanto demora, en que va, que pidio, ya salio): contestale con ESTOS datos, calido y concreto" +
           (enCamino ? "" : ", y dile que le avisamos apenas salga en camino") +
           ". NUNCA lo atiendas como si fuera a pedir desde cero: no le ofrezcas la carta ni le preguntes que se le antoja — salvo que EL diga que quiere pedir algo mas (ahi si, tomale el pedido nuevo con normalidad).";
