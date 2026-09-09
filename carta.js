@@ -575,7 +575,6 @@
       h += '<div class="ct-item"><span class="ct-item-n">' + l.cant + '</span>'
          + '<div class="ct-item-t"><div class="ct-item-nom">' + esc(l.n) + '</div>'
          + (l.det ? '<div class="ct-item-det">' + esc(l.det) + '</div>' : '')
-         + (l.nota ? '<div class="ct-item-det">📝 ' + esc(l.nota) + '</div>' : '')
          /*  Editar primero: es lo que casi siempre se quiere. Quitar va
              despues y en gris, para que no sea la salida facil.          */
          + '<div class="ct-lineabtn"><button class="ct-editar" data-e="' + i + '">Editar</button>'
