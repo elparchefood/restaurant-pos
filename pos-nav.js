@@ -84,7 +84,45 @@
 
   /* Cuál está abierta. Se compara solo el nombre del archivo: "Cocina" lleva
      `?volver=1` y con la query completa nunca coincidiría. */
-  function aqui() {
+  /*  ══ EL PIN, ANTES DE NAVEGAR ═════════════════════════════════════════════
+
+    Sergio: *"deberia pedirle el PIN antes de navegar a la pantalla, para que ni
+    siquiera el sistema la abra sin PIN"*.
+
+    Antes: se tocaba Inventario, la pantalla se abria, cargaba sus datos, y el
+    PIN aparecia ENCIMA. Eso es una cortina, no un candado: se quita desde la
+    consola del navegador y los datos ya estan dentro.
+
+    Ahora se pregunta aqui, sin haber salido de la pantalla en la que esta. Si
+    acierta, se navega; si cancela, se queda donde estaba y no se cargo nada.
+
+    ⚠️ Esto NO es seguridad de verdad — el candado real va en el servidor, y
+    hoy no esta (de 143 politicas, una sola mira el rol). Esto evita que un
+    cajero entre por accidente y que la pantalla cargue lo que no debe.    */
+function guardarEntradas(cont) {
+  if (!window.posPuedeEntrar) return;          // sin el modulo de permisos, nada que hacer
+  cont.querySelectorAll('a.nav-item[href]').forEach(function (a) {
+    if (a.dataset.guardado) return;
+    a.dataset.guardado = '1';
+    a.addEventListener('click', function (ev) {
+      var href = a.getAttribute('href') || '';
+      if (!window.posPermisosDePantalla || !window.posPermisosDePantalla(href)) return;
+      /*  Se frena SIEMPRE y se decide despues: preguntar si puede entrar es
+          una promesa, y para cuando conteste el navegador ya habria salido. */
+      ev.preventDefault();
+      window.posPuedeEntrar(href).then(function (ok) {
+        if (ok) { window.location.href = href; return; }
+        if (!window.posPinPrompt) return;      // sin PIN configurado, no se pasa
+        window.posPinPrompt(
+          'Esta sección requiere permiso. Ingresa el PIN de administrador para entrar.',
+          function () { window.location.href = href; }
+        );
+      });
+    });
+  });
+}
+
+function aqui() {
     var p = (location.pathname || '').split('/').pop();
     return p || 'dashboard.html';
   }
@@ -129,6 +167,8 @@
       '</div>';
 
     caja.innerHTML = html;
+    /*  El candado se pone DESPUES de pintar: los enlaces acaban de nacer.  */
+    guardarEntradas(caja);
   }
 
   /* EL LETRERO DE ABAJO. Lo pinta este archivo, asi que tiene que resolverlo

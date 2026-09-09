@@ -3710,12 +3710,64 @@ window.posLlaveSalon = function () {
     window.posPinPrompt(motivo || 'Esta acción requiere permiso de administrador.', onOk);
   };
 
+  /*  ══ QUE PERMISO PIDE CADA PANTALLA ═══════════════════════════════════
+
+      Esta lista estaba repartida en once archivos HTML, cada uno con su
+      `posRequirePin(...)` al final. Con la barra teniendo que saber lo mismo
+      para no dejar entrar, serian DOS listas — y dos listas se
+      desincronizan: se anade un permiso a una pantalla, se olvida la otra, y
+      queda una puerta abierta que nadie ve.
+
+      Aqui viven una vez. La barra la usa para no dejar navegar; la pantalla
+      la sigue usando por si alguien escribe la direccion a mano.
+
+      Sale de lo que ya habia en cada HTML, sin cambiar ni un permiso: esto
+      mueve CUANDO se pregunta, no A QUIEN se le deja entrar.             */
+  var PANTALLAS = {
+    'caja.html':               ['ventas.ver', 'pedidos.cobrar'],
+    'catalogo-productos.html': ['catalogo.ver'],
+    'chat-ia.html':            ['chat.usar'],
+    'clientes.html':           ['ventas.ver'],
+    'configuracion.html':      ['config.general', 'config.salon', 'config.usuarios'],
+    'domicilios.html':         ['domicilios.gestionar'],
+    'historial.html':          ['ventas.ver'],
+    'informes.html':           ['ventas.ver'],
+    'inventario.html':         ['catalogo.editar', 'inventario.ver', 'inventario.compras'],
+    'pagos.html':              ['pedidos.cobrar', 'pagos.anular'],
+    'reservas.html':           ['reservas.gestionar'],
+  };
+
+  /*  El archivo de un enlace, sin la query ni la ruta. "cocina.html?volver=1"
+      es cocina.html — con la query entera no coincidiria nunca.          */
+  function archivoDe(href) {
+    return String(href || '').split('?')[0].split('#')[0].split('/').pop().toLowerCase();
+  }
+
+  window.posPermisosDePantalla = function (href) {
+    return PANTALLAS[archivoDe(href)] || null;
+  };
+
+  /*  ¿Puede entrar a esta pantalla? Devuelve una promesa: puede que todavia
+      no se sepa el rol, y en ese caso se espera al dato confirmado en vez de
+      adivinar.                                                            */
+  window.posPuedeEntrar = async function (href) {
+    var ids = window.posPermisosDePantalla(href);
+    if (!ids) return true;                      // pantalla sin candado
+    try { await _ready; } catch (e) {}
+    return await _confirmarSiNiega(ids);
+  };
+
   /* Candado de ENTRADA a una página. Nada se oculta: si no tiene el permiso,
      aparece el PIN encima de la página. PIN correcto → se queda; cancelar →
      sale a un lugar seguro (por defecto Ventas).
         posRequirePin('ventas.ver');
         posRequirePin(['config.general','config.salon','config.usuarios']); */
   window.posRequirePin = async function (idOrIds, backTo) {
+    /*  Sin argumentos, se mira la lista: asi una pantalla nueva solo tiene que
+        estar en PANTALLAS y no hay que acordarse de repetir sus permisos en
+        el HTML.                                                           */
+    if (!idOrIds) idOrIds = window.posPermisosDePantalla(location.pathname);
+    if (!idOrIds) return true;
     try { await _ready; } catch (e) {}
     /* Frenar una pagina entera exige el dato confirmado, no el guardado. */
     var ok = await _confirmarSiNiega(idOrIds);
