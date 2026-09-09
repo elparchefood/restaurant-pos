@@ -31,48 +31,42 @@ rechacen, es que no existe para ellos.
 
 ---
 
-## 2. ⚠️ LA REGLA DE SERGIO: el chat toma pedidos
+## 2. ⚠️ DÓNDE ESTÁ LA LÍNEA (y yo la tracé mal dos veces)
 
-> Sergio, 8-sep: *"El chat es para tomar pedidos, no para hacer recargas. Si
-> empezamos a utilizar el chat para muchas cosas se va a volver muy tedioso para
-> los clientes, y se van a sentir presionados. Es mejor que lo hagan cuando
-> quieran, donde quieran, a su tranquilidad, cuando empiecen a usar la app."*
+> Sergio, 8-sep: *"En el chat podemos tomar pedidos y dar recomendaciones, dar
+> propuestas, dar ofertas. Justamente haciendo eso fue que logré que todas las
+> personas descargaran la app, y que varias ya hayan hecho pedidos por ahí.
+> Incluso hay clientes que se volvieron frecuentes por la app. Entonces el mismo
+> medio podemos utilizar para dar a conocer las recargas."*
 
-**Y tiene razón.** Lo que hoy funciona bien es exactamente eso: Paco pide y ya.
-Cargarle ventas encima degrada lo único que ya funciona, y una recarga hecha con
-la sensación de que te están empujando no se repite.
+**Eso no es una opinión, es evidencia.** Las 63 instalaciones salieron de ahí, y
+algunas se convirtieron en clientes frecuentes. El canal está probado.
 
-Esto **anula** dos cosas que yo había propuesto y que quedan descartadas:
+La línea no está entre "chat" y "app". Está aquí:
+
+| ✅ El chat SÍ | ❌ El chat NO |
+|---|---|
+| Recomendar, proponer, ofrecer | Interrumpir un pedido en curso |
+| Contar que las recargas existen | Ser el cajero donde se hace la recarga |
+| Mandar el botón que lleva a la app | Repetirlo en cada pedido hasta cansar |
+
+Lo que hay que evitar no es usar el chat: es **estorbar mientras alguien está
+comprando**, y **convertir a Paco en una caja**. Fuera de eso, el chat es el
+mejor medio que hay — y es el único que llega a **271** personas en vez de 63.
+
+### Dos cosas que yo propuse y quedan descartadas
 
 - ❌ **Ofrecer la recarga en el momento de pagar.** La persona quiere su comida,
-  no una oferta. Es el peor momento posible.
-- ❌ **Recargar por el chat mandando el comprobante.** Técnicamente se puede
-  —una recarga es transferir + comprobante, lo mismo que ya hacen— pero
-  convierte a Paco en un cajero, que es lo que no queremos.
+  no una oferta.
+- ❌ **Recargar mandando el comprobante por el chat.** Técnicamente se puede
+  —es lo mismo que ya hacen al pagar— pero convierte a Paco en cajero.
 
-### Entonces: el chat SEÑALA, la app HACE
+### Y una pieza que YA EXISTE y sirve
 
-| | |
-|---|---|
-| **El chat** | Una línea, al final del pedido, una sola vez. Un puntero, no una venta. |
-| **La app** | Todo lo demás: qué es, cuánto rinde, cómo se hace, el nivel, los puntos. |
-
-### La consecuencia, y hay que asumirla
-
-**Si la app es el sitio, la app tiene que explicarlo.** Mi consejo anterior de
-"no rediseñes la app todavía" valía solo si el chat vendía. Con esta regla, el
-trabajo se mueve a la app — que es justo donde Sergio dijo desde el principio
-que el problema estaba: *"no es muy explícita"*.
-
-Lo que tiene que lograr la app, en este orden:
-
-1. **Que en cinco segundos se entienda el trato.** No "bonos" ni "niveles":
-   *"$50.000 en tu billetera = $55.000 en comida"*. Un número contra otro.
-2. **Que su saldo se vea antes que nada.** 21 personas tienen $5.000 y no lo
-   saben.
-3. **Que recargar sea obvio y no haya que buscarlo.**
-4. **Que el nivel se entienda como una consecuencia**, no como un concepto: qué
-   gana el que sube, y cuánto le falta.
+Cuando alguien pregunta por redimir puntos, Paco ya termina su mensaje con una
+marca y el sistema le manda **detrás un botón a la app** (`[[APP]]`, en el
+enviador). O sea que **mandar un botón a la app desde el chat ya está
+construido y probado** — no hay que inventarlo, hay que usarlo para recargas.
 
 ---
 
