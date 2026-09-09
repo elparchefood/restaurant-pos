@@ -31,71 +31,48 @@ rechacen, es que no existe para ellos.
 
 ---
 
-## 2. Dónde se comunica, y por qué NO en la app
+## 2. ⚠️ LA REGLA DE SERGIO: el chat toma pedidos
 
-La app la tienen **63**. El chat lo tienen **271**. Y a la app hay que entrar;
-el chat ya está abierto.
+> Sergio, 8-sep: *"El chat es para tomar pedidos, no para hacer recargas. Si
+> empezamos a utilizar el chat para muchas cosas se va a volver muy tedioso para
+> los clientes, y se van a sentir presionados. Es mejor que lo hagan cuando
+> quieran, donde quieran, a su tranquilidad, cuando empiecen a usar la app."*
 
-Así que la comunicación va **en la conversación**, y la app queda para quien ya
-está dentro. Rediseñarla cuesta semanas y llega a la cuarta parte de la gente.
+**Y tiene razón.** Lo que hoy funciona bien es exactamente eso: Paco pide y ya.
+Cargarle ventas encima degrada lo único que ya funciona, y una recarga hecha con
+la sensación de que te están empujando no se repite.
 
----
+Esto **anula** dos cosas que yo había propuesto y que quedan descartadas:
 
-## 3. Los tres momentos, en orden de calidad
+- ❌ **Ofrecer la recarga en el momento de pagar.** La persona quiere su comida,
+  no una oferta. Es el peor momento posible.
+- ❌ **Recargar por el chat mandando el comprobante.** Técnicamente se puede
+  —una recarga es transferir + comprobante, lo mismo que ya hacen— pero
+  convierte a Paco en un cajero, que es lo que no queremos.
 
-Ordenados por lo que valen, no por lo fáciles que son.
+### Entonces: el chat SEÑALA, la app HACE
 
-### Momento 1 — Cuando está a punto de pagar ⭐ EL BUENO
+| | |
+|---|---|
+| **El chat** | Una línea, al final del pedido, una sola vez. Un puntero, no una venta. |
+| **La app** | Todo lo demás: qué es, cuánto rinde, cómo se hace, el nivel, los puntos. |
 
-Es el único instante en que la plata es real. La persona ya decidió gastar, ya
-sabe cuánto, y tiene el número delante.
+### La consecuencia, y hay que asumirla
 
-> *Tu pedido son $38.500. Si recargas $50.000 te acreditamos $55.000: este
-> pedido te queda pagado y te sobran $16.500 para el próximo.*
+**Si la app es el sitio, la app tiene que explicarlo.** Mi consejo anterior de
+"no rediseñes la app todavía" valía solo si el chat vendía. Con esta regla, el
+trabajo se mueve a la app — que es justo donde Sergio dijo desde el principio
+que el problema estaba: *"no es muy explícita"*.
 
-Eso no es "ahorro futuro": es **mi pedido de hoy ya está resuelto**. La misma
-plata, contada donde se entiende.
+Lo que tiene que lograr la app, en este orden:
 
-**No necesita permiso de Meta**: la persona está escribiendo, estamos dentro de
-la ventana de 24 horas.
-
-**A quién primero:** a los **3 que ya usaron su saldo**. Ya saben que funciona;
-es a quien se le puede vender una recarga sin explicar nada más.
-
-### Momento 2 — Al entregar el pedido
-
-Cuando acaba de recibir su comida y está contento. Va en el mensaje de cierre,
-no en uno aparte.
-
-> *Ya va en camino 🛵 Por cierto: si recargas $50.000 te damos $55.000 — te
-> alcanza para este pedido y buena parte del siguiente.*
-
-### Momento 3 — A los 271 que no están escribiendo
-
-Aquí **sí hace falta una plantilla aprobada por Meta**, porque están fuera de la
-ventana de 24 horas.
-
-⚠️ **Regla de la casa: la plantilla se le enseña a Sergio ANTES de radicarla en
-Meta.** Nada se manda sin que la vea.
-
----
-
-## 4. Cómo se dice (borradores para aprobar)
-
-Lo que hoy se comunica es *"recarga y gana bonos"*, que es una **función**. Una
-recarga no es una función: **es un precio**. Nadie recarga para tener billetera;
-recarga porque le sale más barata la comida.
-
-Tres formas de decir el mismo 10%, para escoger:
-
-1. **En comida:** *"Recarga $50.000 y te damos $55.000. Es como si cada diez
-   pedidos te regaláramos uno."*
-2. **En su pedido de hoy:** *"Con $50.000 pagas este pedido y te sobran $16.500
-   para el próximo."*
-3. **Corto:** *"$50.000 en tu billetera = $55.000 en comida."*
-
-**Lo que NO se dice:** "bonos", "cupo", "niveles", "acreditación". Palabras
-nuestras, no suyas.
+1. **Que en cinco segundos se entienda el trato.** No "bonos" ni "niveles":
+   *"$50.000 en tu billetera = $55.000 en comida"*. Un número contra otro.
+2. **Que su saldo se vea antes que nada.** 21 personas tienen $5.000 y no lo
+   saben.
+3. **Que recargar sea obvio y no haya que buscarlo.**
+4. **Que el nivel se entienda como una consecuencia**, no como un concepto: qué
+   gana el que sube, y cuánto le falta.
 
 ---
 
@@ -113,21 +90,13 @@ entre alguien y su checkout.
 
 Con tres correcciones, todas medidas:
 
-### a) Quitar la app del camino ⭐ lo más importante
+### a) ~~Quitar la app del camino~~ — DESCARTADO por Sergio
 
-Una recarga hoy es: **transferir + mandar el comprobante**. El sistema lo lee y
-acredita solo.
+Yo proponía que Paco aceptara el comprobante de recarga por el chat, porque
+técnicamente es lo mismo que ya hacen para pagar. **Sergio lo descartó, y con
+razón: eso convierte a Paco en un cajero.** Ver la regla de la §2.
 
-**Eso es exactamente lo que los clientes YA hacen en el chat todos los días**
-para pagar sus pedidos. La app no es necesaria para recargar: es un paso que le
-estamos poniendo en medio.
-
-Si Paco acepta el comprobante de recarga por el chat, la petición pasa de *"baja
-una app y luego recarga"* a *"mándame el comprobante, como siempre"*. **De dos
-pasos nuevos a ninguno.**
-
-La app sigue teniendo sentido para ver saldo, puntos y nivel — pero no puede ser
-el peaje para recargar.
+La recarga se hace en la app, cuando la persona quiera y con calma.
 
 ### b) Un mensaje, una sola petición
 
