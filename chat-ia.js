@@ -3717,9 +3717,34 @@ async function loadDraftBar(convId){
   try{
     const { data }=await sb.from('chat_conversations')
       .select('pedido_borrador,order_id').eq('id', convId).maybeSingle();
-    if(data && data.pedido_borrador && (data.pedido_borrador.productos||[]).length){
-      renderDraftBar(data.pedido_borrador); return;
+    /*  ══ UN BORRADOR QUE YA ES PEDIDO NO ES UN BORRADOR ═══════════════════
+
+        Se preguntaba "¿hay borrador?" antes que "¿hay pedido?", y el camino
+        manual borra el borrador al enviar, asi que ese orden nunca fallaba.
+        El de la carta lo DEJA —marcado, para poder corregir— y la tarjeta se
+        quedaba con su boton de "Enviar a cocina" para algo que ya estaba en
+        cocina. Tocarlo lo mandaba dos veces (Sergio, 9-sep).
+
+        No basta con "si hay pedido, gana el pedido": un cliente puede empezar
+        OTRO pedido teniendo uno ya enviado, y ese borrador nuevo SI tiene que
+        enseNarse. Lo que decide es cual es mas reciente.                   */
+    const bor = data && data.pedido_borrador;
+    const hayBor = !!(bor && (bor.productos||[]).length);
+    let borradorViejo = false;
+    if (hayBor && data.order_id) {
+      try{
+        const { data:ped } = await sb.from('pos_orders')
+          .select('created_at').eq('id', data.order_id).maybeSingle();
+        const tBor = Date.parse(bor.carta_at || bor._tomado || '') || 0;
+        /*  Sin fecha en el borrador no se adivina: se enseNa, que es como se
+            comportaba antes. Equivocarse hacia el lado de enseNarlo deja al
+            operador decidir; hacia el otro le esconde un pedido.          */
+        if (ped && ped.created_at && tBor) {
+          borradorViejo = tBor <= Date.parse(ped.created_at);
+        }
+      }catch(e){ /* si no se puede comprobar, se comporta como antes */ }
     }
+    if(hayBor && !borradorViejo){ renderDraftBar(bor); return; }
     if(data && data.order_id){ await renderPedidoEnviado(data.order_id, convId); return; }
     renderDraftBar(null);
   }catch(e){ renderDraftBar(null); }

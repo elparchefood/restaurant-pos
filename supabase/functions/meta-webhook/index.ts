@@ -645,6 +645,7 @@ Deno.serve(async (req) => {
                 phoneId,
                 accessToken,
                 msgSentAt,
+                inmediato: tocoBoton,
               });
             } else if (msgType === "image" && mediaUrl) {
               /* ⚠️ AQUI PACO SE QUEDABA MUDO (17-ago). Si llegaba una imagen y NO
@@ -879,6 +880,10 @@ interface QueueOpts {
   branchId: string; tenantId: string; convId: string;
   fromPhone: string; phoneId: string; accessToken: string;
   msgSentAt: string;
+  /*  El cliente TOCO un boton: no hay nada que agrupar y la respuesta sale
+      ya. Lo decide quien llama, que es el unico que sabe si escribio o
+      toco.                                                               */
+  inmediato?: boolean;
 }
 
 async function queueAiReply(opts: QueueOpts): Promise<void> {
@@ -888,7 +893,17 @@ async function queueAiReply(opts: QueueOpts): Promise<void> {
     const cfgRes = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&select=activo,delay_segundos&limit=1`);
     const cfg = cfgRes?.[0] as Record<string, unknown> | undefined;
     if (!cfg || !cfg.activo) return;
-    const delaySec = Math.max(1, Math.min(30, Number(cfg.delay_segundos) || 5));
+    /*  ══ TOCAR UN BOTON NO ES ESCRIBIR DE A POQUITOS ══════════════════════
+
+        La espera existe para AGRUPAR: quien manda "hola", "para un pedido" y
+        "una premium" en tres mensajes seguidos recibe UNA respuesta y no tres.
+
+        Un boton no se toca de a pedazos: se toca una vez y ya esta todo
+        dicho. Esperar ahi no agrupa nada — solo hace pensar que el boton no
+        sirvio. Sergio: *"da la sensacion de que no funciono"*.
+
+        Quien escribe sigue con la espera de siempre, que ahi si trabaja.   */
+    const delaySec = opts.inmediato ? 0 : Math.max(1, Math.min(30, Number(cfg.delay_segundos) || 5));
     const fireAt = new Date(Date.now() + delaySec * 1000).toISOString();
 
     // Upsert en la cola — si ya existe, solo actualiza fire_at (extiende el timer)

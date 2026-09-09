@@ -232,7 +232,12 @@ Deno.serve(async (req) => {
 
     // 4. Enlazar el pedido a la conversación y limpiar lo pendiente
     if (conversation_id) {
-      await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversation_id}`, { order_id: orderId, pending_order_data: null });
+      /*  `pedido_borrador` tambien: un borrador que ya es pedido no es un
+          borrador. Sin esto la tarjeta del chat seguia enseNando "Enviar a
+          cocina" para algo que ya estaba en cocina, y tocarlo lo mandaba dos
+          veces. Lo vio Sergio el 9-sep probando la carta — el camino manual
+          si lo limpiaba, el de la carta no.                              */
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${conversation_id}`, { order_id: orderId, pending_order_data: null, pedido_borrador: null });
 
       // 4b. Disparar los efectos del estado inicial "en preparación": poner la
       // etiqueta configurada y avisarle al cliente. Reutilizamos 'cambiar-estado'
