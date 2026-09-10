@@ -1795,11 +1795,19 @@
       por una razon que ahi esta escrita: *"transcribir diez digitos a mano es
       donde de verdad se pierde una transferencia"*. Yo la habia puesto como
       texto muerto.                                                        */
-  function bloqueLlave(p, prefijo) {
+  function bloqueLlave(p) {
     var destino = String(p.llave || '').trim();
     if (!destino) return '';
+    /*  ES UNA LLAVE BRE-B, no un numero de Nequi. Con ella se transfiere
+        desde CUALQUIER banco, y decir "por Nequi" deja fuera a todo el que no
+        lo tenga: lo lee, cree que no puede, y se va.
+
+        El logo va porque en un pago es lo que hace que la persona reconozca
+        de un vistazo que eso si le sirve.                                */
     return '<div class="ct-llave">'
-      + '<div class="ct-llave-lb">' + esc(prefijo || '') + 'Nequi</div>'
+      + '<div class="ct-llave-lb">'
+      + '<img class="ct-brb" src="bre-b.png?v=1" alt="Bre-B" width="173" height="96">'
+      + '<span>desde cualquier banco</span></div>'
       + '<div class="ct-llave-fila"><span class="ct-llave-n">' + esc(destino) + '</span>'
       + '<button class="ct-copiar" type="button" data-copiar="' + esc(destino) + '">Copiar</button></div>'
       + (p.titular ? '<div class="ct-llave-t">' + esc(p.titular) + '</div>' : '')
@@ -1843,7 +1851,7 @@
   function verComoRecargar(p) {
     var pasos = [
       ['Elige cuánto quieres recargar', 'Ahí mismo ves cuánto te regalamos', ''],
-      ['Transfiere por Nequi', '', bloqueLlave(p, '')],
+      ['Transfiere con esta llave', 'Desde el banco que tengas, no solo Nequi', bloqueLlave(p)],
       ['Toma foto del comprobante y súbela', 'Con el botón “Adjuntar comprobante”', ''],
       ['Toca “Enviar recarga”', 'Tu saldo entra apenas verifiquemos el pago', '']
     ];
