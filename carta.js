@@ -1560,7 +1560,7 @@
       + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 21V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>'
       + '<b>Recargando ganas</b></div>'
       + '<h4>Recarga ' + cop(m) + ' y recibes <em>' + cop(m + b) + '</em></h4>'
-      + '<p>Con tu billetera la misma plata te rinde más.</p>'
+      + '<p>Con tu billetera la misma plata te rinde más. <b>Siempre ganas saldo a favor.</b></p>'
       + '<button class="ct-gancho-ver" id="verBonos">Ver cuánto ganas en cada recarga'
       + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><path d="M9 6l6 6-6 6"/></svg>'
       + '</button></div>';
