@@ -91,9 +91,19 @@ async function saldoDe(tenant: string, clienteId: string): Promise<number> {
     mismo sitio donde se esta pidiendo, quien tuviera el WhatsApp abierto lo
     tendria todo. Dos canales distintos es lo que lo hace una comprobacion. */
 async function mandarCodigoSMS(tenant: string, tel10: string, monto: number, marca: string): Promise<string> {
+  /*  ══ ¿YA TIENE UNO VIVO? ══════════════════════════════════════════════
+      Entonces no se le manda otro. El que tiene en la mano sirve, y dos
+      mensajes seguidos solo consiguen que pruebe el equivocado. De paso, el
+      que toca "Usar mi saldo", se arrepiente y vuelve, no gasta un SMS cada
+      vez ni se choca contra el tope.                                     */
+  const vivo = await db(`pos_web_codigos?tenant_id=eq.${tenant}&telefono=eq.${tel10}` +
+    `&usado=eq.false&motivo=eq.pago&expira_at=gt.${new Date().toISOString()}` +
+    `&intentos=lt.3&order=created_at.desc&select=id&limit=1`);
+  if (filas(vivo.data).length > 0) return "";
+
   const desdeHora = new Date(Date.now() - 3600000).toISOString();
   const ult = await db(`pos_web_codigos?tenant_id=eq.${tenant}&telefono=eq.${tel10}&created_at=gte.${desdeHora}&select=id`);
-  if (filas(ult.data).length >= 3) return "pediste varios códigos seguidos. Espera unos minutos e inténtalo de nuevo";
+  if (filas(ult.data).length >= 3) return "pediste varios códigos seguidos. Espera unos minutos y vuelve a intentarlo";
   const codigo = String(Math.floor(100000 + Math.random() * 900000));
   const ins = await db(`pos_web_codigos`, {
     method: "POST", headers: { Prefer: "return=minimal" },

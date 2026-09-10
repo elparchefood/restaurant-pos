@@ -1382,7 +1382,10 @@
           + '<div class="ct-fila"><span>Pagas con tu saldo</span><i class="ok">− ' + cop(cubre) + '</i></div>'
           + '<div class="ct-fila fuerte"><span>Queda por pagar</span><i>' + cop(falta) + '</i></div>'
           + '<div class="ct-nota-chica">Más el domicilio, si lo pides. Te confirmamos el total en el chat.</div>'
-          + '</div>';
+          + '</div>'
+          /*  Aqui es donde el cliente esta mirando cuando toca "Usar mi
+              saldo". Si algo falla, se le dice AQUI.                     */
+          + '<div id="saldoMal" class="ct-codigo-mal" hidden></div>';
     $('hojaCuerpo').innerHTML = h;
     $('hojaCuerpo').scrollTop = 0;
     $('volverPago').onclick = function () { cerrarHoja(); irAlPago(); };
@@ -1392,8 +1395,24 @@
     $('btnPrincipal').onclick = function () {
       var m = (D.pagos || []).find(function (x) { return x.tipo === 'saldo' || /billetera/i.test(x.n || ''); });
       pagoElegido = { n: m ? m.n : 'Saldo', id: m ? m.id : '', tipo: 'saldo', cubre: cubre, falta: falta };
-      cerrarHoja();
-      enviar();
+      /*  ⚠️ LA HOJA NO SE CIERRA. Antes se cerraba aqui mismo y si algo
+          fallaba el aviso se escribia en la pantalla de pago, que estaba
+          escondida: el cliente veia cerrarse todo y nada mas. Cerrar la
+          pantalla y despues hablar es hablarle a la pared.               */
+      var bp = $('btnPrincipal');
+      bp.disabled = true; bp.textContent = 'Enviándote un código…';
+      otroBoton(false);
+      if ($('saldoMal')) $('saldoMal').hidden = true;
+      enviar(null, function (e) {
+        bp.disabled = false;
+        bp.innerHTML = 'Usar mi saldo · ' + cop(cubre);
+        otroBoton(true, 'Mejor pago de otra forma', function () { cerrarHoja(); irAlPago(); });
+        var n = $('saldoMal');
+        if (n) {
+          n.textContent = (e && e.message) || 'No se pudo. Inténtalo otra vez.';
+          n.hidden = false;
+        }
+      });
     };
     otroBoton(true, 'Mejor pago de otra forma', function () { cerrarHoja(); irAlPago(); });
   }
@@ -1610,12 +1629,16 @@
     };
   }
 
-  async function enviar() {
+  /*  `alFallar` lo pone quien llama, y es lo que evita el fallo mudo: cada
+      pantalla sabe donde tiene los ojos puestos el cliente. Sin esto, el
+      aviso de la billetera se escribia en la pantalla de pago, que en ese
+      momento esta escondida.                                              */
+  async function enviar(codigo, alFallar) {
     if (!pedido.length || !pagoElegido) return;
     var b = $('btnEnviar');
     b.disabled = true; b.textContent = 'Mandando tu pedido…';
     try {
-      var r = await llamar(cuerpoPedido(''));
+      var r = await llamar(cuerpoPedido(codigo || ''));
       /*  La billetera pide demostrar que es su dueNo. El servidor ya mando el
           SMS; aqui solo se abre el campo donde va a caer solo.            */
       if (r && r.codigo_requerido) {
@@ -1623,6 +1646,7 @@
         abrirPanel(function () { verCodigo(r); });
         return;
       }
+      cerrarHoja();
       terminar(r);
     } catch (e) {
       b.disabled = false; b.textContent = 'Hacer mi pedido';
@@ -1631,7 +1655,12 @@
       if (/cerramos/i.test((e && e.message) || '')) {
         return morir('Justo cerramos', (e.message || '').replace(/^Justo cerramos\s*😔\s*/, ''));
       }
-      /*  Nunca callado: si algo falló, se dice. */
+      /*  Quien llamo sabe donde mira el cliente: que avise el. */
+      if (alFallar) return alFallar(e);
+      /*  Nunca callado: si algo falló, se dice. Y se dice DONDE SE VE — si la
+          pantalla de pago quedo escondida, se destapa antes de escribir en
+          ella. Un aviso invisible es lo mismo que no escribirlo.         */
+      $('vPago').hidden = false;
       var n = document.createElement('div');
       n.className = 'ct-pago-nota';
       n.style.color = 'var(--marca)';
