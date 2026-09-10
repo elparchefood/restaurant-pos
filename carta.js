@@ -600,6 +600,42 @@
     v.querySelectorAll('[data-cerrar]').forEach(function (x) { x.onclick = cerrar; });
   }
 
+  /*  Digital = se paga antes de que el pedido salga de aquí. La billetera lo
+      es tanto como la transferencia: el dinero ya está.                  */
+  function esDigital(m) {
+    return m.tipo === 'transferencia' || m.tipo === 'saldo' || m.tipo === 'puntos'
+      || /billetera/i.test(m.n || '');
+  }
+
+  /*  ══ "ESO NO SE PUEDE, Y ESTE ES EL PORQUÉ" ═════════════════════════════
+
+      Sergio: *"al tocar efectivo le aparezca un modal explicándole que cuando
+      son pedidos para recoger se debe pagar primero por transferencia"*.
+
+      El texto sale de la MISMA frase configurable que dice Paco en el chat
+      (`frases.llevar_efectivo`). Si el restaurante la cambia, cambia en los
+      dos sitios; si la escribiera aquí aparte, un día dirían cosas distintas
+      y el cliente pensaría que le están cambiando las reglas.            */
+  function verSoloPrepago() {
+    var txt = String(D.llevar_texto || '').trim()
+      || 'Para que tu pedido esté listo cuando pases por él, el pago se hace antes por transferencia. Si prefieres pagar en efectivo, puedes acercarte al local y lo preparamos ahí mismo 😊';
+    var h = '<div class="ct-modal-caja" role="dialog" aria-modal="true">'
+      + '<div class="ct-modal-cab"><div class="ct-modal-titulo ct-sin-foto">'
+      + '<b>Para recoger, el pago va antes</b></div>'
+      + '<button class="ct-modal-x" data-cerrar="1" aria-label="Cerrar">'
+      + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+      + '</button></div>'
+      + '<div class="ct-modal-cuerpo"><div class="ct-modal-txt">' + esc(txt) + '</div>'
+      + '<button class="ct-btn ct-entendido" data-cerrar="1">Entendido</button></div></div>';
+    var v = document.createElement('div');
+    v.className = 'ct-modal';
+    v.innerHTML = h;
+    document.body.appendChild(v);
+    var cerrar = function () { if (v.parentNode) v.parentNode.removeChild(v); };
+    v.onclick = function (ev) { if (ev.target === v) cerrar(); };
+    v.querySelectorAll('[data-cerrar]').forEach(function (x) { x.onclick = cerrar; });
+  }
+
   function totalHoja() {
     var base = precioDe(abierto, elegido.presId, elegido.vars);
     if (base == null) return null;
@@ -1238,6 +1274,11 @@
       var ic = '<span class="ct-pago-ic" style="background:' + (FONDO[t] || FONDO.efectivo) + '">'
              + (ICONO[t] || ICONO.efectivo) + '</span>';
       var sub = PIE[t] || '';
+      /*  Se dice ANTES de tocarlo. Que lo descubra al tocar es correcto; que
+          lo sepa sin tocar es mejor.                                     */
+      if (entrega.modo === 'recoger' && D.llevar_prepago !== false && !esDigital(m)) {
+        sub = 'Para recoger, el pago va antes';
+      }
       if (m.tipo === 'puntos') {
         var uso = puntosUsados();
         sub = uso > 0 ? ('Vas a usar ' + uso + ' puntos · toca para cambiar')
@@ -1255,6 +1296,14 @@
     $('pagoLista').querySelectorAll('[data-i]').forEach(function (b) {
       b.onclick = function () {
         var m = metodos[Number(b.dataset.i)];
+        /*  ══ PARA RECOGER SE PAGA ANTES ═══════════════════════════════════
+            Regla del restaurante, la misma que Paco aplica en el chat. No se
+            esconde el efectivo: se explica. Esconderlo dejaría al cliente
+            buscando algo que no está y sin saber por qué.               */
+        if (entrega.modo === 'recoger' && D.llevar_prepago !== false && !esDigital(m)) {
+          verSoloPrepago();
+          return;
+        }
         if (m.tipo === 'saldo' || /billetera/i.test(m.n || '')) { $('vPago').hidden = true; abrirPanel(verSaldo); return; }
         /*  Puntos NO es un método de pago: es un paso. Se abre su pantalla y
             al volver hay que escoger con qué se paga el resto.           */

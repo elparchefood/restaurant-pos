@@ -508,6 +508,19 @@ Deno.serve(async (req) => {
       const dmRes = await db(`ia_config?tenant_id=eq.${tenant}&select=domicilios&limit=1`);
       const dmCfg = (filas(dmRes.data)[0]?.domicilios as Fila) || {};
       const hayDomicilios = dmCfg.activo !== false;
+      /*  ══ PARA RECOGER, ¿SE PAGA ANTES? ═════════════════════════════════
+          El MISMO interruptor que ya usa Paco en el chat
+          (`domicilios.llevar_prepago`) y la MISMA frase configurable
+          (`frases.llevar_efectivo`). No se escribe la regla otra vez: dos
+          reglas iguales en dos sitios se separan a la primera.          */
+      const frRes = await db(`ia_config?tenant_id=eq.${tenant}&select=frases&limit=1`);
+      const frCfg = (filas(frRes.data)[0]?.frases as Fila) || {};
+      const fraseLlevar = (() => {
+        const f = frCfg.llevar_efectivo as unknown;
+        if (typeof f === "string") return f.trim();
+        if (f && typeof f === "object") return String((f as Fila).texto || "").trim();
+        return "";
+      })();
 
       //  el catálogo de premios, para poder decirle qué alcanza
       const prRes = await db(`pos_puntos_catalogo?tenant_id=eq.${tenant}&select=product_id,pres_nombre,puntos,dinero,activo&order=puntos.asc`);
@@ -607,6 +620,8 @@ Deno.serve(async (req) => {
         cliente: { saldo, puntos, nombre: cliente?.nombre || "",
                    direccion: dirGuardada, direcciones: otrasDirs },
         domicilios: hayDomicilios,
+        llevar_prepago: dmCfg.llevar_prepago !== false,
+        llevar_texto: fraseLlevar,
         empaque_activo: cfg.empaquesActivo === true,
         volver,
         borrador,
@@ -855,6 +870,22 @@ Deno.serve(async (req) => {
       const dirBorrador = recoge
         ? "Paso a recogerlo (para llevar)"
         : (conjB ? [conjB, uniB, dirEscrita].filter(Boolean).join(" ") : dirEscrita).slice(0, 120);
+
+      /*  ══ EL CANDADO, DONDE NO SE PUEDE TOCAR ══════════════════════════
+          Lo del navegador es la explicacion; esto es la regla. Un pedido para
+          recoger que entra con efectivo se prepara sin estar pago, y eso es
+          plata que se pierde.
+
+          Se mira el mismo interruptor que Paco y se comprueba si el metodo es
+          digital, igual que en el chat.                                 */
+      if (recoge && dmCfgG.llevar_prepago !== false) {
+        const esDigital = String(m.tipo || "") === "transferencia"
+          || String(m.tipo || "") === "saldo"
+          || m.digital === true;
+        if (!esDigital) {
+          return json(400, { error: "los pedidos para recoger se pagan antes por transferencia" });
+        }
+      }
 
       const total = subtotal + empaque;
       const borrador = {
