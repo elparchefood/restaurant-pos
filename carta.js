@@ -1082,7 +1082,10 @@
   /*  Los iconos de la entrega. De trazo, como los del pago, para que la
       pantalla no cambie de idioma a mitad del pedido.                     */
   var ICONO_ENT = {
-    moto: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3"/><circle cx="18.5" cy="17.5" r="3"/><path d="M8.5 17.5h7M14 6h3l2.5 6M5.5 14.5 9 8h5"/></svg>',
+    /*  Un furgon de reparto, no la moto que yo dibuje a mano: a 19 pixeles
+        aquella no se leia, se adivinaba. En un boton que se toca sin leer, el
+        icono ES el mensaje.                                              */
+    moto: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 17V7a1.5 1.5 0 0 0-1.5-1.5h-8A1.5 1.5 0 0 0 3 7v9.5a.5.5 0 0 0 .5.5H5"/><path d="M9 17h2.5"/><path d="M18.5 17H20a1 1 0 0 0 1-1v-2.9a1 1 0 0 0-.22-.62l-2.9-3.6A1 1 0 0 0 17.1 8.5H14"/><circle cx="16.5" cy="17.5" r="2"/><circle cx="7" cy="17.5" r="2"/></svg>',
     bolsa: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>',
     pin: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.6-7-11a7 7 0 1 1 14 0c0 5.4-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>',
     mapa: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 5.5v15L9 18l6 3 6-2.5v-15L15 6z"/><path d="M9 3v15M15 6v15"/></svg>',
