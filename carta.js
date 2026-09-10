@@ -1720,7 +1720,8 @@
           + 'placeholder="000000" aria-label="Código de 6 números">'
           + '<div id="codMal" class="ct-codigo-mal" hidden></div>'
           + '<div class="ct-nota-chica">Pagas ' + cop(info.total || 0)
-          + ' con tu Billetera. Te quedarían ' + cop(Math.max(0, (info.saldo || 0) - (info.total || 0))) + '.</div>';
+          /*  Por su nombre completo, el mismo que dice Paco en el chat. */
+          + ' con tu ' + esc((pagoElegido && pagoElegido.n) || 'Billetera') + '. Te quedarían ' + cop(Math.max(0, (info.saldo || 0) - (info.total || 0))) + '.</div>';
     $('hojaCuerpo').innerHTML = h;
     $('hojaCuerpo').scrollTop = 0;
     $('hojaPie').hidden = false;
