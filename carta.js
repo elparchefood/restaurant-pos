@@ -618,7 +618,7 @@
       y el cliente pensaría que le están cambiando las reglas.            */
   function verSoloPrepago() {
     var txt = String(D.llevar_texto || '').trim()
-      || 'Para que tu pedido esté listo cuando pases por él, el pago se hace antes por transferencia. Si prefieres pagar en efectivo, puedes acercarte al local y lo preparamos ahí mismo 😊';
+      || 'Qué pena contigo 🙏 Si deseas que tu pedido esté listo cuando pases por él, el pago debe hacerse por transferencia primero. Si decides pagar en efectivo, con mucho gusto te puedes acercar al establecimiento y tu pedido se prepara una vez esté pago 😊';
     var h = '<div class="ct-modal-caja" role="dialog" aria-modal="true">'
       + '<div class="ct-modal-cab"><div class="ct-modal-titulo ct-sin-foto">'
       + '<b>Para recoger, el pago va antes</b></div>'

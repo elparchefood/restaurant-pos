@@ -517,9 +517,25 @@ Deno.serve(async (req) => {
       const frCfg = (filas(frRes.data)[0]?.frases as Fila) || {};
       const fraseLlevar = (() => {
         const f = frCfg.llevar_efectivo as unknown;
-        if (typeof f === "string") return f.trim();
-        if (f && typeof f === "object") return String((f as Fila).texto || "").trim();
-        return "";
+        /*  Vacia NO es escrita. La de El Parche existe como `""`: si se
+            devolviera tal cual, la pagina se quedaria muda. Paco resuelve esto
+            con `getFraseTexto(...) || defecto`; aqui, igual.              */
+        const propia = typeof f === "string"
+          ? f.trim()
+          : (f && typeof f === "object" ? String((f as Fila).texto || "").trim() : "");
+        if (propia) return propia;
+        /*  Si el restaurante no la ha escrito, Paco NO se queda mudo: tiene la
+            suya por defecto. Es esa, palabra por palabra, la que va aqui. Si
+            la pagina inventara una parecida, el cliente leeria una cosa aqui
+            y otra en el chat, y pensaria que le cambian las reglas.
+
+            ⚠️ COPIA A PROPOSITO. Las Edge Functions se despliegan como UN
+            archivo: no hay modulo comun con delay-reply, asi que este texto
+            esta escrito dos veces. Si se cambia alli, hay que cambiarlo aqui
+            — igual que el buscador de zonas. La forma de acabar con la copia
+            es que Sergio escriba la frase en Mensajes: en cuanto ese campo
+            deje de estar vacio, los dos la leen de ahi y esto no se usa.  */
+        return "Qué pena contigo 🙏 Si deseas que tu pedido esté listo cuando pases por él, el pago debe hacerse por transferencia primero. Si decides pagar en efectivo, con mucho gusto te puedes acercar al establecimiento y tu pedido se prepara una vez esté pago 😊";
       })();
 
       //  el catálogo de premios, para poder decirle qué alcanza
