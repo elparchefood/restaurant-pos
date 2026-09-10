@@ -1033,6 +1033,19 @@
 
   /* ── la barra ────────────────────────────────────────────────────────── */
   function totalPedido() { return pedido.reduce(function (s, x) { return s + x.total; }, 0); }
+
+  /*  ══ LO QUE DE VERDAD VA A PAGAR ══════════════════════════════════════
+      Los productos MAS el domicilio, cuando ya lo sabemos. Vive aqui y no
+      suelto en cada pantalla porque justo eso fue el error: la de pago lo
+      sumaba y la del saldo no, y la del saldo le pedia al cliente que
+      recargara menos de lo que el servidor le iba a exigir.
+
+      Si la direccion es nueva y todavia no conocemos su zona, NO se inventa
+      un numero: se cuenta lo que se sabe y el domicilio se confirma por el
+      chat, que es lo que la pantalla ya dice.                            */
+  function totalACobrar() {
+    return totalPedido() + (entrega.conocida ? (entrega.domi || 0) : 0);
+  }
   function pintarBarra() {
     $('barra').hidden = !pedido.length;
     $('barraN').textContent = pedido.reduce(function (s, x) { return s + x.cant; }, 0);
@@ -1395,7 +1408,7 @@
         + '</i></div>';
     }
     $('pagoDesglose').innerHTML = cuerpoTot;
-    $('totPago').textContent = cop(totalPedido() + (entrega.conocida ? entrega.domi : 0));
+    $('totPago').textContent = cop(totalACobrar());
     $('btnEnviar').disabled = true;
     $('vPago').hidden = false;
   }
@@ -1412,7 +1425,9 @@
       domicilio todavía no existe — la dirección la pregunta Paco después.  */
   function verSaldo() {
     var saldo = (D.cliente && D.cliente.saldo) || 0;
-    var total = totalPedido();
+    /*  CON el domicilio. Es lo que el servidor va a exigir, y pedirle menos
+        seria mandarlo a recargar dos veces.                              */
+    var total = totalACobrar();
     var cubre = Math.min(saldo, total);
     var falta = Math.max(0, total - saldo);
     var h = '<div class="ct-paso"><button class="ct-atras" id="volverPago">'
@@ -1435,13 +1450,19 @@
               ? 'Cubre <b>todos tus productos</b>.'
               : 'Te faltan <b>' + cop(falta) + '</b> para pagar este pedido con tu saldo.') + '</div>'
           + '<div class="ct-cuenta">'
-          + '<div class="ct-fila"><span>Tu pedido</span><i>' + cop(total) + '</i></div>'
+          + '<div class="ct-fila"><span>Tu pedido</span><i>' + cop(totalPedido()) + '</i></div>'
+          + (entrega.modo === 'domicilio' && entrega.conocida && entrega.domi > 0
+              ? '<div class="ct-fila"><span>Domicilio</span><i>' + cop(entrega.domi) + '</i></div>'
+              : '')
+          + '<div class="ct-fila"><span>Total</span><i>' + cop(total) + '</i></div>'
           + (falta === 0
               ? '<div class="ct-fila"><span>Pagas con tu saldo</span><i class="ok">− ' + cop(cubre) + '</i></div>'
                 + '<div class="ct-fila fuerte"><span>Queda por pagar</span><i>' + cop(0) + '</i></div>'
               : '<div class="ct-fila"><span>Tu saldo</span><i>' + cop(saldo) + '</i></div>'
                 + '<div class="ct-fila fuerte"><span>Te faltan</span><i>' + cop(falta) + '</i></div>')
-          + '<div class="ct-nota-chica">Más el domicilio, si lo pides. Te confirmamos el total en el chat.</div>'
+          + (entrega.modo === 'domicilio' && !entrega.conocida
+              ? '<div class="ct-nota-chica">Más el domicilio. Te confirmamos el total en el chat.</div>'
+              : '')
           + '</div>'
           /*  Aqui es donde el cliente esta mirando cuando toca "Usar mi
               saldo". Si algo falla, se le dice AQUI.                     */
@@ -1657,6 +1678,14 @@
   /*  ══ LA RECARGA ══════════════════════════════════════════════════════ */
   function verRecargar() {
     var g = D.recarga || {}, p = D.pago_recarga || {};
+    /*  Viene escogido el primer monto que de verdad le ALCANZA para este
+        pedido. Traer $50.000 puesto a quien necesita $120.000 es hacerle
+        tocar tres veces para llegar a lo obvio.                          */
+    var necesita = Math.max(0, totalACobrar() - ((D.cliente && D.cliente.saldo) || 0));
+    for (var i = 0; i < RECARGAS.length; i++) {
+      if (RECARGAS[i] >= necesita && RECARGAS[i] >= (g.minimo || 0)) { recargaMonto = RECARGAS[i]; break; }
+      if (i === RECARGAS.length - 1) recargaMonto = RECARGAS[i];
+    }
     var h = '<div class="ct-paso"><button class="ct-atras" id="volverEnt">'
           + '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>'
           + '</button><div class="ct-paso-tit"><b>Recargar</b></div></div>'
