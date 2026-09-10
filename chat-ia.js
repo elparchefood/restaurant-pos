@@ -4376,7 +4376,7 @@ function onQuickKeydown(e) {
    pantalla los dos escribian la misma tabla y se fueron separando. */
 function openQuickManage() {
   closeQuickDropdown();
-  location.href = 'configuracion.html?s=chatia&tab=mensajes&acc=m-rapidas';
+  (window.posIr || function (h) { location.href = h; })('configuracion.html?s=chatia&tab=mensajes&acc=m-rapidas');   // PIN antes de entrar (10-sep)
 }
 function closeQuickManage() { const p = document.getElementById('quickManage'); if (p) p.style.display = 'none'; }
 function qmRenderList() {

@@ -329,7 +329,7 @@
 
     ov.querySelector('#arr-ir').onclick = function () {
       cerrar();
-      w.location.href = p.ir;
+      (w.posIr || function (h) { w.location.href = h; })(p.ir);   // PIN antes de entrar (10-sep)
     };
 
     var sal = ov.querySelector('#arr-salida');

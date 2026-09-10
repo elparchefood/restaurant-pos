@@ -509,6 +509,43 @@
     return await _confirmarSiNiega(ids);
   };
 
+  /*  ══ IR A UNA PANTALLA: EL PIN ANTES DE ENTRAR ═══════════════════════
+      Sergio, 10-sep: el Configuracion del desplegable de arriba a la
+      derecha "se toca y alcanza a entrar y despues aparece el PIN; debe
+      aparecer el PIN antes de entrar". Lo del 9-sep lo hacia solo el menu
+      lateral (guardarEntradas, en pos-nav.js); cualquier boton que navegara
+      con location.href se lo saltaba. Ahora es UNA funcion para todos.
+
+      Y EL PASE. Al acertar el PIN antes de navegar, la pantalla de destino
+      lo volvia a pedir: su posRequirePin no sabia que ya se habia puesto.
+      Se deja un pase de UN uso, para ESA pantalla, que vence en un minuto.
+      Es tan "de pantalla" como el PIN mismo: el candado de verdad es el
+      servidor (PLAN-CANDADO-SERVIDOR.md).                                */
+  var PASE = 'pos.pase.pin';
+  function _dejarPase(href) {
+    try { sessionStorage.setItem(PASE, JSON.stringify({ a: archivoDe(href), hasta: Date.now() + 60000 })); } catch (e) {}
+  }
+  function _tomarPase(archivo) {
+    try {
+      var p = JSON.parse(sessionStorage.getItem(PASE) || 'null');
+      sessionStorage.removeItem(PASE);
+      return !!(p && p.a === archivo && p.hasta > Date.now());
+    } catch (e) { return false; }
+  }
+
+  window.posIr = function (href) {
+    if (!href) return;
+    if (!window.posPermisosDePantalla(href)) { window.location.href = href; return; }
+    window.posPuedeEntrar(href).then(function (ok) {
+      if (ok) { window.location.href = href; return; }
+      if (!window.posPinPrompt) return;        // sin PIN configurado, no se pasa
+      window.posPinPrompt(
+        'Esta sección requiere permiso. Ingresa el PIN de administrador para entrar.',
+        function () { _dejarPase(href); window.location.href = href; }
+      );
+    });
+  };
+
   /* Candado de ENTRADA a una página. Nada se oculta: si no tiene el permiso,
      aparece el PIN encima de la página. PIN correcto → se queda; cancelar →
      sale a un lugar seguro (por defecto Ventas).
@@ -524,6 +561,8 @@
     /* Frenar una pagina entera exige el dato confirmado, no el guardado. */
     var ok = await _confirmarSiNiega(idOrIds);
     if (ok) return true;
+    /*  Viene de posIr con el PIN ya puesto: no se pide dos veces.        */
+    if (_tomarPase(archivoDe(location.pathname))) return true;
     window.posPinPrompt(
       'Esta sección requiere permiso. Ingresa el PIN de administrador para entrar.',
       function () { /* desbloqueado: se queda en la página */ },

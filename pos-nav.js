@@ -99,8 +99,12 @@
     ⚠️ Esto NO es seguridad de verdad — el candado real va en el servidor, y
     hoy no esta (de 143 politicas, una sola mira el rol). Esto evita que un
     cajero entre por accidente y que la pantalla cargue lo que no debe.    */
+/*  10-sep-2026: lo que hacia aqui (preguntar, pedir el PIN, navegar) se fue
+    a `posIr` en pos-perms.js, para que el desplegable de arriba a la derecha
+    y los demas botones hagan EXACTAMENTE lo mismo. Y alli el PIN deja un
+    pase: antes, al acertarlo, la pantalla de destino lo volvia a pedir.  */
 function guardarEntradas(cont) {
-  if (!window.posPuedeEntrar) return;          // sin el modulo de permisos, nada que hacer
+  if (!window.posIr) return;                   // sin el modulo de permisos, nada que hacer
   cont.querySelectorAll('a.nav-item[href]').forEach(function (a) {
     if (a.dataset.guardado) return;
     a.dataset.guardado = '1';
@@ -110,14 +114,7 @@ function guardarEntradas(cont) {
       /*  Se frena SIEMPRE y se decide despues: preguntar si puede entrar es
           una promesa, y para cuando conteste el navegador ya habria salido. */
       ev.preventDefault();
-      window.posPuedeEntrar(href).then(function (ok) {
-        if (ok) { window.location.href = href; return; }
-        if (!window.posPinPrompt) return;      // sin PIN configurado, no se pasa
-        window.posPinPrompt(
-          'Esta sección requiere permiso. Ingresa el PIN de administrador para entrar.',
-          function () { window.location.href = href; }
-        );
-      });
+      window.posIr(href);
     });
   });
 }

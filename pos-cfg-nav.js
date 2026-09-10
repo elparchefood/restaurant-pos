@@ -89,7 +89,8 @@
       b.addEventListener('click', function () {
         var s = b.dataset.section;
         if (s === 'back') { w.location.href = 'dashboard.html'; return; }
-        w.location.href = 'configuracion.html?s=' + encodeURIComponent(s);
+        //  Con el PIN ANTES de entrar, no ya adentro (posIr, 10-sep-2026).
+        (w.posIr || function (h) { w.location.href = h; })('configuracion.html?s=' + encodeURIComponent(s));
       });
     });
   }

@@ -543,6 +543,39 @@ antes de navegar); el de lectura va en `PLAN-CANDADO-SERVIDOR.md`.
 pregunta a que pantallas entra cada uno: dueNo (todo), Administrador sin y con
 la casilla, Cajero sin y con la casilla, Mesero y rol desconocido.
 
+## 🟢 El PIN ANTES de entrar, desde cualquier boton — 10-sep-2026
+
+Sergio: *"el Configuracion del desplegable de arriba a la derecha todavia sigue
+como estaba: se toca y alcanza a entrar y despues aparece el PIN. Debe aparecer
+el PIN antes de entrar"*.
+
+Lo del 9-sep (PIN antes de navegar) lo hacia **solo el menu lateral**
+(`guardarEntradas` en pos-nav.js). Cualquier boton que navegara con
+`location.href` se lo saltaba: la pantalla se abria y su `posRequirePin` ponia
+el PIN encima.
+
+- **`posIr(pantalla)`** en pos-perms.js — UNA funcion: mira PANTALLAS, pregunta
+  si puede entrar, y si no, pide el PIN **sin salir de donde esta**. El menu
+  lateral ahora la usa en vez de tener su copia.
+- **El pase.** Al acertar el PIN antes de navegar, la pantalla de destino lo
+  volvia a pedir (tambien en el menu lateral desde el 9-sep). Ahora queda un
+  pase en `sessionStorage` (`pos.pase.pin`): de UN uso, para ESA pantalla, que
+  vence en 60 s. Recargar la pantalla vuelve a pedirlo.
+- **Pasan por `posIr`** todos los caminos a Configuracion: el desplegable del
+  Escritorio, "Ir a gestion de usuarios", el menu de Impresoras
+  (pos-cfg-nav.js), las respuestas rapidas del chat, Mi pagina web (horario y
+  "Editar el catalogo/la carta") y los avisos de arranque (pos-arranque.js).
+
+⏭️ **Quedan 7 saltos directos** a otras pantallas con candado, en el flujo de
+venta: `dashboard.js` (2 a Caja), `dashboard.html` (Reservas),
+`pos-caja-guard.js` (Caja), `modules/ventas-salon.js` (Historial y 2 a
+Domicilios), `tomar-pedido.js` (Domicilios), `pos-notify.js` (Chat). Se le
+propusieron a Sergio aparte por estar en el flujo de venta.
+
+Probado con el pos-perms.js real (`probar-pin-antes.js`): el PIN sale antes de
+navegar, Configuracion no lo repite, el pase no sirve para otra pantalla ni
+vencido ni dos veces, el dueNo y las pantallas sin candado entran directo.
+
 ## 🟢 Historial: rediseno de la pantalla — 5-sep-2026
 
 Sergio: *"la pantalla se ve muy plana, los datos se ven en texto puro, no se

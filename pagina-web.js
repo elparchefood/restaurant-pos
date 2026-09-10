@@ -2018,7 +2018,7 @@
       b.onclick = function () { S.prev = b.dataset.prev; pintar(); };
     });
     document.querySelectorAll('[data-ir]').forEach(function (b) {
-      b.onclick = function () { window.location.href = b.dataset.ir; };
+      b.onclick = function () { (window.posIr || function (h) { location.href = h; })(b.dataset.ir); };   // PIN antes de entrar (10-sep)
     });
     document.querySelectorAll('[data-del]').forEach(function (b) {
       b.onclick = function () { quitarCierre(Number(b.dataset.del)); };
@@ -2167,7 +2167,7 @@
     } else if (a === 'cambiar-url') { modalDireccion(); }
     else if (a === 'qr-descargar') { descargarQR(); }
     else if (a === 'qr-mesa') { modalMesa(); }
-    else if (a === 'horario') { window.location.href = 'configuracion.html'; }
+    else if (a === 'horario') { (window.posIr || function (h) { location.href = h; })('configuracion.html'); }
     else if (a === 'cerrar-ahora') { modalCerrar(); }
     else if (a === 'reabrir') { reabrir(); }
     else if (a === 'add-cierre') { modalCierre(); }

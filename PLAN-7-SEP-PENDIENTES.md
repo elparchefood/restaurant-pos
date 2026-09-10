@@ -108,6 +108,11 @@ Sergio va a revisar esta noche qué más hay que esconder por rol.
 > - ✅ **Informes** — permiso propio `informes.ver`, estricto: **nadie** lo
 >   trae de fábrica, ni el Administrador; el dueño siempre. Antes se abría con
 >   "Ver ventas", el mismo de Historial y Clientes.
+> - ✅ **El PIN antes de entrar, desde cualquier botón** — el desplegable de
+>   arriba a la derecha (y los demás caminos a Configuración) navegaban directo
+>   y el PIN salía adentro. Ahora pasan por `posIr`, y al acertarlo la pantalla
+>   ya no lo pide dos veces. **Quedan 7 saltos** a Caja, Domicilios, Historial,
+>   Reservas y Chat en el flujo de venta: se le propusieron a Sergio aparte.
 > - ⏭️ **Historial** (lista de pedidos con sus valores) y el **Escritorio**
 >   (ventas del día, `dashboard.ver`): los siguientes a revisar.
 
