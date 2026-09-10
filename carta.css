@@ -398,3 +398,58 @@ body.ct-cerrado .ct-prod:active{background:var(--panel)}
 .ct-codigo:disabled{opacity:.6}
 .ct-codigo-mal{margin-top:10px;font-size:13.5px;font-weight:700;color:var(--marca);
   line-height:1.45}
+
+/*  ══ RECARGAR LA BILLETERA ════════════════════════════════════════════════
+    El gancho va en dorado y no en el color de la marca: el rojo aqui ya es el
+    color de "seguir", y si el premio se pinta igual que el boton, deja de
+    verse como un premio.                                                  */
+:root{ --oro:#B07B12; --oro-suave:#FBF1DC; }
+@media (prefers-color-scheme:dark){ :root{ --oro:#E8B54B; --oro-suave:#3A2E14; } }
+
+.ct-gancho{border:1.5px solid var(--oro);background:var(--oro-suave);border-radius:14px;
+  padding:13px 14px;margin-top:16px}
+.ct-gancho-top{display:flex;align-items:center;gap:8px;margin-bottom:6px;color:var(--oro)}
+.ct-gancho-top b{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.ct-gancho h4{margin:0 0 4px;font-size:17px;font-weight:800;letter-spacing:-.025em;line-height:1.2}
+.ct-gancho h4 em{font-style:normal;color:var(--oro)}
+.ct-gancho p{margin:0 0 7px;font-size:12.5px;line-height:1.45;color:var(--tinta-2)}
+.ct-gancho-ver{display:inline-flex;align-items:center;gap:5px;padding:2px 0;
+  font-size:12.5px;font-weight:800;color:var(--oro)}
+
+/*  La escalera del modal. */
+.ct-esc{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:9px 11px;border-radius:11px;border:1px solid var(--linea);margin-top:7px;
+  font-size:13.5px;color:var(--tinta-2)}
+.ct-esc.top{border-color:var(--oro);background:var(--oro-suave)}
+.ct-esc i{font-style:normal;font-weight:800;color:var(--tinta);font-variant-numeric:tabular-nums;
+  display:inline-flex;align-items:baseline;gap:6px}
+.ct-esc.top i{color:var(--oro)}
+.ct-esc i em{font-style:normal;font-size:11px;font-weight:800;color:var(--ok)}
+
+/*  El numero, puesto y a la vista: el cliente tiene que saber a donde le
+    llega el codigo, y de paso aprende cual es su cuenta.                  */
+.ct-tel{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:13px 14px;border-radius:13px;background:var(--panel-2);border:1px solid var(--linea)}
+.ct-tel span{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--tinta-3)}
+.ct-tel b{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
+
+/*  Los montos y el bono. */
+.ct-montos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0 11px}
+.ct-monto{padding:11px 8px;border-radius:12px;border:1px solid var(--linea);text-align:center;
+  color:var(--tinta)}
+.ct-monto.on{border-color:var(--marca);background:var(--marca-suave)}
+.ct-monto b{display:block;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
+.ct-monto span{display:block;font-size:11px;font-weight:700;color:var(--ok);margin-top:3px}
+.ct-bono{display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:12px;
+  background:var(--ok-suave);color:var(--ok);margin-bottom:11px}
+.ct-bono b{font-size:13px;font-weight:800;letter-spacing:-.01em}
+.ct-fila-tit{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--tinta-3);padding-bottom:6px}
+.ct-subir{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  padding:13px;border-radius:13px;border:1.5px dashed var(--linea);color:var(--tinta-2);
+  font-size:13.5px;font-weight:700;margin-top:10px;cursor:pointer}
+
+/*  "Ya recargaste": lo que mas quiere ver confirmado. */
+.ct-chip-ok{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;
+  background:var(--ok-suave);color:var(--ok);font-size:11.5px;font-weight:800;margin-bottom:11px}

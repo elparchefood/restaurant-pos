@@ -359,6 +359,31 @@
       es una fuga, y ademas el navegador sigue enseNando su avisito.      */
   var cancelarOTP = null;
 
+  /*  ══ QUE ANDROID LO ESCRIBA SOLO ═════════════════════════════════════
+      `autocomplete="one-time-code"` lo entiende iOS, pero Chrome en Android
+      usa WebOTP, que hay que PEDIR. El SMS ya viene con el renglón que exige;
+      esto es la otra mitad.
+
+      ⚠️ Y NO SE PROMETE EN PANTALLA. Depende del celular, y en el de Sergio
+      no ocurrió. Si pasa, es un regalo; si no, se escribe a mano y nadie
+      quedó esperando algo que no llegó.
+
+      Vive en un solo sitio porque lo usan los dos campos de código —el de
+      entrar y el de pagar— y dos copias de esto se separan a la primera.  */
+  function pedirOTP(campo) {
+    if (!('OTPCredential' in window) || !window.isSecureContext) return;
+    if (cancelarOTP) cancelarOTP();
+    var corta = new AbortController();
+    cancelarOTP = function () { try { corta.abort(); } catch (e) { /* ya se fue */ } };
+    navigator.credentials.get({ otp: { transport: ['sms'] }, signal: corta.signal })
+      .then(function (otp) {
+        if (!otp || !otp.code || !campo.isConnected) return;
+        campo.value = String(otp.code).replace(/[^0-9]/g, '').slice(0, 6);
+        campo.dispatchEvent(new Event('input'));
+      })
+      .catch(function () { /* lo canceló, lo negó, o no llegó: se escribe a mano */ });
+  }
+
   function cerrarHoja() {
     if (cancelarOTP) { cancelarOTP(); cancelarOTP = null; }
     $('velo').classList.remove('on');
@@ -1381,6 +1406,13 @@
     var h = '<div class="ct-paso"><button class="ct-atras" id="volverPago">'
           + '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>'
           + '</button><div class="ct-paso-tit"><b>Tu saldo</b></div></div>'
+          /*  Si acaba de recargar, se le dice: es lo que mas quiere ver
+              confirmado, y sin eso la pantalla parece la misma de antes. */
+          + (recargaHecha
+              ? '<div class="ct-chip-ok">'
+                + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
+                + 'Recargaste ' + cop(recargaHecha.monto + recargaHecha.bono) + '</div>'
+              : '')
           + '<div class="ct-preg">Tienes ' + cop(saldo) + '</div>'
           /*  ⚠️ LA BILLETERA PAGA EL PEDIDO ENTERO O NO LO PAGA. Nunca hubo
               pago a medias —ni aqui ni en el chat—, pero esta pantalla lo
@@ -1413,6 +1445,22 @@
     /*  Si no alcanza, el boton grande hace lo unico que se puede hacer, y no
         promete un pago a medias que el servidor va a rechazar.           */
     if (falta > 0) {
+      /*  ══ EL GANCHO ═══════════════════════════════════════════════════
+          Sergio: *"nadie va a tocar recargar si no ve desde ahi el
+          beneficio"*. Tenia razon: "te regalamos saldo" no dice nada.
+
+          Se enseNa el NUMERO —lo que recibe si recarga— y debajo, a un
+          toque, la escalera entera. Las dos personas existen: la que decide
+          con una linea decide ya, y la que quiere las cuentas las tiene.  */
+      if (D.recarga && D.recarga.por_bloque > 0) {
+        $('hojaCuerpo').insertAdjacentHTML('beforeend', ganchoRecarga());
+        if ($('verBonos')) $('verBonos').onclick = verEscaleraBonos;
+        $('btnPrincipal').innerHTML = 'Recargar mi billetera';
+        $('btnPrincipal').onclick = function () { abrirPanel(verEntrar); };
+        otroBoton(true, 'Escoger otro método de pago', function () { cerrarHoja(); irAlPago(); });
+        $('hojaCuerpo').scrollTop = 0;
+        return;
+      }
       $('btnPrincipal').onclick = function () { cerrarHoja(); irAlPago(); };
       otroBoton(false);
       $('hojaCuerpo').scrollTop = 0;
@@ -1442,6 +1490,280 @@
     };
     otroBoton(true, 'Mejor pago de otra forma', function () { cerrarHoja(); irAlPago(); });
   }
+
+  /*  ══ RECARGAR LA BILLETERA, SIN SALIR DE LA CARTA ═══════════════════════
+
+      Aprobado por Sergio el 10-sep-2026. Cinco pantallas y el cliente nunca
+      abandona su pedido: si lo mandaramos a la app, perderia el carrito —
+      esta pagina no guarda nada.
+
+      ⚠️ LA PLATA SE ACREDITA DONDE SIEMPRE. Aqui solo se recoge el monto y la
+      foto; quien lee el comprobante y lo cruza contra el banco es la misma
+      funcion que ya usa la app. Dos formas de acreditar dinero son dos
+      cuentas que tienen que cuadrar con el banco.                          */
+
+  /*  Los montos de un toque, los mismos que la app. */
+  var RECARGAS = [40000, 50000, 100000, 200000];
+  var recargaMonto = 50000, recargaFoto = '', recargaPase = '';
+
+  function bonoDe(m) {
+    var g = D.recarga || {};
+    if (!g.por_bloque || !g.bloque || m < (g.minimo || 0)) return 0;
+    return Math.floor(m / g.bloque) * g.por_bloque;
+  }
+
+  /*  El gancho de la pantalla del saldo. El ejemplo es el PRIMER monto que de
+      verdad regala, nunca el minimo: el minimo no gana nada, y enseNarlo
+      seria enseNar el peor negocio que hay en la pantalla.                */
+  function montoGancho() {
+    for (var i = 0; i < RECARGAS.length; i++) if (bonoDe(RECARGAS[i]) > 0) return RECARGAS[i];
+    return RECARGAS[1];
+  }
+
+  function ganchoRecarga() {
+    var m = montoGancho(), b = bonoDe(m);
+    return '<div class="ct-gancho">'
+      + '<div class="ct-gancho-top">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 21V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>'
+      + '<b>Recargando ganas</b></div>'
+      + '<h4>Recarga ' + cop(m) + ' y recibes <em>' + cop(m + b) + '</em></h4>'
+      + '<p>Con tu billetera la misma plata te rinde más.</p>'
+      + '<button class="ct-gancho-ver" id="verBonos">Ver cuánto ganas en cada recarga'
+      + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><path d="M9 6l6 6-6 6"/></svg>'
+      + '</button></div>';
+  }
+
+  /*  La escalera entera. Se abre encima, como el modal de "qué lleva": el
+      cliente estaba decidiendo y vuelve a lo mismo al cerrarlo.           */
+  function verEscaleraBonos() {
+    var h = '<div class="ct-modal-caja" role="dialog" aria-modal="true">'
+      + '<div class="ct-modal-cab"><div class="ct-modal-titulo ct-sin-foto">'
+      + '<b>Lo que ganas al recargar</b></div>'
+      + '<button class="ct-modal-x" data-cerrar="1" aria-label="Cerrar">'
+      + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+      + '</button></div>'
+      + '<div class="ct-modal-cuerpo">'
+      + '<div class="ct-modal-txt ct-nota-chica">Con tu billetera la misma plata te rinde más.</div>';
+    var mejor = montoGancho();
+    RECARGAS.forEach(function (m) {
+      var b = bonoDe(m);
+      h += '<div class="ct-esc' + (m === mejor ? ' top' : '') + '">'
+         + '<span>Recargas ' + cop(m) + '</span>'
+         + '<i>' + cop(m + b) + (b > 0 ? '<em>+' + cop(b) + '</em>' : '') + '</i></div>';
+    });
+    h += '<button class="ct-btn ct-entendido" data-cerrar="1">Entendido</button></div></div>';
+    var v = document.createElement('div');
+    v.className = 'ct-modal';
+    v.innerHTML = h;
+    document.body.appendChild(v);
+    var cerrar = function () { if (v.parentNode) v.parentNode.removeChild(v); };
+    v.onclick = function (ev) { if (ev.target === v) cerrar(); };
+    v.querySelectorAll('[data-cerrar]').forEach(function (x) { x.onclick = cerrar; });
+  }
+
+  /*  ══ ENTRAR CON SU NUMERO ════════════════════════════════════════════
+
+      Sergio: *"no hay necesidad de que coloque su número, ya lo traemos;
+      simplemente está prellenado, el usuario sí lo puede ver"*. Y se le dice
+      para qué sirve: con ese número entra siempre, sin contraseña. Es la
+      regla que ya tiene el sistema — el teléfono ES la cuenta.
+
+      ⚠️ NO se promete que el código se llene solo. Depende del celular, y en
+      el de Sergio no pasó. Se hace todo lo posible, pero callado: prometer
+      lo que no se controla deja al cliente esperando algo que no llega.    */
+  function verEntrar() {
+    var tel = String((D.cliente && D.cliente.telefono) || D.telefono || '');
+    var bonito = tel.length >= 10
+      ? tel.slice(-10, -7) + ' ' + tel.slice(-7, -4) + ' ' + tel.slice(-4)
+      : tel;
+    var h = '<div class="ct-paso"><button class="ct-atras" id="volverSaldo">'
+          + '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>'
+          + '</button><div class="ct-paso-tit"><b>Entrar</b></div></div>'
+          + '<div class="ct-preg">Escribe el código</div>'
+          + '<div class="ct-sub">Te lo mandamos a este número. <b>Con este número entras '
+          + 'siempre</b> — no necesitas contraseña.</div>'
+          + '<div class="ct-tel"><span>Tu número</span><b>' + esc(bonito) + '</b></div>'
+          + '<input id="codEnt" class="ct-codigo" type="text" inputmode="numeric" '
+          + 'autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" '
+          + 'placeholder="000000" aria-label="Código de 6 números">'
+          + '<div id="entMal" class="ct-codigo-mal" hidden></div>';
+    $('hojaCuerpo').innerHTML = h;
+    $('hojaCuerpo').scrollTop = 0;
+    $('hojaPie').hidden = false;
+
+    var campo = $('codEnt'), mal = $('entMal'), btn = $('btnPrincipal');
+    btn.disabled = true;
+    btn.innerHTML = 'Continuar';
+
+    /*  El código se pide UNA vez al abrir. Si se pidiera al tocar el botón,
+        el cliente tendría que tocar para que le llegara algo que ya está
+        esperando.                                                        */
+    var pidiendo = true;
+    mal.textContent = 'Enviándote un código…';
+    mal.hidden = false;
+    llamar({ action: 'recarga_codigo' }).then(function () {
+      pidiendo = false;
+      mal.hidden = true;
+      try { campo.focus(); } catch (e) { /* el teclado se abre solo o no */ }
+      pedirOTP(campo);
+    }).catch(function (e) {
+      pidiendo = false;
+      mal.textContent = (e && e.message) || 'No pudimos enviarte el código.';
+      mal.hidden = false;
+    });
+
+    var mandando = false;
+    async function verificar() {
+      var cod = campo.value.replace(/[^0-9]/g, '');
+      if (cod.length !== 6 || mandando || pidiendo) return;
+      mandando = true;
+      btn.disabled = true; btn.textContent = 'Comprobando…';
+      campo.disabled = true; mal.hidden = true;
+      try {
+        var r = await llamar({ action: 'recarga_verificar', codigo: cod });
+        recargaPase = r.pase || '';
+        abrirPanel(verRecargar);
+      } catch (e) {
+        mandando = false;
+        campo.disabled = false; campo.value = ''; campo.focus();
+        btn.disabled = true; btn.textContent = 'Continuar';
+        mal.textContent = (e && e.message) || 'No se pudo. Inténtalo otra vez.';
+        mal.hidden = false;
+      }
+    }
+    campo.oninput = function () {
+      var v = campo.value.replace(/[^0-9]/g, '').slice(0, 6);
+      if (campo.value !== v) campo.value = v;
+      btn.disabled = v.length !== 6;
+      if (v.length === 6) verificar();
+    };
+    btn.onclick = verificar;
+    $('volverSaldo').onclick = function () { abrirPanel(verSaldo); };
+    otroBoton(true, 'Mejor pago de otra forma', function () { cerrarHoja(); irAlPago(); });
+  }
+
+  /*  ══ LA RECARGA ══════════════════════════════════════════════════════ */
+  function verRecargar() {
+    var g = D.recarga || {}, p = D.pago_recarga || {};
+    var h = '<div class="ct-paso"><button class="ct-atras" id="volverEnt">'
+          + '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>'
+          + '</button><div class="ct-paso-tit"><b>Recargar</b></div></div>'
+          + '<div class="ct-preg">¿Cuánto recargas?</div>'
+          + '<div class="ct-sub">Transfiere y sube el comprobante. Tu saldo entra apenas '
+          + 'quede verificado.</div>'
+          + '<div class="ct-montos">';
+    RECARGAS.forEach(function (m) {
+      var b = bonoDe(m);
+      h += '<button class="ct-monto' + (m === recargaMonto ? ' on' : '') + '" data-m="' + m + '">'
+         + '<b>' + cop(m) + '</b>' + (b > 0 ? '<span>+ ' + cop(b) + '</span>' : '') + '</button>';
+    });
+    h += '</div><div id="recBono"></div>'
+      + '<div class="ct-cuenta" style="margin-top:0">'
+      + '<div class="ct-fila-tit">A dónde transferir</div>'
+      + (p.llave ? '<div class="ct-fila"><span>Nequi</span><i>' + esc(p.llave) + '</i></div>' : '')
+      + (p.titular ? '<div class="ct-fila"><span>Titular</span><i>' + esc(p.titular) + '</i></div>' : '')
+      + '<div class="ct-fila" id="recTot"></div></div>'
+      + '<label class="ct-subir"><input type="file" id="recFoto" accept="image/*" hidden>'
+      + '<span id="recFotoTxt">Adjuntar comprobante</span></label>'
+      + '<div id="recMal" class="ct-codigo-mal" hidden></div>'
+      + '<div class="ct-nota-chica" style="margin-top:12px">El saldo solo se usa en '
+      + esc((D.restaurante && D.restaurante.nombre) || 'el restaurante')
+      + ' y no se devuelve en efectivo. No vence.</div>';
+    $('hojaCuerpo').innerHTML = h;
+    $('hojaCuerpo').scrollTop = 0;
+    $('hojaPie').hidden = false;
+    recargaFoto = '';
+
+    var btn = $('btnPrincipal');
+    function refrescar() {
+      var b = bonoDe(recargaMonto);
+      $('recBono').innerHTML = b > 0
+        ? '<div class="ct-bono">'
+          + '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 21V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>'
+          + '<b>Recibes ' + cop(recargaMonto + b) + ' en tu billetera</b></div>'
+        : '';
+      $('recTot').innerHTML = '<span>Transfieres</span><i>' + cop(recargaMonto) + '</i>';
+      $('hojaCuerpo').querySelectorAll('[data-m]').forEach(function (x) {
+        x.classList.toggle('on', Number(x.dataset.m) === recargaMonto);
+      });
+      /*  Sin foto no se puede mandar: el comprobante ES la recarga.      */
+      btn.disabled = !recargaFoto || recargaMonto < (g.minimo || 0);
+      btn.innerHTML = 'Enviar recarga';
+    }
+    $('hojaCuerpo').querySelectorAll('[data-m]').forEach(function (x) {
+      x.onclick = function () { recargaMonto = Number(x.dataset.m); refrescar(); };
+    });
+
+    $('recFoto').onchange = async function () {
+      var f = this.files && this.files[0];
+      if (!f) return;
+      $('recFotoTxt').textContent = 'Preparando la foto…';
+      try {
+        recargaFoto = await achicarFoto(f, 1100);
+        $('recFotoTxt').textContent = '✓ Comprobante listo · tocar para cambiar';
+      } catch (e) {
+        recargaFoto = '';
+        $('recFotoTxt').textContent = 'No se pudo leer esa foto. Intenta con otra';
+      }
+      refrescar();
+    };
+
+    var mandando = false;
+    btn.onclick = async function () {
+      if (!recargaFoto || mandando) return;
+      mandando = true;
+      btn.disabled = true; btn.textContent = 'Enviando…';
+      $('recMal').hidden = true;
+      try {
+        var r = await llamar({
+          action: 'recargar', pase: recargaPase,
+          monto: recargaMonto, comprobante_url: recargaFoto
+        });
+        /*  La plata ya esta. Se actualiza el saldo que tiene esta pagina y se
+            vuelve al saldo — con la billetera lista para pagar.          */
+        if (D.cliente) D.cliente.saldo = Number(r.saldo) || 0;
+        recargaHecha = { monto: Number(r.monto) || 0, bono: Number(r.bono) || 0 };
+        abrirPanel(verSaldo);
+      } catch (e) {
+        mandando = false;
+        btn.disabled = false; btn.textContent = 'Enviar recarga';
+        $('recMal').textContent = (e && e.message) || 'No se pudo acreditar tu recarga.';
+        $('recMal').hidden = false;
+      }
+    };
+
+    refrescar();
+    $('volverEnt').onclick = function () { abrirPanel(verSaldo); };
+    otroBoton(true, 'Mejor pago de otra forma', function () { cerrarHoja(); irAlPago(); });
+  }
+
+  /*  La foto, achicada antes de viajar. Una captura de pantalla moderna pesa
+      3 MB y no hace falta ni la cuarta parte para leer un comprobante — y con
+      datos de celular, cada mega es medio minuto de espera.               */
+  function achicarFoto(archivo, ancho) {
+    return new Promise(function (ok, mal) {
+      var lector = new FileReader();
+      lector.onerror = function () { mal(new Error('no se pudo leer')); };
+      lector.onload = function () {
+        var img = new Image();
+        img.onerror = function () { mal(new Error('no es una imagen')); };
+        img.onload = function () {
+          var w = img.width, hh = img.height;
+          if (w > ancho) { hh = Math.round(hh * ancho / w); w = ancho; }
+          var cv = document.createElement('canvas');
+          cv.width = w; cv.height = hh;
+          cv.getContext('2d').drawImage(img, 0, 0, w, hh);
+          try { ok(cv.toDataURL('image/jpeg', 0.72)); }
+          catch (e) { mal(new Error('no se pudo preparar')); }
+        };
+        img.src = lector.result;
+      };
+      lector.readAsDataURL(archivo);
+    });
+  }
+
+  /*  Lo que se acaba de recargar, para decirlo en la pantalla del saldo. */
+  var recargaHecha = null;
 
   /*  Los puntos canjean premios, no pagan el pedido. */
   /*  ══ TUS PUNTOS ═══════════════════════════════════════════════════════
@@ -1763,25 +2085,7 @@
     };
     btn.onclick = mandar;
 
-    /*  ══ QUE ANDROID LO ESCRIBA SOLO ═══════════════════════════════════
-        Sergio: *"lo probe desde mi Android y no se prellenó"*. Y no iba a
-        pasar: `autocomplete="one-time-code"` lo entiende iOS, pero Chrome en
-        Android usa WebOTP, que hay que PEDIR. El SMS ya viene con el renglon
-        que exige; esto es la otra mitad.
-
-        Si el navegador no lo tiene (iOS, un Android viejo, un computador) no
-        pasa nada: sigue el teclado, que en iOS ya lo ofrece igual.       */
-    if ('OTPCredential' in window && window.isSecureContext) {
-      var corta = new AbortController();
-      cancelarOTP = function () { try { corta.abort(); } catch (e) { /* ya se fue */ } };
-      navigator.credentials.get({ otp: { transport: ['sms'] }, signal: corta.signal })
-        .then(function (otp) {
-          if (!otp || !otp.code || !document.getElementById('codBil')) return;
-          campo.value = String(otp.code).replace(/[^0-9]/g, '').slice(0, 6);
-          campo.dispatchEvent(new Event('input'));
-        })
-        .catch(function () { /* lo cancelo, lo nego, o no llego: se escribe a mano */ });
-    }
+    pedirOTP(campo);
 
     $('volverPago2').onclick = function () { cerrarHoja(); irAlPago(); };
     otroBoton(true, 'Mejor pago de otra forma', function () { cerrarHoja(); irAlPago(); });

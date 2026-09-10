@@ -90,19 +90,28 @@ async function saldoDe(tenant: string, clienteId: string): Promise<number> {
 /*  Se manda por SMS a proposito, no por WhatsApp: si el codigo viajara por el
     mismo sitio donde se esta pidiendo, quien tuviera el WhatsApp abierto lo
     tendria todo. Dos canales distintos es lo que lo hace una comprobacion. */
-async function mandarCodigoSMS(tenant: string, tel10: string, monto: number, marca: string, dominio: string): Promise<string> {
+async function sha256B64(s: string): Promise<string> {
+  /*  `web-acceso` guarda los tokens de sesion en base64-url, no en hexadecimal.
+      Si aqui se guardara en hexadecimal, la sesion prestada no la reconoceria
+      nadie — y la recarga fallaria sin decir por que.                     */
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return btoa(String.fromCharCode(...new Uint8Array(d)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function mandarCodigoSMS(tenant: string, tel10: string, monto: number, marca: string, dominio: string, motivo = "pago_carta"): Promise<string> {
   /*  ══ ¿YA TIENE UNO VIVO? ══════════════════════════════════════════════
       Entonces no se le manda otro. El que tiene en la mano sirve, y dos
       mensajes seguidos solo consiguen que pruebe el equivocado. De paso, el
       que toca "Usar mi saldo", se arrepiente y vuelve, no gasta un SMS cada
       vez ni se choca contra el tope.                                     */
   const vivo = await db(`pos_web_codigos?tenant_id=eq.${tenant}&telefono=eq.${tel10}` +
-    `&usado=eq.false&motivo=eq.pago_carta&expira_at=gt.${new Date().toISOString()}` +
+    `&usado=eq.false&motivo=eq.${motivo}&expira_at=gt.${new Date().toISOString()}` +
     `&intentos=lt.3&order=created_at.desc&select=id&limit=1`);
   if (filas(vivo.data).length > 0) return "";
 
   const desdeHora = new Date(Date.now() - 3600000).toISOString();
-  const ult = await db(`pos_web_codigos?tenant_id=eq.${tenant}&telefono=eq.${tel10}&motivo=eq.pago_carta&created_at=gte.${desdeHora}&select=id`);
+  const ult = await db(`pos_web_codigos?tenant_id=eq.${tenant}&telefono=eq.${tel10}&motivo=eq.${motivo}&created_at=gte.${desdeHora}&select=id`);
   if (filas(ult.data).length >= 3) return "pediste varios códigos seguidos. Espera unos minutos y vuelve a intentarlo";
   const codigo = String(Math.floor(100000 + Math.random() * 900000));
   const ins = await db(`pos_web_codigos`, {
@@ -115,7 +124,7 @@ async function mandarCodigoSMS(tenant: string, tel10: string, monto: number, mar
           se lo podria comer esta pagina —y al cajero le saldria "ese codigo
           ya no esta vigente". `web-acceso` separa igual: un codigo de pagar
           no sirve para entrar, ni uno de entrar para pagar.             */
-      motivo: "pago_carta", expira_at: new Date(Date.now() + 10 * 60000).toISOString(),
+      motivo, expira_at: new Date(Date.now() + 10 * 60000).toISOString(),
     }),
   });
   if (!ins.ok) return "no pudimos preparar tu código. Inténtalo otra vez";
@@ -134,8 +143,13 @@ async function mandarCodigoSMS(tenant: string, tel10: string, monto: number, mar
       A iOS este renglon no le estorba: el lee el numero del texto.
 
       Sin tildes: un SMS con acentos se parte en dos y se cobra doble.   */
-  const texto = codigo + " es tu codigo para pagar $ " + Math.round(monto).toLocaleString("es-CO")
-    + " en " + marca + ". Vence en 10 minutos. No se lo compartas a nadie."
+  /*  Que diga PARA QUE es. El cliente distingue de un vistazo el codigo con
+      el que entra del codigo con el que se le mueve la plata — y si le llega
+      uno que no pidio, sabe cual es.                                     */
+  const para = motivo === "entrar_carta"
+    ? "para entrar a " + marca
+    : "para pagar $ " + Math.round(monto).toLocaleString("es-CO") + " en " + marca;
+  const texto = codigo + " es tu codigo " + para + ". Vence en 10 minutos. No se lo compartas a nadie."
     + (dominio ? "\n\n@" + dominio + " #" + codigo : "");
   const r = await fetch("https://api.twilio.com/2010-04-01/Accounts/" + sid + "/Messages.json", {
     method: "POST",
@@ -151,15 +165,19 @@ async function mandarCodigoSMS(tenant: string, tel10: string, monto: number, mar
 
 /*  Devuelve "" si el codigo es bueno; si no, lo que hay que decirle. Los topes
     son los de siempre: 10 minutos, 3 intentos.                            */
-async function comprobarCodigo(tenant: string, tel10: string, codigo: string): Promise<string> {
+async function comprobarCodigo(tenant: string, tel10: string, codigo: string, motivo = "pago_carta", hashDado = "", quemar = true): Promise<string> {
   const cod = String(codigo || "").replace(/\D/g, "");
-  if (cod.length !== 6) return "el código son 6 números";
-  const r = await db(`pos_web_codigos?tenant_id=eq.${tenant}&telefono=eq.${tel10}&usado=eq.false&motivo=eq.pago_carta&order=created_at.desc&select=*&limit=1`);
+  /*  `hashDado` es para el PASE de la recarga, que no son 6 numeros sino una
+      cadena larga que ya viene resumida. El resto del control —vence, se
+      quema, cuenta intentos— es exactamente el mismo, y por eso comparte
+      funcion en vez de tener una copia.                                  */
+  if (!hashDado && cod.length !== 6) return "el código son 6 números";
+  const r = await db(`pos_web_codigos?tenant_id=eq.${tenant}&telefono=eq.${tel10}&usado=eq.false&motivo=eq.${motivo}&order=created_at.desc&select=*&limit=1`);
   const c = filas(r.data)[0];
   if (!c) return "ese código ya no está vigente. Vuelve a intentarlo y te mandamos uno nuevo";
   if (new Date(String(c.expira_at)).getTime() < Date.now()) return "ese código ya venció. Vuelve a intentarlo y te mandamos uno nuevo";
   if (Number(c.intentos) >= 3) return "ese código se bloqueó por intentos. Vuelve a intentarlo y te mandamos uno nuevo";
-  if ((await sha256Hex(cod + "|" + tel10)) !== String(c.codigo_hash)) {
+  if ((hashDado || await sha256Hex(cod + "|" + tel10)) !== String(c.codigo_hash)) {
     await db(`pos_web_codigos?id=eq.${c.id}`, {
       method: "PATCH", headers: { Prefer: "return=minimal" },
       body: JSON.stringify({ intentos: Number(c.intentos) + 1 }),
@@ -168,10 +186,16 @@ async function comprobarCodigo(tenant: string, tel10: string, codigo: string): P
     return quedan > 0 ? `ese código no es. Te ${quedan === 1 ? "queda 1 intento" : "quedan " + quedan + " intentos"}`
                       : "ese código se bloqueó por intentos. Vuelve a intentarlo y te mandamos uno nuevo";
   }
-  await db(`pos_web_codigos?id=eq.${c.id}`, {
-    method: "PATCH", headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ usado: true }),
-  });
+  /*  El codigo de 6 numeros se quema al usarse. El PASE no: es el permiso de
+      toda la operacion y tiene que aguantar los reintentos — un comprobante
+      movido es lo mas normal del mundo, y no puede costar otro SMS. Se quema
+      cuando la recarga entra de verdad.                                  */
+  if (quemar) {
+    await db(`pos_web_codigos?id=eq.${c.id}`, {
+      method: "PATCH", headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ usado: true }),
+    });
+  }
   return "";
 }
 
@@ -587,6 +611,42 @@ Deno.serve(async (req) => {
       }
       const puntos = Number(filas(ptRes.data)[0]?.puntos) || 0;
 
+      /*  ══ LO QUE GANA SI RECARGA ═══════════════════════════════════════
+          Sergio: *"nadie va a tocar recargar si no ve desde ahi el
+          beneficio"*.
+
+          Los numeros NO se escriben aqui: salen de `fn_recarga_bono`, la
+          misma funcion que usa la app y que ya sabe el NIVEL real de este
+          cliente. Un Estandar y un VIP no reciben lo mismo, y enseNarle a un
+          VIP el bono del Estandar es enseNarle menos de lo que le damos.  */
+      let recarga: Fila | null = null;
+      try {
+        const rbRes = await db(`rpc/fn_recarga_bono`, {
+          method: "POST",
+          body: JSON.stringify({ p_tenant: tenant, p_tel: tel10, p_monto: 50000 }),
+        });
+        const rb = filas(rbRes.data)[0];
+        if (rb) {
+          recarga = {
+            minimo:     Number(rb.minimo) || 40000,
+            por_bloque: Number(rb.por_bloque) || 0,
+            nivel:      String(rb.nivel || "Estándar"),
+            /*  El bloque no lo devuelve la funcion: se deduce del bono de
+                $50.000, que es exactamente un bloque cuando hay bloque.  */
+            bloque: 50000,
+          };
+        }
+      } catch (e) { console.error("[carta] regla de recarga:", e); }
+
+      /*  A donde transfiere. De la configuracion del restaurante, nunca
+          escrito aqui: una cuenta equivocada manda la plata a otro lado. */
+      const pgCab = (ia.pagos as Fila) || {};
+      const pagoRecarga = {
+        llave:   String(pgCab.llave || "").trim(),
+        titular: String(pgCab.titular || "").trim(),
+        qr:      String(pgCab.qr_imagen_url || "").trim(),
+      };
+
       /*  ══ SU DIRECCION DE SIEMPRE ═══════════════════════════════════════
           Para poder ofrecerle "¿va otra vez para alla?" de un toque. Hoy la
           tienen 147 de 303 clientes, y cada pedido por aqui suma uno mas.
@@ -729,6 +789,10 @@ Deno.serve(async (req) => {
         pagos,
         upsell,
         premios,
+        /*  Sin datos de transferencia no hay recarga posible: la pagina no
+            enseNa el camino en vez de llevar a un callejon.             */
+        recarga: (recarga && (pagoRecarga.llave || pagoRecarga.titular)) ? recarga : null,
+        pago_recarga: pagoRecarga,
         cliente: { saldo, puntos, nombre: cliente?.nombre || "",
                    direccion: dirGuardada, direcciones: otrasDirs },
         domicilios: hayDomicilios,
@@ -750,6 +814,148 @@ Deno.serve(async (req) => {
 
         `conocida: false` no es un error: es el caso de siempre. El pedido
         entra igual, a la persona le sale el modal del precio y Paco sigue.  */
+    /*  ══ RECARGA — 1. EL CODIGO PARA ENTRAR ════════════════════════════
+
+        Motivo PROPIO (`entrar_carta`). Ni el de pagar en la caja, ni el de
+        pagar desde aqui: `web-acceso` separa igual y por la misma razon —
+        un codigo de entrar no autoriza mover plata, ni al reves.        */
+    if (action === "recarga_codigo") {
+      const v = await abrirLink(token);
+      if (v.error) return json(400, { error: v.error });
+      const link = v.link!;
+      const tenant = String(link.tenant_id);
+      const tel10 = String(link.telefono || "").replace(/\D/g, "").slice(-10);
+      if (tel10.length !== 10) return json(400, { error: "no tenemos tu número completo" });
+
+      const mkRes = await db(`brands?tenant_id=eq.${tenant}&select=name&limit=1`);
+      const marca = String(filas(mkRes.data)[0]?.name || "").trim() || "tu restaurante";
+      const cwRes = await db(`ia_config?tenant_id=eq.${tenant}&select=carta_web&limit=1`);
+      const cwUrl = String(((filas(cwRes.data)[0]?.carta_web as Fila) || {}).url || "https://cobrapos.app/carta.html");
+      let dominio = "cobrapos.app";
+      try { dominio = new URL(cwUrl).hostname; } catch { /* el de siempre */ }
+
+      const fallo = await mandarCodigoSMS(tenant, tel10, 0, marca, dominio, "entrar_carta");
+      if (fallo) return json(400, { error: fallo });
+      return json(200, { ok: true, telefono: tel10 });
+    }
+
+    /*  ══ RECARGA — 2. SE COMPRUEBA EL CODIGO Y SE DA UN PASE ════════════
+
+        El pase vive 30 minutos y solo sirve para UNA cosa: recargar esta
+        billetera. No es una sesion de la app — con el no se ven puntos, ni
+        direcciones, ni historial.                                        */
+    if (action === "recarga_verificar") {
+      const v = await abrirLink(token);
+      if (v.error) return json(400, { error: v.error });
+      const link = v.link!;
+      const tenant = String(link.tenant_id);
+      const tel10 = String(link.telefono || "").replace(/\D/g, "").slice(-10);
+
+      const mal = await comprobarCodigo(tenant, tel10, String(body.codigo || ""), "entrar_carta");
+      if (mal) return json(400, { error: mal });
+
+      const pase = crypto.randomUUID() + crypto.randomUUID().slice(0, 8);
+      const ins = await db(`pos_web_codigos`, {
+        method: "POST", headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({
+          tenant_id: tenant, telefono: tel10,
+          codigo_hash: await sha256Hex("PASE_RECARGA|" + pase + "|" + tel10),
+          motivo: "pase_recarga", expira_at: new Date(Date.now() + 30 * 60000).toISOString(),
+        }),
+      });
+      if (!ins.ok) return json(502, { error: "no se pudo continuar. Inténtalo otra vez" });
+      return json(200, { ok: true, pase });
+    }
+
+    /*  ══ RECARGA — 3. SE ACREDITA... EN OTRA PARTE ══════════════════════
+
+        ⚠️ Aqui NO se lee el comprobante, NO se calcula el bono y NO se toca
+        el saldo. Todo eso lo hace `web-recarga`, que ademas cruza el
+        comprobante contra el abono real del banco.
+
+        Lo que se hace aqui es prestarle a esa funcion una identidad: una
+        sesion que nace, se usa y se borra en el mismo suspiro. El navegador
+        nunca la ve — si bajara, esa pagina podria mirar tambien los puntos y
+        las direcciones del cliente, y lo autorizado fue recargar.        */
+    if (action === "recargar") {
+      const v = await abrirLink(token);
+      if (v.error) return json(400, { error: v.error });
+      const link = v.link!;
+      const tenant = String(link.tenant_id);
+      const tel10 = String(link.telefono || "").replace(/\D/g, "").slice(-10);
+
+      const malPase = await comprobarCodigo(tenant, tel10, "", "pase_recarga",
+        await sha256Hex("PASE_RECARGA|" + String(body.pase || "") + "|" + tel10), false);
+      if (malPase) return json(400, { error: "se venció el tiempo. Pide otro código" });
+
+      const comprobante = String(body.comprobante_url || "");
+      if (!comprobante) return json(400, { error: "súbenos la foto del comprobante" });
+
+      /*  La ficha. Puede no existir todavia: quien recarga antes de su primer
+          pedido es un cliente igual. Se crea SOLO con el telefono — los datos
+          se llenan el dia que baje la app, que es la regla de Sergio.    */
+      let cli = await clienteBilletera(tenant, tel10);
+      if (!cli) {
+        const cv = await db(`chat_conversations?id=eq.${link.conv_id}&select=contact_name,branch_id&limit=1`);
+        const nom = String(filas(cv.data)[0]?.contact_name || "").trim();
+        const nuevo = await db(`pos_clientes`, {
+          method: "POST", headers: { Prefer: "return=representation" },
+          body: JSON.stringify({
+            tenant_id: tenant, branch_id: link.branch_id,
+            nombre: nom || ("Cliente " + tel10.slice(-4)),
+            telefono: tel10, direcciones: [], pedidos: 0,
+          }),
+        });
+        const f = filas(nuevo.data)[0];
+        if (!f) return json(502, { error: "no pudimos preparar tu cuenta. Inténtalo otra vez" });
+        cli = { id: String(f.id), registrado: false };
+      }
+
+      /*  La sesion prestada. Corta a proposito: lo que dura la llamada.  */
+      const tokenSes = crypto.randomUUID() + crypto.randomUUID();
+      const sesIns = await db(`pos_web_sesiones`, {
+        method: "POST", headers: { Prefer: "return=representation" },
+        body: JSON.stringify({
+          tenant_id: tenant, cliente_id: cli.id, telefono: tel10,
+          token_hash: await sha256B64(tokenSes), recordar: false,
+          expira_at: new Date(Date.now() + 3 * 60000).toISOString(),
+        }),
+      });
+      const sesId = filas(sesIns.data)[0]?.id;
+      if (!sesId) return json(502, { error: "no pudimos continuar. Inténtalo otra vez" });
+
+      let salida: Fila = { ok: false, error: "no se pudo acreditar tu recarga" };
+      try {
+        const r = await fetch(`${SUPABASE_URL}/functions/v1/web-recarga`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
+          body: JSON.stringify({
+            token: tokenSes, monto: Number(body.monto) || 0, comprobante_url: comprobante,
+          }),
+        });
+        salida = await r.json().catch(() => ({ ok: false })) as Fila;
+      } catch (e) {
+        console.error("[carta] web-recarga:", e);
+      } finally {
+        /*  Se borra pase lo que pase. Una sesion viva que nadie vigila es
+            una puerta abierta.                                          */
+        await db(`pos_web_sesiones?id=eq.${sesId}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
+      }
+
+      if (salida.ok !== true) {
+        return json(400, { error: String(salida.mensaje || salida.error || "no se pudo acreditar tu recarga") });
+      }
+      //  El pase se quema: una recarga por codigo.
+      await db(`pos_web_codigos?tenant_id=eq.${tenant}&telefono=eq.${tel10}&motivo=eq.pase_recarga&usado=eq.false`, {
+        method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ usado: true }),
+      });
+      return json(200, {
+        ok: true, monto: Number(salida.monto) || 0,
+        bono: Number(salida.bono) || 0, saldo: Number(salida.saldo) || 0,
+        mensaje: String(salida.mensaje || ""),
+      });
+    }
+
     if (action === "cotizar") {
       const v = await abrirLink(token);
       if (v.error) return json(404, { error: v.error });
