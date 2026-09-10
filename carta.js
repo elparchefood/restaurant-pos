@@ -1451,10 +1451,13 @@
               : 'Te faltan <b>' + cop(falta) + '</b> para pagar este pedido con tu saldo.') + '</div>'
           + '<div class="ct-cuenta">'
           + '<div class="ct-fila"><span>Tu pedido</span><i>' + cop(totalPedido()) + '</i></div>'
-          + (entrega.modo === 'domicilio' && entrega.conocida && entrega.domi > 0
-              ? '<div class="ct-fila"><span>Domicilio</span><i>' + cop(entrega.domi) + '</i></div>'
+          /*  El domicilio y el total solo si hay domicilio. Repetir el mismo
+              numero con dos nombres no informa: hace dudar si son dos cosas
+              distintas.                                                   */
+          + (total !== totalPedido()
+              ? '<div class="ct-fila"><span>Domicilio</span><i>' + cop(total - totalPedido()) + '</i></div>'
+                + '<div class="ct-fila"><span>Total</span><i>' + cop(total) + '</i></div>'
               : '')
-          + '<div class="ct-fila"><span>Total</span><i>' + cop(total) + '</i></div>'
           + (falta === 0
               ? '<div class="ct-fila"><span>Pagas con tu saldo</span><i class="ok">− ' + cop(cubre) + '</i></div>'
                 + '<div class="ct-fila fuerte"><span>Queda por pagar</span><i>' + cop(0) + '</i></div>'
@@ -1690,10 +1693,13 @@
         pedido. Traer $50.000 puesto a quien necesita $120.000 es hacerle
         tocar tres veces para llegar a lo obvio.                          */
     var necesita = Math.max(0, totalACobrar() - ((D.cliente && D.cliente.saldo) || 0));
-    for (var i = 0; i < RECARGAS.length; i++) {
-      if (RECARGAS[i] >= necesita && RECARGAS[i] >= (g.minimo || 0)) { recargaMonto = RECARGAS[i]; break; }
-      if (i === RECARGAS.length - 1) recargaMonto = RECARGAS[i];
-    }
+    var sirve = function (m) { return m >= necesita && m >= (g.minimo || 0); };
+    /*  El primero que le alcanza Y ADEMAS regala. La pantalla anterior le
+        acaba de prometer "recarga X y recibes Y": traerle escogido el minimo
+        —que no regala nada— es desdecirse en la pantalla siguiente.      */
+    recargaMonto = RECARGAS.filter(function (m) { return sirve(m) && bonoDe(m) > 0; })[0]
+                || RECARGAS.filter(sirve)[0]
+                || RECARGAS[RECARGAS.length - 1];
 
     var h = '<div class="ct-paso"><button class="ct-atras" id="volverEnt">'
           + '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>'
