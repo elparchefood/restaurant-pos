@@ -55,6 +55,98 @@ async function db(ruta: string, opts: RequestInit = {}) {
   return { ok: r.ok, status: r.status, text: t, data: d };
 }
 
+/*  ══ LA BILLETERA: QUIEN ES, CUANTO TIENE, Y EL CODIGO ════════════════════
+
+    ⚠️ COPIA A PROPOSITO de lo que ya hace el motor (`clienteBilleteraDR`,
+    `enviarCodigoPagoDR`). Las Edge Functions se despliegan como UN archivo:
+    no hay modulo comun. Lo que SI se comparte es lo que importa —la misma
+    tabla `pos_web_codigos`, el mismo motivo "pago", los mismos topes— asi que
+    un codigo pedido aqui y uno pedido en el chat son el mismo libro.       */
+async function sha256Hex(s: string): Promise<string> {
+  const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(h)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+async function clienteBilletera(tenant: string, tel10: string) {
+  const r = await db(`pos_clientes?tenant_id=eq.${tenant}&telefono=like.*${tel10}&select=id,telefono&limit=5`);
+  const c = filas(r.data).find((x) => String(x.telefono || "").replace(/\D/g, "").slice(-10) === tel10);
+  if (!c) return null;
+  const cr = await db(`pos_web_credenciales?cliente_id=eq.${c.id}&select=cliente_id&limit=1`);
+  return { id: String(c.id), registrado: filas(cr.data).length > 0 };
+}
+
+/*  El saldo se lee por la MISMA funcion con la que el motor lo descuenta. La
+    tabla `pos_saldo` sirve para enseNarlo; para decidir si alcanza, no: si las
+    dos fuentes se separan, aqui diriamos que si y alli que no.            */
+async function saldoDe(tenant: string, clienteId: string): Promise<number> {
+  const r = await db(`rpc/fn_saldo_cliente`, {
+    method: "POST", body: JSON.stringify({ p_tenant: tenant, p_cliente: clienteId }),
+  });
+  const d = r.data as unknown;
+  const v = Array.isArray(d) ? (d[0] as Fila)?.saldo : d;
+  return Math.round(Number(v) || 0);
+}
+
+/*  Se manda por SMS a proposito, no por WhatsApp: si el codigo viajara por el
+    mismo sitio donde se esta pidiendo, quien tuviera el WhatsApp abierto lo
+    tendria todo. Dos canales distintos es lo que lo hace una comprobacion. */
+async function mandarCodigoSMS(tenant: string, tel10: string, monto: number, marca: string): Promise<string> {
+  const desdeHora = new Date(Date.now() - 3600000).toISOString();
+  const ult = await db(`pos_web_codigos?tenant_id=eq.${tenant}&telefono=eq.${tel10}&created_at=gte.${desdeHora}&select=id`);
+  if (filas(ult.data).length >= 3) return "pediste varios códigos seguidos. Espera unos minutos e inténtalo de nuevo";
+  const codigo = String(Math.floor(100000 + Math.random() * 900000));
+  const ins = await db(`pos_web_codigos`, {
+    method: "POST", headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      tenant_id: tenant, telefono: tel10,
+      codigo_hash: await sha256Hex(codigo + "|" + tel10),
+      motivo: "pago", expira_at: new Date(Date.now() + 10 * 60000).toISOString(),
+    }),
+  });
+  if (!ins.ok) return "no pudimos preparar tu código. Inténtalo otra vez";
+  const sid = Deno.env.get("TWILIO_SID") || "", tok = Deno.env.get("TWILIO_TOKEN") || "", desde = Deno.env.get("TWILIO_FROM") || "";
+  if (!sid || !tok || !desde) return "no pudimos enviarte el código a tu celular";
+  //  Sin tildes: un SMS con acentos se parte en dos y se cobra doble.
+  const texto = codigo + " es tu codigo para pagar $ " + Math.round(monto).toLocaleString("es-CO")
+    + " en " + marca + ". Vence en 10 minutos. No se lo compartas a nadie.";
+  const r = await fetch("https://api.twilio.com/2010-04-01/Accounts/" + sid + "/Messages.json", {
+    method: "POST",
+    headers: { Authorization: "Basic " + btoa(sid + ":" + tok), "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ To: "+57" + tel10, From: desde, Body: texto }).toString(),
+  });
+  if (!r.ok) {
+    console.error("[carta/billetera] SMS:", (await r.text()).slice(0, 200));
+    return "no pudimos enviarte el código a tu celular";
+  }
+  return "";
+}
+
+/*  Devuelve "" si el codigo es bueno; si no, lo que hay que decirle. Los topes
+    son los de siempre: 10 minutos, 3 intentos.                            */
+async function comprobarCodigo(tenant: string, tel10: string, codigo: string): Promise<string> {
+  const cod = String(codigo || "").replace(/\D/g, "");
+  if (cod.length !== 6) return "el código son 6 números";
+  const r = await db(`pos_web_codigos?tenant_id=eq.${tenant}&telefono=eq.${tel10}&usado=eq.false&motivo=eq.pago&order=created_at.desc&select=*&limit=1`);
+  const c = filas(r.data)[0];
+  if (!c) return "ese código ya no está vigente. Vuelve a intentarlo y te mandamos uno nuevo";
+  if (new Date(String(c.expira_at)).getTime() < Date.now()) return "ese código ya venció. Vuelve a intentarlo y te mandamos uno nuevo";
+  if (Number(c.intentos) >= 3) return "ese código se bloqueó por intentos. Vuelve a intentarlo y te mandamos uno nuevo";
+  if ((await sha256Hex(cod + "|" + tel10)) !== String(c.codigo_hash)) {
+    await db(`pos_web_codigos?id=eq.${c.id}`, {
+      method: "PATCH", headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ intentos: Number(c.intentos) + 1 }),
+    });
+    const quedan = 3 - Number(c.intentos) - 1;
+    return quedan > 0 ? `ese código no es. Te ${quedan === 1 ? "queda 1 intento" : "quedan " + quedan + " intentos"}`
+                      : "ese código se bloqueó por intentos. Vuelve a intentarlo y te mandamos uno nuevo";
+  }
+  await db(`pos_web_codigos?id=eq.${c.id}`, {
+    method: "PATCH", headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ usado: true }),
+  });
+  return "";
+}
+
 type Fila = Record<string, unknown>;
 const filas = (x: unknown) => Array.isArray(x) ? x as Fila[] : [];
 
@@ -881,6 +973,60 @@ Deno.serve(async (req) => {
       }
 
       const total = subtotal + empaque;
+
+      /*  ══ LA BILLETERA: PRIMERO DEMUESTRA QUE ERES TU ═══════════════════
+
+          Sergio: *"al tocar pagar con billetera, que el espacio para el codigo
+          aparezca ahi mismo en la pagina"*.
+
+          ⚠️ AQUI NO SE COBRA. Esto comprueba QUIEN es, no mueve un peso: la
+          plata se descuenta cuando el pedido se crea de verdad, en el motor,
+          que es donde vale la regla de "primero la plata, despues la cocina".
+          Cobrar aqui dejaria plata descontada de pedidos que el cliente
+          todavia puede cancelar en el chat.
+
+          Y la comprobacion NO sobra por venir de WhatsApp: que el mensaje
+          llegue de ese numero prueba el numero, no que quien tiene el celular
+          en la mano sea su dueNo. El SMS va por OTRO canal a proposito — si
+          viajara por el mismo WhatsApp, quien lo tuviera abierto lo tendria
+          todo.                                                            */
+      const esBilletera = String(m.id || "") === "__saldo" || String(m.tipo || "") === "saldo";
+      let saldoVerificado = false;
+      if (esBilletera) {
+        const tel10B = String(link.telefono || "").replace(/\D/g, "").slice(-10);
+        const cliB = await clienteBilletera(tenant, tel10B);
+        if (!cliB || !cliB.registrado) {
+          return json(400, { error: "para pagar con la Billetera necesitas tu cuenta en nuestra app, registrada con este mismo número", billetera: "sin_cuenta" });
+        }
+        /*  Con el domicilio incluido: es lo que de verdad va a costar. Decir
+            que alcanza y despues que no, es lo peor que puede pasar aqui.  */
+        const totalB = total + (domiPrecio || 0);
+        const saldoB = await saldoDe(tenant, cliB.id);
+        if (saldoB < totalB) {
+          return json(400, {
+            error: `tu Billetera tiene $${saldoB.toLocaleString("es-CO")} y el pedido va en $${totalB.toLocaleString("es-CO")}. Recarga en la app o escoge otra forma de pago`,
+            billetera: "sin_saldo", saldo: saldoB, total: totalB,
+          });
+        }
+        const codigoB = String(body.codigo || "").replace(/\D/g, "");
+        if (!codigoB) {
+          /*  Primera pasada: se manda el codigo y se PARA. No se guarda el
+              borrador ni se quema el enlace — si el cliente cierra la pagina
+              aqui, no ha pasado nada.                                     */
+          const mkRes = await db(`brands?tenant_id=eq.${tenant}&select=name&limit=1`);
+          const marcaB = String(filas(mkRes.data)[0]?.name || "").trim() || String(sede.name || "") || "tu pedido";
+          const falloB = await mandarCodigoSMS(tenant, tel10B, totalB, marcaB);
+          if (falloB) return json(400, { error: falloB, billetera: "sin_sms" });
+          return json(200, {
+            codigo_requerido: true, total: totalB, saldo: saldoB,
+            telefono: "···" + tel10B.slice(-4),
+          });
+        }
+        const malB = await comprobarCodigo(tenant, tel10B, codigoB);
+        if (malB) return json(400, { error: malB, billetera: "codigo_malo" });
+        saldoVerificado = true;
+      }
+
       const borrador = {
         productos, subtotal, empaque, total,
         telefono: String(link.telefono || "").replace(/\D/g, "").slice(-10),
@@ -899,6 +1045,10 @@ Deno.serve(async (req) => {
             intención, no un cobro: aquí no se descuenta nada. Paco lo
             confirma en el chat y ahí sí se toca el dinero.               */
         saldo_intencion: Number(body.saldo_usar) || 0,
+        /*  Ya demostro en la pagina que la billetera es suya. El motor NO se
+            lo vuelve a pedir por el chat: seria pedirle dos veces lo mismo,
+            que es justo lo que veniamos quitando.                        */
+        saldo_verificado: saldoVerificado,
         /*  Los puntos que dijo que quiere usar. Igual que el saldo: es una
             INTENCION, aqui no se descuenta ni uno. Se descuentan cuando el
             pedido se crea de verdad.                                     */

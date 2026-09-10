@@ -386,3 +386,15 @@ body.ct-cerrado .ct-prod:active{background:var(--panel)}
     la salida, y va mas callado para no competir con el.                  */
 .ct-modal-cuerpo .ct-modal-txt + .ct-modal-txt{margin-top:10px}
 .ct-destacado{font-weight:800;font-size:16px;letter-spacing:-.01em}
+
+/*  El campo del codigo. Grande y separado a proposito: seis numeros sueltos se
+    leen de un vistazo y se corrigen sin pelear con el dedo.               */
+.ct-codigo{width:100%;margin-top:16px;padding:16px 12px;border-radius:14px;
+  border:1.5px solid var(--linea);background:var(--panel-2);color:var(--tinta);
+  font-family:inherit;font-size:30px;font-weight:800;letter-spacing:.30em;
+  text-align:center;text-indent:.30em;outline:none;font-variant-numeric:tabular-nums}
+.ct-codigo::placeholder{color:var(--tinta-3);font-weight:700}
+.ct-codigo:focus{border-color:var(--marca);box-shadow:0 0 0 3px rgba(216,69,47,.14)}
+.ct-codigo:disabled{opacity:.6}
+.ct-codigo-mal{margin-top:10px;font-size:13.5px;font-weight:700;color:var(--marca);
+  line-height:1.45}

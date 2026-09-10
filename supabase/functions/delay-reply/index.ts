@@ -1879,6 +1879,12 @@ hay varios productos y no está claro cuál. Ante la duda, false.`;
             contra el catalogo y contra el saldo, pero se vuelve a comprobar
             al restar: entre la pagina y la cocina pasan minutos.        */
         st.puntos_usar = Number(br.puntos_usar) || 0;
+        /*  ══ YA DEMOSTRO EN LA PAGINA QUE LA BILLETERA ES SUYA ══════════
+            Escribio ahi el codigo que le llego por SMS. Volverselo a pedir
+            por el chat seria pedirle dos veces lo mismo — lo que veniamos
+            quitando con la direccion y con el tamaNo.                    */
+        (st as unknown as Record<string, unknown>).saldo_verificado = br.saldo_verificado === true;
+        (st as unknown as Record<string, unknown>).saldo_verificado_at = String(br.carta_at || "");
 
         /*  ══ LAS VARIANTES, POR SU GRUPO ═══════════════════════════════════
 
@@ -3854,6 +3860,70 @@ INTENCION, no las palabras exactas.` },
   /* ── ESPERANDO EL CODIGO DE LA BILLETERA (20-ago-2026) ────────────────
      El pago quedo a un codigo de distancia: lo unico que puede pasar aqui es
      que llegue el codigo, que pida reenvio, o que cambie de metodo. */
+  /*  ══ COBRAR CON LA BILLETERA ══════════════════════════════════════════
+
+      PRIMERO LA PLATA, DESPUES LA COCINA: si el descuento falla, no puede
+      existir un pedido en preparacion sin pagar. Y si el pedido no se puede
+      crear, la plata vuelve sola.
+
+      Vive aqui, en una sola funcion, porque hay DOS caminos que llegan:
+        · el cliente escribe el codigo en el chat (el de siempre)
+        · el cliente ya lo escribio en la carta (desde el 10-sep-2026)
+      Dos copias de algo que mueve plata es como se termina descontando dos
+      veces, o devolviendo en un camino y en el otro no.                   */
+  const cobrarConBilletera = async (clienteSaldo: string, totalDR: number): Promise<boolean> => {
+    const refDR = "wa:" + convId + ":" + Date.now();
+    const mov = await sbRpcDR("fn_saldo_mover", {
+      p_tenant: tenantId, p_cliente: clienteSaldo, p_motivo: "consumo",
+      p_monto: -totalDR, p_branch: branchId, p_order: null,
+      p_ref: refDR, p_detalle: "Pago con billetera por WhatsApp",
+    });
+    const decirBil = async (m: string) => {
+      await sendWaAndSave(convId, tenantId, m, fromPhone, phoneId, accessToken);
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: m, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+    };
+    if (mov === null) {
+      delete (state as unknown as Record<string, unknown>).saldo_pago;
+      delete (state as unknown as Record<string, unknown>).saldo_verificado;
+      state.pago = null;
+      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
+      await decirBil("No pudimos descontar tu saldo 🙏 ¿Pagas en efectivo o por transferencia?");
+      return false;
+    }
+    delete (state as unknown as Record<string, unknown>).saldo_pago;
+    const dirDR = state.direccion || "";
+    const domiDR = LLEVAR_REGEX.test(dirDR.toLowerCase()) ? 0 : (lookupDomiPrice(ubicacionPedido(state), domiciliosCfg) ?? 0);
+    let orderIdDR: string | null = null;
+    try {
+      orderIdDR = await createWhatsappOrder(buildOrderArgs(state, domiDR), branchId, tenantId, fromPhone, cfg._operacion as Record<string, unknown> | null, convId);
+    } catch (err) { console.error("[billetera] creando pedido:", err); }
+    if (!orderIdDR) {
+      /* La plata vuelve: el pedido no se pudo crear. */
+      await sbRpcDR("fn_saldo_mover", {
+        p_tenant: tenantId, p_cliente: clienteSaldo, p_motivo: "anulacion",
+        p_monto: totalDR, p_branch: branchId, p_order: null,
+        p_ref: refDR + ":anul", p_detalle: "Devolución: el pedido no se pudo crear",
+      });
+      await decirBil("Algo falló creando tu pedido y tu saldo quedó intacto 🙏 Intenta de nuevo en un momento.");
+      return false;
+    }
+    /* El pedido nace PAGADO, con el mismo sello que usa la caja. */
+    await sbPatch(`/rest/v1/pos_orders?id=eq.${orderIdDR}`, {
+      status: "paid", payment_method: "__saldo", paid_amount: totalDR,
+      closed_at: new Date().toISOString(),
+    });
+    await sbPatch(`/rest/v1/pos_saldo_mov?referencia=eq.${encodeURIComponent(refDR)}`, { order_id: orderIdDR });
+    const sal2 = await sbRpcDR("fn_saldo_cliente", { p_tenant: tenantId, p_cliente: clienteSaldo });
+    const resta = Math.round(Number(Array.isArray(sal2) ? (sal2[0] as Record<string, unknown>)?.saldo : sal2) || 0);
+    const okMsg = `¡Pago confirmado! 🎉 Pagaste ${fmtCOP(totalDR)} con tu Billetera y te quedan ${fmtCOP(resta)}. Tu pedido ya está en preparación${emo()}`;
+    await sendWaAndSave(convId, tenantId, okMsg, fromPhone, phoneId, accessToken);
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
+      pending_order_data: null, pago_pendiente: false,
+      last_message: okMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false,
+    });
+    return true;
+  };
+
   {
     const spDR = (state as unknown as Record<string, unknown>).saldo_pago as { total?: number; cliente?: string } | undefined;
     if (spDR && Number(spDR.total) > 0 && spDR.cliente) {
@@ -3876,53 +3946,8 @@ INTENCION, no las palabras exactas.` },
           return;
         }
         await sbPatch(`/rest/v1/pos_web_codigos?id=eq.${c.id}`, { usado: true });
-        /* PRIMERO LA PLATA, DESPUES LA COCINA: si el descuento falla, no debe
-           existir un pedido en preparacion sin pagar. */
-        const totalDR = Math.round(Number(spDR.total));
-        const refDR = "wa:" + convId + ":" + Date.now();
-        const mov = await sbRpcDR("fn_saldo_mover", {
-          p_tenant: tenantId, p_cliente: spDR.cliente, p_motivo: "consumo",
-          p_monto: -totalDR, p_branch: branchId, p_order: null,
-          p_ref: refDR, p_detalle: "Pago con billetera por WhatsApp",
-        });
-        if (mov === null) {
-          delete (state as unknown as Record<string, unknown>).saldo_pago;
-          state.pago = null;
-          await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
-          await decir("No pudimos descontar tu saldo 🙏 ¿Pagas en efectivo o por transferencia?");
-          return;
-        }
-        delete (state as unknown as Record<string, unknown>).saldo_pago;
-        const dirDR = state.direccion || "";
-        const domiDR = LLEVAR_REGEX.test(dirDR.toLowerCase()) ? 0 : (lookupDomiPrice(ubicacionPedido(state), domiciliosCfg) ?? 0);
-        let orderIdDR: string | null = null;
-        try {
-          orderIdDR = await createWhatsappOrder(buildOrderArgs(state, domiDR), branchId, tenantId, fromPhone, cfg._operacion as Record<string, unknown> | null, convId);
-        } catch (err) { console.error("[billetera] creando pedido:", err); }
-        if (!orderIdDR) {
-          /* La plata vuelve: el pedido no se pudo crear. */
-          await sbRpcDR("fn_saldo_mover", {
-            p_tenant: tenantId, p_cliente: spDR.cliente, p_motivo: "anulacion",
-            p_monto: totalDR, p_branch: branchId, p_order: null,
-            p_ref: refDR + ":anul", p_detalle: "Devolución: el pedido no se pudo crear",
-          });
-          await decir("Algo falló creando tu pedido y tu saldo quedó intacto 🙏 Intenta de nuevo en un momento.");
-          return;
-        }
-        /* El pedido nace PAGADO, con el mismo sello que usa la app. */
-        await sbPatch(`/rest/v1/pos_orders?id=eq.${orderIdDR}`, {
-          status: "paid", payment_method: "__saldo", paid_amount: totalDR,
-          closed_at: new Date().toISOString(),
-        });
-        await sbPatch(`/rest/v1/pos_saldo_mov?referencia=eq.${encodeURIComponent(refDR)}`, { order_id: orderIdDR });
-        const sal2 = await sbRpcDR("fn_saldo_cliente", { p_tenant: tenantId, p_cliente: spDR.cliente });
-        const resta = Math.round(Number(Array.isArray(sal2) ? (sal2[0] as Record<string, unknown>)?.saldo : sal2) || 0);
-        const okMsg = `¡Pago confirmado! 🎉 Pagaste ${fmtCOP(totalDR)} con tu Billetera y te quedan ${fmtCOP(resta)}. Tu pedido ya está en preparación${emo()}`;
-        await sendWaAndSave(convId, tenantId, okMsg, fromPhone, phoneId, accessToken);
-        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
-          pending_order_data: null, pago_pendiente: false,
-          last_message: okMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false,
-        });
+        await sbPatch(`/rest/v1/pos_web_codigos?id=eq.${c.id}`, { usado: true });
+        await cobrarConBilletera(String(spDR.cliente), Math.round(Number(spDR.total)));
         return;
       }
       if (/reenv|no me (ha )?llegado|no llego|otro codigo/.test(tNorm)) {
@@ -4557,6 +4582,22 @@ INTENCION, no las palabras exactas.` },
           await decirYSoltarPago(`Tu Billetera tiene ${fmtCOP(saldoDR)} y el pedido es ${fmtCOP(totalDR)} — te faltan ${fmtCOP(falta)} 🙏 Puedes recargar en la app y me avisas, o pagas en efectivo o por transferencia.`, true);
           return;
         }
+        /*  ══ ESCENARIO 3-bis: YA LO COMPROBO EN LA CARTA ════════════════
+            Escribio el codigo en la pagina, hace un minuto, con el SMS
+            recien llegado. Se cobra y listo. El saldo se acaba de volver a
+            mirar arriba: entre la pagina y aqui pudo gastar en otro sitio. */
+        const verifAt = Date.parse(String((state as unknown as Record<string, unknown>).saldo_verificado_at || ""));
+        /*  Y CADUCA. Una comprobacion de identidad no vale para siempre: el
+            codigo vence a los 10 minutos, y el permiso que deja no puede
+            durar toda la noche. Si se paso, se le pide otro — molesta menos
+            que cobrarle sin saber quien esta al otro lado.               */
+        const verifFresca = Number.isFinite(verifAt) && (Date.now() - verifAt) < 45 * 60000;
+        if ((state as unknown as Record<string, unknown>).saldo_verificado === true && verifFresca) {
+          delete (state as unknown as Record<string, unknown>).saldo_verificado;
+          await cobrarConBilletera(cliDR.id, totalDR);
+          return;
+        }
+
         // Escenario 3: hay saldo — el codigo viaja por SMS, como en la caja.
         const marcaDR = await marcaDeDR(branchId);
         const enviado = await enviarCodigoPagoDR(tenantId, tel10DR, totalDR, marcaDR);

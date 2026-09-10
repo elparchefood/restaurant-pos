@@ -645,7 +645,7 @@
       + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
       + '</button></div>'
       + '<div class="ct-modal-cuerpo">'
-      + '<div class="ct-modal-txt">Tu pedido se prepara ya pagado, para que lo tengas listo apenas llegues.</div>'
+      + '<div class="ct-modal-txt">Empezamos a prepararlo apenas entre el pago, para que no tengas que esperar cuando llegues.</div>'
       + '<div class="ct-modal-txt ct-destacado">Págalo ' + esc(conQue) + '.</div>'
       + '<div class="ct-modal-txt ct-nota-chica">¿Prefieres efectivo? Acércate al local y te lo preparamos ahí mismo.</div>'
       + '<button class="ct-btn ct-entendido" data-cerrar="1">Entendido</button></div></div>';
@@ -1578,13 +1578,15 @@
   /* ── mandarlo ────────────────────────────────────────────────────────── */
   $('btnEnviar').onclick = enviar;
 
-  async function enviar() {
-    if (!pedido.length || !pagoElegido) return;
-    var b = $('btnEnviar');
-    b.disabled = true; b.textContent = 'Mandando tu pedido…';
-    try {
-      var r = await llamar({
+  /*  Lo que se le manda al servidor. Vive en UN sitio porque lo usan dos
+      caminos —el normal y el del codigo de la billetera— y dos copias de esto
+      terminan mandando cosas distintas.                                   */
+  function cuerpoPedido(codigo) {
+    return {
         action: 'guardar',
+        /*  Vacio salvo cuando el cliente acaba de escribirlo: el servidor
+            decide si hace falta, no la pagina.                            */
+        codigo: codigo || '',
         /*  A dónde va. El servidor vuelve a cotizarlo: lo que se enseñó aquí
             no se cree, igual que con los precios de los productos.       */
         entrega: entrega.modo,
@@ -1605,7 +1607,22 @@
             premio: l.premio === true
           };
         })
-      });
+    };
+  }
+
+  async function enviar() {
+    if (!pedido.length || !pagoElegido) return;
+    var b = $('btnEnviar');
+    b.disabled = true; b.textContent = 'Mandando tu pedido…';
+    try {
+      var r = await llamar(cuerpoPedido(''));
+      /*  La billetera pide demostrar que es su dueNo. El servidor ya mando el
+          SMS; aqui solo se abre el campo donde va a caer solo.            */
+      if (r && r.codigo_requerido) {
+        b.disabled = false; b.textContent = 'Hacer mi pedido';
+        abrirPanel(function () { verCodigo(r); });
+        return;
+      }
       terminar(r);
     } catch (e) {
       b.disabled = false; b.textContent = 'Hacer mi pedido';
@@ -1621,6 +1638,77 @@
       n.textContent = (e && e.message) || 'No se pudo mandar tu pedido. Inténtalo otra vez.';
       $('pagoLista').appendChild(n);
     }
+  }
+
+  /*  ══ EL CODIGO DE LA BILLETERA ═══════════════════════════════════════
+
+      Sergio: *"que el espacio para el codigo aparezca ahi mismo en el flujo
+      de la pagina... la mayoria de celulares lo va a prellenar, asi
+      practicamente no tiene que hacer nada"*.
+
+      Tres detalles son los que hacen que eso pase de verdad:
+        · autocomplete="one-time-code" -> iOS y Android ofrecen el codigo
+          encima del teclado en cuanto llega el SMS. Sin esto no aparece.
+        · inputmode="numeric" -> teclado de numeros, no de letras.
+        · al sexto numero se manda SOLO. Si el telefono ya lo escribio,
+          pedirle ademas que toque un boton es un paso de mas.             */
+  function verCodigo(info) {
+    var h = '<div class="ct-paso"><button class="ct-atras" id="volverPago2">'
+          + '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>'
+          + '</button><div class="ct-paso-tit"><b>Confirma que eres tú</b></div></div>'
+          + '<div class="ct-preg">Escribe el código</div>'
+          + '<div class="ct-sub">Te acabamos de enviar un mensaje de texto al '
+          + esc(info.telefono || 'tu celular') + ' con 6 números. '
+          + 'Tu celular puede escribirlo por ti.</div>'
+          + '<input id="codBil" class="ct-codigo" type="text" inputmode="numeric" '
+          + 'autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" '
+          + 'placeholder="000000" aria-label="Código de 6 números">'
+          + '<div id="codMal" class="ct-codigo-mal" hidden></div>'
+          + '<div class="ct-nota-chica">Pagas ' + cop(info.total || 0)
+          + ' con tu Billetera. Te quedarían ' + cop(Math.max(0, (info.saldo || 0) - (info.total || 0))) + '.</div>';
+    $('hojaCuerpo').innerHTML = h;
+    $('hojaCuerpo').scrollTop = 0;
+    $('hojaPie').hidden = false;
+
+    var campo = $('codBil'), mal = $('codMal'), btn = $('btnPrincipal');
+    btn.disabled = true;
+    btn.innerHTML = 'Confirmar y terminar';
+
+    var mandando = false;
+    async function mandar() {
+      var cod = campo.value.replace(/[^0-9]/g, '');
+      if (cod.length !== 6 || mandando) return;
+      mandando = true;
+      btn.disabled = true; btn.textContent = 'Confirmando…';
+      campo.disabled = true;
+      mal.hidden = true;
+      try {
+        var r = await llamar(cuerpoPedido(cod));
+        cerrarHoja();
+        terminar(r);
+      } catch (e) {
+        /*  El error se dice AQUI, donde el cliente esta mirando. Mandarlo a la
+            pantalla de pago —que ni se ve— seria dejarlo sin saber que paso. */
+        mandando = false;
+        campo.disabled = false;
+        campo.value = '';
+        campo.focus();
+        btn.disabled = true; btn.textContent = 'Confirmar y terminar';
+        mal.textContent = (e && e.message) || 'No se pudo confirmar. Inténtalo otra vez.';
+        mal.hidden = false;
+      }
+    }
+
+    campo.oninput = function () {
+      var v = campo.value.replace(/[^0-9]/g, '').slice(0, 6);
+      if (campo.value !== v) campo.value = v;
+      btn.disabled = v.length !== 6;
+      if (v.length === 6) mandar();
+    };
+    btn.onclick = mandar;
+    $('volverPago2').onclick = function () { cerrarHoja(); irAlPago(); };
+    otroBoton(true, 'Mejor pago de otra forma', function () { cerrarHoja(); irAlPago(); });
+    setTimeout(function () { try { campo.focus(); } catch (e) { /* el teclado se abre solo o no */ } }, 120);
   }
 
   function terminar(r) {
