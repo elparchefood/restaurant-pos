@@ -616,16 +616,38 @@
       (`frases.llevar_efectivo`). Si el restaurante la cambia, cambia en los
       dos sitios; si la escribiera aquí aparte, un día dirían cosas distintas
       y el cliente pensaría que le están cambiando las reglas.            */
+  /*  Los metodos que SI sirven para recoger, dichos por su nombre. Se leen
+      de los que esta pagina tiene activos —nunca escritos a mano— porque la
+      Billetera es solo de El Parche y Cobra se vende a otros restaurantes.
+      Los puntos no entran: no son plata, reclaman productos.             */
+  function metodosQueSirven() {
+    return metodos.filter(function (m) { return m.tipo !== 'puntos' && esDigital(m); })
+                  .map(function (m) { return m.n; });
+  }
+
+  /*  ══ "ESO NO SE PUEDE, Y ESTE ES EL PORQUE" ═════════════════════════════
+
+      Sergio: *"en un modal debe ir informativo"*. El chat conversa —pide
+      perdon, porque hay alguien al otro lado—; un cartel no pide perdon, dice
+      que hacer. Por eso este texto NO es el de Paco.
+
+      Tres renglones, las tres preguntas de quien acaba de tocar Efectivo:
+      por que no puedo, entonces con que, y que hago si quiero efectivo.  */
   function verSoloPrepago() {
-    var txt = String(D.llevar_texto || '').trim()
-      || 'Qué pena contigo 🙏 Si deseas que tu pedido esté listo cuando pases por él, el pago debe hacerse por transferencia primero. Si decides pagar en efectivo, con mucho gusto te puedes acercar al establecimiento y tu pedido se prepara una vez esté pago 😊';
+    var sirven = metodosQueSirven();
+    var conQue = sirven.length === 0 ? 'por transferencia'
+      : sirven.length === 1 ? ('con ' + sirven[0])
+      : ('con ' + sirven.slice(0, -1).join(', ') + ' o ' + sirven[sirven.length - 1]);
     var h = '<div class="ct-modal-caja" role="dialog" aria-modal="true">'
       + '<div class="ct-modal-cab"><div class="ct-modal-titulo ct-sin-foto">'
       + '<b>Para recoger, el pago va antes</b></div>'
       + '<button class="ct-modal-x" data-cerrar="1" aria-label="Cerrar">'
       + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
       + '</button></div>'
-      + '<div class="ct-modal-cuerpo"><div class="ct-modal-txt">' + esc(txt) + '</div>'
+      + '<div class="ct-modal-cuerpo">'
+      + '<div class="ct-modal-txt">Tu pedido se prepara ya pagado, para que lo tengas listo apenas llegues.</div>'
+      + '<div class="ct-modal-txt ct-destacado">Págalo ' + esc(conQue) + '.</div>'
+      + '<div class="ct-modal-txt ct-nota">¿Prefieres efectivo? Acércate al local y te lo preparamos ahí mismo.</div>'
       + '<button class="ct-btn ct-entendido" data-cerrar="1">Entendido</button></div></div>';
     var v = document.createElement('div');
     v.className = 'ct-modal';

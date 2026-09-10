@@ -3416,7 +3416,7 @@ INTENCION, no las palabras exactas.` },
     // el pedido en efectivo y se re-muestra el resumen para confirmar.
     const stPend = (pendStatePrev && (pendStatePrev._v as number)) ? (pendStatePrev as unknown as PacoState) : null;
     const pagoNuevoPend = comoPagaEsteMensaje();
-    const cambiaEfectivoPend = !!(pagoNuevoPend && !esMetodoDigital(pagoNuevoPend, pagosCfg));
+    const cambiaEfectivoPend = !!(pagoNuevoPend && !pagoYaCubierto(pagoNuevoPend, pagosCfg));
     const esLlevarPend = stPend?.direccion ? LLEVAR_REGEX.test(stPend.direccion.toLowerCase()) : false;
     const prepagoPend  = domiciliosCfg?.llevar_prepago !== false;
     if (cambiaEfectivoPend && stPend && !(esLlevarPend && prepagoPend)) {
@@ -4439,7 +4439,7 @@ INTENCION, no las palabras exactas.` },
       const cambiaPago = !!(pagoNuevoRes && state.pago && normalizarTexto(pagoNuevoRes) !== normalizarTexto(state.pago));
       const esLlevarRes = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) : false;
       const prepagoRes  = domiciliosCfg?.llevar_prepago !== false;
-      const bloqueoLlevarRes = esLlevarRes && prepagoRes && pagoNuevoRes && !esMetodoDigital(pagoNuevoRes, pagosCfg);
+      const bloqueoLlevarRes = esLlevarRes && prepagoRes && pagoNuevoRes && !pagoYaCubierto(pagoNuevoRes, pagosCfg);
       if (cambiaPago && bloqueoLlevarRes) {
         if (await frenarBucle(convId, "llevar_efectivo")) return;
         // Para-llevar + prepago: no se puede efectivo → explicar y mantener el resumen
@@ -5661,9 +5661,9 @@ INTENCION, no las palabras exactas.` },
     if (llevarState && exigePrepagoFlujo && state.producto) {
       const metodoDigital = getMetodosPago(pagosCfg).find(m => m.digital);
       const pagoMencionado = comoPagaEsteMensaje();
-      const mencionaNoDigital = pagoMencionado && !esMetodoDigital(pagoMencionado, pagosCfg);
+      const mencionaNoDigital = pagoMencionado && !pagoYaCubierto(pagoMencionado, pagosCfg);
       // También cubre el caso: eligió "efectivo" en el paso de pago y DESPUÉS dijo "yo paso"
-      const pagoNoDigitalPrevio = state.pago && !esMetodoDigital(state.pago, pagosCfg);
+      const pagoNoDigitalPrevio = state.pago && !pagoYaCubierto(state.pago, pagosCfg);
       if (mencionaNoDigital || pagoNoDigitalPrevio) {
         // El cliente quiere efectivo en un pedido para llevar → explicar la regla
         const msgLlevarEf = getFraseTexto(frasesCfg.llevar_efectivo) ||
@@ -5674,7 +5674,9 @@ INTENCION, no las palabras exactas.` },
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: msgLlevarEf, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
         return;
       }
-      if (metodoDigital && (!state.pago || !esMetodoDigital(state.pago, pagosCfg))) {
+      /*  Y si escogio la Billetera, NO se le pisa el metodo: su plata ya
+          esta. Antes se lo cambiaba a transferencia sin decirle nada.  */
+      if (metodoDigital && (!state.pago || !pagoYaCubierto(state.pago, pagosCfg))) {
         // Saltar la pregunta del pago: directo al método digital
         state.pago = metodoDigital.nombre.toLowerCase();
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -6219,7 +6221,7 @@ INTENCION, no las palabras exactas.` },
         }
       }
       if (clasifDir.tipo === "publico" && clasifDir.requierePagoAdelantado) {
-        const esEfectivo = !esMetodoDigital(state.pago || "", pagosCfg);
+        const esEfectivo = !pagoYaCubierto(state.pago || "", pagosCfg);
         if (esEfectivo) {
           /* FRASE FIJA, no el modelo (caso real de Kevin, 17-ago). La entrega
              era a un LOCAL comercial ("local Crazy Ice"): lugar publico ->
@@ -6819,6 +6821,29 @@ function esMetodoInterno(id: string): boolean {
 }
 
 // ¿El método elegido es digital (QR + comprobante)? Decide la rama del resumen.
+/*  ══ ¿LA PLATA YA ESTA? ═══════════════════════════════════════════════════
+
+    NO es lo mismo que `esMetodoDigital`, y confundirlas costo un error real:
+    la Billetera esta guardada con `digital: false` —y asi debe seguir, porque
+    a nadie se le pide el comprobante de su propia billetera— pero el saldo YA
+    esta recargado, ya es plata de la casa.
+
+    `esMetodoDigital` responde "¿deja comprobante?". Esta responde "¿la plata
+    ya esta o va a estar antes de cocinar?". Las reglas de prepago —para
+    recoger, y entregas en sitio publico— preguntan ESTO.
+
+    Los puntos no entran: no son plata, reclaman productos, y despues igual
+    hay que escoger con que se paga el resto.                              */
+function pagoYaCubierto(pago: string | null | undefined, pagosCfg: Record<string, unknown> | null | undefined): boolean {
+  if (esMetodoDigital(pago, pagosCfg)) return true;
+  const p = normalizarTexto(String(pago || ""));
+  if (!p) return false;
+  const billetera = getMetodosPago(pagosCfg).find(m => m.id === "__saldo");
+  if (!billetera) return false;
+  const nm = normalizarTexto(billetera.nombre);
+  return (!!nm && (nm === p || nm.includes(p) || p.includes(nm))) || /\b(saldo|monedero)\b/.test(p);
+}
+
 function esMetodoDigital(pago: string | null | undefined, pagosCfg: Record<string, unknown> | null | undefined): boolean {
   const p = normalizarTexto(String(pago || ""));
   if (!p) return false;

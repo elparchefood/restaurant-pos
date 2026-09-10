@@ -513,30 +513,6 @@ Deno.serve(async (req) => {
           (`domicilios.llevar_prepago`) y la MISMA frase configurable
           (`frases.llevar_efectivo`). No se escribe la regla otra vez: dos
           reglas iguales en dos sitios se separan a la primera.          */
-      const frRes = await db(`ia_config?tenant_id=eq.${tenant}&select=frases&limit=1`);
-      const frCfg = (filas(frRes.data)[0]?.frases as Fila) || {};
-      const fraseLlevar = (() => {
-        const f = frCfg.llevar_efectivo as unknown;
-        /*  Vacia NO es escrita. La de El Parche existe como `""`: si se
-            devolviera tal cual, la pagina se quedaria muda. Paco resuelve esto
-            con `getFraseTexto(...) || defecto`; aqui, igual.              */
-        const propia = typeof f === "string"
-          ? f.trim()
-          : (f && typeof f === "object" ? String((f as Fila).texto || "").trim() : "");
-        if (propia) return propia;
-        /*  Si el restaurante no la ha escrito, Paco NO se queda mudo: tiene la
-            suya por defecto. Es esa, palabra por palabra, la que va aqui. Si
-            la pagina inventara una parecida, el cliente leeria una cosa aqui
-            y otra en el chat, y pensaria que le cambian las reglas.
-
-            ⚠️ COPIA A PROPOSITO. Las Edge Functions se despliegan como UN
-            archivo: no hay modulo comun con delay-reply, asi que este texto
-            esta escrito dos veces. Si se cambia alli, hay que cambiarlo aqui
-            — igual que el buscador de zonas. La forma de acabar con la copia
-            es que Sergio escriba la frase en Mensajes: en cuanto ese campo
-            deje de estar vacio, los dos la leen de ahi y esto no se usa.  */
-        return "Qué pena contigo 🙏 Si deseas que tu pedido esté listo cuando pases por él, el pago debe hacerse por transferencia primero. Si decides pagar en efectivo, con mucho gusto te puedes acercar al establecimiento y tu pedido se prepara una vez esté pago 😊";
-      })();
 
       //  el catálogo de premios, para poder decirle qué alcanza
       const prRes = await db(`pos_puntos_catalogo?tenant_id=eq.${tenant}&select=product_id,pres_nombre,puntos,dinero,activo&order=puntos.asc`);
@@ -636,8 +612,9 @@ Deno.serve(async (req) => {
         cliente: { saldo, puntos, nombre: cliente?.nombre || "",
                    direccion: dirGuardada, direcciones: otrasDirs },
         domicilios: hayDomicilios,
+        /*  Solo el interruptor, no el texto. La regla es la misma que la de
+            Paco; las PALABRAS no: el chat conversa y el cartel informa.  */
         llevar_prepago: dmCfg.llevar_prepago !== false,
-        llevar_texto: fraseLlevar,
         empaque_activo: cfg.empaquesActivo === true,
         volver,
         borrador,

@@ -380,3 +380,10 @@ body.ct-cerrado .ct-prod:active{background:var(--panel)}
 @keyframes ctFade{from{opacity:0}to{opacity:1}}
 @keyframes ctSube{from{transform:translateY(24px)}to{transform:translateY(0)}}
 @media (prefers-reduced-motion:reduce){.ct-modal,.ct-modal-caja{animation:none}}
+
+/*  Los tres renglones del aviso de prepago. Distinto peso para cada uno: el
+    del medio es LO QUE HAY QUE HACER y tiene que verse primero; el ultimo es
+    la salida, y va mas callado para no competir con el.                  */
+.ct-modal-cuerpo .ct-modal-txt + .ct-modal-txt{margin-top:10px}
+.ct-destacado{font-weight:800;font-size:16px;letter-spacing:-.01em}
+.ct-nota{color:var(--tinta-2);font-size:13.5px}
