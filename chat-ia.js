@@ -336,7 +336,11 @@ async function updateLabelBadges(){
     Nadie abre un chat para leer el mensaje numero 300 hacia atras: se abre
     para ver lo ultimo. Se piden los ultimos 50 y se dan vuelta; los anteriores
     se traen al subir (`cargarMasMensajes`).                                  */
-const MSG_COLS = 'id,conversation_id,direction,body,media_url,media_type,sent_at,origen,external_id,reply_to_external_id,reply_to_body';
+/*  `payload` SI va (10-sep-2026): ahi viene el BOTON que recibio el cliente
+    ("Hacer mi pedido"). Sin el, la burbuja salia como texto pelado y Sergio,
+    en pleno turno, creyo que Paco no lo habia mandado. Hoy el motor solo
+    guarda ahi la forma del mensaje (botones, imagen, ubicacion): es chico. */
+const MSG_COLS = 'id,conversation_id,direction,body,media_url,media_type,sent_at,origen,external_id,reply_to_external_id,reply_to_body,payload';
 const MSG_PAGINA = 50;
 
 async function loadMessages(convId) {
