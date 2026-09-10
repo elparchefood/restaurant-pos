@@ -2627,7 +2627,60 @@ var cjCierre = (function () {
     ov = null; filas = [];
   }
 
-  return { abrir: abrir, paso: paso, cerrar: cerrar };
+  /*  ══ EL FINAL, CON EL RESULTADO DEL AVISO ═══════════════════════════
+      El 5-sep se hizo que el cierre dijera si el aviso de compras salio o
+      no. Pero lo decia con un mensajito que la linea siguiente —"Caja
+      cerrada correctamente"— REEMPLAZABA en el mismo instante. El motivo
+      duraba milisegundos: el arreglo del silencio nunca funciono.
+
+      Ahora el resultado se escribe en esta misma ventana, debajo de su paso.
+      Si salio bien, la ventana se va sola en un par de segundos. Si NO salio,
+      se queda hasta que el cajero toque "Entendido": un problema que se
+      puede pasar por alto es un problema que nadie arregla.            */
+  function terminar(texto, tono) {
+    return new Promise(function (listo) {
+      if (!ov) { listo(); return; }
+      medidas.push(PASOS[PASOS.length - 1] + ': ' + (Date.now() - tPaso) + ' ms');
+      console.log('[caja] cierre en ' + (Date.now() - t0) + ' ms →', medidas.join(' · '));
+      pintar(PASOS.length);
+      var bien = tono === 'ok';
+      var ultima = filas[filas.length - 1];
+      if (ultima && !bien) {
+        ultima.querySelector('[data-ic]').innerHTML =
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>';
+      }
+      if (ultima && texto) {
+        var r = document.createElement('div');
+        r.style.cssText = 'margin:2px 0 0 24px;font-size:12px;line-height:1.45;' +
+          (bien ? 'color:#15803D' : 'color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;' +
+                                     'border-radius:8px;padding:8px 10px;margin-top:6px');
+        r.textContent = texto;
+        ultima.insertAdjacentElement('afterend', r);
+      }
+      //  la cabeza deja de girar: ya termino. Se busca por su sitio exacto
+      //  —primera fila de la tarjeta—: un selector como 'div > div' agarraria
+      //  la tarjeta entera y la vaciaria.
+      var cab = ov.querySelector('#cj-cerrando-pasos').parentNode.firstElementChild;
+      if (cab) {
+        cab.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+          '<div style="font-size:16px;font-weight:800;color:#0F172A;letter-spacing:-.02em">Caja cerrada</div>';
+      }
+      var pie = ov.querySelector('#cj-cerrando-pasos').nextElementSibling;
+      var salirYa = function () { cerrar(); listo(); };
+      if (bien) {
+        if (pie) pie.textContent = '';
+        setTimeout(salirYa, 2600);
+      } else if (pie) {
+        pie.innerHTML = '<button type="button" style="width:100%;height:40px;border:none;border-radius:10px;' +
+          'background:#5B6BFF;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer">Entendido</button>';
+        pie.querySelector('button').onclick = salirYa;
+      } else {
+        setTimeout(salirYa, 2600);
+      }
+    });
+  }
+
+  return { abrir: abrir, paso: paso, cerrar: cerrar, terminar: terminar };
 })();
 
 async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoContado) {
@@ -2704,6 +2757,7 @@ async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoCon
         callados. Es el mismo error de siempre — confundir "no hay" con "no
         pude preguntar". Mientras se vean igual, la proxima vez tampoco se va
         a poder averiguar.                                                  */
+    var avisoTxt = '', avisoTono = 'ok';
     try {
       cjCierre.paso(4);
       const rAv = await fetch('https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/aviso-insumos', {
@@ -2711,32 +2765,41 @@ async function handleCloseSession(closingCash, totalSales, arqueoDiff, arqueoCon
         body: JSON.stringify({ branch_id: S.branchId }),
       });
       const dAv = await rAv.json().catch(function(){ return {}; });
+      const res = (dAv && dAv.resultados) || [];
+      const bien = res.filter(function(x){ return x.ok; });
+      const mal  = res.filter(function(x){ return !x.ok; });
       if (dAv && dAv.enviado) {
-        showToast('Aviso de compras enviado al gerente');
+        /*  "Enviado" y no "le llego": Meta ACEPTA el mensaje y puede
+            rechazarlo despues. Si pasa, ahora queda anotado.             */
+        avisoTxt = mal.length
+          ? ('Enviado a ' + bien.length + ' de ' + res.length + ' gerentes. WhatsApp rechazó ' +
+             mal.map(function(x){ return x.numero + ' (' + (x.error || 'sin motivo') + ')'; }).join(', '))
+          : ('Aviso de compras enviado por WhatsApp' + (res.length > 1 ? ' a ' + res.length + ' gerentes' : ''));
+        avisoTono = mal.length ? 'aviso' : 'ok';
+      } else if (dAv && dAv.razon === 'nada_bajo') {
+        avisoTxt = 'No había nada por comprar'; avisoTono = 'ok';
       } else {
         const PORQUE = {
-          nada_bajo:    'no hay nada por comprar',
           apagado:      'está apagado en Configuración',
           sin_gerentes: 'no hay números de gerente configurados',
           sin_whatsapp: 'esta sede no tiene WhatsApp conectado',
           no_se_pudo_leer_inventario: 'no se pudo leer el inventario',
         };
-        /*  Si Meta lo rechazo, la funcion trae el motivo numero por numero.
-            Se enseNa TAL CUAL: el texto de Meta es feo, pero es lo unico que
-            permite arreglarlo. Traducirlo a "hubo un problema" es volver al
-            silencio con otras palabras.                                   */
-        const falla = ((dAv && dAv.resultados) || []).filter(function(x){ return !x.ok; })[0];
-        showToast('Aviso de compras: ' + (falla
-          ? ('WhatsApp lo rechazó — ' + (falla.error || 'sin motivo'))
-          : (PORQUE[dAv && dAv.razon] || ('no salió (' + ((dAv && dAv.razon) || 'sin motivo') + ')'))));
+        /*  El texto de Meta tal cual: es feo, pero es lo unico que permite
+            arreglarlo. Traducirlo a "hubo un problema" es volver al silencio. */
+        avisoTxt = 'El aviso de compras NO salió: ' + (mal[0]
+          ? ('WhatsApp lo rechazó — ' + (mal[0].error || 'sin motivo'))
+          : (PORQUE[dAv && dAv.razon] || ((dAv && dAv.razon) || 'sin motivo')));
+        avisoTono = 'aviso';
         console.warn('[aviso-insumos] no se envió:', dAv);
       }
     } catch(e) {
       console.warn('aviso insumos:', e);
-      showToast('Aviso de compras: no se pudo hablar con el servidor');
+      avisoTxt = 'El aviso de compras NO salió: no se pudo hablar con el servidor';
+      avisoTono = 'aviso';
     }
 
-    cjCierre.cerrar();
+    await cjCierre.terminar(avisoTxt, avisoTono);
     showToast('Caja cerrada correctamente');
     await refreshAll();
   } catch(e) {

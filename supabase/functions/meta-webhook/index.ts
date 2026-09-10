@@ -194,6 +194,55 @@ Deno.serve(async (req) => {
           const phoneMeta  = (value.metadata as Record<string, string>) || {};
           const phoneId    = phoneMeta.phone_number_id || "";
 
+          /*  ══ LOS "NO SE ENTREGO" DE META (10-sep-2026) ══════════════════
+
+              Meta avisa DESPUES si un mensaje no llego: ventana de 24 horas
+              cerrada, numero sin WhatsApp, plantilla pausada. Esos avisos
+              traen `statuses` y NO traen `messages` — y la linea de abajo
+              (`if (!messages.length) continue;`) los botaba TODOS, siempre.
+
+              Por eso ningun envio fallido se habia visto nunca en todo el
+              sistema: ni el aviso de compras al gerente, ni el mensaje que se
+              le mando a Sergio el 9-sep con la ventana cerrada. Meta los
+              acepto y los rechazo despues, y el rechazo moria aqui.
+
+              Solo se miran los FALLIDOS: entregado y leido llegan por cada
+              mensaje de cada cliente, y anotarlos todos seria escribir en la
+              base por cada "visto".
+
+              ⚠️ Va en su propio try: esta es la puerta de TODOS los mensajes
+              de TODOS los restaurantes. Si esto fallara, lo de abajo tiene
+              que seguir exactamente igual.                                */
+          try {
+            const estados = (value.statuses as Array<Record<string, unknown>>) || [];
+            for (const st of estados) {
+              if (String(st.status || "") !== "failed") continue;
+              const errs = (st.errors as Array<Record<string, unknown>>) || [];
+              const e0 = errs[0] || {};
+              const wamid = String(st.id || "");
+              await fetch(`${SUPABASE_URL}/rest/v1/pos_diag`, {
+                method: "POST",
+                headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
+                           "Content-Type": "application/json", Prefer: "return=minimal" },
+                body: JSON.stringify({
+                  donde: "meta/no-entregado",
+                  mensaje: (String(st.recipient_id || "") + " · " + String(e0.code || "") + " " +
+                            String(e0.title || e0.message || "")).slice(0, 300),
+                  extra: st,
+                }),
+              }).catch(() => {});
+              //  Y si ese mensaje esta en el chat, que el chat lo diga.
+              if (wamid) {
+                await fetch(`${SUPABASE_URL}/rest/v1/chat_messages?external_id=eq.${encodeURIComponent(wamid)}`, {
+                  method: "PATCH",
+                  headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
+                             "Content-Type": "application/json", Prefer: "return=minimal" },
+                  body: JSON.stringify({ delivery_status: "failed" }),
+                }).catch(() => {});
+              }
+            }
+          } catch (e) { console.error("[meta-webhook] estados:", e); }
+
           if (!messages.length) continue;
 
           // Buscar canal por waba_id

@@ -94,6 +94,30 @@ Deno.serve(async (req) => {
     const branchId = String(body.branch_id || "");
     if (!branchId) return json({ error: "Falta branch_id" }, 400);
 
+    /*  ══ CADA INTENTO QUEDA ANOTADO ══════════════════════════════════
+        Del cierre del 7-sep no habia forma de saber que paso: esta funcion
+        no dejaba ningun rastro. Ahora cada salida —se envio, no habia nada,
+        no hay numeros, Meta lo rechazo— queda en `pos_diag` con el motivo y
+        lo que contesto Meta numero por numero.
+
+        Anotar nunca puede tumbar el aviso: si falla, se sigue.          */
+    const salir = async (obj: Record<string, unknown>, status = 200) => {
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/pos_diag`, {
+          method: "POST",
+          headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
+                     "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({
+            donde: "aviso-insumos",
+            mensaje: (obj.enviado ? "enviado" : String(obj.razon || "no_enviado")) +
+                     " · sede " + branchId,
+            extra: obj,
+          }),
+        });
+      } catch { /* sin rastro, pero el aviso sigue */ }
+      return json(obj, status);
+    };
+
     // ── ¿Está encendido y hay a quién avisarle? ──────────────────────
     const cfgRows = await sbGet(
       `/rest/v1/ia_config?branch_id=eq.${branchId}&select=numeros_gerentes,avisar_insumos&limit=1`
@@ -101,12 +125,12 @@ Deno.serve(async (req) => {
     const cfg = cfgRows?.[0];
     // Sin configuración, ENCENDIDO: el que puso números de gerente es porque
     // quiere que le escriban.
-    if (cfg?.avisar_insumos === false) return json({ ok: true, enviado: false, razon: "apagado" });
+    if (cfg?.avisar_insumos === false) return await salir({ ok: true, enviado: false, razon: "apagado" });
 
     const numeros = Array.isArray(cfg?.numeros_gerentes)
       ? (cfg!.numeros_gerentes as unknown[]).map(n => String(n).replace(/\D/g, "")).filter(Boolean)
       : [];
-    if (!numeros.length) return json({ ok: true, enviado: false, razon: "sin_gerentes" });
+    if (!numeros.length) return await salir({ ok: true, enviado: false, razon: "sin_gerentes" });
 
     // ── Qué está bajo ────────────────────────────────────────────────
     /*  ⚠️ CUANTO HAY NO ESTA EN `iv_insumos`. Se mudo a `iv_existencias` el
@@ -144,7 +168,7 @@ Deno.serve(async (req) => {
     //  Y si la consulta falla, se DICE. Un aviso que no sale por un error de
     //  la base no puede reportarse como "no habia nada bajo": eso es
     //  exactamente lo que escondio este fallo durante dias.
-    if (!crudos) return json({ ok: false, enviado: false, razon: "no_se_pudo_leer_inventario" }, 500);
+    if (!crudos) return await salir({ ok: false, enviado: false, razon: "no_se_pudo_leer_inventario" }, 500);
 
     const insumos = crudos.map(i => {
       const filas = (i.iv_existencias || []) as Array<Record<string, unknown>>;
@@ -178,7 +202,7 @@ Deno.serve(async (req) => {
 
     // Nada bajo: no se manda nada. Un "todo bien" cada noche se vuelve ruido y
     // en dos semanas nadie lo lee.
-    if (!bajos.length) return json({ ok: true, enviado: false, razon: "nada_bajo" });
+    if (!bajos.length) return await salir({ ok: true, enviado: false, razon: "nada_bajo" });
 
     /*  ══ COMO SE LEE ESTO (Sergio, 27-ago-2026) ═══════════════════
 
@@ -238,7 +262,7 @@ Deno.serve(async (req) => {
     ) as Array<Record<string, unknown>> | null;
     const meta = (canales?.[0]?.meta || {}) as Record<string, string>;
     if (!meta.phone_id || !meta.access_token) {
-      return json({ ok: true, enviado: false, razon: "sin_whatsapp" });
+      return await salir({ ok: true, enviado: false, razon: "sin_whatsapp" });
     }
 
     // ── Mandarlo ─────────────────────────────────────────────────────
@@ -294,13 +318,17 @@ Deno.serve(async (req) => {
           via = "texto";
         }
 
-        resultados.push({ numero, ok: r.ok, via, error: r.ok ? null : (d?.error?.message || "rechazado") });
+        /*  El id que devuelve Meta. Con el, el "no se entrego" que llegue
+            DESPUES al webhook se puede cruzar con este aviso: aceptado no es
+            lo mismo que entregado.                                       */
+        const wamid = String(((d?.messages as Array<Record<string, unknown>> | undefined)?.[0]?.id) || "");
+        resultados.push({ numero, ok: r.ok, via, wamid, error: r.ok ? null : (d?.error?.message || "rechazado") });
       } catch (e) {
         resultados.push({ numero, ok: false, error: String(e).slice(0, 120) });
       }
     }
 
-    return json({ ok: true, enviado: resultados.some(r => r.ok), cuantos: bajos.length, resultados });
+    return await salir({ ok: true, enviado: resultados.some(r => r.ok), cuantos: bajos.length, resultados });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }
