@@ -244,7 +244,7 @@
     /*  Sin tildes y sin la 's' del plural: la categoría es "Adiciones" y el
         producto "Adición Salsa" — se repiten, aunque no se escriban igual. */
     var pelar = function (s) {
-      return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/s/g, '');
+      return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/es\b|s\b/g, '');
     };
     if (pelar(n).indexOf(pelar(cat)) >= 0) return n;
     return cat + ' ' + n;
