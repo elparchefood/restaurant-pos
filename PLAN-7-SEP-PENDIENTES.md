@@ -81,6 +81,12 @@ en **`PLAN-PEDIR-DESDE-EL-MENU.md`**.
 > **A ✅ HECHO el 9-sep** (commit `9a1c535`): el PIN se pide ANTES de navegar,
 > y la lista de qué pide cada pantalla vive en un solo sitio. **B sigue
 > pendiente** — y es el candado de verdad.
+>
+> **B: PLAN ESCRITO el 10-sep, esperando que Sergio lo apruebe** →
+> **`PLAN-CANDADO-SERVIDOR.md`**. Lo medido cambió el diseño: la función que
+> parecía lista (`permisos_en_sucursal`) solo reconoce a 1 cuenta, y varias
+> pantallas del cajero escriben en tablas "de administrador". Va por fases, con
+> una semana en modo vigilancia antes de negar nada.
 
 **Dos cosas distintas, y la segunda es la de fondo.**
 
