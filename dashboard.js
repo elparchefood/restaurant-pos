@@ -4,6 +4,58 @@
 // ── State ─────────────────────────────────────────────
 const S = { branch:null, session:null, todayOrders:[], chartData:null, chartMode:'qty' };
 
+/*  ══ QUE VE CADA QUIEN EN EL ESCRITORIO (10-sep-2026) ═══════════════════
+    Sergio: "le podemos conceder permiso a alguien para que vea el dashboard
+    ... pero activar y desactivar cierta informacion: que alguien vea la
+    facturacion, que alguien no vea el inventario, que alguien no vea el
+    desglose por metodo de pago. Si le desactivamos toda la informacion,
+    queda el saludo y ya".
+
+    `dashboard.ver` ("Entrar al Escritorio") abre la pantalla y el menu. Lo
+    que se VE va por cinco permisos ESTRICTOS (el Administrador no los tiene
+    por serlo; el dueNo si, siempre):
+      ventas.totales        cuanto vende el negocio: todo lo que es plata
+      escritorio.pagos      el desglose por metodo de pago
+      escritorio.actividad  la actividad del dia, sin pesos
+      escritorio.inventario alertas de stock e "Inventario rapido"
+      escritorio.clientes   clientes y calificaciones
+    Y dos que ya existian: la caja (caja.abrir / caja.cerrar) e "Imprimir
+    comprobantes" (pedidos.reabrir).
+
+    En el HTML cada bloque lleva `data-ver` y NACE escondido (`dv-oculto`);
+    aplicarVer() destapa solo lo que toca. Y lo que no se va a mostrar ni se
+    pide ni se escribe en la pagina: cada carga y cada dibujo mira VER.      */
+const VER = { ventas:false, pagos:false, actividad:false, inventario:false, clientes:false,
+              caja:false, reimprimir:false, pedidos:false };
+function _puedeDash(id) {
+  try { return !!(window.posHasPerm && window.posHasPerm(id)); } catch (e) { return false; }
+}
+function calcularVer() {
+  VER.ventas     = _puedeDash('ventas.totales');
+  VER.pagos      = _puedeDash('escritorio.pagos');
+  VER.actividad  = _puedeDash('escritorio.actividad');
+  VER.inventario = _puedeDash('escritorio.inventario');
+  VER.clientes   = _puedeDash('escritorio.clientes');
+  VER.caja       = _puedeDash('caja.abrir') || _puedeDash('caja.cerrar');
+  VER.reimprimir = _puedeDash('pedidos.reabrir');
+  //  Los pedidos de hoy alimentan ventas, actividad, pagos y clientes: si no
+  //  se ve ninguno de los cuatro, ni se piden.
+  VER.pedidos    = VER.ventas || VER.actividad || VER.pagos || VER.clientes;
+  //  Sin la plata, los dos graficos van en CANTIDAD, no en pesos.
+  if (!VER.ventas) { S.chartMode = 'qty'; S2.hourlyMode = 'cantidad'; }
+}
+function aplicarVer() {
+  document.querySelectorAll('[data-ver]').forEach(function (el) {
+    var ok = el.dataset.ver.split(' ').some(function (k) { return VER[k]; });
+    el.classList.toggle('dv-oculto', !ok);
+  });
+  if (!VER.ventas) {
+    document.querySelectorAll('.seg-sm').forEach(function (b) {
+      b.classList.toggle('active', /cantidad/.test(b.getAttribute('onclick') || ''));
+    });
+  }
+}
+
 // ── Date / greeting ───────────────────────────────────
 function renderDate() {
   const now = new Date();
@@ -213,6 +265,8 @@ async function loadSession(branchId) {
     $('btn-session').style.background = '#5B6BFF';
   }
 
+  //  El codigo de la caja y el cierre anterior van con la plata (hero-stats).
+  if (!VER.ventas) { $('hero-stats').innerHTML = ''; return; }
   const cajaCode = data?.id?.slice(-6).toUpperCase() || '——';
   const lastClose = (data?.closing_cash ?? data?.closing_amount) != null ? COPF(data.closing_cash ?? data.closing_amount) : '—';
   const turno = data?.shift_type || (new Date().getHours() < 15 ? 'Diurno' : 'Nocturno');
@@ -235,6 +289,7 @@ async function loadWaiters(branchId) {
 
 // ── Today orders ──────────────────────────────────────
 async function loadTodayOrders(branchId) {
+  if (!VER.pedidos) return;   // nada de lo que alimentan se va a mostrar
   const { start, end } = todayRange();
   const q = sb.from('pos_orders')
     /*  `cliente_id`, `guests` y `delivered_at` van en esta lista a proposito:
@@ -268,8 +323,9 @@ async function loadTodayOrders(branchId) {
 
         No cuesta un viaje de mas: la lista vive en el equipo y solo sale a la
         red la primera vez.                                                  */
-    if (window.posMetodos) await posMetodos.cargar(sb, branchId);
-    const ids = S.todayOrders.map(o => o.id);
+    //  El desglose por metodo solo se pide si se va a ver.
+    if (VER.pagos && window.posMetodos) await posMetodos.cargar(sb, branchId);
+    const ids = VER.pagos ? S.todayOrders.map(o => o.id) : [];
     if (ids.length) {
       const { data: pd } = await sb.from('pos_payments').select('order_id,method,amount').in('order_id', ids);
       S.pagosHoy = pd || [];
@@ -291,10 +347,10 @@ async function loadTodayOrders(branchId) {
 function renderMetrics(orders) {
   const total  = orders.reduce((s,o)=>s+(o.total||0), 0);
   const ticket = orders.length ? Math.round(total/orders.length) : 0;
-  $('chart-total').textContent = COPF(total);
+  $('chart-total').textContent = VER.ventas ? COPF(total) : '';
   $('chart-eyebrow').textContent = 'Ventas · Hoy · ' + orders.length + ' pedidos';
   $('s-orders').textContent = orders.length;
-  $('s-ticket').textContent = COP(ticket);
+  $('s-ticket').textContent = VER.ventas ? COP(ticket) : '—';
   $('s-orders-d').textContent = orders.length ? orders.length + ' registrados hoy' : 'Sin pedidos aun';
 
   const byHour = {};
@@ -324,32 +380,35 @@ function renderTopProducts(orders) {
     map[item.product_id].qty   += item.quantity || 0;
     map[item.product_id].total += item.total || 0;
   }));
-  const top = Object.values(map).sort((a,b)=>b.total-a.total).slice(0,5);
+  //  Sin la plata se ordena por unidades: por facturacion dejaria ver cuanto deja cada uno.
+  const top = Object.values(map).sort((a,b)=> VER.ventas ? b.total-a.total : b.qty-a.qty).slice(0,5);
   const now = new Date();
   $('top-sub').textContent = 'Top ' + (top.length||0) + ' · actualizado ' + now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0');
   if (!top.length) {
     $('top-list').innerHTML = '<div class="empty"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/></svg><span>Sin ventas registradas hoy</span></div>';
     return;
   }
-  const maxT = top[0].total;
+  const _m = p => VER.ventas ? p.total : p.qty;
+  const maxT = _m(top[0]);
   $('top-list').innerHTML = top.map((p,i) => `
     <div class="prod-row">
       <div class="prod-rank">${i+1}</div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;justify-content:space-between;gap:8px">
           <div style="font-size:13px;font-weight:600;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
-          <div style="font-size:12px;font-weight:600;color:#0F172A;flex-shrink:0">${COPF(p.total)}</div>
+          <div style="font-size:12px;font-weight:600;color:#0F172A;flex-shrink:0">${VER.ventas ? COPF(p.total) : ''}</div>
         </div>
         <div style="display:flex;justify-content:space-between;margin-top:2px;font-size:11px;color:#94A3B8">
-          <span>${p.cat}</span><span>${p.qty} unidades</span>
+          <span>${p.cat}</span><span>${VER.actividad ? p.qty + ' unidades' : ''}</span>
         </div>
-        <div class="bar-track"><div class="bar-fill" style="width:${pct(p.total,maxT)}%"></div></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct(_m(p),maxT)}%"></div></div>
       </div>
     </div>`).join('');
 }
 
 // ── Goal ──────────────────────────────────────────────
 async function renderGoal(orders, branchId) {
+  if (!VER.ventas) return;   // la meta es plata: ni se consulta
   const actual = orders.reduce((s,o)=>s+(o.total||0),0);
   let target = 0;
   if (branchId) {
@@ -377,6 +436,7 @@ async function renderGoal(orders, branchId) {
 
 // ── Stock ─────────────────────────────────────────────
 async function loadStock(branchId) {
+  if (!VER.inventario) return;
   const data = await dashLeerInsumos(branchId);
   // Solo avisa de lo que TIENE mínimo configurado: si no, todo insumo con poco
   // stock saldría como alerta aunque sea normal que ande bajo.
@@ -422,6 +482,7 @@ function loadPrintTimes() {
 
 // ── Chart ─────────────────────────────────────────────
 async function loadChartData(branchId) {
+  if (!VER.ventas && !VER.actividad) return;
   const start = daysAgoISO(13) + 'T00:00:00.000Z';
   const q = sb.from('pos_orders').select('created_at,total,delivery_fee,status').gte('created_at',start).neq('status','cancelled');
   if (branchId) q.eq('branch_id', branchId);
@@ -445,7 +506,7 @@ async function loadChartData(branchId) {
   // Chip: trend
   const tT = thisWeek.reduce((s,d)=>s+d.total,0);
   const pT = lastWeek.reduce((s,d)=>s+d.total,0);
-  if (pT > 0) {
+  if (pT > 0 && VER.ventas) {   // el % contra la semana pasada es sobre la plata
     const diff = Math.round(((tT-pT)/pT)*100);
     const chip = $('chart-chip');
     chip.style.display = '';
@@ -458,7 +519,7 @@ async function loadChartData(branchId) {
 function renderChart() {
   if (!S.chartData) return;
   const {thisWeek, lastWeek} = S.chartData;
-  const mode = S.chartMode;
+  const mode = VER.ventas ? S.chartMode : 'qty';
   const vals  = thisWeek.map(d => mode==='money' ? d.total : d.count);
   const prev  = lastWeek.map(d => mode==='money' ? d.total : d.count);
   const maxV  = Math.max(...vals, ...prev, 1);
@@ -520,6 +581,7 @@ async function handleSessionAction() {
    el modal ya abierto, que es literalmente "el mismo modal". */
 
 async function verTurnoAnterior() {
+  if (!VER.ventas) return;   // montos del turno: van con la plata
   var ex2 = document.getElementById('modal-turno-overlay');
   if (ex2) { ex2.remove(); return; }
   var overlay2 = document.createElement('div');
@@ -654,6 +716,7 @@ function normChannel(ch) {
 
 // ── load waiter names ─────────────────────────────────
 async function loadWaiterNames(branchId) {
+  if (!VER.actividad) return;
   try {
     const q = sb.from('pos_users').select('id,name').eq('role', 'mesero');
     if (branchId) q.eq('branch_id', branchId);
@@ -737,6 +800,7 @@ function pagosPorMetodo(orders) {
 }
 
 function renderDesglose(orders) {
+  if (!VER.pagos) return;
   const el = document.getElementById('desglose-grid');
   if (!el) return;
 
@@ -822,6 +886,7 @@ function renderDesglose(orders) {
    mesa puede pedir tres veces. */
 const MESERO_EXCLUIR = ['chat ia', 'sistema', 'bot'];
 function renderMeseroDelDia(orders) {
+  if (!VER.actividad) return;
   const map = {};
   let ventaTotal = 0;
   orders.forEach(o => {
@@ -876,6 +941,7 @@ function renderMeseroDelDia(orders) {
     Y se dice cuantos NO se pudieron identificar, en vez de esconderlo: un
     total que no cuadra con la caja se explica solo si se dice por que.      */
 function renderClientes(orders) {
+  if (!VER.clientes) return;
   const uniq = new Set(orders.filter(o => o.cliente_id).map(o => o.cliente_id));
   const sinIdentificar = orders.filter(o => !o.cliente_id).length;
   const total = uniq.size;
@@ -885,7 +951,8 @@ function renderClientes(orders) {
   const cp = document.getElementById('clientes-personas');
   if (cp) cp.textContent = total;
   const cpm = document.getElementById('clientes-per-meta');
-  if (cpm) cpm.textContent = 'consumo ' + COPF(grand);
+  //  El consumo es plata: solo con ventas.totales.
+  if (cpm) cpm.textContent = VER.ventas ? 'consumo ' + COPF(grand) : 'identificados';
 
   /*  EMPRESAS: se quita. No hay forma de saber cual cliente es una empresa —
       `pos_clientes` no tiene ni tipo ni NIT — asi que ese numero estaba
@@ -900,6 +967,7 @@ function renderClientes(orders) {
 }
 
 function renderTicketPromedio(orders) {
+  if (!VER.ventas) return;
   const tot    = orders.reduce((s, o) => s + (o.total || 0), 0);
   const n      = orders.length || 1;
   const tVenta = Math.round(tot / n);
@@ -936,6 +1004,7 @@ function renderTicketPromedio(orders) {
 }
 
 async function loadRatings(branchId) {
+  if (!VER.clientes) return;
   const renderEmptyRatings = () => {
     const ITEMS = [
       {l:'Bueno',c:'#16A34A'},{l:'Regular',c:'#FACC15'},{l:'Malo',c:'#F97316'},{l:'Muy malo',c:'#EF4444'}
@@ -996,6 +1065,7 @@ async function loadRatings(branchId) {
 
 // ── OPS KPIs ──────────────────────────────────────────
 async function loadOpsKPIs(orders, branchId) {
+  if (!VER.actividad) return;
   let cancelled = 0;
   try {
     const { start, end } = todayRange();
@@ -1122,6 +1192,7 @@ function _dEsc(t) {
    Lo que no reconoce cae en "Otros" — nunca en efectivo, que era el error de
    antes y descuadraba el arqueo sin que nadie lo viera. */
 function renderTipoPago(orders) {
+  if (!VER.pagos) return;
   const grand = orders.reduce((s,o) => s + (parseFloat(o.total)||0), 0);
   const pt = document.getElementById('pago-total');
   if (pt) pt.textContent = COPF(grand);
@@ -1202,6 +1273,7 @@ function renderTipoPago(orders) {
 
 // ── CANAL DE VENTA ────────────────────────────────────
 function renderCanalVenta(orders) {
+  if (!VER.ventas && !VER.actividad) return;
   const ch = { salon:{total:0,n:0}, delivery:{total:0,n:0}, quick:{total:0,n:0}, reservation:{total:0,n:0} };
   orders.forEach(o => {
     const k = normChannel(o.channel);
@@ -1221,7 +1293,9 @@ function renderCanalVenta(orders) {
   if (!cg) return;
   cg.innerHTML = CANALES.map(c => {
     const d = ch[c.key];
-    const p = grand > 0 ? Math.round((d.total / grand) * 100) : 0;
+    //  Sin la plata, el % es sobre el NUMERO de ventas.
+    const p = VER.ventas ? (grand > 0 ? Math.round((d.total / grand) * 100) : 0)
+                         : Math.round((d.n / (orders.length || 1)) * 100);
     return `<div class="canal-card">
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div style="display:flex;align-items:center;gap:10px">
@@ -1231,11 +1305,11 @@ function renderCanalVenta(orders) {
         <span style="font-size:11px;font-weight:700;color:${c.color};background:${c.color}14;padding:3px 8px;border-radius:999px">${p}%</span>
       </div>
       <div style="display:flex;align-items:baseline;gap:12px;margin-top:14px">
-        <div>
+        <div${VER.ventas ? '' : ' style="display:none"'}>
           <div class="canal-sub-label">Total</div>
-          <div style="font-size:18px;font-weight:700;color:#0F172A;letter-spacing:-.02em;font-variant-numeric:tabular-nums">${COPF(d.total)}</div>
+          <div style="font-size:18px;font-weight:700;color:#0F172A;letter-spacing:-.02em;font-variant-numeric:tabular-nums">${VER.ventas ? COPF(d.total) : ''}</div>
         </div>
-        <div style="padding-left:16px;border-left:1px solid #ECEEF2">
+        <div style="${VER.ventas ? 'padding-left:16px;border-left:1px solid #ECEEF2' : ''}">
           <div class="canal-sub-label">N de ventas</div>
           <div style="font-size:18px;font-weight:700;color:#0F172A;letter-spacing:-.02em;font-variant-numeric:tabular-nums">${d.n}</div>
         </div>
@@ -1254,6 +1328,7 @@ function setHourlyMode(mode, btn) {
 
 function renderTicketPorHora(orders) {
   S2h.orders = orders;
+  if (!VER.ventas && !VER.actividad) return;
   const byHour = {};
   orders.forEach(o => {
     if (!o.created_at) return;
@@ -1272,7 +1347,7 @@ function renderTicketPorHora(orders) {
   const displayHours = activeHours.length ? activeHours : [10,11,12,13,14,15,16,17,18,19,20,21];
   const noData = activeHours.length === 0;
 
-  const mode = S2.hourlyMode;
+  const mode = VER.ventas ? S2.hourlyMode : 'cantidad';
   const vals = displayHours.map(h => byHour[h] ? (mode === 'cantidad' ? byHour[h].n : byHour[h].total) : 0);
   const maxV = Math.max(...vals, 1);
   const peakI = vals.indexOf(Math.max(...vals));
@@ -1340,6 +1415,7 @@ function filterTopProducts(f, btn) {
 }
 
 async function loadTopProductosCompleto(branchId) {
+  if (!VER.ventas && !VER.actividad) return;
   const start    = daysAgoISO(6) + 'T00:00:00.000Z';
   const prevStart = daysAgoISO(13) + 'T00:00:00.000Z';
   const prevEnd   = daysAgoISO(7)  + 'T23:59:59.999Z';
@@ -1355,7 +1431,8 @@ async function loadTopProductosCompleto(branchId) {
       .neq('pos_orders.status', 'cancelled')
       .gte('pos_orders.created_at', prevStart).lte('pos_orders.created_at', prevEnd);
     if (branchId) qp.eq('pos_orders.branch_id', branchId);
-    const { data: prevWeek } = await qp;
+    //  La semana anterior solo sirve para comparar la plata.
+    const { data: prevWeek } = VER.ventas ? await qp : { data: [] };
 
     const map = {}, prevMap = {};
     (thisWeek || []).forEach(i => {
@@ -1372,7 +1449,7 @@ async function loadTopProductosCompleto(branchId) {
 
     const sorted = Object.entries(map)
       .map(([pid, d]) => ({ ...d, pid, prevTotal: prevMap[pid]?.total || 0 }))
-      .sort((a, b) => b.total - a.total);
+      .sort((a, b) => VER.ventas ? b.total - a.total : b.qty - a.qty);
 
     S2tp.all = sorted;
     renderTopProductosCompleto(sorted);
@@ -1383,12 +1460,13 @@ async function loadTopProductosCompleto(branchId) {
 
 function renderTopProductosCompleto(prods) {
   let list;
-  if (S2tp.filter === 'facturacion') {
+  const _v = p => VER.ventas ? p.total : p.qty;   // sin la plata, todo por unidades
+  if (S2tp.filter === 'facturacion' && VER.ventas) {
     list = [...prods].sort((a, b) => b.total - a.total);
   } else if (S2tp.filter === 'area') {
     const byArea = {};
-    prods.forEach(p => { const a = p.cat || 'General'; if (!byArea[a] || p.total > byArea[a].total) byArea[a] = p; });
-    list = Object.values(byArea).sort((a, b) => b.total - a.total);
+    prods.forEach(p => { const a = p.cat || 'General'; if (!byArea[a] || _v(p) > _v(byArea[a])) byArea[a] = p; });
+    list = Object.values(byArea).sort((a, b) => _v(b) - _v(a));
   } else {
     list = prods;
   }
@@ -1449,9 +1527,9 @@ function renderTopProductosCompleto(prods) {
         <div style="font-size:26px;font-weight:800;color:#0F172A;letter-spacing:-.025em;line-height:1;margin-top:4px">${top.qty}</div>
         <div style="font-size:11px;color:#64748B;margin-top:2px">unidades vendidas</div>
       </div>
-      <div>
+      <div${VER.ventas ? '' : ' style="display:none"'}>
         <div class="eyebrow">Facturacion</div>
-        <div style="font-size:26px;font-weight:800;color:#0F172A;letter-spacing:-.025em;line-height:1;margin-top:4px">${COPF(top.total)}</div>
+        <div style="font-size:26px;font-weight:800;color:#0F172A;letter-spacing:-.025em;line-height:1;margin-top:4px">${VER.ventas ? COPF(top.total) : ''}</div>
         <div style="font-size:11px;color:${diffPct!=null&&diffPct>=0?'#16A34A':'#DC2626'};margin-top:2px;font-weight:600">
           ${diffPct!=null ? (diffPct>=0?'↑ +':'↓ ')+Math.abs(diffPct)+'% vs semana ant.' : 'Sin comparativa aun'}
         </div>
@@ -1475,8 +1553,8 @@ function renderTopProductosCompleto(prods) {
         <div style="text-align:right;padding-right:12px">
           <div style="font-size:12px;color:#64748B;font-variant-numeric:tabular-nums">${p.qty} und.</div>
         </div>
-        <div style="text-align:right;min-width:90px">
-          <div style="font-size:13px;font-weight:700;color:#0F172A;font-variant-numeric:tabular-nums">${COPF(p.total)}</div>
+        <div style="text-align:right;min-width:90px${VER.ventas ? '' : ';display:none'}">
+          <div style="font-size:13px;font-weight:700;color:#0F172A;font-variant-numeric:tabular-nums">${VER.ventas ? COPF(p.total) : ''}</div>
           <div style="font-size:11px;color:${diff!=null&&diff>=0?'#16A34A':'#DC2626'};margin-top:2px;font-weight:600">
             ${diff != null ? (diff >= 0 ? '+' : '') + diff + '%' : '—'}
           </div>
@@ -1515,26 +1593,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       red, y con la red enredada eso era un minuto de pantalla "Cargando" sin
       nada que mirar. Quien no tenga permiso igual sale en cuanto la red
       conteste — solo que ahora espera viendo algo en vez de un esqueleto. */
-  renderAllExtra([], null);
   renderDate();
-  /*  LO DE LA ULTIMA VEZ, YA. Las ventas de hoy guardadas al salir se pintan
-      antes de preguntar nada a la red; loadTodayOrders confirma por detras y
-      repinta si algo cambio. Un dato de hace un minuto en pantalla gana por
-      goleada a un esqueleto gris durante segundos. Solo se usa si es de HOY:
-      las ventas de ayer pintadas hoy serian mentira. */
-  try {
-    const g = window.posCache && posCache.leer('dash.hoy');
-    const d = g && g.datos;
-    if (d && Array.isArray(d.orders) && d.orders.length) {
-      const _hoy = new Date(); _hoy.setHours(0, 0, 0, 0);
-      const _primera = new Date(d.orders[0].created_at || 0);
-      if (_primera >= _hoy) {
-        S.todayOrders = d.orders; S.pagosHoy = d.pagos || [];
-        renderMetrics(d.orders); renderTopProducts(d.orders);
-        renderGoal(d.orders, d.branchId); renderAllExtra(d.orders, d.branchId);
-      }
-    }
-  } catch (e) { console.warn('[dash] cache hoy:', e && e.message); }
   if (typeof window.posHasPerm === 'function') {
     if (window.posPermsReady) { try { await window.posPermsReady(); } catch (e) {} }
     if (!window.posHasPerm('dashboard.ver')) {
@@ -1551,7 +1610,40 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.location.replace(haySesionAbierta ? 'ventas.html' : 'caja.html');
       return;
     }
+    /*  Lo que se ve de cada bloque son permisos ESTRICTOS: con lo guardado
+        en el equipo todavia no se saben y dicen que no. Se espera la
+        confirmacion de la base, salvo el dueNo, que ya se sabe.         */
+    if (!(window.posEsDueno && window.posEsDueno()) && window.posPermsConfirmados) {
+      try { await window.posPermsConfirmados(); } catch (e) {}
+    }
   }
+
+  /*  PERMISOS PRIMERO (10-sep-2026). Antes las ventas de hoy guardadas en el
+      equipo se pintaban ANTES de preguntar nada, y esa copia es del
+      RESTAURANTE, no de la persona: en el computador compartido el cajero
+      alcanzaba a ver lo que habia visto el dueNo. Ahora primero se sabe que
+      puede ver cada quien, y solo eso se pinta.                          */
+  calcularVer();
+  aplicarVer();
+  renderAllExtra([], null);
+  /*  LO DE LA ULTIMA VEZ, YA. Las ventas de hoy guardadas al salir se pintan
+      antes de preguntar nada a la red; loadTodayOrders confirma por detras y
+      repinta si algo cambio. Un dato de hace un minuto en pantalla gana por
+      goleada a un esqueleto gris durante segundos. Solo se usa si es de HOY:
+      las ventas de ayer pintadas hoy serian mentira. */
+  try {
+    const g = window.posCache && posCache.leer('dash.hoy');
+    const d = g && g.datos;
+    if (VER.pedidos && d && Array.isArray(d.orders) && d.orders.length) {
+      const _hoy = new Date(); _hoy.setHours(0, 0, 0, 0);
+      const _primera = new Date(d.orders[0].created_at || 0);
+      if (_primera >= _hoy) {
+        S.todayOrders = d.orders; S.pagosHoy = d.pagos || [];
+        renderMetrics(d.orders); renderTopProducts(d.orders);
+        renderGoal(d.orders, d.branchId); renderAllExtra(d.orders, d.branchId);
+      }
+    }
+  } catch (e) { console.warn('[dash] cache hoy:', e && e.message); }
 
   /* La sucursal casi nunca cambia, pero había que esperar a que llegara del
      servidor ANTES de poder empezar las otras nueve preguntas: una fila india
@@ -1669,6 +1761,9 @@ function qmInit() {
   // Botones disparadores
   document.querySelectorAll('.quick-btn[data-modal]').forEach(function(btn) {
     btn.addEventListener('click', function() {
+      //  Inventario y comprobantes van con su permiso (10-sep-2026).
+      if (btn.dataset.modal === 'inventario' && !VER.inventario) return;
+      if (btn.dataset.modal === 'comprobantes' && !VER.reimprimir) return;
       qmOpen(btn.dataset.modal, btn);
     });
   });
@@ -1850,7 +1945,7 @@ async function qmLoadMeseros() {
     var _ventas = ventasByWaiter[m.id] || 0;
     var _ticket = tables.length ? Math.round(_ventas / tables.length) : 0;
     var _pesos = function (n) { return '$' + Number(n || 0).toLocaleString('es-CO'); };
-    var chips = tables.length
+    var chips = (tables.length && VER.ventas)   // lo que vendio: solo con ventas.totales
       ? '<span class="qm-chip">Vendió ' + _pesos(_ventas) + '</span>'
         + '<span class="qm-chip">Ticket promedio ' + _pesos(_ticket) + '</span>'
       : '';

@@ -320,6 +320,11 @@
   }
 
   window.posPermsReady = function () { return _ready; };
+  /*  El dato CONFIRMADO por la base. `posPermsReady` puede resolver con lo
+      guardado en el equipo, y con eso los permisos estrictos todavia dicen
+      que no: quien necesite saberlos de verdad (el Escritorio, 10-sep)
+      espera esta.                                                         */
+  window.posPermsConfirmados = function () { return _readyFresco; };
   window.posRole = function () { return _role; };
   window.posPerms = function () { return _perms; };
 
@@ -334,8 +339,14 @@
                          servidor; aqui por si una pantalla lo pregunta.
         informes.ver   — la pantalla de Informes. Sergio, 10-sep: "nadie lo
                          debe tener activado por defecto".
+        ventas.totales, escritorio.pagos, escritorio.actividad,
+        escritorio.inventario, escritorio.clientes — lo que se VE en el
+                         Escritorio, bloque por bloque (10-sep). Ver el
+                         comentario de VER en dashboard.js.
       Y como en `posPermEstricto`: mientras no se sepa, dice que NO.      */
-  var _ESTRICTOS = { 'cuenta.plan': 1, 'clientes.gasto': 1, 'informes.ver': 1 };
+  var _ESTRICTOS = { 'cuenta.plan': 1, 'clientes.gasto': 1, 'informes.ver': 1,
+                     'ventas.totales': 1, 'escritorio.pagos': 1, 'escritorio.actividad': 1,
+                     'escritorio.inventario': 1, 'escritorio.clientes': 1 };
 
   window.posHasPerm = function (id) {
     if (_ESTRICTOS[id]) return window.posPermEstricto(id);

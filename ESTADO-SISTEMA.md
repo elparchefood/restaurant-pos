@@ -579,6 +579,64 @@ Probado con el pos-perms.js real (`probar-pin-antes.js`): el PIN sale antes de
 navegar, Configuracion no lo repite, el pase no sirve para otra pantalla ni
 vencido ni dos veces, el dueNo y las pantallas sin candado entran directo.
 
+## 🟢 El Escritorio por bloques — 10-sep-2026
+
+Sergio: *"le podemos conceder permiso a alguien para que vea el dashboard,
+porque igual en el dashboard estan las opciones de la izquierda, pero podemos
+activar y desactivar cierta informacion... Si a una persona le desactivamos
+toda la informacion igual podria ver el dashboard, el simple saludo"*.
+
+Antes era todo o nada (`dashboard.ver`), y el Cajero de El Parche lo tenia:
+veia TODAS las ventas del negocio.
+
+### Las casillas (grupo "Escritorio" en Usuarios y roles)
+
+| Permiso | Que muestra |
+|---|---|
+| `dashboard.ver` — "Entrar al Escritorio" | la pantalla y el menu. Solo eso |
+| `ventas.totales` | todo lo que es plata: ventas en pesos, % vs semana, meta diaria, ticket, pesos por canal y por hora, facturacion por producto, consumo de clientes, montos del turno (cierre anterior, "Ver turno anterior"), "Vendio $" de cada mesero |
+| `escritorio.pagos` | el desglose por metodo de pago (sale DOS veces: Desglose y Tipo de pago) |
+| `escritorio.actividad` | pedidos, horas punta/valle, productos por unidades, pedidos por canal, anulados, tiempos, mesero del dia |
+| `escritorio.inventario` | alertas de stock y "Inventario rapido" |
+| `escritorio.clientes` | clientes de hoy y calificaciones |
+
+Los cinco de abajo son **estrictos** (`_ESTRICTOS` en pos-perms.js): el
+Administrador los trae marcados y se le pueden quitar; los demas roles
+ninguno; el dueNo siempre. La caja del Escritorio va con `caja.abrir` /
+`caja.cerrar`, e "Imprimir comprobantes" con `pedidos.reabrir`.
+
+**Siempre se ve**: fecha, saludo, menu lateral y menu de arriba.
+
+### Como esta hecho
+
+- En `dashboard.html` cada bloque lleva `data-ver="..."` (varios = basta uno)
+  y **nace escondido** (`dv-oculto`). `aplicarVer()` destapa lo que toca.
+- En `dashboard.js`, `VER` se calcula UNA vez con `posHasPerm`, y **cada
+  carga y cada dibujo lo mira**: sin inventario el Escritorio no consulta el
+  inventario (ojo: el nucleo, `pos-datos.js`, trae los insumos por su cuenta
+  en todas las pantallas — eso no es del Escritorio); sin pagos no se piden
+  `pos_payments`; si no se ve nada de lo que alimentan los pedidos de hoy, ni
+  se piden. Medido con una copia del Escritorio y una base de mentira: el
+  cajero ya no pide pedidos, pagos ni calificaciones. Donde un bloque mezcla pesos y cantidades,
+  los pesos ni se escriben en la pagina. Sin la plata, los graficos van en
+  cantidad y los rankings por unidades (ordenar por facturacion la delata).
+- **Permisos primero.** Antes se pintaban las ventas guardadas en el equipo
+  ANTES de preguntar permisos, y esa copia es del restaurante, no de la
+  persona: en un computador compartido el cajero alcanzaba a ver lo del
+  dueNo. Ahora se pinta despues, y solo si puede verlo.
+- Los estrictos necesitan el dato **confirmado** (con lo guardado dicen que
+  no): el Escritorio espera `posPermsConfirmados()` —nueva en pos-perms.js—,
+  salvo el dueNo, que ya se sabe.
+
+⚠️ Es un candado de pantalla: el cajero puede leer `pos_orders` porque lo
+necesita para vender. El de fondo es `PLAN-CANDADO-SERVIDOR.md`.
+
+Aparte, sin tocar (anotado): la campana de avisos deja a cualquiera ponerle
+precio a un domicilio (`pos-notifs.js`), y el aviso de arranque "Solo vendo
+domicilios" escribe la configuracion de la sede sin permiso (`pos-arranque.js`).
+
+- `supabase/sql/2026-09-10-escritorio-por-bloques.sql`
+
 ## 🟢 Historial: rediseno de la pantalla — 5-sep-2026
 
 Sergio: *"la pantalla se ve muy plana, los datos se ven en texto puro, no se

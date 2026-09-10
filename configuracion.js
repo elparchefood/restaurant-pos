@@ -1251,8 +1251,24 @@ function _permsInvalidar() {
 var SB_URL = 'https://tblujfduscslxjmrjbdr.supabase.co';
 
 var UR_PERMS = [
-  { group: 'Dashboard', items: [
-    { id: 'dashboard.ver', label: 'Ver dashboard', desc: 'Acceder al panel de estadísticas y ventas del día' }
+  /*  10-sep-2026: el Escritorio dejo de ser todo-o-nada. `dashboard.ver` abre
+      la pantalla y el menu; lo que se VE de cada bloque va por los cinco de
+      abajo, ESTRICTOS (_ESTRICTOS en pos-perms.js): el Administrador los trae
+      marcados y se le pueden quitar; el dueNo los tiene siempre. Sergio: "si
+      le desactivamos toda la informacion, queda el saludo". */
+  { group: 'Escritorio', items: [
+    { id: 'dashboard.ver',         label: 'Entrar al Escritorio',
+      desc: 'La pantalla de inicio con el menú. Lo que muestra depende de las casillas de abajo' },
+    { id: 'ventas.totales',        label: 'Ver cuánto vende el negocio',
+      desc: 'Ventas en pesos, meta diaria, ticket promedio, lo que vendió cada mesero y los montos de cada turno' },
+    { id: 'escritorio.pagos',      label: 'Ver el desglose por método de pago',
+      desc: 'Cuánto entró por efectivo, transferencia, tarjeta y cada método' },
+    { id: 'escritorio.actividad',  label: 'Ver la actividad del día',
+      desc: 'Cuántos pedidos, hora pico, productos más vendidos, anulados y tiempos de atención. Sin pesos' },
+    { id: 'escritorio.inventario', label: 'Ver el inventario en el Escritorio',
+      desc: 'Alertas de stock y el botón "Inventario rápido"' },
+    { id: 'escritorio.clientes',   label: 'Ver clientes y calificaciones',
+      desc: 'Cuántos clientes vinieron hoy y cómo calificaron la atención' }
   ]},
   { group: 'Pedidos', items: [
     { id: 'pedidos.crear',     label: 'Tomar pedidos',          desc: 'Abrir mesas y crear comandas' },

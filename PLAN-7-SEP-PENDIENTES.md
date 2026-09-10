@@ -113,6 +113,11 @@ Sergio va a revisar esta noche qué más hay que esconder por rol.
 >   y el PIN salía adentro. Ahora pasan por `posIr`, y al acertarlo la pantalla
 >   ya no lo pide dos veces. Y los 9 botones del flujo de venta (Caja,
 >   Domicilios, Historial, Reservas, Chat) también: ya no queda ninguno directo.
+> - ✅ **El Escritorio por bloques** — "Entrar al Escritorio" solo abre la
+>   pantalla; lo que se ve va por 5 casillas (ventas, desglose de pagos,
+>   actividad, inventario, clientes). El Administrador las trae; los demás
+>   ninguna. Aparte quedaron anotados dos permisos sueltos (precio del
+>   domicilio desde la campana, y "Solo vendo domicilios").
 > - ⏭️ **Historial** (lista de pedidos con sus valores) y el **Escritorio**
 >   (ventas del día, `dashboard.ver`): los siguientes a revisar.
 
