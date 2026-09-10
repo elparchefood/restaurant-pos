@@ -406,23 +406,29 @@ function pintarVoz() {
     : '<svg ' + a + '><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><line x1="17" y1="4" x2="22" y2="9"/><line x1="22" y1="4" x2="17" y2="9"/></svg>';
 }
 
-addEventListener('click', function (ev) {
+addEventListener('click', async function (ev) {
   const b = ev.target && ev.target.closest && ev.target.closest('#voz');
   if (!b) return;
-  const nuevo = !vozEncendida();
-  try { localStorage.setItem(VOZ_KEY, nuevo ? '1' : '0'); } catch (e) {}
+  if (vozEncendida()) {
+    try { localStorage.setItem(VOZ_KEY, '0'); } catch (e) {}
+    pintarVoz(); callarVoz();
+    aviso('Voz apagada en este aparato');
+    return;
+  }
+  //  Es del plan Pro: si el plan no la trae, sale el aviso del plan y se
+  //  queda apagada (el servidor tambien lo revisa).
+  if (window.posPlan) {
+    try { await posPlan.cargar(); } catch (e) {}
+    if (!posPlan.exigir('voz_cocina')) return;
+  }
+  try { localStorage.setItem(VOZ_KEY, '1'); } catch (e) {}
   pintarVoz();
-  if (!nuevo) { try { speechSynthesis.cancel(); } catch (e) {} aviso('Voz apagada en este aparato'); return; }
-  if (!hayVozEnAparato()) { aviso('Este aparato no trae voz para leer los pedidos', true); return; }
-  //  Las voces pueden tardar en cargar: se espera un momento antes de decidir.
-  setTimeout(function () {
-    const v = elegirVoz();
-    anotarVoces(v);
-    if (!v) { aviso('Este aparato no tiene voces en español', true); return; }
-    decirCocina('Voz de la cocina encendida');   // este toque es el que la deja hablar
-    const esLaDeGoogle = v.name === VOZ_PREFERIDA || /google/i.test(v.name);
-    aviso('Voz encendida · ' + v.name + (esLaDeGoogle ? '' : ' — no está la de Google'), !esLaDeGoogle);
-  }, 400);
+  aviso('Voz encendida en este aparato');
+  decirCocina('Voz de la cocina encendida', 0, function (fuente) {
+    if (fuente !== 'aparato') return;
+    anotarVoces(elegirVoz());
+    aviso('Voz encendida · por ahora con la voz de este aparato', true);
+  });
 });
 
 /*  RASTRO DE LAS VOCES (10-sep-2026). En la tablet la voz salio "super
@@ -494,13 +500,113 @@ function fraseVoz(o) {
   });
   return limpiarVoz(unirVoz(partes) + ', para ' + destinoVoz(o) + '.');
 }
-function decirCocina(texto) {
-  if (!hayVozEnAparato() || !texto) return;
-  const u = new SpeechSynthesisUtterance(texto);
-  const v = elegirVoz();
-  if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = 'es-US'; }
-  u.rate = 0.95;
-  speechSynthesis.speak(u);   // en cola: si llegan dos pedidos juntos, uno detras del otro
+/*  LA VOZ SALE DEL SERVIDOR (10-sep-2026). La del aparato cambiaba de un
+    aparato a otro: en el PC de Sergio era la de Chrome, en la tablet una de
+    Android y en el programa de Windows otra. Ahora la cocina manda la frase
+    a la funcion `voz` y recibe el audio ya hecho: suena IGUAL en todos.
+    Si el servidor no puede (sin voz conectada, tope del mes, sin internet),
+    habla la voz del aparato, como antes: una cocina muda es peor que una voz
+    distinta. Si el plan no la trae, no habla ninguna.                    */
+const VOZ_URL = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/voz';
+async function pedirAudio(texto) {
+  try {
+    const { data:{ session } } = await sb.auth.getSession();
+    if (!session) return { ok:false, motivo:'sin_sesion' };
+    const c = new AbortController();
+    const t = setTimeout(function () { c.abort(); }, 8000);
+    try {
+      const r = await fetch(VOZ_URL, {
+        method:'POST', signal:c.signal,
+        headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + session.access_token },
+        body: JSON.stringify({ texto: texto, branch_id: S.branchId })
+      });
+      if (!r.ok) return { ok:false, motivo:'red' };
+      return await r.json();
+    } finally { clearTimeout(t); }
+  } catch (e) { return { ok:false, motivo:'red' }; }
+}
+//  Lo que esta sonando, para poder callarlo al apagar la voz.
+let _vozSonando = null;
+function tocarAudio(b64) {
+  return new Promise(function (listo) {
+    try {
+      const bin = atob(b64), u = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      const C = window.AudioContext || window.webkitAudioContext;
+      if (C) {
+        //  Por el mismo audio del tono, que ya quedo abierto con el primer toque.
+        _audio = _audio || new C();
+        if (_audio.state === 'suspended') _audio.resume();
+        _audio.decodeAudioData(u.buffer, function (buf) {
+          const s = _audio.createBufferSource();
+          s.buffer = buf; s.connect(_audio.destination);
+          s.onended = function () { if (_vozSonando === s) _vozSonando = null; listo(true); };
+          _vozSonando = s; s.start();
+          //  Si el aparato nunca avisa que termino, la cola no se queda pegada.
+          setTimeout(function () { listo(true); }, buf.duration * 1000 + 1500);
+        }, function () { listo(false); });
+        return;
+      }
+      const a = new Audio(URL.createObjectURL(new Blob([u], { type:'audio/mpeg' })));
+      a.onended = function () { listo(true); };
+      a.onerror = function () { listo(false); };
+      _vozSonando = a;
+      a.play().catch(function () { listo(false); });
+    } catch (e) { listo(false); }
+  });
+}
+function hablarEnAparato(texto) {
+  return new Promise(function (listo) {
+    if (!hayVozEnAparato()) return listo(false);
+    const u = new SpeechSynthesisUtterance(texto);
+    const v = elegirVoz();
+    if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = 'es-US'; }
+    u.rate = 0.95;
+    u.onend = u.onerror = function () { listo(true); };
+    speechSynthesis.speak(u);
+    setTimeout(function () { listo(true); }, 4000 + texto.length * 90);
+  });
+}
+function callarVoz() {
+  try { speechSynthesis.cancel(); } catch (e) {}
+  try { if (_vozSonando) { if (_vozSonando.stop) _vozSonando.stop(); else _vozSonando.pause(); } } catch (e) {}
+  _vozSonando = null;
+}
+//  Una sola vez por pantalla abierta: por que no hablo la voz del servidor.
+let _vozRastro = false;
+function rastroVoz(motivo) {
+  if (_vozRastro) return;
+  _vozRastro = true;
+  try {
+    sb.from('pos_diag').insert({ donde: 'cocina/voz', mensaje: 'hablo la voz del aparato',
+      extra: { motivo: motivo || null, ua: navigator.userAgent } }).then(function () {}, function () {});
+  } catch (e) {}
+}
+/*  EN COLA: si llegan dos pedidos juntos, uno detras del otro. El audio se
+    pide YA (mientras suena el tono) y se toca cuando pasen `esperaMs` y
+    termine lo que estaba sonando.                                         */
+let _colaVoz = Promise.resolve();
+function decirCocina(texto, esperaMs, alDecir) {
+  if (!texto) return;
+  const audio = pedirAudio(texto);
+  const turno = new Promise(function (r) { setTimeout(r, esperaMs || 0); });
+  _colaVoz = _colaVoz
+    .then(function () { return Promise.all([audio, turno]); })
+    .then(async function (res) {
+      if (!vozEncendida()) return;
+      const r = res[0] || {};
+      if (r.ok && r.audio && await tocarAudio(r.audio)) { if (alDecir) alDecir('servidor', r); return; }
+      if (r.motivo === 'plan') {
+        try { localStorage.setItem(VOZ_KEY, '0'); } catch (e) {}
+        pintarVoz();
+        aviso('La voz de la cocina no viene en el plan de este restaurante', true);
+        return;
+      }
+      rastroVoz(r.motivo || (r.ok ? 'no_sono' : ''));
+      await hablarEnAparato(texto);
+      if (alDecir) alDecir('aparato', r);
+    })
+    .catch(function () {});
 }
 //  Cuanto dura el sonido, para hablar DESPUES de el y no encima.
 const _durTono = {};
@@ -522,13 +628,13 @@ function duracionTono(cb) {
     otro canal). Si todavia no estan, se espera un poco antes de hablar, en
     vez de decir un pedido vacio.                                          */
 function anunciar(pedidos) {
-  if (!vozEncendida() || !hayVozEnAparato()) return;
+  if (!vozEncendida()) return;
   duracionTono(function (ms) {
     pedidos.forEach(function (o) {
       let intentos = 0;
       (function probar() {
         const f = fraseVoz(o);
-        if (f) { setTimeout(function () { decirCocina(f); }, ms + 200); return; }
+        if (f) { decirCocina(f, ms + 200); return; }
         if (++intentos < 8) setTimeout(probar, 500);
       })();
     });

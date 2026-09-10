@@ -731,6 +731,67 @@ frases (los dos ejemplos de Sergio, mesas unidas, "01", mostrador, conjunto,
 cantidades, pedido sin productos); y una copia de la pantalla de cocina con
 base de mentira (boton, control remoto, aviso de que voz usa, sin errores).
 
+### 🔌 La voz sale del SERVIDOR — plan Pro, con enchufes (10-sep-2026)
+
+Lo de arriba fallo en la practica: en la tablet y en el .exe la voz salio
+*"super diferente"* — esa voz solo existe en el Chrome del PC. Sergio: *"vas
+solo en el plan Pro, con posibilidad de pasarlo a Premium con Marketing. Deja
+las instalaciones cuadradas para colocar mas voces sin desarmar nada: que las
+podamos traer de varios sitios — archivos hechos por nosotros, ElevenLabs — y
+que puedan engancharse"*. **Es para TODOS los restaurantes, por plan.**
+
+**Las piezas** (`supabase/sql/2026-09-10-voz-cocina.sql`, aplicado):
+
+| Pieza | Que es |
+|---|---|
+| `pos_voces` | EL CATALOGO: `id, nombre, proveedor, config jsonb, activa, por_defecto (una sola), orden, notas`. Voz nueva de un proveedor conocido = una fila. No guarda llaves. |
+| `pos_voz_uso` | caracteres por restaurante / mes / proveedor, + `desde_memoria`. La fila `00000000-…` es TODO Cobra. |
+| `pos_voz_memoria` + deposito PRIVADO `voz` | audio ya hecho, por `sha256(voz, proveedor, config, texto)`: la misma frase no se paga dos veces. |
+| `fn_voz_consumir` / `fn_voz_devolver` / `fn_voz_desde_memoria` | el contador con DOS topes (restaurante y Cobra, candado de fila); si el proveedor falla se devuelve lo contado. Solo `service_role`. |
+| `'voz_cocina'` en `pos_planes.funciones` | Pro y Premium. Pasarla a solo Premium = quitarla de Pro **y** cambiar `plan:` en el CATALOGO de `pos-plan.js`. |
+
+**El puerto: Edge Function `voz`** (`supabase/functions/voz/index.ts`,
+`verify_jwt:false`, revisa el token ella misma). En orden: quien llama (el
+restaurante sale del TOKEN) → el plan trae `voz_cocina` → que voz (la que pida
+el admin de plataforma, para comparar; si no, `branches.operacion_config
+.cocinaNotif.voz`; si no, la `por_defecto`) → memoria → tope → enchufe.
+`accion:'voces'` devuelve el catalogo para escoger.
+
+**Los enchufes** (`ENCHUFES` en la funcion; un proveedor nuevo = uno mas ahi):
+
+| proveedor | config | llave (secreto del servidor) |
+|---|---|---|
+| `google` | `{voz:'es-US-…', idioma, velocidad, tono}` | `VOZ_GOOGLE_CLAVE` o `MAPAS_CLAVE_COBRA` |
+| `elevenlabs` | `{voice_id, modelo, ajustes}` | `ELEVENLABS_API_KEY` |
+| `azure` | `{voz:'es-CO-…', idioma, velocidad}` | `AZURE_VOZ_CLAVE` + `AZURE_VOZ_REGION` |
+| `archivo` | `{frases:{"texto normalizado": url_mp3}}` — grabaciones propias por frase entera | ninguna |
+
+Sin su llave, el enchufe responde `no_conectado` y no se cae nada. Topes:
+`VOZ_TOPE_RESTAURANTE` (300.000 caracteres/mes ≈ 3.750 pedidos) y
+`VOZ_TOPE_GLOBAL` (3,5 M, bajo los 4 M gratis de WaveNet). Al llegar al tope
+global queda `voz/tope-global` en `pos_diag`.
+
+**La cocina** (`cocina.js`, bloque "LA VOZ SALE DEL SERVIDOR"): al encender,
+`posPlan.exigir('voz_cocina')` (sin el plan sale el aviso del plan y no
+enciende). Cada frase se pide al servidor YA, mientras suena el tono, y se toca
+en cola por el mismo `AudioContext` del tono. Si el servidor no puede (sin voz,
+tope, sin internet) habla la voz del aparato, como antes, y deja UNA vez
+`cocina/voz` en `pos_diag` con el motivo; si el servidor dice `plan`, se apaga
+sola y no habla ninguna.
+
+**Probado:** en el Restaurante de Prueba (Pro) con una voz temporal `archivo`:
+catalogo, `sin_voz`, primera vez (audio + memoria + contador), segunda vez
+desde memoria (sin cobrar), frase sin grabacion (se devuelve lo contado),
+plan Starter → `plan`; todo limpiado despues. Y la cocina con servidor y
+aparato simulados (`probar-voz-cocina.js`): encender, caer al aparato, plan,
+dos pedidos en cola, apagar.
+
+**⏳ Falta para que suene la voz buena:** Sergio habilita *Cloud Text-to-Speech
+API* en el proyecto `cobra-pos` de Google Cloud; despues se sacan las voces
+es-US reales, se le arma una pagina para comparar con la suya de Chrome, y se
+siembra la escogida en `pos_voces` con `por_defecto`. Hasta entonces el
+catalogo esta VACIO y la cocina habla con la voz del aparato (igual que antes).
+
 ## 🟢 La campana pedia un PIN y unas fotos que ya estaban — 10-sep-2026
 
 Sergio: *"me esta pidiendo que coloque un PIN y que suba las fotos de la carta,

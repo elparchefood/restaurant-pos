@@ -90,6 +90,15 @@
       que: 'Maneja el inventario y pide reportes escribiéndole al sistema por WhatsApp, sin abrir el computador.',
       mas: ['"Compré 2 pacas de gaseosa a 30 mil" y el inventario se actualiza solo', '"¿Qué falta?" y te responde'],
     },
+    /*  10-sep-2026: Pro, y mañana quiza solo Premium con Marketing (Sergio).
+        Moverla es cambiar pos_planes.funciones; este texto dice el plan que
+        se le muestra al dueño, asi que ese dia se cambia tambien aqui.     */
+    voz_cocina: {
+      titulo: 'La voz de la cocina',
+      plan: 'Pro',
+      que: 'Cuando entra un pedido, una voz lo lee en la cocina: qué lleva y para qué mesa o barrio va.',
+      mas: ['Suena igual en la tablet, el computador y el celular', 'Nadie tiene que leer la pantalla con las manos ocupadas'],
+    },
     nfc: {
       titulo: 'Tarjeta física y recargas',
       plan: 'Premium',
