@@ -1806,7 +1806,7 @@
         de un vistazo que eso si le sirve.                                */
     return '<div class="ct-llave">'
       + '<div class="ct-llave-lb">'
-      + '<img class="ct-brb" src="bre-b.png?v=1" alt="Bre-B" width="173" height="96">'
+      + '<img class="ct-brb" src="bre-b.png?v=2" alt="Bre-B" width="310" height="96">'
       + '<span>desde cualquier banco</span></div>'
       + '<div class="ct-llave-fila"><span class="ct-llave-n">' + esc(destino) + '</span>'
       + '<button class="ct-copiar" type="button" data-copiar="' + esc(destino) + '">Copiar</button></div>'
