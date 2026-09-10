@@ -241,7 +241,12 @@
     if (!cat) return n;
     /*  Sin repetir: si el producto ya se llama como su categoría —"Bebidas ·
         QUATRO"— ponerla otra vez sobra.                                  */
-    if (n.toLowerCase().indexOf(cat.toLowerCase()) >= 0) return n;
+    /*  Sin tildes y sin la 's' del plural: la categoría es "Adiciones" y el
+        producto "Adición Salsa" — se repiten, aunque no se escriban igual. */
+    var pelar = function (s) {
+      return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/s/g, '');
+    };
+    if (pelar(n).indexOf(pelar(cat)) >= 0) return n;
     return cat + ' ' + n;
   }
 
