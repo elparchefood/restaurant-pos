@@ -417,12 +417,33 @@ addEventListener('click', function (ev) {
   //  Las voces pueden tardar en cargar: se espera un momento antes de decidir.
   setTimeout(function () {
     const v = elegirVoz();
+    anotarVoces(v);
     if (!v) { aviso('Este aparato no tiene voces en español', true); return; }
     decirCocina('Voz de la cocina encendida');   // este toque es el que la deja hablar
     const esLaDeGoogle = v.name === VOZ_PREFERIDA || /google/i.test(v.name);
     aviso('Voz encendida · ' + v.name + (esLaDeGoogle ? '' : ' — no está la de Google'), !esLaDeGoogle);
   }, 400);
 });
+
+/*  RASTRO DE LAS VOCES (10-sep-2026). En la tablet la voz salio "super
+    diferente" a la que escogio Sergio: la suya viene de Chrome del PC
+    (servidores de Google) y la tablet usa las de Android. Para no adivinar
+    cual se parece, se anota en pos_diag que voces trae ESTE aparato y cual
+    se escogio, cada vez que se enciende la Voz.                          */
+function anotarVoces(elegida) {
+  try {
+    const vs = (hayVozEnAparato() ? speechSynthesis.getVoices() : []) || [];
+    sb.from('pos_diag').insert({
+      donde: 'cocina/voces',
+      mensaje: 'voces del aparato al encender la voz',
+      extra: {
+        ua: navigator.userAgent,
+        elegida: elegida ? elegida.name + ' (' + elegida.lang + ')' : null,
+        voces: vs.map(x => ({ n: x.name, l: x.lang, uri: x.voiceURI, local: x.localService, def: x.default }))
+      }
+    }).then(function () {}, function () {});
+  } catch (e) {}
+}
 
 //  Lo que la voz leeria como pausa y no lo es: "carne - chorizo" va de corrido
 //  (Sergio). Tambien el "2×" de las adiciones y lo que va entre corchetes.
