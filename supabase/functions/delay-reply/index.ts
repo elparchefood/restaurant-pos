@@ -3957,11 +3957,21 @@ INTENCION, no las palabras exactas.` },
         Solo cuando pasa por el: a quien se lo llevamos, "para que pases" no
         le dice nada.                                                     */
     let ultimoMsg = okMsg;
-    if (LLEVAR_REGEX.test(dirDR.toLowerCase())) {
-      const avisoListo = getFraseTexto(frasesCfg.llevar_te_avisamos)
-        || "Apenas esté listo tu pedido te avisamos para que pases por él 😊";
-      await sendWaAndSave(convId, tenantId, avisoListo, fromPhone, phoneId, accessToken);
-      ultimoMsg = avisoListo;
+    /*  Cada uno con lo suyo: al que pasa por el se le avisa cuando este listo;
+        al que se lo llevamos, cuando salga. "Para que pases" no le dice nada a
+        quien esta esperando en su casa.
+
+        ⚠️ La de domicilio es la frase que Sergio YA tenia escrita en Mensajes
+        (`aviso_despacho`) y que nadie enviaba nunca — la auditoria de julio ya
+        la tenia fichada como "se guarda pero nadie la lee". Por fin sale.  */
+    const avisoSegundo = LLEVAR_REGEX.test(dirDR.toLowerCase())
+      ? (getFraseTexto(frasesCfg.llevar_te_avisamos)
+         || "Apenas esté listo tu pedido te avisamos para que pases por él 😊")
+      : (getFraseTexto(frasesCfg.aviso_despacho)
+         || "Apenas vaya en camino te avisamos para que estés pendiente 😊");
+    if (avisoSegundo) {
+      await sendWaAndSave(convId, tenantId, avisoSegundo, fromPhone, phoneId, accessToken);
+      ultimoMsg = avisoSegundo;
     }
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
       pending_order_data: null, pago_pendiente: false,
