@@ -387,7 +387,12 @@
     if (paso.t === 'pres') {
       if (p.f) h += '<img class="ct-hfoto" src="' + esc(p.f) + '" alt="">';
       h += '<div class="ct-preg">¿De qué tamaño?</div>';
-      if (p.d) h += '<div class="ct-sub">' + esc(p.d) + '</div>';
+      /*  Se toca para ver qué lleva. Con la flecha y el subrayado, porque un
+          texto que hace algo al tocarlo tiene que parecer que hace algo.  */
+      if (p.d) {
+        h += '<button class="ct-desc" id="verQueLleva"><span>' + esc(p.d) + '</span>'
+           + '<i>¿Qué lleva? ›</i></button>';
+      }
       var precia = (p.vg || []).some(function (g) { return g.precia; });
       p.pres.forEach(function (x) {
         h += '<button class="ct-op" data-pres="' + esc(x.id) + '" aria-pressed="'
@@ -461,6 +466,7 @@
         avanzar();
       };
     });
+    if ($('verQueLleva')) $('verQueLleva').onclick = function () { verQueLleva(abierto); };
     if ($('verAdic')) $('verAdic').onclick = function () { elegido.verAdic = true; pintarHoja(); };
     if ($('noAdic')) $('noAdic').onclick = avanzar;
     $('hojaCuerpo').querySelectorAll('[data-adic]').forEach(function (b) {
@@ -480,6 +486,50 @@
     if (ta) ta.oninput = function () { elegido.nota = ta.value.slice(0, 200); };
 
     pieDeHoja();
+  }
+
+  /*  ══ QUE LLEVA ═══════════════════════════════════════════════════════════
+
+      Sus descripciones dicen "Base + Carne o Pollo desmechado, chorizo...".
+      Ese "Base" no lo entiende nadie que no trabaje ahí.
+
+      Aquí se parte en dos: LA BASE (lo que llevan todos los platos de esa
+      categoría) y LO SUYO. Y si nadie ha escrito qué lleva la base, no se
+      menciona: se enseña lo que sí sabemos. Inventar ingredientes es lo peor
+      que se puede hacer en una carta — más con alergias de por medio.
+
+      Va encima de la hoja del producto y no dentro: el cliente estaba
+      escogiendo el tamaño y vuelve a lo mismo al cerrarlo.                */
+  function verQueLleva(p) {
+    var base = String((p && p.base) || '').trim();
+    /*  Lo suyo: la descripción sin el "Base +" del principio, que ya se
+        explica arriba y repetido no dice nada.                           */
+    var suyo = String((p && p.d) || '').replace(/^\s*base\s*\+?\s*/i, '').trim();
+    var h = '<div class="ct-modal-caja" role="dialog" aria-modal="true">'
+      + '<div class="ct-modal-cab"><b>' + esc(p.n) + '</b>'
+      + '<button class="ct-modal-x" id="cerrarQueLleva" aria-label="Cerrar">'
+      + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+      + '</button></div>';
+    if (base) {
+      h += '<div class="ct-campo"><div class="ct-campo-tit">La base</div>'
+         + '<div class="ct-modal-txt">' + esc(base) + '</div></div>';
+    }
+    if (suyo) {
+      h += '<div class="ct-campo"><div class="ct-campo-tit">'
+         + (base ? 'Y además lleva' : 'Lleva') + '</div>'
+         + '<div class="ct-modal-txt">' + esc(suyo) + '</div></div>';
+    }
+    if (!base && !suyo) {
+      h += '<div class="ct-modal-txt" style="margin-top:14px">Pregúntanos por el chat y te contamos 😊</div>';
+    }
+    h += '</div>';
+    var v = document.createElement('div');
+    v.className = 'ct-modal';
+    v.innerHTML = h;
+    document.body.appendChild(v);
+    var cerrar = function () { if (v.parentNode) v.parentNode.removeChild(v); };
+    v.onclick = function (ev) { if (ev.target === v) cerrar(); };
+    v.querySelector('#cerrarQueLleva').onclick = cerrar;
   }
 
   function totalHoja() {
@@ -837,6 +887,32 @@
     $('hoja').classList.add('on');
   };
 
+  /*  Los iconos de la entrega. De trazo, como los del pago, para que la
+      pantalla no cambie de idioma a mitad del pedido.                     */
+  var ICONO_ENT = {
+    moto: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3"/><circle cx="18.5" cy="17.5" r="3"/><path d="M8.5 17.5h7M14 6h3l2.5 6M5.5 14.5 9 8h5"/></svg>',
+    bolsa: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>',
+    pin: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.6-7-11a7 7 0 1 1 14 0c0 5.4-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>',
+    mapa: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 5.5v15L9 18l6 3 6-2.5v-15L15 6z"/><path d="M9 3v15M15 6v15"/></svg>',
+    lapiz: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>'
+  };
+  var FONDO_ENT = {
+    moto:  'linear-gradient(140deg,#D8452F,#A8301F)',
+    bolsa: 'linear-gradient(140deg,#1F8F5F,#116B44)',
+    pin:   'linear-gradient(140deg,#5B6BFF,#3F4BD6)',
+    mapa:  'linear-gradient(140deg,#3A3F5C,#22263B)',
+    lapiz: 'linear-gradient(140deg,#E0A32B,#B87A12)'
+  };
+  /*  Un boton de entrega con la cara de los de pago: icono, titulo y la
+      linea que explica. `id` o `data` segun quien lo necesite.            */
+  function botonEnt(icono, titulo, sub, attr) {
+    return '<button class="ct-pago" ' + attr + '>'
+      + '<span class="ct-pago-ic" style="background:' + FONDO_ENT[icono] + '">'
+      + ICONO_ENT[icono] + '</span>'
+      + '<span><b>' + esc(titulo) + '</b>'
+      + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</span></button>';
+  }
+
   /* ── a dónde va el pedido ────────────────────────────────────────────── */
 
   /*  La cabecera de estas pantallas: el mismo hueso que la hoja del producto,
@@ -866,8 +942,8 @@
     var h = cabEntrega('Tu pedido', function () { pintarCierre(); })
       + '<div class="ct-preg">¿Cómo lo quieres?</div>'
       + '<div class="ct-sub">Toca una opción para seguir.</div>'
-      + '<button class="ct-op" data-ent="domicilio"><span>Domicilio</span><i>›</i></button>'
-      + '<button class="ct-op" data-ent="recoger"><span>Yo lo recojo</span><i>›</i></button>';
+      + botonEnt('moto', 'Domicilio', 'Te lo llevamos a donde estés', 'data-ent="domicilio"')
+      + botonEnt('bolsa', 'Yo lo recojo', 'Pasas por él cuando esté listo', 'data-ent="recoger"');
     abrirEntrega(h, function () { pintarCierre(); });
     $('hojaPie').hidden = true;
     otroBoton(false);
@@ -897,8 +973,8 @@
       + '<div class="ct-dir-guardada">'
       + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 21s-7-5.6-7-11a7 7 0 1 1 14 0c0 5.4-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>'
       + '<span>' + esc(linea) + '</span></div>'
-      + '<button class="ct-op" id="dirSi"><span>Sí, para allá</span><i>›</i></button>'
-      + '<button class="ct-op" id="dirOtra"><span>Otra dirección</span><i>›</i></button>';
+      + botonEnt('pin', 'Sí, para allá', 'La de siempre', 'id="dirSi"')
+      + botonEnt('mapa', 'Otra dirección', 'Escoge otra o escribe una nueva', 'id="dirOtra"');
     abrirEntrega(h, irAEntrega);
     $('hojaPie').hidden = true;
     otroBoton(false);
@@ -930,10 +1006,10 @@
       + '<div class="ct-sub">O escribe una nueva.</div>';
     otras.forEach(function (d, i) {
       var linea = [d.direccion, d.barrio].filter(Boolean).join(', ');
-      h += '<button class="ct-op" data-otra="' + i + '"><span>' + esc(linea) + '</span><i>›</i></button>';
+      h += botonEnt('pin', linea, d.barrio ? '' : 'Guardada', 'data-otra="' + i + '"');
     });
-    h += '<button class="ct-op" id="dirNueva" style="margin-top:14px">'
-       + '<span>Escribir una nueva</span><i>›</i></button>';
+    h += '<div style="height:6px"></div>'
+       + botonEnt('lapiz', 'Escribir una nueva', 'Casa, apartamento o conjunto', 'id="dirNueva"');
     abrirEntrega(h, irAEntrega);
     $('hojaPie').hidden = true;
     otroBoton(false);

@@ -345,7 +345,7 @@ Deno.serve(async (req) => {
         db(`brands?tenant_id=eq.${tenant}&select=name,logo_url&limit=1`),
         branch ? db(`branches?id=eq.${branch}&select=name,operacion_config&limit=1`)
                : db(`branches?tenant_id=eq.${tenant}&select=name,operacion_config&limit=1`),
-        db(`pos_categories?tenant_id=eq.${tenant}&oculta_carta=is.false&select=id,name,sort_order,active&order=sort_order.nullsfirst`),
+        db(`pos_categories?tenant_id=eq.${tenant}&oculta_carta=is.false&select=id,name,description,sort_order,active&order=sort_order.nullsfirst`),
         db(`pos_products?tenant_id=eq.${tenant}&available=is.true&select=id,name,description,price,photo_url,image_url,presentations,variables,price_mode,mod_group_ids,mod_group_pres,category_id,agotado,sort_order&order=sort_order.nullsfirst`),
         db(`ia_config?tenant_id=eq.${tenant}&select=pagos,flujo_pasos&limit=1`),
       ]);
@@ -366,6 +366,11 @@ Deno.serve(async (req) => {
       const cats = filas(cRes.data).filter((c) => c.active !== false);
       const catNom = new Map<string, string>();
       for (const c of cats) catNom.set(String(c.id), String(c.name));
+
+      /*  La descripcion de cada categoria es LA BASE: lo que llevan todos sus
+          platos antes de lo suyo.                                        */
+      const catBase = new Map<string, string>();
+      for (const c of cats) catBase.set(String(c.id), String(c.description || "").trim());
 
       const prods: Fila[] = [];
       for (const p of filas(pRes.data)) {
@@ -397,6 +402,11 @@ Deno.serve(async (req) => {
 
         prods.push({
           id: p.id, cat: catNom.get(catId), catId,
+          /*  Lo que lleva la base de esa categoria. Vacio hoy en las siete de
+              El Parche: mientras nadie lo escriba, la pagina no habla de
+              ninguna base — inventar ingredientes es lo peor que se puede
+              hacer aqui, y mas con alergias de por medio.               */
+          base: catBase.get(catId) || "",
           n: String(p.name || "").trim(),
           d: String(p.description || "").slice(0, 120),
           f: p.photo_url || p.image_url || "",
