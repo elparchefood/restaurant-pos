@@ -1304,7 +1304,15 @@ var UR_PERMS = [
     { id: 'inventario.compras',label: 'Registrar compras',   desc: 'Registrar compras y ajustar el stock' }
   ]},
   { group: 'Ventas e IA', items: [
-    { id: 'ventas.ver', label: 'Ver informes de ventas', desc: 'Acceder a reportes y cierres' },
+    /*  Decia "Ver informes de ventas", pero desde el 10-sep Informes tiene
+        su propio permiso (`informes.ver`). Este abre Historial y Clientes,
+        y junto con cobrar, la Caja. */
+    { id: 'ventas.ver', label: 'Ver historial y clientes', desc: 'Abrir Historial (los pedidos anteriores) y Clientes' },
+    /*  Estricto: NADIE lo trae de fabrica, ni el Administrador; el dueNo
+        siempre. Sergio, 10-sep-2026: "nadie lo debe tener activado por
+        defecto". Lo decide `_ESTRICTOS` en pos-perms.js. */
+    { id: 'informes.ver', label: 'Ver informes',
+      desc: 'Abrir Informes: ventas, ganancias, costos y cierres del negocio. Nadie lo trae marcado de fábrica' },
     /*  Estricto, como `cuenta.plan`: el Administrador lo trae marcado y el
         dueNo se lo puede quitar. Quien decide es el servidor
         (fn_permiso_estricto), no la pantalla. Sergio, 10-sep-2026. */

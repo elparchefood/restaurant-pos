@@ -493,8 +493,11 @@ que quitarselo al cajero no le impide vender.
   vender no hace falta.
 - Un **rol nuevo** creado en Configuracion nacia con `catalogo.ver` "para
   atender una mesa". Ya no: nace con `pedidos.crear` y `pedidos.cocina`.
-- Mesero, Cocinero y Domiciliario **lo siguen teniendo** — pendiente de que
-  Sergio decida si tambien se les quita.
+- Y el mismo dia, a pedido de Sergio, tambien al **Mesero, Cocinero y
+  Domiciliario** (12 roles en los 4 restaurantes, y la siembra). Hoy solo el
+  Administrador lo tiene, por su clave. La siembra decia que el mesero lo
+  necesitaba "porque sin la carta no puede tomar un pedido": no era cierto.
+  `supabase/sql/2026-09-10-nadie-sin-productos.sql`.
 
 Sin el permiso, al tocar Productos se pide el PIN antes de navegar (lo del
 9-sep). ⚠️ Adentro, guardar un producto pide `catalogo.editar` o PIN, pero es
@@ -503,6 +506,42 @@ de `PLAN-CANDADO-SERVIDOR.md`.
 
 - `supabase/sql/2026-09-10-cajero-sin-productos.sql` (con guarda que revienta
   si queda un cajero con el permiso)
+
+## 🟢 Informes: nadie lo trae de fabrica — 10-sep-2026
+
+Sergio: *"de ahi sigues con los informes, nadie lo debe tener activado por
+defecto"*.
+
+**El problema:** Informes se abria con `ventas.ver`, el MISMO permiso que
+Historial y Clientes (y, junto con cobrar, la Caja). Quitarselo al cajero le
+cerraba tambien Clientes, que el mismo dia se le dejo para los puntos.
+
+**La salida:** un permiso propio, `informes.ver` ("Ver informes"), **estricto**:
+nadie lo trae —ni el Administrador—; el dueNo siempre. Se activa en Usuarios y
+roles. `ventas.ver` pasa a llamarse "Ver historial y clientes".
+
+### `_ESTRICTOS` en pos-perms.js — una lista, no un sitio por pantalla
+
+`posHasPerm` contesta los permisos estrictos (`cuenta.plan`, `clientes.gasto`,
+`informes.ver`) con `posPermEstricto`: sin el comodin del administrador y, si
+todavia no se sabe, **que no**. `posHasAny` va uno por uno con `posHasPerm`
+para que el '*' no los cuele. Asi el mapa PANTALLAS, `posRequirePin` y
+`posGate` los tratan igual sin acordarse de nada en cada sitio.
+
+⚠️ El rol desconocido (que abre todo "por si acaso") **no** abre los estrictos.
+
+### Lo que NO se pudo hacer en el servidor
+
+Informes arma sus cifras leyendo las mismas tablas que el cajero usa para
+vender (pedidos, pagos, sesiones, movimientos de caja). Cerrarlas en el
+servidor lo dejaria sin cobrar. El candado de Informes es de **entrada** (PIN
+antes de navegar); el de lectura va en `PLAN-CANDADO-SERVIDOR.md`.
+
+### Probado
+
+`probar-permisos.js` corre el `pos-perms.js` real con una base de mentira y
+pregunta a que pantallas entra cada uno: dueNo (todo), Administrador sin y con
+la casilla, Cajero sin y con la casilla, Mesero y rol desconocido.
 
 ## 🟢 Historial: rediseno de la pantalla — 5-sep-2026
 

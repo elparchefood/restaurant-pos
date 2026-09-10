@@ -323,7 +323,22 @@
   window.posRole = function () { return _role; };
   window.posPerms = function () { return _perms; };
 
+  /*  ══ LOS PERMISOS ESTRICTOS ════════════════════════════════════════
+      Los que el Administrador NO tiene por serlo: solo si su rol los trae
+      marcados. El dueNo si, siempre. Estan en UNA lista para que
+      `posHasPerm` los conteste igual en todas partes —el mapa de
+      pantallas, una puerta, un boton— sin tener que acordarse de llamar a
+      `posPermEstricto` en cada sitio.
+        cuenta.plan    — ver el plan, marcas y sedes (4-sep).
+        clientes.gasto — cuanto gastan los clientes (10-sep). Lo decide el
+                         servidor; aqui por si una pantalla lo pregunta.
+        informes.ver   — la pantalla de Informes. Sergio, 10-sep: "nadie lo
+                         debe tener activado por defecto".
+      Y como en `posPermEstricto`: mientras no se sepa, dice que NO.      */
+  var _ESTRICTOS = { 'cuenta.plan': 1, 'clientes.gasto': 1, 'informes.ver': 1 };
+
   window.posHasPerm = function (id) {
+    if (_ESTRICTOS[id]) return window.posPermEstricto(id);
     if (_perms === '*') return true;
     if (_perms === null) return true;   // aún no carga → no bloquear de más
     return _perms.indexOf(id) >= 0;
@@ -346,9 +361,13 @@
     return _listaReal.indexOf(id) >= 0;
   };
 
+  /*  Uno por uno con `posHasPerm`, para que los estrictos no se cuelen
+      por el comodin del '*'. Con una lista vacia contesta lo mismo que
+      antes.                                                             */
   window.posHasAny = function (ids) {
-    if (_perms === '*' || _perms === null) return true;
-    for (var i = 0; i < (ids || []).length; i++) if (_perms.indexOf(ids[i]) >= 0) return true;
+    ids = ids || [];
+    if (!ids.length) return _perms === '*' || _perms === null;
+    for (var i = 0; i < ids.length; i++) if (window.posHasPerm(ids[i])) return true;
     return false;
   };
 
@@ -461,7 +480,10 @@
     'configuracion.html':      ['config.general', 'config.salon', 'config.usuarios'],
     'domicilios.html':         ['domicilios.gestionar'],
     'historial.html':          ['ventas.ver'],
-    'informes.html':           ['ventas.ver'],
+    /*  10-sep-2026: Informes tenia el mismo permiso que Historial y
+        Clientes (`ventas.ver`), y no se podia cerrar sin cerrar esas dos.
+        Ahora tiene el suyo, estricto: nadie lo trae de fabrica.         */
+    'informes.html':           ['informes.ver'],
     'inventario.html':         ['catalogo.editar', 'inventario.ver', 'inventario.compras'],
     'pagos.html':              ['pedidos.cobrar', 'pagos.anular'],
     'reservas.html':           ['reservas.gestionar'],

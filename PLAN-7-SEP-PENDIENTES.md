@@ -102,10 +102,14 @@ Sergio va a revisar esta noche qué más hay que esconder por rol.
 >   Detalle en `ESTADO-SISTEMA.md`.
 > - ✅ **Productos** — el Cajero ya no entra por defecto (se le quitó
 >   `catalogo.ver`, que solo abre esa pestaña; para vender no hace falta). Se
->   le puede activar con la casilla "Entrar a Productos". Mesero, Cocinero y
->   Domiciliario lo siguen teniendo: **Sergio decide** si también se les quita.
-> - ⏭️ **Historial e Informes** — el mismo permiso "Ver ventas" que abre
->   Clientes le abre al cajero toda la plata del negocio. Es la siguiente.
+>   le puede activar con la casilla "Entrar a Productos". El mismo día
+>   también se les quitó al Mesero, Cocinero y Domiciliario: hoy solo lo tiene
+>   el Administrador.
+> - ✅ **Informes** — permiso propio `informes.ver`, estricto: **nadie** lo
+>   trae de fábrica, ni el Administrador; el dueño siempre. Antes se abría con
+>   "Ver ventas", el mismo de Historial y Clientes.
+> - ⏭️ **Historial** (lista de pedidos con sus valores) y el **Escritorio**
+>   (ventas del día, `dashboard.ver`): los siguientes a revisar.
 
 **b) El PIN llega TARDE.** Hoy: se toca Inventario → la pantalla se abre → y
 *encima* aparece el PIN. Sergio: *"debería pedirle el PIN antes de navegar a la
