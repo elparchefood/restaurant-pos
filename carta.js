@@ -1318,7 +1318,11 @@
       /*  Se enseNa si alcanza para algo O si ya reclamó: sin lo segundo, quien
           gasta casi todos sus puntos se queda sin cómo deshacerlo.       */
       if (m.tipo === 'puntos') return premiosQueAlcanzan().length > 0 || puntosUsados() > 0;
-      if (esSaldo) return ((D.cliente && D.cliente.saldo) || 0) > 0;
+      /*  Se enseNa aunque este VACIA, siempre que se pueda recargar: quien
+          la tiene en cero es justo el que tendria que recargarla, y si no le
+          aparece no hay forma de llegar ahi.                             */
+      if (esSaldo) return ((D.cliente && D.cliente.saldo) || 0) > 0
+                       || !!(D.recarga && D.recarga.por_bloque > 0);
       return true;
     });
     var h = '';
@@ -1336,6 +1340,14 @@
         var uso = puntosUsados();
         sub = uso > 0 ? ('Vas a usar ' + uso + ' puntos · toca para cambiar')
                       : ('Tienes ' + ((D.cliente && D.cliente.puntos) || 0) + ' puntos');
+      }
+      if (t === 'saldo') {
+        var sal = (D.cliente && D.cliente.saldo) || 0;
+        var gm = (D.recarga && D.recarga.por_bloque > 0) ? montoGancho() : 0;
+        sub = sal > 0
+          ? 'Tienes ' + cop(sal)
+          : (gm ? 'Recarga ' + cop(gm) + ' y recibes ' + cop(gm + bonoDe(gm))
+                : 'Con el saldo de tu cuenta');
       }
       if (t === 'transferencia' && m.banco) sub = 'Te mandamos los datos de ' + esc(m.banco) + ' por el chat';
       h += '<button class="ct-pago" data-i="' + i + '">' + ic
