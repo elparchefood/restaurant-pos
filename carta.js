@@ -141,6 +141,19 @@
     if (!b || !Array.isArray(b.productos)) return;
     b.productos.forEach(function (it) {
       var p = (D.prods || []).find(function (x) { return String(x.id) === String(it.product_id); });
+      /*  ══ UN PREMIO NO SE DESCARTA POR NO ESTAR EN LA CARTA ══════════════
+          Las adiciones —cinco de los catorce premios— viven en una categoría
+          escondida, así que no están en `prods`. Sin esto, al corregir el
+          pedido el premio DESAPARECÍA en silencio: peor que cobrarlo, porque
+          cobrado al menos se ve.
+
+          Se arma con lo que el borrador ya trae. Para enseñarlo y para volver
+          a mandarlo bastan los dos identificadores y el nombre.          */
+      if (!p && it.premio === true) {
+        p = { id: it.product_id, n: String(it.nombre || it.product_name || 'Premio'),
+              cat: String(it.categoria || ''),
+              pres: [{ id: it.pres_id, n: String(it.tamano || '') }], vg: [], adic: {} };
+      }
       if (!p) return;                                   // ya no está en la carta
       var vars = {};
       Object.keys(it.variantes || {}).forEach(function (gid) {
@@ -152,9 +165,11 @@
         adic: (it.adiciones || []).map(function (a) { return a.name; }),
         vars: vars, nota: it.notas || ''
       };
-      l.base = precioDe(p, l.presId, l.vars);
+      /*  Un premio vale 0: no se le pregunta el precio al catálogo, que
+          además puede no tenerlo si el producto está escondido.          */
+      l.base = it.premio === true ? 0 : precioDe(p, l.presId, l.vars);
       if (l.base == null) return;
-      l.det = detalleDe(l);
+      l.det = (p.vg && p.vg.length) || (p.pres && p.pres.length > 1) ? detalleDe(l) : '';
       /*  ══ LO QUE SE RECLAMO CON PUNTOS SIGUE SIENDO CON PUNTOS ═══════════
           El borrador guarda cuáles líneas eran premio; sin leerlo aquí, al
           corregir se armaban todas como normales y se les volvía a poner su
