@@ -90,7 +90,7 @@ async function saldoDe(tenant: string, clienteId: string): Promise<number> {
 /*  Se manda por SMS a proposito, no por WhatsApp: si el codigo viajara por el
     mismo sitio donde se esta pidiendo, quien tuviera el WhatsApp abierto lo
     tendria todo. Dos canales distintos es lo que lo hace una comprobacion. */
-async function mandarCodigoSMS(tenant: string, tel10: string, monto: number, marca: string): Promise<string> {
+async function mandarCodigoSMS(tenant: string, tel10: string, monto: number, marca: string, dominio: string): Promise<string> {
   /*  ══ ¿YA TIENE UNO VIVO? ══════════════════════════════════════════════
       Entonces no se le manda otro. El que tiene en la mano sirve, y dos
       mensajes seguidos solo consiguen que pruebe el equivocado. De paso, el
@@ -116,9 +116,22 @@ async function mandarCodigoSMS(tenant: string, tel10: string, monto: number, mar
   if (!ins.ok) return "no pudimos preparar tu código. Inténtalo otra vez";
   const sid = Deno.env.get("TWILIO_SID") || "", tok = Deno.env.get("TWILIO_TOKEN") || "", desde = Deno.env.get("TWILIO_FROM") || "";
   if (!sid || !tok || !desde) return "no pudimos enviarte el código a tu celular";
-  //  Sin tildes: un SMS con acentos se parte en dos y se cobra doble.
+  /*  ══ EL RENGLON QUE HACE QUE ANDROID LO ESCRIBA SOLO ═══════════════
+      Chrome en Android no lee los SMS: espera un formato exacto (WebOTP).
+      El mensaje tiene que TERMINAR en "@dominio #codigo", en su propio
+      renglon y sin nada detras. Un espacio de mas y deja de funcionar.
+
+      El dominio sale de la configuracion de la carta, no escrito a mano: si
+      el restaurante la sirve desde otro dominio, tiene que ir el suyo o
+      Android lo ignora — y ademas es una comprobacion de seguridad, no un
+      adorno: asi el codigo solo se autocompleta en NUESTRA pagina.
+
+      A iOS este renglon no le estorba: el lee el numero del texto.
+
+      Sin tildes: un SMS con acentos se parte en dos y se cobra doble.   */
   const texto = codigo + " es tu codigo para pagar $ " + Math.round(monto).toLocaleString("es-CO")
-    + " en " + marca + ". Vence en 10 minutos. No se lo compartas a nadie.";
+    + " en " + marca + ". Vence en 10 minutos. No se lo compartas a nadie."
+    + (dominio ? "\n\n@" + dominio + " #" + codigo : "");
   const r = await fetch("https://api.twilio.com/2010-04-01/Accounts/" + sid + "/Messages.json", {
     method: "POST",
     headers: { Authorization: "Basic " + btoa(sid + ":" + tok), "Content-Type": "application/x-www-form-urlencoded" },
@@ -1025,7 +1038,15 @@ Deno.serve(async (req) => {
               aqui, no ha pasado nada.                                     */
           const mkRes = await db(`brands?tenant_id=eq.${tenant}&select=name&limit=1`);
           const marcaB = String(filas(mkRes.data)[0]?.name || "").trim() || String(sede.name || "") || "tu pedido";
-          const falloB = await mandarCodigoSMS(tenant, tel10B, totalB, marcaB);
+          /*  El dominio desde donde se sirve la carta. Es lo que Android
+              compara para autocompletar, asi que sale de la configuracion —
+              nunca de lo que diga el navegador, que es justo lo que un
+              impostor querria poder elegir.                             */
+          const cwRes = await db(`ia_config?tenant_id=eq.${tenant}&select=carta_web&limit=1`);
+          const cwUrl = String(((filas(cwRes.data)[0]?.carta_web as Fila) || {}).url || "https://cobrapos.app/carta.html");
+          let dominioB = "";
+          try { dominioB = new URL(cwUrl).hostname; } catch { dominioB = "cobrapos.app"; }
+          const falloB = await mandarCodigoSMS(tenant, tel10B, totalB, marcaB, dominioB);
           if (falloB) return json(400, { error: falloB, billetera: "sin_sms" });
           return json(200, {
             codigo_requerido: true, total: totalB, saldo: saldoB,

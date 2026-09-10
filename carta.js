@@ -354,7 +354,13 @@
     $('velo').classList.add('on');
     $('hoja').classList.add('on');
   }
+  /*  La peticion del codigo a Android queda viva hasta que llegue el SMS. Si
+      el cliente se va de esa pantalla hay que cancelarla: dejarla escuchando
+      es una fuga, y ademas el navegador sigue enseNando su avisito.      */
+  var cancelarOTP = null;
+
   function cerrarHoja() {
+    if (cancelarOTP) { cancelarOTP(); cancelarOTP = null; }
     $('velo').classList.remove('on');
     $('hoja').classList.remove('on');
     abierto = null;
@@ -1755,6 +1761,27 @@
       if (v.length === 6) mandar();
     };
     btn.onclick = mandar;
+
+    /*  ══ QUE ANDROID LO ESCRIBA SOLO ═══════════════════════════════════
+        Sergio: *"lo probe desde mi Android y no se prellenó"*. Y no iba a
+        pasar: `autocomplete="one-time-code"` lo entiende iOS, pero Chrome en
+        Android usa WebOTP, que hay que PEDIR. El SMS ya viene con el renglon
+        que exige; esto es la otra mitad.
+
+        Si el navegador no lo tiene (iOS, un Android viejo, un computador) no
+        pasa nada: sigue el teclado, que en iOS ya lo ofrece igual.       */
+    if ('OTPCredential' in window && window.isSecureContext) {
+      var corta = new AbortController();
+      cancelarOTP = function () { try { corta.abort(); } catch (e) { /* ya se fue */ } };
+      navigator.credentials.get({ otp: { transport: ['sms'] }, signal: corta.signal })
+        .then(function (otp) {
+          if (!otp || !otp.code || !document.getElementById('codBil')) return;
+          campo.value = String(otp.code).replace(/[^0-9]/g, '').slice(0, 6);
+          campo.dispatchEvent(new Event('input'));
+        })
+        .catch(function () { /* lo cancelo, lo nego, o no llego: se escribe a mano */ });
+    }
+
     $('volverPago2').onclick = function () { cerrarHoja(); irAlPago(); };
     otroBoton(true, 'Mejor pago de otra forma', function () { cerrarHoja(); irAlPago(); });
     setTimeout(function () { try { campo.focus(); } catch (e) { /* el teclado se abre solo o no */ } }, 120);

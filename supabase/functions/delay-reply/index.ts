@@ -3915,11 +3915,30 @@ INTENCION, no las palabras exactas.` },
     await sbPatch(`/rest/v1/pos_saldo_mov?referencia=eq.${encodeURIComponent(refDR)}`, { order_id: orderIdDR });
     const sal2 = await sbRpcDR("fn_saldo_cliente", { p_tenant: tenantId, p_cliente: clienteSaldo });
     const resta = Math.round(Number(Array.isArray(sal2) ? (sal2[0] as Record<string, unknown>)?.saldo : sal2) || 0);
-    const okMsg = `¡Pago confirmado! 🎉 Pagaste ${fmtCOP(totalDR)} con tu Billetera y te quedan ${fmtCOP(resta)}. Tu pedido ya está en preparación${emo()}`;
+    /*  El nombre COMPLETO, y sale de la configuracion. Escribir "Billetera El
+        Parche Food" a mano seria meter el nombre de un restaurante dentro de
+        un producto que se vende a otros.                                 */
+    const nomBilletera = getMetodosPago(pagosCfg).find(m => m.id === "__saldo")?.nombre || "tu Billetera";
+    const okMsg = `¡Pago confirmado! 🎉 Pagaste ${fmtCOP(totalDR)} con tu ${nomBilletera} y te quedan ${fmtCOP(resta)}. Tu pedido ya está en preparación 🔥`;
     await sendWaAndSave(convId, tenantId, okMsg, fromPhone, phoneId, accessToken);
+    /*  ══ Y EL AVISO, EN MENSAJE APARTE ═══════════════════════════════════
+        Sergio: *"la frase del pago confirmado esta perfecta porque es la
+        informativa... inmediatamente despues puede llegar el otro"*. Metidas
+        en un mismo parrafo, la segunda se lee por encima; separadas, cada una
+        se lee entera.
+
+        Solo cuando pasa por el: a quien se lo llevamos, "para que pases" no
+        le dice nada.                                                     */
+    let ultimoMsg = okMsg;
+    if (LLEVAR_REGEX.test(dirDR.toLowerCase())) {
+      const avisoListo = getFraseTexto(frasesCfg.llevar_te_avisamos)
+        || "Apenas esté listo tu pedido te avisamos para que pases por él 😊";
+      await sendWaAndSave(convId, tenantId, avisoListo, fromPhone, phoneId, accessToken);
+      ultimoMsg = avisoListo;
+    }
     await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, {
       pending_order_data: null, pago_pendiente: false,
-      last_message: okMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false,
+      last_message: ultimoMsg, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false,
     });
     return true;
   };
@@ -11265,6 +11284,20 @@ async function buildSummaryFromState(
   const dirResumen = esParaLlevar
     ? (getFraseTexto(frases.llevar_etiqueta) || "Para recoger en el local 🏃")
     : dirConBarrio;
+  /*  ══ PARA RECOGER NO HAY DOMICILIO: EL RENGLON DESAPARECE ═══════════
+      Sergio: *"cuando es para recoger no deberia decir domicilio"*. Decia
+      "🏍️ Domicilio: para llevar" — contestar una pregunta que nadie hizo, y
+      con la palabra que el cliente acaba de descartar. Dos renglones arriba
+      ya dice "Para recoger en el local".
+
+      Se quita del MOLDE, antes de rellenarlo, para que valga igual con la
+      plantilla de fabrica y con la que escriba cada restaurante.        */
+  if (esParaLlevar) {
+    plantillaExpanded = plantillaExpanded.split("\n")
+      .filter((l) => !/\{\{\s*(precio_domi|total_domi|domicilio_linea|linea_domicilio)\s*\}\}/.test(l))
+      .join("\n");
+  }
+
   let resumenFinal = plantillaExpanded
     .replace(/\{\{productos\}\}/g,       productoLines.join("\n"))
     .replace(/\{\{direccion\}\}/g,       dirResumen)
