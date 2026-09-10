@@ -5,15 +5,30 @@
 
 ---
 
-## ⭐ LO PRIMERO DE MAÑANA (9-sep): probar la carta
+## ✅ HECHO 9-sep: la carta, probada todo el día con Sergio
 
-Está construida y **apagada**. Sergio la enciende cuando esté mirando el chat,
-abre el horario, hace el recorrido y lo vuelve a cerrar.
+Probada de punta a punta y ampliada: dirección dentro de la carta, puntos que
+reclaman productos, prepago para recoger, y **pago y recarga con la Billetera
+sin salir de la página** (Bre-B, código por SMS, pase de recarga). Detalle en
+`ESTADO-SISTEMA.md`, sección "LA CARTA WEB — PAGO Y RECARGA CON BILLETERA".
 
-El guion con los doce pasos y lo que debe pasar en cada uno:
-**`PRUEBA-CARTA-MANANA.md`**.
+Los pedidos, la caja y el inventario de la prueba se borraron el 9-sep por la
+noche con `herramientas/borrar-pruebas.py`; copia en Descargas.
 
-Si algo sale mal: se apaga `carta_web.activo` y todo vuelve a como está hoy.
+---
+
+## 🗳️ DECISIONES DE SERGIO QUE QUEDARON DEL 9-sep
+
+1. **Su saldo quedó en $636.000, no en $581.000.** Tenía $581.000 antes de las
+   pruebas e hizo una recarga REAL de $50.000 (+$5.000 de bono) que el sistema
+   cruzó contra el banco; esa no se borró. Si prefiere $581.000, se ajusta.
+2. **Dos fichas de clientes con la dirección dañada** por el bug de "para
+   recoger" (ya corregido): *Anyi Benavides* → "Apenas este lista / La recojo
+   vivo en bella vista", y *José Manuel* → "Yo paso por ella". No se tocan sin
+   que él lo diga: son clientes reales.
+3. **La frase "Pedido listo para recoger"** está configurada en Mensajes y nada
+   la envía (la auditoría del 20-jul ya la tenía fichada). `aviso_despacho`
+   estaba igual y ya se envía desde el 9-sep.
 
 ---
 
@@ -62,6 +77,10 @@ en **`PLAN-PEDIR-DESDE-EL-MENU.md`**.
 ---
 
 ## 1. Permisos y PIN 🔴 EL MÁS IMPORTANTE
+
+> **A ✅ HECHO el 9-sep** (commit `9a1c535`): el PIN se pide ANTES de navegar,
+> y la lista de qué pide cada pantalla vive en un solo sitio. **B sigue
+> pendiente** — y es el candado de verdad.
 
 **Dos cosas distintas, y la segunda es la de fondo.**
 
@@ -196,6 +215,24 @@ midiendo, no deduciendo—:
 
 ⚠️ Y una vez arreglado, **comprobarlo por el camino de Sergio** —cerrando una
 caja de verdad y mirando si llega el mensaje—, no por el panel.
+
+### ✅ DIAGNOSTICADO Y CORREGIDO el 10-sep (commit `808dbe6`)
+
+Todo lo de DENTRO estaba bien (medido): sede y números en la configuración,
+41 insumos encontrados, WhatsApp de la sede encontrado, plantilla APROBADA,
+función publicada igual al repo. Lo roto era que **nadie podía saber qué pasó**:
+
+1. **El cierre tapaba su propio aviso**: el motivo lo reemplazaba al instante
+   "Caja cerrada correctamente". Ahora va dentro de la ventana del cierre y,
+   si no salió, se queda hasta que el cajero toque "Entendido".
+2. **La función no dejaba rastro.** Ahora cada intento queda en `pos_diag`
+   (`donde = 'aviso-insumos'`), con lo que contestó Meta número por número.
+3. **El webhook botaba TODOS los "no se entregó"** de Meta
+   (`if (!messages.length) continue;`). Ahora quedan en `pos_diag`
+   (`donde = 'meta/no-entregado'`) y el chat los marca como fallidos.
+
+**Falta:** el primer cierre de caja real. La ventana va a decir qué pasó, y si
+algo falla, `pos_diag` dirá exactamente por qué.
 
 ---
 
