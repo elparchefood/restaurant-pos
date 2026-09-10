@@ -1301,6 +1301,11 @@ var UR_PERMS = [
   ]},
   { group: 'Ventas e IA', items: [
     { id: 'ventas.ver', label: 'Ver informes de ventas', desc: 'Acceder a reportes y cierres' },
+    /*  Estricto, como `cuenta.plan`: el Administrador lo trae marcado y el
+        dueNo se lo puede quitar. Quien decide es el servidor
+        (fn_permiso_estricto), no la pantalla. Sergio, 10-sep-2026. */
+    { id: 'clientes.gasto', label: 'Ver cuánto gastan los clientes',
+      desc: 'En Clientes: lo gastado, el promedio y el valor de cada pedido. Sin esto ve sus puntos y lo que pidió, sin la plata' },
     { id: 'chat.usar',  label: 'Usar asistente IA',      desc: 'Acceder al chat de inteligencia artificial' }
   ]},
   { group: 'Reservas y domicilios', items: [

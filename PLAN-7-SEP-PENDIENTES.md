@@ -94,6 +94,15 @@ en **`PLAN-PEDIR-DESDE-EL-MENU.md`**.
 cajero y **puede abrir Productos**. Un cajero no tiene por qué entrar ahí.
 Sergio va a revisar esta noche qué más hay que esconder por rol.
 
+> **La revisión rol por rol, pantalla por pantalla (empezó el 10-sep):**
+> - ✅ **Clientes** — el cajero ve los puntos, el saldo y lo que pidió cada
+>   cliente, **sin la plata**. Permiso nuevo `clientes.gasto` (el Administrador
+>   lo trae marcado; se le puede quitar). Lo decide el servidor. De paso se
+>   cerró el hueco de que cualquiera pedía el resumen de otro restaurante.
+>   Detalle en `ESTADO-SISTEMA.md`.
+> - ⏭️ **Historial e Informes** — el mismo permiso "Ver ventas" que abre
+>   Clientes le abre al cajero toda la plata del negocio. Es la siguiente.
+
 **b) El PIN llega TARDE.** Hoy: se toca Inventario → la pantalla se abre → y
 *encima* aparece el PIN. Sergio: *"debería pedirle el PIN antes de navegar a la
 pantalla para que ni siquiera el sistema la abra sin PIN"*.

@@ -51,6 +51,15 @@ En este orden:
 cuenta. Si cada lado decide por su lado, se separan — exactamente como ya pasó
 con los precios. Una sola fuente.
 
+**Ya existe la mitad (10-sep-2026):** `fn_permiso_estricto(tenant, permiso, sede)`,
+hecha para que el cajero no vea en Clientes cuánto gastan los clientes
+(`clientes.gasto`). Resuelve los pasos 1-3 igual que la pantalla, pero es la
+versión **estricta**: el Administrador no tiene todo por serlo y el rol
+desconocido dice **no**. `fn_puedo` es la misma función con esas dos reglas al
+revés (admin → todo; desconocido → sí, con rastro): se construye encima, no
+aparte. Y `fn_soy_del_restaurante(tenant)` ya existe para las ~40 funciones que
+confían en el restaurante que les mandan.
+
 ## 5. Fase 1 — solo lo que tocan ÚNICAMENTE las pantallas de administración
 
 | Tablas | Para ESCRIBIR hace falta |

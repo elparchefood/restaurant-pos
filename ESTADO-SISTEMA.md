@@ -422,6 +422,59 @@ quedaba sin su propio bloque hasta que la base confirmara.
   con guardas que revientan si el permiso no quedo, y tambien si se le colo a
   un rol que no es administrador.
 
+## 🟢 Clientes: el cajero ve los puntos, no la plata — 10-sep-2026
+
+Sergio: el cajero necesita ver los **puntos** de un cliente en Clientes (para
+decirselos cuando pregunta, sin estar cobrando), pero no la facturacion.
+Aprobo: *"mira el historial de pedidos del cliente pero no el dinero (a menos
+que se le otorgue el permiso)"* y *"el diseno no cambia en nada, solo se
+ocultan los datos"*.
+
+### El permiso `clientes.gasto` — estricto, como `cuenta.plan`
+
+| | |
+|---|---|
+| El dueNo | siempre |
+| Un rol con `clientes.gasto` | el Administrador lo trae marcado (los 4 de hoy y los nuevos); se le puede quitar |
+| Todos los demas | ven los puntos, el saldo y lo que pidio cada cliente, sin la plata |
+
+Sin el permiso **no se ven**: las cifras de arriba y la barra de "cuantos
+vuelven", lo gastado de cada uno (en la lista van sus puntos en ese sitio),
+"Ha gastado" y "Promedio" de la ficha, el valor de cada pedido, y el filtro
+"Los que mas gastan". La lista va por nombre: por gasto dejaria ver quien
+gasta mas aunque no se vea cuanto.
+
+### Lo decide el SERVIDOR, no la pantalla
+
+`fn_clientes_resumen(p_tenant, p_sede)` pregunta a `fn_permiso_estricto` y,
+sin el permiso, manda **null** en lo gastado, el promedio y lo recargado.
+`clientes.js` no tiene regla propia: mira si la plata llego (`S.veGasto`).
+Esconderla solo en la pantalla no servia — viajaba igual al computador.
+
+- `fn_permiso_estricto(tenant, permiso, sede)` — la version del servidor de
+  `posPermEstricto`: dueNo → rol en esa sede → `role_id` de su ficha → texto
+  del rol con la tabla `_ALIAS_ROL`. Rol desconocido = **no** (aqui fallar
+  hacia el no solo esconde cifras). No lee la metadata de la sesion: esa la
+  reescribe el propio usuario. Sirve para el candado del servidor
+  (`PLAN-CANDADO-SERVIDOR.md`).
+- `fn_soy_del_restaurante(tenant)` — dueNo o usuario activo de ese restaurante.
+
+### El hueco que se cerro de paso
+
+`fn_clientes_resumen` confiaba en el `p_tenant` que le mandaran: medido antes
+de cambiarla, el Cajero de Prueba (otro restaurante) recibia los 303 clientes
+de El Parche **con toda su plata**. Ahora recibe 0. Hay ~40 funciones mas con
+el mismo problema: van en el plan del candado. Se revisaron los libros de
+saldo y de puntos: ningun movimiento sin origen legitimo.
+
+### Probado (simulando cada sesion en la base)
+
+Dueno El Parche: 303 clientes, $19.191.500 — igual que antes. Cajero y mesera
+de El Parche: 303, mismos puntos y pedidos, 0 con plata. Cajero de otro
+restaurante → 0 filas. Sin sesion → sin permiso de ejecutar.
+
+- `supabase/sql/2026-09-10-permiso-clientes-gasto.sql`
+
 ## 🟢 Historial: rediseno de la pantalla — 5-sep-2026
 
 Sergio: *"la pantalla se ve muy plana, los datos se ven en texto puro, no se
