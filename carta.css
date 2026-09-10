@@ -393,7 +393,7 @@ body.ct-cerrado .ct-prod:active{background:var(--panel)}
   border:1.5px solid var(--linea);background:var(--panel-2);color:var(--tinta);
   font-family:inherit;font-size:30px;font-weight:800;letter-spacing:.30em;
   text-align:center;text-indent:.30em;outline:none;font-variant-numeric:tabular-nums}
-.ct-codigo::placeholder{color:var(--tinta-3);font-weight:700}
+.ct-codigo::placeholder{color:var(--tinta-3);font-weight:600;opacity:.38}
 .ct-codigo:focus{border-color:var(--marca);box-shadow:0 0 0 3px rgba(216,69,47,.14)}
 .ct-codigo:disabled{opacity:.6}
 .ct-codigo-mal{margin-top:10px;font-size:13.5px;font-weight:700;color:var(--marca);
