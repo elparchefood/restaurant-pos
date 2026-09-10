@@ -52,15 +52,37 @@
     var d = await r.json().catch(function () { return {}; });
     /* Un 4xx no lanza excepción por su cuenta: hay que mirarlo. Este proyecto
        ya perdió semanas por un 403 que nadie miraba. */
-    if (!r.ok) throw new Error(d.error || ('No se pudo (' + r.status + ')'));
+    if (!r.ok) {
+      /*  El error se lleva los datos consigo: sin ellos la pantalla del
+          callejon no puede armar los botones de salida.                  */
+      var err = new Error(d.error || ('No se pudo (' + r.status + ')'));
+      err.datos = d;
+      throw err;
+    }
     return d;
   }
 
-  function morir(tit, txt) {
+  /*  ══ UN CALLEJON CON PUERTA ═══════════════════════════════════════════
+      Sergio: *"que ahí haya un botón para regresar al chat... y otro que diga
+      pedir la carta y al tocarlo se prellene el mensaje"*.
+
+      La pantalla ya decia que volviera al chat a pedirla otra vez. Decirselo
+      y no darle el boton es dejarlo a mitad de camino.                    */
+  function morir(tit, txt, vuelta) {
     $('cargando').hidden = true;
     $('app').hidden = true;
     $('errorTit').textContent = tit;
     $('errorTxt').textContent = txt;
+    var v = vuelta || {};
+    var pie = $('errorPie');
+    pie.innerHTML = '';
+    if (v.volver_pedir) {
+      pie.innerHTML += '<a class="ct-btn" href="' + esc(v.volver_pedir) + '">Pedir la carta</a>';
+    }
+    if (v.volver) {
+      pie.innerHTML += '<a class="ct-btn2" href="' + esc(v.volver) + '">Volver al chat</a>';
+    }
+    pie.hidden = !pie.innerHTML;
     $('pantallaError').hidden = false;
   }
 
@@ -70,7 +92,7 @@
     try {
       D = await llamar({ action: 'abrir' });
     } catch (e) {
-      return morir('No pudimos abrir la carta', (e && e.message) || 'Vuelve al chat y pídela otra vez.');
+      return morir('No pudimos abrir la carta', (e && e.message) || 'Vuelve al chat y pídela otra vez.', e && e.datos);
     }
     /*  ══ SI ESTA CERRADO, NO SE PIDE ═══════════════════════════════════
         Sergio: alguien con el enlace podria pedir un dia que esta cerrado. La
@@ -2146,7 +2168,7 @@
       /*  Si cerraron mientras escogia, no se le deja intentando: se le dice
           y se cierra la carta. Insistir no va a abrir la cocina.         */
       if (/cerramos/i.test((e && e.message) || '')) {
-        return morir('Justo cerramos', (e.message || '').replace(/^Justo cerramos\s*😔\s*/, ''));
+        return morir('Justo cerramos', (e.message || '').replace(/^Justo cerramos\s*😔\s*/, ''), D);
       }
       /*  Quien llamo sabe donde mira el cliente: que avise el. */
       if (alFallar) return alFallar(e);

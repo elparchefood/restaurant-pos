@@ -460,11 +460,54 @@ async function abrirLink(token: string) {
   const r = await db(`pos_carta_links?token=eq.${encodeURIComponent(token)}&select=*&limit=1`);
   const l = filas(r.data)[0];
   if (!l) return { error: "Este enlace no existe. Pídele la carta otra vez por el chat." };
-  if (l.usado_at) return { error: "Este enlace ya se usó. Pídele la carta otra vez por el chat." };
+  /*  El link viaja JUNTO con el error a proposito: sin el no se puede armar
+      el boton de "volver al chat", y es justo cuando mas falta hace.     */
+  if (l.usado_at) return { error: "Este enlace ya se usó. Pídele la carta otra vez por el chat.", link: l };
   if (new Date(String(l.expira_at)).getTime() < Date.now()) {
-    return { error: "Este enlace se venció. Pídele la carta otra vez por el chat." };
+    return { error: "Este enlace se venció. Pídele la carta otra vez por el chat.", link: l };
   }
   return { link: l };
+}
+
+/*  ══ DE VUELTA A SU CONVERSACION ══════════════════════════════════════════
+
+    `window.close()` solo cierra ventanas que abrio el propio codigo, y esta la
+    abre WhatsApp — en su navegador interno no hace nada.
+
+    Lo que si se puede, y es mejor, es devolverla A LA CONVERSACION. Y tiene
+    que ser a la SUYA: alguien puede estar escribiendo por Instagram o por
+    Facebook, y mandarlo a WhatsApp seria dejarlo en un chat que no es el suyo,
+    con su pedido esperando en otro.
+
+    ⚠️ De `meta` solo se saca lo publico. Ahi viven los tokens.
+
+    Vive aqui —y no dentro de `abrir`— porque hace falta en DOS momentos: al
+    terminar el pedido y, sobre todo, cuando el enlace ya no sirve. Ahi el
+    cliente esta en un callejon sin salida.                                  */
+async function linkDeVuelta(link: Fila): Promise<string> {
+  try {
+    const chRes = await db(`chat_conversations?id=eq.${link.conv_id}&select=channel,channel_id&limit=1`);
+    const conv = filas(chRes.data)[0] || {};
+    if (!conv.channel_id) return "";
+    const caRes = await db(`chat_channels?id=eq.${conv.channel_id}&select=channel,handle,meta&limit=1`);
+    const ca = filas(caRes.data)[0];
+    if (!ca) return "";
+    const meta = (ca.meta as Fila) || {};
+    const canal = String(ca.channel || conv.channel || "");
+    if (canal === "whatsapp") {
+      const num = String(ca.handle || "").replace(/\D/g, "");
+      return num ? "https://wa.me/" + num : "";
+    }
+    if (canal === "instagram") {
+      const u = String(meta.username || ca.handle || "").replace(/^@/, "");
+      return u ? "https://ig.me/m/" + u : "";
+    }
+    if (canal === "facebook") {
+      const pid = String(meta.page_id || "");
+      return pid ? "https://m.me/" + pid : "";
+    }
+  } catch (e) { console.error("[carta] link de vuelta:", e); }
+  return "";
 }
 
 Deno.serve(async (req) => {
@@ -479,6 +522,24 @@ Deno.serve(async (req) => {
     // ── ABRIR ─────────────────────────────────────────────────────────────
     if (action === "abrir") {
       const v = await abrirLink(token);
+      /*  ══ NI SIQUIERA EL CALLEJON SIN SALIDA ES SIN SALIDA ═════════════
+          La pantalla del error DICE "vuelve al chat y pídela otra vez", y
+          hasta hoy lo dejaba buscandose la vida para hacerlo. Una
+          instruccion sin el boton que la cumple es media instruccion.
+
+          El texto del boton de pedir va PRELLENADO: Paco entiende
+          intenciones, asi que cualquier forma sirve — pero la que menos
+          falla es la que el cliente no tiene que escribir.              */
+      if (v.error && v.link) {
+        const vv = await linkDeVuelta(v.link);
+        return json(400, {
+          error: v.error,
+          volver: vv,
+          volver_pedir: vv.startsWith("https://wa.me/")
+            ? vv + "?text=" + encodeURIComponent("Hola, ¿me mandas la carta? 😊")
+            : "",
+        });
+      }
       if (v.error) return json(404, { error: v.error });
       const link = v.link as Fila;
       const tenant = String(link.tenant_id);
@@ -743,27 +804,7 @@ Deno.serve(async (req) => {
           Instagram o por Facebook, y mandarlo a WhatsApp sería dejarlo en un
           chat que no es el suyo, con su pedido esperando en otro.
           ⚠️ De `meta` solo se saca lo público. Ahí viven los tokens.      */
-      let volver = "";
-      const chRes = await db(`chat_conversations?id=eq.${link.conv_id}&select=channel,channel_id&limit=1`);
-      const conv = filas(chRes.data)[0] || {};
-      if (conv.channel_id) {
-        const caRes = await db(`chat_channels?id=eq.${conv.channel_id}&select=channel,handle,meta&limit=1`);
-        const ca = filas(caRes.data)[0];
-        if (ca) {
-          const meta = (ca.meta as Fila) || {};
-          const canal = String(ca.channel || conv.channel || "");
-          if (canal === "whatsapp") {
-            const num = String(ca.handle || "").replace(/\D/g, "");
-            if (num) volver = "https://wa.me/" + num;
-          } else if (canal === "instagram") {
-            const u = String(meta.username || ca.handle || "").replace(/^@/, "");
-            if (u) volver = "https://ig.me/m/" + u;
-          } else if (canal === "facebook") {
-            const pid = String(meta.page_id || "");
-            if (pid) volver = "https://m.me/" + pid;
-          }
-        }
-      }
+      const volver = await linkDeVuelta(link);
 
       //  si vuelve a corregir, su pedido tal como quedó
       let borrador: unknown = null;
@@ -801,6 +842,9 @@ Deno.serve(async (req) => {
         llevar_prepago: dmCfg.llevar_prepago !== false,
         empaque_activo: cfg.empaquesActivo === true,
         volver,
+        volver_pedir: volver.startsWith("https://wa.me/")
+          ? volver + "?text=" + encodeURIComponent("Hola, ¿me mandas la carta? 😊")
+          : "",
         borrador,
       });
     }
