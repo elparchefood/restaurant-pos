@@ -662,6 +662,15 @@ grafico, 4 en "Mas sobre mi negocio").
   (texto a la izquierda, botones a la derecha; clase `dv-franja`).
 - Se revisaron capturas reales (Chrome sin ventana + base de mentira) de
   cajero sin permisos, cajero con actividad e inventario, y dueNo.
+- **Sin el acomodo de antes al cargar.** Sergio: *"cuando apenas carga se ve
+  igual [que antes], luego ya queda el diseno nuevo; quiero que quede desde
+  el principio"*. Mientras no se sabe que ve la persona (al cajero hay que
+  confirmarle los permisos con la base), la zona de bloques nace
+  transparente (`dv-esperando` en `#content`) y aparece de una vez, ya
+  acomodada; el saludo se ve desde el primer instante. `quitarEspera()` la
+  destapa al terminar `aplicarVer()`; y por si algo falla, a los 4 s se
+  acomoda lo que haya y se muestra. Probado simulando una base lenta (2 s):
+  en plena carga solo se ve el saludo.
 
 ⚠️ Es un candado de pantalla: el cajero puede leer `pos_orders` porque lo
 necesita para vender. El de fondo es `PLAN-CANDADO-SERVIDOR.md`.

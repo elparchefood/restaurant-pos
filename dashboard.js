@@ -55,6 +55,7 @@ function aplicarVer() {
     });
   }
   encajar();
+  quitarEspera();
 }
 /*  QUE LO QUE QUEDA ENCAJE (10-sep-2026). Sergio, con el cajero sin permisos:
     "ese bloque de soporte quedo raro... que quede simetrico, que encaje, no
@@ -89,6 +90,21 @@ function encajar() {
   var ayuda = mg.querySelector('.support-card');
   if (ayuda) ayuda.classList.toggle('dv-franja', nIzq === 0 && nDer === 1);
 }
+/*  SIN EL ACOMODO DE ANTES AL CARGAR (10-sep-2026). Sergio: "cuando apenas
+    carga se ve igual [que antes], luego ya carga y queda el diseno nuevo;
+    quiero que el diseno nuevo quede desde el principio".
+    Mientras no se sabe que ve la persona (al cajero hay que confirmarle los
+    permisos con la base), la zona de bloques nace transparente
+    (`dv-esperando` en #content) y aparece de una vez, ya acomodada. El
+    saludo se ve desde el primer instante.
+    Por si algo falla: a los 4 s se acomoda lo que haya y se muestra.       */
+var _dvListo = false;
+function quitarEspera() {
+  _dvListo = true;
+  var c = document.getElementById('content');
+  if (c) c.classList.remove('dv-esperando');
+}
+setTimeout(function () { if (!_dvListo) { encajar(); quitarEspera(); } }, 4000);
 
 // ── Date / greeting ───────────────────────────────────
 function renderDate() {
