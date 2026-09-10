@@ -386,4 +386,3 @@ body.ct-cerrado .ct-prod:active{background:var(--panel)}
     la salida, y va mas callado para no competir con el.                  */
 .ct-modal-cuerpo .ct-modal-txt + .ct-modal-txt{margin-top:10px}
 .ct-destacado{font-weight:800;font-size:16px;letter-spacing:-.01em}
-.ct-nota{color:var(--tinta-2);font-size:13.5px}

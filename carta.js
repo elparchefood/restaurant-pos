@@ -647,7 +647,7 @@
       + '<div class="ct-modal-cuerpo">'
       + '<div class="ct-modal-txt">Tu pedido se prepara ya pagado, para que lo tengas listo apenas llegues.</div>'
       + '<div class="ct-modal-txt ct-destacado">Págalo ' + esc(conQue) + '.</div>'
-      + '<div class="ct-modal-txt ct-nota">¿Prefieres efectivo? Acércate al local y te lo preparamos ahí mismo.</div>'
+      + '<div class="ct-modal-txt ct-nota-chica">¿Prefieres efectivo? Acércate al local y te lo preparamos ahí mismo.</div>'
       + '<button class="ct-btn ct-entendido" data-cerrar="1">Entendido</button></div></div>';
     var v = document.createElement('div');
     v.className = 'ct-modal';
