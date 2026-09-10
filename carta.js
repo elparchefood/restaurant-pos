@@ -326,7 +326,10 @@
       b.onclick = function (ev) {
         ev.stopPropagation();
         ev.preventDefault();
-        verQueLleva(ps[Number(b.dataset.lleva)]);
+        /*  `D.prods` y no `ps`: el indice que se guarda es el de la lista
+            COMPLETA, el mismo que usa `abrirHoja`. Leerlo contra la filtrada
+            abria otro producto — la Doble carne enseNaba la Sencilla.    */
+        verQueLleva(D.prods[Number(b.dataset.lleva)]);
       };
     });
   }
