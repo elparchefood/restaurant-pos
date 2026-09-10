@@ -438,11 +438,30 @@ ocultan los datos"*.
 | Un rol con `clientes.gasto` | el Administrador lo trae marcado (los 4 de hoy y los nuevos); se le puede quitar |
 | Todos los demas | ven los puntos, el saldo y lo que pidio cada cliente, sin la plata |
 
-Sin el permiso **no se ven**: las cifras de arriba y la barra de "cuantos
-vuelven", lo gastado de cada uno (en la lista van sus puntos en ese sitio),
-"Ha gastado" y "Promedio" de la ficha, el valor de cada pedido, y el filtro
-"Los que mas gastan". La lista va por nombre: por gasto dejaria ver quien
-gasta mas aunque no se vea cuanto.
+⚠️ **CORREGIDO EL MISMO DIA — la pantalla queda IGUAL, la plata con ojito.**
+La primera version quitaba bloques enteros (las cifras de arriba, la barra de
+"cuantos vuelven", el filtro "Los que mas gastan", dos casillas de la ficha).
+Sergio: *"tambien tenia que quedar tal cual estaba, no tenias que quitar nada.
+Lo unico era ocultar los valores: donde hubiera un valor en dinero, un ojo
+cerrado; al tocarlo, si tiene el PIN lo puede ver"*.
+
+Ahora `clientes.js` es el de antes del 1de147b, y encima SOLO esto: cada valor
+del negocio (lo gastado, el promedio, el ticket, el valor de cada pedido) pasa
+por `plata()`, que pone el valor o el ojito (`posOjo`, pos-perms.js). Al tocar
+el ojito, el PIN va a `fn_clientes_resumen(p_tenant, p_sede, p_pin)`: el
+servidor lo revisa con `fn_pin_verificar` (freno de 5 fallos, rastro
+`ver_valores_clientes`) y, si es de un administrador, devuelve la plata. La
+lista vuelve a ir por gasto (el orden lo manda el servidor). El saldo de la
+billetera NO lleva ojito: es del cliente y el cajero lo necesita para recargar.
+
+**Regla para lo que venga: esconder un DATO no es quitar el BLOQUE.** El
+Escritorio si esconde bloques porque asi lo pidio Sergio ("queda el saludo").
+
+Probado: servidor (dueNo sin PIN, cajero sin PIN, PIN errado, PIN correcto en
+el Restaurante de Prueba con la huella de Ana restaurada al terminar) y
+pantalla con una copia y base de mentira (9 ojitos, PIN errado los deja, PIN
+correcto los destapa todos, el ojito de una fila no abre la ficha).
+`supabase/sql/2026-09-10-clientes-ojito.sql`.
 
 ### Lo decide el SERVIDOR, no la pantalla
 
@@ -636,6 +655,34 @@ precio a un domicilio (`pos-notifs.js`), y el aviso de arranque "Solo vendo
 domicilios" escribe la configuracion de la sede sin permiso (`pos-arranque.js`).
 
 - `supabase/sql/2026-09-10-escritorio-por-bloques.sql`
+
+## 🟢 Historial: la plata con ojito — 10-sep-2026
+
+Sergio: *"quiero que todo lo del historial, toda la pantalla, quede tal cual
+esta... Lo unico: donde hubiera un valor en dinero, un ojo cerrado; al tocarlo,
+si tiene el PIN lo puede ver. Por ejemplo el gerente quiere ver desde la cuenta
+del cajero en el momento de revisar algo"*.
+
+- Quien no tiene `ventas.totales` ("Ver cuanto vende el negocio", el mismo
+  del Escritorio) ve el ojito en las 9 cifras de la pantalla: la suma de
+  arriba, el total de cada tarjeta, "Total cobrado", el descuento, el precio
+  c/u, el total de cada producto, el total de productos, el abono y el pago de
+  la cronologia. Todo lo demas, igual.
+- Al tocarlo: `posPinPrompt` con `fn_pin_verificar` (rastro
+  `ver_valores_historial`) y se destapan las cifras de ESTA pantalla hasta que
+  salga de ella. El click va en fase de captura: el ojito de una tarjeta no
+  abre ese pedido.
+- `ventas.totales` es estricto: se pinta con ojito y, cuando la base confirma
+  el permiso (`posPermsConfirmados`), se destapa solo.
+- **La reimpresion del recibo no cambia**: el papel del cliente sale con sus
+  precios.
+- Es de pantalla: los pedidos le llegan al cajero igual porque los necesita
+  para trabajar (candado de fondo: `PLAN-CANDADO-SERVIDOR.md`).
+
+Queda sin tocar, por pedido de Sergio ("tal cual"): el descuento hecho desde
+Pagos sale "Sin descuento" en Historial (lee `discount` y Pagos escribe
+`discount_amount`); el rango de 7 dias; y anular una factura electronica sin
+permiso (hoy solo aplica al Restaurante de Prueba).
 
 ## 🟢 Historial: rediseno de la pantalla — 5-sep-2026
 

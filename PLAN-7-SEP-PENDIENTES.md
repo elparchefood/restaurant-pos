@@ -96,7 +96,9 @@ Sergio va a revisar esta noche qué más hay que esconder por rol.
 
 > **La revisión rol por rol, pantalla por pantalla (empezó el 10-sep):**
 > - ✅ **Clientes** — el cajero ve los puntos, el saldo y lo que pidió cada
->   cliente, **sin la plata**. Permiso nuevo `clientes.gasto` (el Administrador
+>   cliente, **con la plata tapada por un ojito** (corregido el mismo día: al
+>   principio se quitaron bloques enteros y Sergio pidió que la pantalla quede
+>   igual; con el PIN de administrador se ven los valores). Permiso nuevo `clientes.gasto` (el Administrador
 >   lo trae marcado; se le puede quitar). Lo decide el servidor. De paso se
 >   cerró el hueco de que cualquiera pedía el resumen de otro restaurante.
 >   Detalle en `ESTADO-SISTEMA.md`.
@@ -118,8 +120,10 @@ Sergio va a revisar esta noche qué más hay que esconder por rol.
 >   actividad, inventario, clientes). El Administrador las trae; los demás
 >   ninguna. Aparte quedaron anotados dos permisos sueltos (precio del
 >   domicilio desde la campana, y "Solo vendo domicilios").
-> - ⏭️ **Historial** (lista de pedidos con sus valores) y el **Escritorio**
->   (ventas del día, `dashboard.ver`): los siguientes a revisar.
+> - ✅ **Historial** — la pantalla queda igual; cada valor en dinero con un
+>   ojito (permiso "Ver cuánto vende el negocio"); con el PIN se ven. Quedan
+>   sin tocar, a pedido de Sergio: el descuento que sale "Sin descuento", el
+>   rango de 7 días y anular facturas electrónicas sin permiso.
 
 **b) El PIN llega TARDE.** Hoy: se toca Inventario → la pantalla se abre → y
 *encima* aparece el PIN. Sergio: *"debería pedirle el PIN antes de navegar a la

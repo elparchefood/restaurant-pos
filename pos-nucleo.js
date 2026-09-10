@@ -3670,7 +3670,14 @@ window.posLlaveSalon = function () {
      PIN: si es correcto, la acción procede. Así el gerente puede resolver
      algo rápido desde la cuenta de cualquier rol con solo poner el PIN.
      Valida contra pos_users.pin (mismo PIN de Configuración → Operación). */
-  window.posPinPrompt = function (motivo, onOk, onCancel) {
+  /*  `opciones` (10-sep-2026), las dos opcionales:
+        accion    — lo que queda escrito en el rastro (pos_autorizaciones).
+        verificar — async function (pin) → true / false / null (error). Para
+                    cuando el PIN tiene que llegar a OTRA funcion del
+                    servidor, que lo revisa alla con el mismo freno (el ojito
+                    de Clientes: la plata ni baja sin el PIN). Asi no se
+                    revisa dos veces.                                      */
+  window.posPinPrompt = function (motivo, onOk, onCancel, opciones) {
     var prev = document.getElementById('pos-pin-modal');
     if (prev) prev.remove();
     var ov = document.createElement('div');
@@ -3713,7 +3720,14 @@ window.posLlaveSalon = function () {
         if (!hay.error && hay.data === false) {
           err.textContent = 'No hay PIN configurado. Ve a Configuración → Operación.'; err.style.display = 'block'; return;
         }
-        var r = await sb.rpc('fn_pin_verificar', { p_pin: entered, p_accion: 'pantalla' });
+        var op = opciones || {};
+        var r;
+        if (typeof op.verificar === 'function') {
+          var bien = await op.verificar(entered);
+          r = { data: bien === true, error: bien === null ? { message: 'no se pudo verificar' } : null };
+        } else {
+          r = await sb.rpc('fn_pin_verificar', { p_pin: entered, p_accion: op.accion || 'pantalla' });
+        }
         if (r.error) { err.textContent = 'Error al verificar el PIN'; err.style.display = 'block'; return; }
         if (r.data !== true) {
           err.textContent = 'PIN incorrecto'; err.style.display = 'block'; inp.value = ''; inp.focus(); return;
@@ -3726,6 +3740,47 @@ window.posLlaveSalon = function () {
     }
     document.getElementById('pos-pin-ok').addEventListener('click', validar);
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') validar(); });
+  };
+
+  /*  ══ EL OJITO: UN VALOR EN DINERO QUE ESTA PERSONA NO VE ════════════════
+      Sergio, 10-sep-2026: en Clientes y en Historial la pantalla queda IGUAL;
+      donde hay un valor en dinero, quien no tiene el permiso ve un ojo
+      cerrado. Al tocarlo se pide el PIN y, si es correcto, se ven los valores
+      de esa pantalla — "el gerente, desde la cuenta del cajero, en el momento
+      de revisar algo". Una sola pieza para las dos pantallas.
+        posOjo.html()               → el boton que va donde iria la cifra
+        posOjo.pedir(onOk, opciones) → el PIN (opciones: las de posPinPrompt) */
+  var SVG_OJO = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+  function _estiloOjo() {
+    if (document.getElementById('pos-ojo-css')) return;
+    var st = document.createElement('style');
+    st.id = 'pos-ojo-css';
+    st.textContent =
+        '.pos-ojo{display:inline-flex;align-items:center;gap:5px;padding:0 7px;margin:0;border:1px dashed #CBD5E1;'
+      + 'border-radius:6px;background:#F8FAFC;color:#94A3B8;font:inherit;font-size:.9em;font-weight:700;line-height:1.5;'
+      + 'letter-spacing:.06em;cursor:pointer;vertical-align:middle;white-space:nowrap}'
+      + '.pos-ojo:hover{color:#5B6BFF;border-color:#C7D2FE;background:#EEF2FF}'
+      + '.pos-ojo:focus-visible{outline:2px solid #5B6BFF;outline-offset:1px}'
+      + '.pos-ojo svg{flex-shrink:0}';
+    (document.head || document.documentElement).appendChild(st);
+    //  Con teclado tambien: Enter o espacio sobre el ojito = tocarlo.
+    document.addEventListener('keydown', function (e) {
+      var t = e.target;
+      if ((e.key === 'Enter' || e.key === ' ') && t && t.hasAttribute && t.hasAttribute('data-pos-ojo')) {
+        e.preventDefault(); t.click();
+      }
+    });
+  }
+  window.posOjo = {
+    /*  Un SPAN que hace de boton, no un <button>: en Clientes cada fila de la
+        lista ya es un boton, y un boton dentro de otro rompe la fila.     */
+    html: function () {
+      _estiloOjo();
+      return '<span class="pos-ojo" role="button" tabindex="0" data-pos-ojo title="Ver los valores (pide el PIN)">$ ••••' + SVG_OJO + '</span>';
+    },
+    pedir: function (onOk, opciones) {
+      window.posPinPrompt('Para ver los valores en dinero, ingresa el PIN de administrador.', onOk, null, opciones);
+    }
   };
 
   /* Candado de una ACCIÓN por permiso. Si el usuario tiene el permiso, corre

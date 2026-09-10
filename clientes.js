@@ -24,15 +24,21 @@
  * y el método "Billetera" en la caja. Donde no hay billetera, esta pantalla se
  * ve exactamente igual que antes.
  *
- * QUIÉN VE LA PLATA (10-sep-2026):
- * Sergio: el cajero necesita ver los PUNTOS de un cliente aquí —para decírselos
- * cuando pregunta, sin estar cobrando— pero no la facturación. Lo gastado, el
- * promedio, el valor de cada pedido y las cifras de arriba solo los ve quien
- * tenga el permiso `clientes.gasto` (el dueño siempre).
+ * LA PLATA, CON UN OJITO (10-sep-2026):
+ * La pantalla se ve IGUAL para todos. Donde hay un valor en dinero del negocio
+ * (lo gastado, el promedio, el ticket, el valor de cada pedido), quien no
+ * tiene el permiso `clientes.gasto` ve un ojo cerrado; al tocarlo se pide el
+ * PIN y, si es de un administrador, se ven. Sergio: "el gerente, desde la
+ * cuenta del cajero, en el momento de revisar algo".
  *
- * Y lo decide el SERVIDOR (fn_clientes_resumen → fn_permiso_estricto): sin el
- * permiso, la plata llega vacía. Esta pantalla no tiene su propia regla, solo
- * mira si llegó (S.veGasto). Esconderla solo aquí no servía: viajaba igual.
+ * Lo decide el SERVIDOR (fn_clientes_resumen → fn_permiso_estricto): sin el
+ * permiso la plata sale vacia y no viaja al computador. El ojito le manda el
+ * PIN a esa misma funcion (p_pin), que lo revisa alla con fn_pin_verificar:
+ * mismo freno de 5 fallos y mismo rastro. La pantalla no tiene regla propia:
+ * mira si la plata llego (S.veGasto).
+ *
+ * El saldo de la BILLETERA no lleva ojito: es plata del cliente, no del
+ * negocio, y el cajero la necesita para recargar.
  *
  * LA PREGUNTA DE LA PANTALLA:
  * No es "cuántos clientes tengo" — es "cuántos vuelven". Por eso la barra de
@@ -74,19 +80,53 @@
   }
 
   // ── Datos ─────────────────────────────────────────────────────────
+  /* La sede va para que el servidor mire el rol que la persona tiene AQUI
+     (puede ser cajero en una sede y administrador en otra). El PIN, solo
+     cuando lo manda el ojito. */
+  async function pedirClientes(pin) {
+    var sede = (window._pos && window._pos.state && window._pos.state.branchId) || null;
+    var args = { p_tenant: tenantId, p_sede: sede };
+    if (pin) args.p_pin = pin;
+    var r = await sb.rpc('fn_clientes_resumen', args);
+    if (r.error) throw r.error;
+    return r.data || [];
+  }
   async function cargarClientes() {
     try {
-      /* La sede va para que el servidor mire el rol que la persona tiene
-         AQUI: puede ser cajero en una sede y administrador en otra. */
-      var sede = (window._pos && window._pos.state && window._pos.state.branchId) || null;
-      var r = await sb.rpc('fn_clientes_resumen', { p_tenant: tenantId, p_sede: sede });
-      if (r.error) console.error('[clientes]', r.error);
-      S.clientes = r.data || [];
+      S.clientes = await pedirClientes(null);
     } catch (e) { console.error('[clientes]', e); S.clientes = []; }
-    /* Si se ve la plata lo decidio el servidor: sin el permiso manda lo
-       gastado vacio. Aqui no se decide otra vez con otra regla, que con el
-       tiempo se separaria de la de alla — solo se mira si llego. */
     S.veGasto = S.clientes.some(function (c) { return c.gastado != null; });
+  }
+
+  /* ══ LOS VALORES EN DINERO ══════════════════════════════════════════
+     Una cifra del negocio: el valor si se puede ver; si no, el ojito. */
+  function plata(n) {
+    if (S.veGasto) return esc(COP(n));
+    return window.posOjo ? posOjo.html() : '—';
+  }
+  //  Texto se escapa; lo que ya viene armado ({h: ...}, el ojito) va tal cual.
+  function html(v) { return (v && typeof v === 'object' && 'h' in v) ? v.h : esc(v); }
+
+  /* El PIN va al servidor CON la lista: si es de un administrador, la lista
+     vuelve con la plata y se repinta todo; si no, sigue sin plata y la
+     ventana dice "PIN incorrecto". En fase de CAPTURA: el ojito de una fila
+     no debe abrir la ficha de debajo. */
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-pos-ojo]');
+    if (!b || !window.posOjo) return;
+    e.preventDefault(); e.stopPropagation();
+    posOjo.pedir(function () {}, { verificar: revelar });
+  }, true);
+  async function revelar(pin) {
+    try {
+      var filas = await pedirClientes(pin);
+      if (!filas.some(function (c) { return c.gastado != null; })) return false;
+      S.clientes = filas; S.veGasto = true;
+      if (S.sel) S.sel = S.clientes.find(function (x) { return String(x.id) === String(S.sel.id); }) || null;
+      pintarFranja(); pintarLista(); pintarFicha();
+      if (S.sel) { await cargarPedidos(S.sel.id); pintarFicha(); }
+      return true;
+    } catch (e) { console.error('[clientes] ojito', e); return null; }
   }
 
   /* Los pedidos se piden solo al abrir una ficha. Traerlos todos de entrada
@@ -95,7 +135,7 @@
     S.peds = null; S.cargandoPeds = true;
     try {
       var r = await sb.from('pos_orders')
-        //  Sin el permiso de ver la plata, los valores ni se piden.
+        //  Sin poder ver la plata, los valores ni se piden (salen con ojito).
         .select('id, created_at, channel, payment_method, ' +
                 (S.veGasto ? 'total_final, total, ' : '') + 'puntos_redimidos, ' +
                 'pos_order_items(name, product_name, quantity)')
@@ -109,10 +149,6 @@
 
   // ── Las tres cifras ───────────────────────────────────────────────
   function pintarFranja() {
-    /* Sin el permiso de ver la plata, las cifras de arriba no van: son el
-       resumen del negocio, no la consulta del mostrador. */
-    $('cl-franja').style.display = S.veGasto ? '' : 'none';
-    if (!S.veGasto) return;
     var tot = S.clientes.length;
     var compraron = 0, gasto = 0, pedidos = 0, puntos = 0, conPuntos = 0;
     S.clientes.forEach(function (c) {
@@ -127,8 +163,8 @@
 
     $('cl-franja').innerHTML =
       cifra('Te han comprado', num(compraron), 'de ' + num(tot) + ' registrados') +
-      cifra('Han gastado', COP(gasto),
-            num(pedidos) + (pedidos === 1 ? ' pedido' : ' pedidos') + ' · ' + COP(ticket) + ' cada uno') +
+      cifra('Han gastado', { h: plata(gasto) },
+            { h: esc(num(pedidos) + (pedidos === 1 ? ' pedido' : ' pedidos')) + ' · ' + plata(ticket) + ' cada uno' }) +
       (hayPuntos()
         ? cifra('Puntos sin usar', num(puntos),
                 'en manos de ' + num(conPuntos) + (conPuntos === 1 ? ' cliente' : ' clientes'))
@@ -142,8 +178,8 @@
 
   function cifra(rotulo, valor, pie) {
     return '<div class="cl-fr"><div class="cl-fr-l">' + esc(rotulo) + '</div>' +
-           '<div class="cl-fr-v">' + esc(valor) + '</div>' +
-           '<div class="cl-fr-s">' + esc(pie) + '</div></div>';
+           '<div class="cl-fr-v">' + html(valor) + '</div>' +
+           '<div class="cl-fr-s">' + html(pie) + '</div></div>';
   }
 
   // ── Cuántos vuelven ───────────────────────────────────────────────
@@ -156,7 +192,6 @@
     { t: '5 o más',    c: '#16A34A', ok: function (p) { return p >= 5; } },
   ];
   function pintarRepeticion() {
-    if (!S.veGasto) { $('cl-rep').innerHTML = ''; $('cl-rep').hidden = true; return; }
     var compraron = S.clientes.filter(function (c) { return (Number(c.pedidos) || 0) > 0; });
     var n = compraron.length;
     if (!n) { $('cl-rep').innerHTML = ''; $('cl-rep').hidden = true; return; }
@@ -194,7 +229,9 @@
   // ── La lista ──────────────────────────────────────────────────────
   var FILTROS = {
     todos:   function () { return true; },
-    gastan:  function (c) { return (Number(c.gastado) || 0) > 0; },
+    /*  Sin poder ver la plata, lo gastado llega vacio: "gastan" = los que han
+        comprado. El orden sigue siendo por gasto (lo manda el servidor).    */
+    gastan:  function (c) { return c.gastado != null ? (Number(c.gastado) || 0) > 0 : (Number(c.pedidos) || 0) > 0; },
     repiten: function (c) { return (Number(c.pedidos) || 0) >= 2; },
     una:     function (c) { return (Number(c.pedidos) || 0) === 1; },
   };
@@ -210,12 +247,7 @@
              String(c.telefono || '').indexOf(f) >= 0;
     });
     /* Ordenar por gasto y no por nombre: la lista se mira para encontrar a
-       alguien concreto (para eso está el buscador) o para ver quién pesa.
-       Sin el permiso de ver la plata, por nombre: ordenar por gasto dejaria
-       ver quien gasta mas aunque no se vea cuanto. */
-    if (!S.veGasto) return lista.sort(function (a, b) {
-      return String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es');
-    });
+       alguien concreto (para eso está el buscador) o para ver quién pesa. */
     return lista.sort(function (a, b) { return (Number(b.gastado) || 0) - (Number(a.gastado) || 0); });
   }
 
@@ -237,15 +269,11 @@
         '<div class="cl-av">' + esc(iniciales(c.nombre)) + '</div>' +
         '<div class="cl-li-m"><b>' + esc(c.nombre || 'Sin nombre') + '</b>' +
           '<small>' + (p ? p + (p === 1 ? ' pedido' : ' pedidos')
-                             + (S.veGasto && hayPuntos() ? ' · ' + num(c.puntos) + ' pts' : '')
+                             + (hayPuntos() ? ' · ' + num(c.puntos) + ' pts' : '')
                          : esc(c.telefono || 'Sin pedidos')) + '</small></div>' +
-        (S.veGasto
-          ? '<div class="cl-li-d"><b>' + COP(c.gastado) + '</b>' +
-              '<div class="cl-gbar"><i style="width:' +
-                Math.round((Number(c.gastado) || 0) / tope * 100) + '%"></i></div></div>'
-          /* Sin el permiso, en el sitio de la plata van sus puntos: es lo
-             que el cajero necesita decirle al cliente. */
-          : (hayPuntos() ? '<div class="cl-li-d"><b>' + num(c.puntos) + ' pts</b></div>' : '')) +
+        '<div class="cl-li-d"><b>' + plata(c.gastado) + '</b>' +
+          '<div class="cl-gbar"><i style="width:' +
+            Math.round((Number(c.gastado) || 0) / tope * 100) + '%"></i></div></div>' +
       '</button>';
     }).join('');
 
@@ -317,8 +345,7 @@
     if (!c) {
       $('cl-ficha').innerHTML =
         '<div class="cl-f-peds"><div class="cl-vacio">' +
-        'Toca a una persona de la lista para ver todo lo suyo: ' +
-        (S.veGasto ? 'cuánto ha gastado, ' : '') +
+        'Toca a una persona de la lista para ver todo lo suyo: cuánto ha gastado, ' +
         'cuántas veces ha vuelto, sus puntos y sus pedidos.</div></div>';
       return;
     }
@@ -352,9 +379,9 @@
       '</div>' +
       '<div class="cl-f-fijo">' +
         '<div class="cl-kpis">' +
-          (S.veGasto ? kpi('Ha gastado', COP(c.gastado)) : '') +
+          kpi('Ha gastado', { h: plata(c.gastado) }) +
           kpi('Pedidos', num(p)) +
-          (S.veGasto ? kpi('Promedio', p ? COP(c.promedio) : '—') : '') +
+          kpi('Promedio', p ? { h: plata(c.promedio) } : '—') +
           kpi('Último pedido', haceCuanto(c.ultimo)) +
         '</div>' +
         (!hayPuntos() ? '' :
@@ -923,7 +950,7 @@
   }
   function kpi(rotulo, valor) {
     return '<div class="cl-kpi"><div class="cl-kpi-l">' + esc(rotulo) + '</div>' +
-           '<div class="cl-kpi-v">' + esc(valor) + '</div></div>';
+           '<div class="cl-kpi-v">' + html(valor) + '</div></div>';
   }
 
   function listaPedidos() {
@@ -944,10 +971,7 @@
       return '<div class="cl-ped">' +
         '<div><div class="cl-ped-t">' + esc(fechaCorta(o.created_at)) + ' · ' + esc(como) + '</div>' +
           '<div class="cl-ped-s">' + esc(resumen || 'Sin detalle') + '</div></div>' +
-        //  Sin el permiso: qué pidió y cuándo, sin el valor (Sergio, 10-sep).
-        '<div>' + (S.veGasto
-            ? '<div class="cl-ped-v">' + COP(o.total_final != null ? o.total_final : o.total) + '</div>'
-            : '') +
+        '<div><div class="cl-ped-v">' + plata(o.total_final != null ? o.total_final : o.total) + '</div>' +
           '<div class="cl-ped-p">' + esc(pago) + '</div></div>' +
       '</div>';
     }).join('') + '</div>';
@@ -992,9 +1016,6 @@
     });
 
     await cargarClientes();
-    //  "Los que más gastan" no tiene sentido para quien no ve la plata.
-    var chGasto = $('cl-chips').querySelector('[data-f="gastan"]');
-    if (chGasto) chGasto.style.display = S.veGasto ? '' : 'none';
     pintarFranja();
     pintarRepeticion();
     pintarLista();

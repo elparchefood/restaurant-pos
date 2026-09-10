@@ -139,6 +139,46 @@ function applyFilters() {
   HS.filtered = list;
 }
 
+/*  ══ LOS VALORES EN DINERO (10-sep-2026) ═════════════════════════════════
+    Sergio: "quiero que todo lo del historial, toda la pantalla, quede tal
+    cual esta... Lo unico: donde hubiera un valor en dinero, un ojo cerrado;
+    al tocarlo, si tiene el PIN lo puede ver".
+
+    Quien no tiene "Ver cuanto vende el negocio" (`ventas.totales`, el mismo
+    permiso del Escritorio) ve el ojito en cada cifra; con el PIN se destapan
+    las de esta pantalla hasta que salga de ella. La reimpresion del recibo
+    NO cambia: el papel del cliente sale con sus precios.
+
+    Es de pantalla: los pedidos le llegan al cajero igual, porque los
+    necesita para trabajar (el candado de fondo: PLAN-CANDADO-SERVIDOR.md). */
+function plata(n) {
+  if (HS.verPlata || !window.posOjo) return COPF(n);
+  return posOjo.html();
+}
+function revelarPlata() {
+  HS.verPlata = true;
+  renderList();
+  const o = HS.orders.find(x => x.id === HS.selectedId);
+  if (o) renderDetail(o);
+}
+/*  `ventas.totales` es estricto: con lo guardado en el equipo todavia no se
+    sabe y dice que no. Se pinta con el ojito y, cuando la base confirma, si
+    tiene el permiso se destapa solo.                                     */
+async function hsVePlata(confirmado) {
+  try {
+    if (window.posPermsReady) await posPermsReady();
+    if (confirmado && window.posPermsConfirmados) await posPermsConfirmados();
+    return !!(window.posHasPerm && posHasPerm('ventas.totales'));
+  } catch (e) { return false; }
+}
+//  En fase de CAPTURA: el ojito de una tarjeta no debe abrir el pedido.
+document.addEventListener('click', function (e) {
+  const b = e.target.closest && e.target.closest('[data-pos-ojo]');
+  if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  posOjo.pedir(revelarPlata, { accion: 'ver_valores_historial' });
+}, true);
+
 /* ─── Render lista ─── */
 function renderList() {
   applyFilters();
@@ -148,7 +188,7 @@ function renderList() {
 
   document.getElementById('hs-count').textContent =
     rangeLabel + ' · ' + list.length + (list.length === 1 ? ' pedido' : ' pedidos');
-  document.getElementById('hs-total').textContent = list.length ? COPF(total) : '—';
+  document.getElementById('hs-total').innerHTML = list.length ? plata(total) : '—';
 
   const q = HS.query.trim();
   const el = document.getElementById('hs-order-list');
@@ -181,7 +221,7 @@ function renderList() {
       ${isSelected ? '<span class="hs-order-bar"></span>' : ''}
       <div class="hs-order-head">
         <span class="hs-order-id">${highlight(label, q)}</span>
-        <span class="hs-order-total">${COPF(o.total)}</span>
+        <span class="hs-order-total">${plata(o.total)}</span>
       </div>
       <div class="hs-order-meta">
         ${canalIcono(o.channel)}
@@ -336,7 +376,7 @@ function renderDetail(o) {
     <div class="hs-resumen">
       <div class="hs-res-total">
         <div class="hs-res-lbl">Total cobrado</div>
-        <div class="hs-res-big">${COPF(o.total)}</div>
+        <div class="hs-res-big">${plata(o.total)}</div>
       </div>
       <div class="hs-res-dato">
         <div class="hs-res-lbl">Pago</div>
@@ -347,7 +387,7 @@ function renderDetail(o) {
       </div>
       <div class="hs-res-dato">
         <div class="hs-res-lbl">Descuento</div>
-        <div class="hs-res-val${discount > 0 ? '' : ' flojo'}">${discount > 0 ? COPF(discount) : 'Sin descuento'}</div>
+        <div class="hs-res-val${discount > 0 ? '' : ' flojo'}">${discount > 0 ? plata(discount) : 'Sin descuento'}</div>
       </div>
       <div class="hs-res-dato">
         <div class="hs-res-lbl">Unidades</div>
@@ -363,7 +403,7 @@ function renderDetail(o) {
           const p = splitProducto(i.product_name || i.name);
           const unit = Number(i.unit_price || i.product_price || 0);
           const cant = Number(i.quantity) || 1;
-          const pie = [p.presentacion, unit ? COPF(unit) + ' c/u' : ''].filter(Boolean).join(' · ');
+          const pie = [p.presentacion, unit ? plata(unit) + ' c/u' : ''].filter(Boolean).join(' · ');
           return `
           <div class="hs-prod">
             <div class="hs-prod-qty">${cant}</div>
@@ -371,10 +411,10 @@ function renderDetail(o) {
               <div class="hs-prod-n">${p.nombre}</div>
               ${pie ? `<div class="hs-prod-d">${pie}</div>` : ''}
             </div>
-            <div class="hs-prod-t">${COPF(i.total || 0)}</div>
+            <div class="hs-prod-t">${plata(i.total || 0)}</div>
           </div>`;
         }).join('')}
-        <div class="hs-prod-total"><span>Total</span><span>${COPF(o.total)}</span></div>
+        <div class="hs-prod-total"><span>Total</span><span>${plata(o.total)}</span></div>
       </div>` : '<div class="hs-prods-vacio">Sin ítems registrados</div>'}
     </div>
 
@@ -420,14 +460,14 @@ function buildTimeline(o) {
     const faltaAb = Math.max(0, (Number(o.total) || 0) - (Number(o.delivery_fee) || 0) - abonado);
     steps.push({
       tono: 'verde', evento: 'Abono recibido', hora: '',
-      detalle: COPF(abonado) + (faltaAb > 0 ? ' · faltan ' + COPF(faltaAb) : ''),
+      detalle: plata(abonado) + (faltaAb > 0 ? ' · faltan ' + plata(faltaAb) : ''),
     });
   }
   if (isPaid) {
     steps.push({
       tono: 'verde', evento: 'Pago recibido',
       hora: fmtTime(o.updated_at || o.created_at),
-      detalle: o.payment_method ? fmtPayMethod(o.payment_method) + ' · ' + COPF(o.total) : COPF(o.total),
+      detalle: o.payment_method ? fmtPayMethod(o.payment_method) + ' · ' + plata(o.total) : plata(o.total),
     });
   } else if (o.status === 'pendiente_pago') {
     steps.push({ tono: 'ambar', evento: 'Pendiente de pago', hora: '', detalle: 'En espera de cobro' });
@@ -668,7 +708,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindFilters();
 
   /* Carga inicial */
+  HS.verPlata = await hsVePlata(false);
   await loadAndRender();
+  if (!HS.verPlata) hsVePlata(true).then(function (si) { if (si && !HS.verPlata) revelarPlata(); });
 });
 
 /*  ══ LA FACTURA ELECTRONICA DEL PEDIDO ══════════════════════════════════
