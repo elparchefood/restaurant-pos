@@ -505,8 +505,16 @@
         Inventario > Bases de recetas, que es donde el restaurante ya las
         tiene escritas.                                                   */
     var bs = (p && p.base) || null;
-    var base = bs && bs.ing && bs.ing.length ? bs.ing.join(', ') : '';
-    var baseNom = bs && bs.n ? String(bs.n) : '';
+    /*  Se aceptan las dos formas: la de ahora —{n, ing}— y una cadena suelta.
+        Una página abierta desde WhatsApp se queda guardada en el teléfono, y
+        el servidor no espera a nadie: sin esto, a quien tuviera la versión
+        anterior le salía "[object Object]".                              */
+    var base = '', baseNom = '';
+    if (typeof bs === 'string') { base = bs.trim(); }
+    else if (bs) {
+      base = (bs.ing && bs.ing.length) ? bs.ing.join(', ') : '';
+      baseNom = bs.n ? String(bs.n) : '';
+    }
     /*  Lo suyo: la descripción sin el "Base +" del principio, que ya se
         explica arriba y repetido no dice nada.                           */
     var suyo = String((p && p.d) || '').replace(/^\s*base\s*\+?\s*/i, '').trim();
