@@ -1294,7 +1294,11 @@ var UR_PERMS = [
        Decision de Sergio, 23-ago-2026. */
   ]},
   { group: 'Catálogo e inventario', items: [
-    { id: 'catalogo.ver',      label: 'Ver catálogo',        desc: 'Consultar el menú y precios' },
+    /*  Decia "Ver catalogo — Consultar el menu y precios" y parecia hacer
+        falta para vender. Medido el 10-sep: SOLO abre la pestaña Productos
+        (mapa PANTALLAS de pos-nucleo.js). Para tomar pedidos y cobrar no se
+        pide en ningun lado. El Cajero ya no lo trae (Sergio, 10-sep-2026). */
+    { id: 'catalogo.ver',      label: 'Entrar a Productos',  desc: 'Abrir la pestaña Productos: el menú, sus precios y recetas. Para vender no hace falta' },
     { id: 'catalogo.editar',   label: 'Gestionar productos', desc: 'Crear y editar el menú y precios' },
     { id: 'inventario.ver',    label: 'Ver inventario',      desc: 'Consultar el stock sin poder modificarlo' },
     { id: 'inventario.compras',label: 'Registrar compras',   desc: 'Registrar compras y ajustar el stock' }
@@ -2300,10 +2304,12 @@ async function urAddRole() {
   /*  UN ROL NUEVO NACE PUDIENDO TRABAJAR EN EL SALON.
       Antes nacia con CERO permisos: quien creaba un rol y lo asignaba se
       encontraba con una persona que no podia hacer absolutamente nada, y sin
-      ninguna pista de por que. Estos tres son el minimo para atender una mesa
-      y no tocan plata; las casillas quedan a la vista para quitarlos. */
+      ninguna pista de por que. Estos dos son el minimo para atender una mesa
+      y no tocan plata; las casillas quedan a la vista para quitarlos.
+      Aqui iba tambien `catalogo.ver`, creyendo que hacia falta para tomar
+      pedidos: solo abre Productos. Por defecto, apagado (Sergio, 10-sep). */
   var r={ id: urGenId('r'), name:'Nuevo rol', color:nextColor, system:false,
-          perms:['pedidos.crear','pedidos.cocina','catalogo.ver'], _isNew:true };
+          perms:['pedidos.crear','pedidos.cocina'], _isNew:true };
   UR.roles.push(r);
   urRenderRoles();
   urSelectRole(r.id);

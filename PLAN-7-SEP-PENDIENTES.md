@@ -100,6 +100,10 @@ Sergio va a revisar esta noche qué más hay que esconder por rol.
 >   lo trae marcado; se le puede quitar). Lo decide el servidor. De paso se
 >   cerró el hueco de que cualquiera pedía el resumen de otro restaurante.
 >   Detalle en `ESTADO-SISTEMA.md`.
+> - ✅ **Productos** — el Cajero ya no entra por defecto (se le quitó
+>   `catalogo.ver`, que solo abre esa pestaña; para vender no hace falta). Se
+>   le puede activar con la casilla "Entrar a Productos". Mesero, Cocinero y
+>   Domiciliario lo siguen teniendo: **Sergio decide** si también se les quita.
 > - ⏭️ **Historial e Informes** — el mismo permiso "Ver ventas" que abre
 >   Clientes le abre al cajero toda la plata del negocio. Es la siguiente.
 

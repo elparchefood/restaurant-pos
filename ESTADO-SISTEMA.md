@@ -475,6 +475,35 @@ restaurante → 0 filas. Sin sesion → sin permiso de ejecutar.
 
 - `supabase/sql/2026-09-10-permiso-clientes-gasto.sql`
 
+## 🟢 El cajero no entra a Productos por defecto — 10-sep-2026
+
+Sergio: *"el cajero tampoco debe tener acceso a la pestaña Productos; dejalo
+desactivado a menos que alguien se lo active, pero por defecto debe estar
+desactivado"*.
+
+**El permiso que abre Productos es `catalogo.ver`, y solo eso.** Medido antes
+de tocarlo: ninguna pantalla de venta ni ninguna funcion del servidor lo pide
+(solo `catalogo-productos.html` y el mapa PANTALLAS de `pos-nucleo.js`). Asi
+que quitarselo al cajero no le impide vender.
+
+- Se le quito al **Cajero** de los 4 restaurantes y de `pos_sembrar_roles()`.
+  Los otros 16 roles quedaron identicos (comparado rol por rol).
+- La casilla se llamaba "Ver catalogo — Consultar el menu y precios" y parecia
+  hacer falta para vender. Ahora: **"Entrar a Productos"**, y dice que para
+  vender no hace falta.
+- Un **rol nuevo** creado en Configuracion nacia con `catalogo.ver` "para
+  atender una mesa". Ya no: nace con `pedidos.crear` y `pedidos.cocina`.
+- Mesero, Cocinero y Domiciliario **lo siguen teniendo** — pendiente de que
+  Sergio decida si tambien se les quita.
+
+Sin el permiso, al tocar Productos se pide el PIN antes de navegar (lo del
+9-sep). ⚠️ Adentro, guardar un producto pide `catalogo.editar` o PIN, pero es
+la pantalla la que lo pide: el servidor todavia deja escribir. Eso es la fase 1
+de `PLAN-CANDADO-SERVIDOR.md`.
+
+- `supabase/sql/2026-09-10-cajero-sin-productos.sql` (con guarda que revienta
+  si queda un cajero con el permiso)
+
 ## 🟢 Historial: rediseno de la pantalla — 5-sep-2026
 
 Sergio: *"la pantalla se ve muy plana, los datos se ven en texto puro, no se

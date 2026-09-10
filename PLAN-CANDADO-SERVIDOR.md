@@ -96,9 +96,11 @@ qué columnas de `pos_users` ve cualquiera del restaurante).
 
 1. **El rol no reconocido:** hoy abre todo. ¿Se deja así durante el despliegue y
    se cierra después? (Recomendado: sí, con la vigilancia de por medio.)
-2. **¿El cajero debe poder ENTRAR a Productos?** Con el candado podrá *ver* pero
-   no *editar*. Si no debe ni entrar, es una línea en el mapa de pantallas:
-   `catalogo-productos.html` pasa de `catalogo.ver` a `catalogo.editar`.
+2. ~~**¿El cajero debe poder ENTRAR a Productos?**~~ **DECIDIDO el 10-sep: no,
+   salvo que se lo activen.** No se tocó el mapa de pantallas: se le quitó
+   `catalogo.ver` al Cajero (ese permiso solo abre Productos). Con el candado,
+   quien tenga `catalogo.ver` sin `catalogo.editar` podrá *ver* pero no
+   *editar*.
 3. **Tres permisos fantasma:** el mapa de pantallas usa `inventario.ver`,
    `inventario.compras` y `pagos.anular`, y **ningún rol los tiene**. ¿Se crean o
    se quitan del mapa?
