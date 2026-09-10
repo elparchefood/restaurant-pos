@@ -80,7 +80,14 @@ def q(sql):
 
 
 def cop(n):
-    return '$' + format(int(n or 0), ',d').replace(',', '.')
+    #  La base devuelve el dinero como texto con decimales ("0.00") y `int()`
+    #  se atraganta con eso. Paso por float primero: la herramienta se cayo
+    #  justo aqui, a un renglon del borrado.
+    try:
+        v = int(round(float(n or 0)))
+    except (TypeError, ValueError):
+        v = 0
+    return '$' + format(v, ',d').replace(',', '.')
 
 
 # ── 1. QUE PEDIDOS SON ────────────────────────────────────────────────────
