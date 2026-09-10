@@ -647,6 +647,22 @@ ninguno; el dueNo siempre. La caja del Escritorio va con `caja.abrir` /
   no): el Escritorio espera `posPermsConfirmados()` —nueva en pos-perms.js—,
   salvo el dueNo, que ya se sabe.
 
+### Que lo que queda ENCAJE (`encajar()` en dashboard.js)
+
+Sergio, con el cajero sin permisos: *"ese bloque de soporte quedo raro...
+que quede simetrico, que encaje"*. Al esconder bloques quedaban huecos: la
+ayuda vive en la columna DERECHA y sin nada a la izquierda flotaba a un lado;
+y las filas de tarjetas son de columnas fijas (4 accesos, 4 cifras bajo el
+grafico, 4 en "Mas sobre mi negocio").
+
+- Si se esconde alguna tarjeta de esas filas, las que quedan se reparten el
+  ancho. Con todas a la vista se deja la regla del CSS: nada cambia.
+- Si la columna izquierda queda vacia, la zona pasa a una sola columna; y si
+  de la derecha solo queda la ayuda, se vuelve una franja a todo lo ancho
+  (texto a la izquierda, botones a la derecha; clase `dv-franja`).
+- Se revisaron capturas reales (Chrome sin ventana + base de mentira) de
+  cajero sin permisos, cajero con actividad e inventario, y dueNo.
+
 ⚠️ Es un candado de pantalla: el cajero puede leer `pos_orders` porque lo
 necesita para vender. El de fondo es `PLAN-CANDADO-SERVIDOR.md`.
 

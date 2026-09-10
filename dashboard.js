@@ -54,6 +54,40 @@ function aplicarVer() {
       b.classList.toggle('active', /cantidad/.test(b.getAttribute('onclick') || ''));
     });
   }
+  encajar();
+}
+/*  QUE LO QUE QUEDA ENCAJE (10-sep-2026). Sergio, con el cajero sin permisos:
+    "ese bloque de soporte quedo raro... que quede simetrico, que encaje, no
+    que quede ahi puesto". Al esconder bloques quedaban huecos:
+      · los accesos rapidos son 4 columnas fijas: con 3 visibles, sobraba una;
+      · la ayuda vive en la columna DERECHA: sin nada a la izquierda quedaba
+        flotando a un lado.
+    Ahora los accesos se reparten en partes iguales segun cuantos se ven; si
+    la columna izquierda queda vacia, la derecha ocupa todo el ancho; y si de
+    ella solo queda la ayuda, se vuelve una franja. Con todo a la vista, nada
+    cambia: 4 accesos = 4 columnas, y las dos columnas de siempre.          */
+function encajar() {
+  //  Las filas de tarjetas (accesos rapidos, las cifras bajo el grafico,
+  //  "Mas sobre mi negocio"): si se esconde alguna, las que quedan se
+  //  reparten el ancho. Con todas a la vista se deja la regla del CSS.
+  ['.quick-grid', '.stats-row', '.negocio-grid'].forEach(function (sel) {
+    document.querySelectorAll(sel).forEach(function (g) {
+      var hijos = [].filter.call(g.children, function (x) { return x.nodeType === 1; });
+      var n = hijos.filter(function (x) { return !x.classList.contains('dv-oculto'); }).length;
+      g.style.gridTemplateColumns = (n && n < hijos.length) ? 'repeat(' + n + ', minmax(0, 1fr))' : '';
+    });
+  });
+  var mg = document.querySelector('.main-grid');
+  if (!mg) return;
+  var izq = mg.querySelector('.col-left'), der = mg.querySelector('.col-right');
+  var vivos = function (col) {
+    return col ? [].filter.call(col.children, function (x) { return !x.classList.contains('dv-oculto'); }).length : 0;
+  };
+  var nIzq = vivos(izq), nDer = vivos(der);
+  if (izq) izq.style.display = nIzq ? '' : 'none';
+  mg.classList.toggle('dv-una-col', nIzq === 0);
+  var ayuda = mg.querySelector('.support-card');
+  if (ayuda) ayuda.classList.toggle('dv-franja', nIzq === 0 && nDer === 1);
 }
 
 // ── Date / greeting ───────────────────────────────────
