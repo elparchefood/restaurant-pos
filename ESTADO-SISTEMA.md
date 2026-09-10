@@ -786,11 +786,27 @@ plan Starter → `plan`; todo limpiado despues. Y la cocina con servidor y
 aparato simulados (`probar-voz-cocina.js`): encender, caer al aparato, plan,
 dos pedidos en cola, apagar.
 
-**⏳ Falta para que suene la voz buena:** Sergio habilita *Cloud Text-to-Speech
-API* en el proyecto `cobra-pos` de Google Cloud; despues se sacan las voces
-es-US reales, se le arma una pagina para comparar con la suya de Chrome, y se
-siembra la escogida en `pos_voces` con `por_defecto`. Hasta entonces el
-catalogo esta VACIO y la cocina habla con la voz del aparato (igual que antes).
+**✅ La voz de Cobra: Nº 17, `es-US-Chirp3-HD-Callirrhoe`** (10-sep-2026).
+Sergio habilito *Cloud Text-to-Speech API* en `cobra-pos` y le agrego esa API
+a la llave **Maps Platform API Key** (la del servidor = `MAPAS_CLAVE_COBRA`;
+la "COBRA - navegador" NO se toca). Se le armo un comparador con las 48 voces
+es-US de Google (`accion:'lista_proveedor'` + `'probar'`) junto a su voz de
+Chrome; escogio la 17 y dijo que le gustaron varias mas para agregar despues.
+Sembrada con `supabase/sql/2026-09-10-voz-callirrhoe.sql` como `por_defecto`.
+
+**Costo:** Chirp 3 HD = 1 M de letras/mes gratis, despues US$30 por millon.
+Por eso `VOZ_TOPE_GLOBAL` = **950.000** (secreto): no puede costar nada. Si se
+llena, las cocinas hablan con la voz del aparato hasta el mes siguiente. Subir
+el tope = decision de Sergio (cada millon extra = US$30). La memoria de audios
+ayuda: un pedido igual a otro ya dicho no cuenta.
+
+**Para agregar las otras que le gustaron:** una fila en `pos_voces` por cada una
+(`proveedor:'google'`, `config.voz` con el nombre de Google). Los numeros del
+comparador y su voz estan en el scratchpad de la sesion (`voces-numeros.json`);
+si se pierde, se vuelve a correr el comparador: el orden es fijo (tipo,
+mujer primero, nombre). Falta la pantalla donde el dueño escoge su voz
+(se guardaria en `branches.operacion_config.cocinaNotif.voz`; el servidor ya
+la lee).
 
 ## 🟢 La campana pedia un PIN y unas fotos que ya estaban — 10-sep-2026
 
