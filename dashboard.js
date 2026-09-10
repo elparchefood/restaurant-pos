@@ -495,13 +495,13 @@ function setChartMode(mode, btn) {
 // ── Session action ────────────────────────────────────
 async function handleSessionAction() {
   if (S.session && S.session.status === 'open') {
-    window.location.href = 'caja.html';
+    (window.posIr || function (h) { window.location.href = h; })('caja.html');   // PIN antes de entrar (10-sep)
     return;
   }
   // Aperturar caja: permiso caja.abrir; sin permiso pide PIN. El permiso se
   // pide AQUI, antes de salir: si se pidiera alla, cualquiera entraria a
   // caja.html directo y se lo saltaria.
-  var irAAbrir = function () { window.location.href = 'caja.html?abrir=1'; };
+  var irAAbrir = function () { (window.posIr || function (h) { window.location.href = h; })('caja.html?abrir=1'); };
   if (window.posGuard) window.posGuard('caja.abrir', irAAbrir, 'Aperturar la caja requiere permiso de administrador.');
   else irAAbrir();
 }

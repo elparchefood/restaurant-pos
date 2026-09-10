@@ -23,7 +23,7 @@
       '</div>'
     ].join('');
     document.body.appendChild(o);
-    document.getElementById('caja-guard-btn-open').onclick = function() { window.location.href = 'caja.html'; };
+    document.getElementById('caja-guard-btn-open').onclick = function() { (window.posIr || function (h) { window.location.href = h; })('caja.html'); };   // PIN antes (10-sep)
     document.getElementById('caja-guard-btn-cancel').onclick = function() { o.remove(); };
     o.addEventListener('click', function(e) { if (e.target === o) o.remove(); });
   }

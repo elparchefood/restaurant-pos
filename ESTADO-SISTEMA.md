@@ -566,11 +566,14 @@ el PIN encima.
   (pos-cfg-nav.js), las respuestas rapidas del chat, Mi pagina web (horario y
   "Editar el catalogo/la carta") y los avisos de arranque (pos-arranque.js).
 
-⏭️ **Quedan 7 saltos directos** a otras pantallas con candado, en el flujo de
-venta: `dashboard.js` (2 a Caja), `dashboard.html` (Reservas),
+✅ **Y los del flujo de venta** (aprobados por Sergio el mismo dia): 9 botones
+en 7 archivos — `dashboard.js` (2 a Caja), `dashboard.html` (Reservas),
 `pos-caja-guard.js` (Caja), `modules/ventas-salon.js` (Historial y 2 a
-Domicilios), `tomar-pedido.js` (Domicilios), `pos-notify.js` (Chat). Se le
-propusieron a Sergio aparte por estar en el flujo de venta.
+Domicilios), `tomar-pedido.js` (Domicilios), `pos-notify.js` (Chat). Hoy no
+queda ningun `location.href = '<pantalla con candado>'` en el codigo: para
+buscar si alguien vuelve a meter uno,
+`grep -nE "location\.(href\s*=|replace\(|assign\()\s*['\"](inventario|informes|caja|historial|clientes|catalogo-productos|chat-ia|domicilios|pagos|reservas|configuracion)\.html"`.
+**Todo boton que lleve a una pantalla del mapa PANTALLAS va por `posIr`.**
 
 Probado con el pos-perms.js real (`probar-pin-antes.js`): el PIN sale antes de
 navegar, Configuracion no lo repite, el pase no sirve para otra pantalla ni

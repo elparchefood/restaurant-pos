@@ -111,8 +111,8 @@ Sergio va a revisar esta noche qué más hay que esconder por rol.
 > - ✅ **El PIN antes de entrar, desde cualquier botón** — el desplegable de
 >   arriba a la derecha (y los demás caminos a Configuración) navegaban directo
 >   y el PIN salía adentro. Ahora pasan por `posIr`, y al acertarlo la pantalla
->   ya no lo pide dos veces. **Quedan 7 saltos** a Caja, Domicilios, Historial,
->   Reservas y Chat en el flujo de venta: se le propusieron a Sergio aparte.
+>   ya no lo pide dos veces. Y los 9 botones del flujo de venta (Caja,
+>   Domicilios, Historial, Reservas, Chat) también: ya no queda ninguno directo.
 > - ⏭️ **Historial** (lista de pedidos con sus valores) y el **Escritorio**
 >   (ventas del día, `dashboard.ver`): los siguientes a revisar.
 

@@ -1699,7 +1699,7 @@
               <span style="font-weight:500">Domicilio express</span>
             </span>
           </button>
-          <button class="lm-nav" style="color:#475569" onclick="location.href='historial.html'">
+          <button class="lm-nav" style="color:#475569" onclick="(window.posIr || function (h) { location.href = h; })('historial.html')">
             <span class="lm-nav-inner">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               <span style="font-weight:500">Historial</span>
@@ -3518,7 +3518,7 @@
         if (action === 'add-item') {
           // Se suma AL MISMO pedido para que salga todo junto. Solo tiene
           // sentido mientras se prepara; si ya salio, se hace uno nuevo.
-          window.location.href = 'domicilios.html?agregar=' + encodeURIComponent(id);
+          (window.posIr || function (h) { window.location.href = h; })('domicilios.html?agregar=' + encodeURIComponent(id));   // PIN antes (10-sep)
           return;
         }
         if (action === 'cobrar') {
@@ -3847,7 +3847,7 @@
         (async function() { if (await window.cajaGuard(window._pos && window._pos.state && window._pos.state.branchId)) window.location.href = 'venta-rapida.html'; })();
         break;
       case 'nav-domicilio':
-        (async function() { if (await window.cajaGuard(window._pos && window._pos.state && window._pos.state.branchId)) window.location.href = 'domicilios.html'; })();
+        (async function() { if (await window.cajaGuard(window._pos && window._pos.state && window._pos.state.branchId)) (window.posIr || function (h) { window.location.href = h; })('domicilios.html'); })();
         break;
       case 'quick-estado': {
         const qsId = e.currentTarget.dataset.quickId;

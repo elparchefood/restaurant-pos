@@ -2011,7 +2011,7 @@ function bindEvents() {
     btn.addEventListener('click', () => {
       switch (btn.dataset.action) {
         case 'back':         window.location.href = 'ventas.html'; break;
-        case 'nav-domicilio': window.location.href = 'domicilios.html'; break;
+        case 'nav-domicilio': (window.posIr || function (h) { window.location.href = h; })('domicilios.html'); break;   // PIN antes (10-sep)
         case 'guardar':      saveOrder(); break;
         case 'enviar-cocina':
           if (window.posGuard) window.posGuard('pedidos.cocina', sendToKitchen, 'Enviar a cocina requiere permiso de administrador.');
