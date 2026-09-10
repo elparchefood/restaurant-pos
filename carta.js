@@ -309,7 +309,9 @@
          + (p.f ? '<img class="ct-foto" src="' + esc(p.f) + '" alt="" loading="lazy">' : '<div class="ct-foto"></div>')
          + '<div class="ct-txt"><div class="ct-pnom">' + esc(p.n) + '</div>'
          + (p.d ? '<div class="ct-pdesc">' + esc(p.d) + '</div>'
-                 + '<span class="ct-lleva" data-lleva="' + i + '">¿Qué lleva?</span>' : '')
+                 + '<span class="ct-lleva" data-lleva="' + i + '">'
+                 + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M5 6h.01M5 12h.01M5 18h.01"/></svg>'
+                 + '¿Qué lleva?</span>' : '')
          + '<div class="ct-ppie">' + pie + '</div></div><span class="ct-mas">+</span></button>';
     });
     $('lista').innerHTML = h;
@@ -400,8 +402,10 @@
       /*  Se toca para ver qué lleva. Con la flecha y el subrayado, porque un
           texto que hace algo al tocarlo tiene que parecer que hace algo.  */
       if (p.d) {
-        h += '<button class="ct-desc" id="verQueLleva"><span>' + esc(p.d) + '</span>'
-           + '<i>¿Qué lleva? ›</i></button>';
+        h += '<div class="ct-desc"><span>' + esc(p.d) + '</span>'
+           + '<button class="ct-lleva" id="verQueLleva">'
+           + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M5 6h.01M5 12h.01M5 18h.01"/></svg>'
+           + '¿Qué lleva?</button></div>';
       }
       var precia = (p.vg || []).some(function (g) { return g.precia; });
       p.pres.forEach(function (x) {
@@ -510,50 +514,87 @@
 
       Va encima de la hoja del producto y no dentro: el cliente estaba
       escogiendo el tamaño y vuelve a lo mismo al cerrarlo.                */
+  /*  Lo que el plato lleva ADEMAS de su base viene como una frase —"chorizo,
+      tocineta, maicitos y ripio"— y no como lista. Se parte por las comas y
+      por la "y" final para poder enseñarlo en pastillas, igual que la base.
+
+      Es formato, no interpretación: si no se puede partir queda una sola
+      pastilla, que también se lee bien.                                   */
+  function enPedazos(txt) {
+    return String(txt || '')
+      .replace(/\.\s*$/, '')
+      .split(/\s*,\s*|\s+y\s+/i)
+      .map(function (x) { return x.trim(); })
+      .filter(function (x) { return x.length > 1; });
+  }
+
+  function pastillas(lista, marcadas) {
+    return lista.map(function (x) {
+      return '<span class="ct-ing' + (marcadas ? ' ct-ing-mc' : '') + '">' + esc(x) + '</span>';
+    }).join('');
+  }
+
+  /*  ══ QUÉ LLEVA ═══════════════════════════════════════════════════════════
+
+      Diseño aprobado por Sergio: foto arriba, rótulos en versalitas,
+      ingredientes en pastillas y un botón "Entendido".
+
+      · SIN FOTO NO SE DEJA UN HUECO GRIS: el título sube a ocupar su sitio y
+        la X se va al lado. Un rectángulo vacío arriba se ve peor que nada.
+      · LA X SE QUEDA ADEMÁS DEL BOTÓN: sin ella hay que bajar hasta el fondo
+        para salir, y con ocho ingredientes de base eso ya es un scroll.
+
+      Va encima de la hoja del producto y no dentro: el cliente estaba
+      escogiendo el tamaño y vuelve a lo mismo al cerrarlo.                */
   function verQueLleva(p) {
-    /*  Su base: el nombre —"Base Salchipapas"— y sus ingredientes. Sale de
-        Inventario > Bases de recetas, que es donde el restaurante ya las
-        tiene escritas.                                                   */
     var bs = (p && p.base) || null;
     /*  Se aceptan las dos formas: la de ahora —{n, ing}— y una cadena suelta.
         Una página abierta desde WhatsApp se queda guardada en el teléfono, y
-        el servidor no espera a nadie: sin esto, a quien tuviera la versión
-        anterior le salía "[object Object]".                              */
-    var base = '', baseNom = '';
-    if (typeof bs === 'string') { base = bs.trim(); }
-    else if (bs) {
-      base = (bs.ing && bs.ing.length) ? bs.ing.join(', ') : '';
-      baseNom = bs.n ? String(bs.n) : '';
+        el servidor no espera a nadie.                                     */
+    var ing = [], baseNom = '';
+    if (typeof bs === 'string') { ing = enPedazos(bs); }
+    else if (bs) { ing = (bs.ing || []).slice(); baseNom = bs.n ? String(bs.n) : ''; }
+
+    var suyo = enPedazos(String((p && p.d) || '').replace(/^\s*base\s*\+?\s*/i, ''));
+    var cuantos = ing.length + suyo.length;
+    var foto = (p && p.f) || '';
+
+    var cerrarSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    var sub = [p.cat || '', cuantos ? cuantos + ' ingredientes' : ''].filter(Boolean).join(' · ');
+
+    var h = '<div class="ct-modal-caja" role="dialog" aria-modal="true">';
+    if (foto) {
+      h += '<div class="ct-modal-foto" style="background-image:url(' + esc(foto) + ')">'
+         + '<button class="ct-modal-x ct-sobre-foto" data-cerrar="1" aria-label="Cerrar">' + cerrarSvg + '</button>'
+         + '<div class="ct-modal-titulo"><b>' + esc(p.n) + '</b>'
+         + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</div></div>';
+    } else {
+      h += '<div class="ct-modal-cab"><div class="ct-modal-titulo ct-sin-foto"><b>' + esc(p.n) + '</b>'
+         + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</div>'
+         + '<button class="ct-modal-x" data-cerrar="1" aria-label="Cerrar">' + cerrarSvg + '</button></div>';
     }
-    /*  Lo suyo: la descripción sin el "Base +" del principio, que ya se
-        explica arriba y repetido no dice nada.                           */
-    var suyo = String((p && p.d) || '').replace(/^\s*base\s*\+?\s*/i, '').trim();
-    var h = '<div class="ct-modal-caja" role="dialog" aria-modal="true">'
-      + '<div class="ct-modal-cab"><b>' + esc(p.n) + '</b>'
-      + '<button class="ct-modal-x" id="cerrarQueLleva" aria-label="Cerrar">'
-      + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
-      + '</button></div>';
-    if (base) {
-      h += '<div class="ct-campo"><div class="ct-campo-tit">'
-         + esc(baseNom || 'La base') + '</div>'
-         + '<div class="ct-modal-txt">' + esc(base) + '</div></div>';
+
+    h += '<div class="ct-modal-cuerpo">';
+    if (ing.length) {
+      h += '<div class="ct-rotulo">' + esc(baseNom || 'La base') + '</div>'
+         + '<div class="ct-ings">' + pastillas(ing, false) + '</div>';
     }
-    if (suyo) {
-      h += '<div class="ct-campo"><div class="ct-campo-tit">'
-         + (base ? 'Y además lleva' : 'Lleva') + '</div>'
-         + '<div class="ct-modal-txt">' + esc(suyo) + '</div></div>';
+    if (suyo.length) {
+      h += '<div class="ct-rotulo ct-rotulo-mc">' + (ing.length ? 'Además lleva' : 'Lleva') + '</div>'
+         + '<div class="ct-ings">' + pastillas(suyo, true) + '</div>';
     }
-    if (!base && !suyo) {
-      h += '<div class="ct-modal-txt" style="margin-top:14px">Pregúntanos por el chat y te contamos 😊</div>';
+    if (!ing.length && !suyo.length) {
+      h += '<div class="ct-modal-txt">Pregúntanos por el chat y te contamos 😊</div>';
     }
-    h += '</div>';
+    h += '<button class="ct-btn ct-entendido" data-cerrar="1">Entendido</button></div></div>';
+
     var v = document.createElement('div');
     v.className = 'ct-modal';
     v.innerHTML = h;
     document.body.appendChild(v);
     var cerrar = function () { if (v.parentNode) v.parentNode.removeChild(v); };
     v.onclick = function (ev) { if (ev.target === v) cerrar(); };
-    v.querySelector('#cerrarQueLleva').onclick = cerrar;
+    v.querySelectorAll('[data-cerrar]').forEach(function (x) { x.onclick = cerrar; });
   }
 
   function totalHoja() {

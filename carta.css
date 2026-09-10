@@ -293,11 +293,7 @@ body.ct-cerrado .ct-prod:active{background:var(--panel)}
 
 /*  La descripcion, que ahora se toca. Se ve que hace algo: sin eso, nadie la
     toca y el modal es como si no existiera.                              */
-.ct-desc{display:block;width:100%;text-align:left;background:none;border:0;padding:0;
-  margin:0 0 4px;font-family:inherit;cursor:pointer}
 .ct-desc span{display:block;font-size:14px;color:var(--tinta-2);line-height:1.5}
-.ct-desc i{display:inline-block;margin-top:5px;font-style:normal;font-size:12.5px;
-  font-weight:800;color:var(--marca)}
 
 /*  El modal de "qué lleva". Encima de la hoja del producto —el cliente
     estaba escogiendo el tamano y vuelve a lo mismo al cerrarlo— y se cierra
@@ -323,5 +319,64 @@ body.ct-cerrado .ct-prod:active{background:var(--panel)}
 /*  "¿Qué lleva?" dentro de la fila del producto. En color de marca y con su
     propio espacio: si pareciera texto, nadie lo tocaria — que es justo lo que
     paso cuando solo estaba dentro de la hoja.                            */
-.ct-lleva{display:inline-block;margin-top:5px;font-size:12.5px;font-weight:800;
-  color:var(--marca);padding:3px 0}
+
+/*  ══ "¿QUE LLEVA?" ═══════════════════════════════════════════════════════
+    Pastilla con borde del color de la marca (la opcion que escogio Sergio).
+    En una fila que ya tiene foto, nombre, descripcion, precio y el "+", el
+    borde es lo unico que la separa del texto: sin el, no se toca.        */
+.ct-lleva{display:inline-flex;align-items:center;gap:5px;margin-top:6px;
+  border:1.5px solid var(--marca);background:var(--marca-suave);color:var(--marca);
+  border-radius:999px;padding:5px 11px;font-size:12px;font-weight:800;
+  font-family:inherit;cursor:pointer;line-height:1}
+.ct-lleva svg{flex:none}
+.ct-desc span{display:block;font-size:14px;color:var(--tinta-2);line-height:1.5}
+
+/*  ══ EL MODAL DE INGREDIENTES ════════════════════════════════════════════
+    Sube desde abajo y se cierra tocando fuera, con la X o con "Entendido" —
+    las tres, porque cada quien intenta una distinta.                     */
+.ct-modal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.55);
+  display:flex;align-items:flex-end;justify-content:center;animation:ctFade .16s ease}
+.ct-modal-caja{width:100%;max-width:520px;max-height:86vh;overflow-y:auto;
+  background:var(--panel);border-radius:20px 20px 0 0;
+  animation:ctSube .22s cubic-bezier(.2,.8,.2,1)}
+
+/*  La foto, a sangre. `cover` para que nunca se deforme: una hamburguesa
+    estirada da menos hambre que ninguna foto.                            */
+.ct-modal-foto{height:150px;background-size:cover;background-position:center;
+  position:relative;display:flex;align-items:flex-end}
+.ct-modal-titulo{padding:13px 16px;width:100%}
+.ct-modal-foto .ct-modal-titulo{background:linear-gradient(transparent,rgba(0,0,0,.72))}
+.ct-modal-titulo b{display:block;font-size:19px;font-weight:800;letter-spacing:-.02em;
+  line-height:1.2;color:#fff}
+.ct-modal-titulo span{display:block;font-size:12.5px;margin-top:3px;color:#E8DED7}
+/*  Sin foto el titulo va sobre el panel, asi que recupera el color de la
+    pagina: en blanco sobre blanco no se veria.                           */
+.ct-modal-titulo.ct-sin-foto b{color:var(--tinta)}
+.ct-modal-titulo.ct-sin-foto span{color:var(--tinta-3)}
+.ct-modal-cab{display:flex;align-items:flex-start;justify-content:space-between;
+  gap:10px;padding:6px 16px 0}
+.ct-modal-cab .ct-modal-titulo{padding:12px 0 0}
+
+.ct-modal-x{width:32px;height:32px;border-radius:50%;flex:none;border:0;cursor:pointer;
+  background:var(--panel-2);color:var(--tinta-2);display:flex;align-items:center;
+  justify-content:center;margin-top:12px}
+.ct-modal-x.ct-sobre-foto{position:absolute;right:10px;top:10px;margin:0;
+  background:rgba(0,0,0,.5);color:#fff}
+
+.ct-modal-cuerpo{padding:15px 16px 20px}
+.ct-rotulo{font-size:11px;letter-spacing:.07em;text-transform:uppercase;
+  font-weight:800;color:var(--tinta-2);margin-bottom:9px}
+.ct-rotulo-mc{color:var(--marca);margin-top:17px}
+.ct-ings{display:flex;flex-wrap:wrap;gap:6px}
+/*  Un ingrediente por pastilla: ocho en una frase con comas se leen como un
+    parrafo; sueltos se leen como una lista, y quien abre esto viene a buscar
+    UNO.                                                                  */
+.ct-ing{background:var(--panel-2);border:1px solid var(--linea);border-radius:999px;
+  padding:5px 10px;font-size:12.5px;color:var(--tinta)}
+.ct-ing-mc{background:var(--marca-suave);border-color:var(--marca);color:var(--marca);
+  font-weight:700}
+.ct-entendido{margin-top:20px}
+.ct-modal-txt{font-size:14.5px;line-height:1.55;color:var(--tinta)}
+@keyframes ctFade{from{opacity:0}to{opacity:1}}
+@keyframes ctSube{from{transform:translateY(24px)}to{transform:translateY(0)}}
+@media (prefers-reduced-motion:reduce){.ct-modal,.ct-modal-caja{animation:none}}
