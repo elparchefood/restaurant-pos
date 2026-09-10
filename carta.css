@@ -319,3 +319,9 @@ body.ct-cerrado .ct-prod:active{background:var(--panel)}
 @media (prefers-reduced-motion:reduce){
   .ct-modal,.ct-modal-caja{animation:none}
 }
+
+/*  "¿Qué lleva?" dentro de la fila del producto. En color de marca y con su
+    propio espacio: si pareciera texto, nadie lo tocaria — que es justo lo que
+    paso cuando solo estaba dentro de la hoja.                            */
+.ct-lleva{display:inline-block;margin-top:5px;font-size:12.5px;font-weight:800;
+  color:var(--marca);padding:3px 0}

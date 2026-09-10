@@ -308,7 +308,8 @@
       h += '<button class="ct-prod" data-i="' + i + '">'
          + (p.f ? '<img class="ct-foto" src="' + esc(p.f) + '" alt="" loading="lazy">' : '<div class="ct-foto"></div>')
          + '<div class="ct-txt"><div class="ct-pnom">' + esc(p.n) + '</div>'
-         + (p.d ? '<div class="ct-pdesc">' + esc(p.d) + '</div>' : '')
+         + (p.d ? '<div class="ct-pdesc">' + esc(p.d) + '</div>'
+                 + '<span class="ct-lleva" data-lleva="' + i + '">¿Qué lleva?</span>' : '')
          + '<div class="ct-ppie">' + pie + '</div></div><span class="ct-mas">+</span></button>';
     });
     $('lista').innerHTML = h;
@@ -316,6 +317,15 @@
     $('salirCat').onclick = pintarCategorias;
     $('lista').querySelectorAll('.ct-prod').forEach(function (b) {
       b.onclick = function () { abrirHoja(Number(b.dataset.i)); };
+    });
+    /*  El toque en "¿Qué lleva?" se detiene aquí: la fila entera abre el
+        producto, y sin frenarlo se abrirían las dos cosas a la vez.      */
+    $('lista').querySelectorAll('[data-lleva]').forEach(function (b) {
+      b.onclick = function (ev) {
+        ev.stopPropagation();
+        ev.preventDefault();
+        verQueLleva(ps[Number(b.dataset.lleva)]);
+      };
     });
   }
 
