@@ -708,6 +708,11 @@ esa.
   turno 4", el nombre). Si los productos aun no llegaron, espera hasta 4 s.
 - `limpiarVoz`: "carne - chorizo" se dice de corrido (la pausa del guion la
   pidio quitar Sergio); se quitan corchetes y el "×" de las adiciones.
+- **Adiciones: "con adición de ranchera y 2 tocineta"** (Sergio, 10-sep-2026).
+  `adicionesVoz(i)` lee SOLO `selections.mods`; los sabores/variantes
+  (`selections.vars`) ya vienen en el nombre ("Personal · Premium · Mixta") y
+  NO son adiciones. Los 619 productos de 30 dias usan ese formato. El "·" de
+  los nombres tambien se quita para que no haga pausa.
 - Las mesas de El Parche se llaman "01".."08" y la etiqueta sale "Mesa 01":
   en voz se dice "la mesa 1". Y si una mesa ya se llama "Mesa 5", no se dice
   "mesa mesa".

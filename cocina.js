@@ -457,7 +457,7 @@ function limpiarVoz(t) {
   return String(t || '')
     .replace(/\[[^\]]*\]/g, ' ')
     .replace(/(\d+)\s*[×x]\s+/gi, '$1 ')
-    .replace(/\s*[-–—\/]\s*/g, ' ')
+    .replace(/\s*[-–—\/·•|]\s*/g, ' ')   // "Personal · Premium" tambien va de corrido
     .replace(/[()]/g, ' ')
     .replace(/\s+([,.])/g, '$1')
     .replace(/\s{2,}/g, ' ')
@@ -489,14 +489,34 @@ function unirVoz(partes) {
   if (partes.length < 2) return partes.join('');
   return partes.slice(0, -1).join(', ') + ' y ' + partes[partes.length - 1];
 }
+/*  "con adición de ranchera y tocineta" (Sergio, 10-sep-2026). Solo las
+    ADICIONES (`selections.mods`): los sabores y variantes (`vars`) ya vienen
+    en el nombre del producto ("Personal · Premium · Mixta") y no son
+    adiciones — decir "con adición de mixta" seria un error.              */
+function adicionesVoz(i) {
+  try {
+    const s = typeof i.selections === 'string' ? JSON.parse(i.selections) : i.selections;
+    const mods = s && s.mods;
+    if (!mods || typeof mods !== 'object') return '';
+    const nombres = [];
+    Object.keys(mods).forEach(k => {
+      const m = mods[k];
+      const n = m && (m.name || m.nombre || m.label);
+      if (!n) return;
+      const q = parseInt(m.qty || m.cantidad, 10) || 1;
+      nombres.push(q > 1 ? q + ' ' + n : n);
+    });
+    return unirVoz(nombres);
+  } catch (_) { return ''; }
+}
 function fraseVoz(o) {
   const its = repartoDe(S.items.get(o.id) || []).mios;
   if (!its.length) return '';
   const partes = its.map(i => {
     const q = parseInt(i.quantity, 10) || 1;
-    const adic = adiciones(i);
+    const adic = adicionesVoz(i);
     return (q > 1 ? q + ' ' : '') + (i.product_name || i.name || 'producto')
-      + (adic ? ' ' + adic : '') + (i.notes ? ' ' + i.notes : '');
+      + (adic ? ' con adición de ' + adic : '') + (i.notes ? ' ' + i.notes : '');
   });
   return limpiarVoz(unirVoz(partes) + ', para ' + destinoVoz(o) + '.');
 }
