@@ -102,7 +102,11 @@
     { id: 'fotos', obligatorio: false,
       titulo: 'Súbele fotos a tu carta',
       sub: 'Son las imágenes que el asistente manda cuando le piden la carta. Sin ellas contesta que no puede enviarla.',
-      ir: 'catalogo-productos.html',
+      /*  Las imagenes de la CARTA del asistente (ia_config.menu_imagenes), que
+          se suben en Configuracion → Asistente → Informacion → Carta. Antes
+          llevaba a Productos y contaba fotos de productos: no es lo que el
+          asistente manda (10-sep-2026).                                   */
+      ir: 'configuracion.html?s=chatia&tab=informacion&acc=i-carta',
       hecho: function (d) { return d.fotos > 0; } },
 
     { id: 'adiciones', obligatorio: false,
@@ -127,34 +131,44 @@
   async function datos() {
     var s = sb(), t = st().tenantId, b = st().branchId;
     if (!s || !t) return null;
-    var r = await Promise.allSettled([
-      s.from('pos_products').select('id', { count: 'exact', head: true }).eq('tenant_id', t),
-      s.from('pos_tables').select('id', { count: 'exact', head: true }).eq('branch_id', b),
-      s.from('ia_config').select('pagos,horarios,domicilios').eq('branch_id', b).maybeSingle(),
+    /*  ⚠️ CADA RESPUESTA POR SU NOMBRE, NO POR SU POSICION (10-sep-2026).
+        Antes era una lista y se leia ok(5), ok(8)... Alguien metio la
+        pregunta del PIN en el sexto lugar y no corrio las lecturas de
+        despues: el PIN leia la de impresoras (nunca "si"), las fotos la del
+        PIN (siempre 0), las adiciones las fotos y las impresoras las
+        adiciones. La campana le pedia a Sergio un PIN y unas fotos que ya
+        tenia. Con nombres, meter una pregunta nueva no mueve las demas.   */
+    var preguntas = {
+      productos: s.from('pos_products').select('id', { count: 'exact', head: true }).eq('tenant_id', t),
+      mesas:     s.from('pos_tables').select('id', { count: 'exact', head: true }).eq('branch_id', b),
+      //  menu_imagenes: las imagenes que el asistente manda cuando le piden la carta.
+      cfg:       s.from('ia_config').select('pagos,horarios,domicilios,menu_imagenes').eq('branch_id', b).maybeSingle(),
       //  La sucursal ya viene de pos-core; aqui no se vuelve a pedir.
-      (window.posSucursal ? window.posSucursal(b).then(function (d) { return { data: d }; })
-                          : s.from('branches').select('address,phone,operacion_config').eq('id', b).maybeSingle()),
-      (window.posUna ? window.posUna('pos_users_admin_' + t, function () {
-          return s.from('pos_users').select('id,is_authorized_admin').eq('tenant_id', t); })
-        : s.from('pos_users').select('id,is_authorized_admin').eq('tenant_id', t)),
-      s.rpc('fn_pin_existe'),
-      s.from('pos_products').select('id', { count: 'exact', head: true }).eq('tenant_id', t).not('photo_url', 'is', null),
-      s.from('pos_modifier_groups').select('id', { count: 'exact', head: true }).eq('tenant_id', t),
-      s.from('pos_printers').select('id', { count: 'exact', head: true }).eq('branch_id', b),
-    ]);
-    function ok(i) { return r[i].status === 'fulfilled' ? r[i].value : null; }
-    function cuenta(i) { var x = ok(i); return x ? (x.count || 0) : 0; }
+      sede:      (window.posSucursal ? window.posSucursal(b).then(function (d) { return { data: d }; })
+                                     : s.from('branches').select('address,phone,operacion_config').eq('id', b).maybeSingle()),
+      usuarios:  (window.posUna ? window.posUna('pos_users_admin_' + t, function () {
+                     return s.from('pos_users').select('id,is_authorized_admin').eq('tenant_id', t); })
+                   : s.from('pos_users').select('id,is_authorized_admin').eq('tenant_id', t)),
+      pin:       s.rpc('fn_pin_existe'),
+      adiciones: s.from('pos_modifier_groups').select('id', { count: 'exact', head: true }).eq('tenant_id', t),
+      impresoras: s.from('pos_printers').select('id', { count: 'exact', head: true }).eq('branch_id', b),
+    };
+    var nombres = Object.keys(preguntas);
+    var r = await Promise.allSettled(nombres.map(function (k) { return preguntas[k]; }));
+    var res = {};
+    nombres.forEach(function (k, i) { res[k] = r[i].status === 'fulfilled' ? r[i].value : null; });
+    function cuenta(k) { var x = res[k]; return x ? (x.count || 0) : 0; }
 
-    var cfg  = (ok(2) && ok(2).data) || {};
-    var sede = (ok(3) && ok(3).data) || {};
-    var users = (ok(4) && ok(4).data) || [];
+    var cfg  = (res.cfg && res.cfg.data) || {};
+    var sede = (res.sede && res.sede.data) || {};
+    var users = (res.usuarios && res.usuarios.data) || [];
     var pg  = cfg.pagos || {};
     var dom = cfg.domicilios || {};
     var opc = sede.operacion_config || {};
 
     return {
-      productos: cuenta(0),
-      mesas: cuenta(1),
+      productos: cuenta('productos'),
+      mesas: cuenta('mesas'),
       /* Un método sin nombre o apagado no cuenta: no se puede cobrar con él.
          Los que empiezan por `__` son internos, no los eligió el dueño. */
       metodos: (Array.isArray(pg.metodos) ? pg.metodos : []).filter(function (m) {
@@ -167,13 +181,16 @@
          ni baja al navegador. `fn_pin_existe` dice si hay o no, y ya comprueba
          por dentro que sea el del ADMINISTRADOR — un mesero con PIN no
          resuelve este paso. */
-      pin: (function () { var x = ok(8); return !!(x && x.data === true); })(),
+      pin: !!(res.pin && res.pin.data === true),
       usuarios: users.length,
       horarios: !!(cfg.horarios && Object.keys(cfg.horarios).length),
       zonas: (Array.isArray(dom.zonas) ? dom.zonas : []).length,
-      fotos: cuenta(5),
-      adiciones: cuenta(6),
-      impresoras: cuenta(7),
+      //  Las imagenes de la carta que manda el asistente, NO las fotos de los
+      //  productos: es lo que el paso promete.
+      fotos: (Array.isArray(cfg.menu_imagenes) ? cfg.menu_imagenes : [])
+               .filter(function (u) { return String(u || '').trim(); }).length,
+      adiciones: cuenta('adiciones'),
+      impresoras: cuenta('impresoras'),
     };
   }
 

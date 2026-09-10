@@ -681,6 +681,36 @@ domicilios" escribe la configuracion de la sede sin permiso (`pos-arranque.js`).
 
 - `supabase/sql/2026-09-10-escritorio-por-bloques.sql`
 
+## 🟢 La campana pedia un PIN y unas fotos que ya estaban — 10-sep-2026
+
+Sergio: *"me esta pidiendo que coloque un PIN y que suba las fotos de la carta,
+pero eso ya lo hice; esta dando notificaciones e instrucciones falsas"*.
+
+**La causa: leer por POSICION.** `pos-arranque.js` (`datos()`) hacia 9
+preguntas con `Promise.allSettled([...])` y leia `ok(5)`, `ok(8)`,
+`cuenta(6)`... Alguien metio `fn_pin_existe` en el sexto lugar y no corrio las
+lecturas de despues. Resultado, en TODOS los restaurantes:
+
+| Paso | Deberia leer | Leia |
+|---|---|---|
+| PIN | `fn_pin_existe` | la cuenta de impresoras (nunca "si") |
+| Fotos | productos con foto | la respuesta del PIN (siempre 0) |
+| Adiciones | grupos de adiciones | productos con foto |
+| Impresoras | impresoras | grupos de adiciones |
+
+Ahora las preguntas van en un objeto con NOMBRE (`preguntas.pin`,
+`res.impresoras`...): meter una nueva no mueve las demas.
+
+**Y el paso de fotos preguntaba lo que no era.** Decia "son las imagenes que el
+asistente manda cuando le piden la carta", pero contaba fotos de PRODUCTOS. El
+asistente manda `ia_config.menu_imagenes` (delay-reply). Ahora cuenta esas, y
+su boton lleva a donde se suben: `configuracion.html?s=chatia&tab=informacion&acc=i-carta`.
+
+Medido en El Parche: PIN del administrador si, 2 imagenes de carta, 2 grupos
+de adiciones, 1 impresora — nada faltaba. Probado con el pos-arranque.js real
+(`probar-arranque.js`, 4 casos; el 3º —PIN si, impresoras no— es el que atrapa
+el error viejo).
+
 ## 🟢 Historial: la plata con ojito — 10-sep-2026
 
 Sergio: *"quiero que todo lo del historial, toda la pantalla, quede tal cual
