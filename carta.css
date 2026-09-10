@@ -284,3 +284,9 @@ body.ct-cerrado .ct-prod:active{background:var(--panel)}
 /*  Lo que va con puntos no lleva precio: lleva sus puntos. Poner "$0" haria
     pensar en un regalo de la casa, y no lo es — lo pago con lo que junto.  */
 .ct-conpuntos{font-size:12.5px;font-weight:800;color:var(--marca);white-space:nowrap}
+
+/*  La foto del producto en el resumen. Cuadrada y chica: acompaNa al nombre,
+    no compite con el. El contador se le monta encima para no gastar otra
+    columna en una fila que ya tiene nombre, detalle y precio.            */
+.ct-item-foto{width:46px;height:46px;border-radius:11px;object-fit:cover;flex:none;
+  background:var(--panel-2)}

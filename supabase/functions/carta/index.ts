@@ -452,6 +452,7 @@ Deno.serve(async (req) => {
           empate por la mas reciente—, que es la regla que Sergio ya decidio y
           que Paco ya usa. Si esa no dice nada, la de la ficha.            */
       let dirGuardada: Fila | null = null;
+      let otrasDirs: Fila[] = [];
       if (cliente?.id) {
         try {
           const pr = await db(`rpc/fn_cliente_direccion_principal`, {
@@ -460,11 +461,23 @@ Deno.serve(async (req) => {
           const d0 = filas(pr.data)[0];
           if (d0?.direccion) dirGuardada = { direccion: String(d0.direccion), barrio: String(d0.barrio || "") };
         } catch (e) { console.error("[carta] direccion principal:", String(e).slice(0, 120)); }
-        if (!dirGuardada) {
-          const fr = await db(`pos_clientes?id=eq.${cliente.id}&select=direccion,barrio&limit=1`);
-          const f0 = filas(fr.data)[0];
-          if (f0?.direccion) dirGuardada = { direccion: String(f0.direccion), barrio: String(f0.barrio || "") };
+        /*  Su ficha, para la de siempre y para LAS DEMAS. La lista ya existe
+            —119 clientes la tienen llena— y es la que se le va a enseNar si
+            dice "otra direccion".                                        */
+        const fr = await db(`pos_clientes?id=eq.${cliente.id}&select=direccion,barrio,direcciones&limit=1`);
+        const f0 = filas(fr.data)[0];
+        if (!dirGuardada && f0?.direccion) {
+          dirGuardada = { direccion: String(f0.direccion), barrio: String(f0.barrio || "") };
         }
+        /*  Sin repetir la principal: verla dos veces en la lista hace dudar
+            de si son la misma o hay una mal escrita.                     */
+        const pelar = (s: unknown) => String(s || "").toLowerCase().normalize("NFD")
+          .replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+        const yaEsta = pelar(dirGuardada?.direccion);
+        otrasDirs = filas(f0?.direcciones)
+          .map((x) => ({ direccion: String(x.dir || "").trim(), barrio: String(x.barrio || "").trim() }))
+          .filter((x) => x.direccion && pelar(x.direccion) !== yaEsta)
+          .slice(0, 6);
       }
 
       /*  ¿Este restaurante hace domicilios? Un negocio que solo recoge no
@@ -568,7 +581,8 @@ Deno.serve(async (req) => {
         pagos,
         upsell,
         premios,
-        cliente: { saldo, puntos, nombre: cliente?.nombre || "", direccion: dirGuardada },
+        cliente: { saldo, puntos, nombre: cliente?.nombre || "",
+                   direccion: dirGuardada, direcciones: otrasDirs },
         domicilios: hayDomicilios,
         empaque_activo: cfg.empaquesActivo === true,
         volver,

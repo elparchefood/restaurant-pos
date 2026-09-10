@@ -154,7 +154,21 @@
       };
       l.base = precioDe(p, l.presId, l.vars);
       if (l.base == null) return;
-      l.total = lineaTotal(l); l.det = detalleDe(l);
+      l.det = detalleDe(l);
+      /*  ══ LO QUE SE RECLAMO CON PUNTOS SIGUE SIENDO CON PUNTOS ═══════════
+          El borrador guarda cuáles líneas eran premio; sin leerlo aquí, al
+          corregir se armaban todas como normales y se les volvía a poner su
+          precio. El cliente gastó sus puntos y por tocar "corregir algo" se
+          los cobraban en dinero.
+
+          Los puntos se vuelven a mirar en el catálogo en vez de guardarlos:
+          un número guardado se queda viejo el día que el restaurante cambia
+          lo que cuesta un premio.                                        */
+      if (it.premio === true) {
+        var pmC = premioDeLinea(l);
+        if (pmC) { l.premio = true; l.pts = pmC.pts; }
+      }
+      l.total = l.premio ? 0 : lineaTotal(l);
       pedido.push(l);
     });
   }
@@ -592,8 +606,19 @@
           + '<div class="ct-preg">¿Es esto lo que quieres?</div>'
           + '<div class="ct-sub">Si está bien, con esto terminamos y vuelves al chat.</div>';
     pedido.forEach(function (l, i) {
-      h += '<div class="ct-item"><span class="ct-item-n">' + l.cant + '</span>'
-         + '<div class="ct-item-t"><div class="ct-item-nom">' + esc(nombreCompleto(l)) + '</div>'
+      /*  La foto antes que el nombre. Los nombres de esta carta son adjetivos
+          —Sencilla, Premium, Porqueso— y una foto se reconoce sin leer: es la
+          misma razón por la que la carta se manda en imágenes.
+
+          Sin foto se deja el contador de siempre; un hueco gris quedaría peor
+          que el número.                                                   */
+      var foto = (l.prod && l.prod.f) || '';
+      h += '<div class="ct-item">'
+         + (foto
+             ? '<img class="ct-item-foto" src="' + esc(foto) + '" alt="" loading="lazy">'
+             : '<span class="ct-item-n">' + l.cant + '</span>')
+         + '<div class="ct-item-t"><div class="ct-item-nom">'
+         + (foto && l.cant > 1 ? l.cant + 'x ' : '') + esc(nombreCompleto(l)) + '</div>'
          + (l.det ? '<div class="ct-item-det">' + esc(l.det) + '</div>' : '')
          /*  Editar primero: es lo que casi siempre se quiere. Quitar va
              despues y en gris, para que no sea la salida facil.          */
@@ -868,7 +893,43 @@
       entrega.conjunto = ''; entrega.unidad = '';
       cotizarYSeguir();
     };
-    $('dirOtra').onclick = irADireccionNueva;
+    $('dirOtra').onclick = irAOtrasDirecciones;
+  }
+
+  /*  2-bis. Sus OTRAS direcciones.
+      Sergio: *"si dice otra dirección, le aparecerá la lista de direcciones
+      que tiene y podrá escoger cualquiera"*.
+
+      Quien no tenga ninguna guardada no ve esta pantalla: se va derecho a
+      escribirla. Una pantalla con una sola opción es un toque de más.     */
+  function irAOtrasDirecciones() {
+    var otras = (D.cliente && D.cliente.direcciones) || [];
+    if (!otras.length) return irADireccionNueva();
+    var h = cabEntrega('Tu pedido', irAEntrega)
+      + '<div class="ct-preg">¿A cuál de tus direcciones?</div>'
+      + '<div class="ct-sub">O escribe una nueva.</div>';
+    otras.forEach(function (d, i) {
+      var linea = [d.direccion, d.barrio].filter(Boolean).join(', ');
+      h += '<button class="ct-op" data-otra="' + i + '"><span>' + esc(linea) + '</span><i>›</i></button>';
+    });
+    h += '<button class="ct-op" id="dirNueva" style="margin-top:14px">'
+       + '<span>Escribir una nueva</span><i>›</i></button>';
+    abrirEntrega(h, irAEntrega);
+    $('hojaPie').hidden = true;
+    otroBoton(false);
+    $('hojaCuerpo').querySelectorAll('[data-otra]').forEach(function (btn) {
+      btn.onclick = function () {
+        var d = otras[Number(btn.dataset.otra)];
+        /*  Se manda la línea completa, igual que con la de siempre: es lo que
+            el cliente acaba de leer y aprobar, y su ficha puede tener la casa
+            guardada en el campo del barrio.                              */
+        entrega.direccion = [d.direccion, d.barrio].filter(Boolean).join(', ');
+        entrega.barrio = d.barrio || '';
+        entrega.conjunto = ''; entrega.unidad = '';
+        cotizarYSeguir();
+      };
+    });
+    $('dirNueva').onclick = irADireccionNueva;
   }
 
   /*  3. Una dirección nueva.
@@ -882,7 +943,11 @@
   var tipoDir = 'casa';
   function irADireccionNueva() {
     var esConj = tipoDir === 'conjunto';
-    var h = cabEntrega('Tu pedido', irAEntrega)
+    /*  Atrás vuelve a la lista si tiene otras, y si no, a la entrega. Volver
+        siempre al principio obliga a rehacer el camino.                  */
+    var atras = ((D.cliente && D.cliente.direcciones) || []).length
+      ? irAOtrasDirecciones : irAEntrega;
+    var h = cabEntrega('Tu pedido', atras)
       + '<div class="ct-preg">¿Para dónde va?</div>'
       + '<div class="ct-seg">'
       + '<button data-tipo="casa" aria-pressed="' + (!esConj) + '">Casa normal</button>'
@@ -898,7 +963,7 @@
       h += campo('Barrio', 'barrio', entrega.barrio, 'Bella Vista', true)
          + campo('Dirección', 'direccion', entrega.direccion, 'Carrera 9b # 63-58', true);
     }
-    abrirEntrega(h, irAEntrega);
+    abrirEntrega(h, atras);
 
     $('hojaCuerpo').querySelectorAll('[data-tipo]').forEach(function (btn) {
       btn.onclick = function () { tipoDir = btn.dataset.tipo; irADireccionNueva(); };
