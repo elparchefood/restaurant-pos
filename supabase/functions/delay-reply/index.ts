@@ -2305,16 +2305,43 @@ INTENCION, no las palabras exactas.` },
       `/rest/v1/pos_clientes?tenant_id=eq.${tenantId}&telefono=in.(${encodeURIComponent(telEst)},${encodeURIComponent(String(fromPhone || "").replace(/\D/g, ""))})&select=id,nombre&limit=1`
     ) as Array<Record<string, unknown>> | null;
 
-    if (!oidEst && cliEst?.[0]?.id) {
-      const ultEst = await sbGet(
+    /*  El respaldo, en UN solo sitio: se usa dos veces —cuando no hay enlace,
+        y cuando el enlace apunta a un pedido borrado— y dos copias de lo
+        mismo se separan a la primera.                                    */
+    const ultimoPedidoDelCliente = async () => {
+      if (oidEst || !cliEst?.[0]?.id) return;
+      const u = await sbGet(
         `/rest/v1/pos_orders?cliente_id=eq.${cliEst[0].id}&branch_id=eq.${branchId}&select=id&order=created_at.desc&limit=1`
       ) as Array<Record<string, unknown>> | null;
-      if (ultEst?.[0]?.id) oidEst = ultEst[0].id;
-    }
+      if (u?.[0]?.id) oidEst = u[0].id;
+    };
+    await ultimoPedidoDelCliente();
 
+    let pEst: Record<string, unknown> | undefined;
     if (oidEst) {
       const oEst = await sbGet(`/rest/v1/pos_orders?id=eq.${oidEst}&select=estado,delivery_status,status,channel,created_at,opened_at&limit=1`) as Array<Record<string, unknown>> | null;
-      const pEst = oEst?.[0];
+      pEst = oEst?.[0];
+      /*  ══ UN ENLACE QUE NO LLEVA A NADA NO ES "NO HAY PEDIDO" ══════════
+          Hoy no deberia pasar: la llave de la base pone el enlace en nulo
+          sola cuando el pedido se borra. Pero si alguna vez pasa —una
+          carrera, un borrado a mano— la compuerta se daba por vencida en vez
+          de buscar por telefono, y quien tenia OTRO pedido en cocina era
+          atendido como un desconocido. Cuesta una consulta y solo en el caso
+          raro; quedarse ciego cuesta un cliente.                        */
+      if (!pEst) {
+        console.log(`[estado] ${convId}: el enlace apuntaba a un pedido que ya no existe, se busca por telefono`);
+        oidEst = undefined;
+      }
+    }
+
+    await ultimoPedidoDelCliente();
+
+    if (oidEst && !pEst) {
+      const oEst = await sbGet(`/rest/v1/pos_orders?id=eq.${oidEst}&select=estado,delivery_status,status,channel,created_at,opened_at&limit=1`) as Array<Record<string, unknown>> | null;
+      pEst = oEst?.[0];
+    }
+
+    if (pEst) {
       const desdeEst = pEst?.opened_at || pEst?.created_at;
       const minsEst = desdeEst ? (Date.now() - new Date(String(desdeEst)).getTime()) / 60000 : 99999;
 
@@ -4094,9 +4121,28 @@ INTENCION, no las palabras exactas.` },
     state = newPacoState();
     if (prevDir) { state.direccion = prevDir; state.direccion_heredada = true; }
     if (prevBarrio) state.barrio = prevBarrio;
-    /*  `order_id: null` por lo mismo de arriba: el cliente esta empezando de
-        nuevo, el pedido anterior ya no es el de esta conversacion.        */
-    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state, pago_pendiente: false, recordar_at: null, order_id: null });
+    /*  ⚠️ EL ENLACE SOLO SE SUELTA SI EL PEDIDO YA TERMINO. Aqui se ponia
+        `order_id: null` a ciegas: el mismo error que se corrigio arriba (las
+        371 conversaciones que perdieron su pedido) y que en este sitio
+        seguia. Un saludo no significa que el pedido de la plancha dejo de
+        existir — y si se borra el enlace, Paco no lo vuelve a encontrar
+        nunca.                                                            */
+    const cambios: Record<string, unknown> = { pending_order_data: state, pago_pendiente: false, recordar_at: null };
+    try {
+      const oidPrev = (await sbGet(`/rest/v1/chat_conversations?id=eq.${convId}&select=order_id&limit=1`) as Array<Record<string, unknown>> | null)?.[0]?.order_id;
+      if (oidPrev) {
+        const oPrev = (await sbGet(`/rest/v1/pos_orders?id=eq.${oidPrev}&select=estado,delivery_status,status,created_at,opened_at&limit=1`) as Array<Record<string, unknown>> | null)?.[0];
+        const desdeP = oPrev?.opened_at || oPrev?.created_at;
+        const minsP = desdeP ? (Date.now() - new Date(String(desdeP)).getTime()) / 60000 : 99999;
+        const vivoP = !!oPrev && String(oPrev.status || "") !== "cancelled"
+          && String(oPrev.estado || "") !== "entregado"
+          && String(oPrev.delivery_status || "") !== "entregado"
+          && minsP < 360;
+        if (!vivoP) cambios.order_id = null;
+        else console.log(`[saludo] ${convId}: NO se suelta el pedido, sigue en "${oPrev?.estado}"`);
+      }
+    } catch (e) { console.error("[saludo] no se pudo comprobar el pedido:", e); }
+    await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, cambios);
 
     if (puedeTomarPedidos) {
       // Bienvenida — SIEMPRE desde canvas/configuración, nunca hardcoded:
@@ -11703,13 +11749,30 @@ async function createWhatsappOrder(
   }
 
   let clienteId: string | null = null;
+  /*  ⚠️ "PASO A RECOGERLO (PARA LLEVAR)" NO ES UNA DIRECCION ══════════════
+
+      La ficha se cruzaba por telefono + nombre + direccion EXACTA. En un
+      pedido para recoger, la "direccion" es esa frase — asi que buscaba una
+      ficha que viviera en ella, no la encontraba, y creaba otra con la frase
+      metida en el campo de direccion. Dos daNos: el pedido se quedaba sin
+      `cliente_id` y la lista de clientes se llenaba de fichas basura.
+
+      Y sin `cliente_id` no hay forma de encontrar ese pedido por telefono:
+      de ahi venia que Paco atendiera desde cero a quien tenia un pedido para
+      recoger en la plancha.
+
+      Para recoger, la ficha se busca por TELEFONO, que es la identidad que
+      usa todo lo demas —puntos, billetera, historial— y no se le inventa
+      ninguna direccion.                                                   */
+  const paraLlevarFicha = LLEVAR_REGEX.test(String(direccion || "").toLowerCase());
   try {
     const telefonoClean = fromPhone.replace(/\D/g, "");
-    const dirQuery = direccion
-      ? `&direccion=eq.${encodeURIComponent(direccion)}`
-      : `&direccion=is.null`;
+    const dirQuery = paraLlevarFicha
+      ? ""
+      : (direccion ? `&direccion=eq.${encodeURIComponent(direccion)}` : `&direccion=is.null`);
+    const nomQuery = paraLlevarFicha ? "" : `&nombre=eq.${encodeURIComponent(cliente)}`;
     const existing = await sbGet(
-      `/rest/v1/pos_clientes?telefono=in.(${encodeURIComponent(telLocal(telefonoClean))},${encodeURIComponent(telefonoClean)})&nombre=eq.${encodeURIComponent(cliente)}&tenant_id=eq.${tenantId}${dirQuery}&limit=1`
+      `/rest/v1/pos_clientes?telefono=in.(${encodeURIComponent(telLocal(telefonoClean))},${encodeURIComponent(telefonoClean)})${nomQuery}&tenant_id=eq.${tenantId}${dirQuery}&order=created_at.asc&limit=1`
     ) as Array<Record<string, unknown>> | null;
     if (existing && existing.length > 0) {
       clienteId = String(existing[0].id);
@@ -11720,7 +11783,9 @@ async function createWhatsappOrder(
         /* Se guarda como lo guarda la pantalla de clientes —sin indicativo— para no
            sembrar dos formatos en la misma tabla. CON su barrio (15-ago): sin el,
            la etiqueta del barrio no salia en el chat para los clientes del bot. */
-        body: JSON.stringify({ tenant_id: tenantId || null, branch_id: branchId, nombre: cliente, telefono: telLocal(telefonoClean), direccion: direccion || null, barrio: barrioPedido || null }),
+        /*  Para recoger, sin direccion ni barrio: no los tiene, y meter la
+            frase "paso a recogerlo" ahi es lo que ensuciaba la lista.    */
+        body: JSON.stringify({ tenant_id: tenantId || null, branch_id: branchId, nombre: cliente, telefono: telLocal(telefonoClean), direccion: paraLlevarFicha ? null : (direccion || null), barrio: paraLlevarFicha ? null : (barrioPedido || null) }),
       });
       if (newCliente.ok) {
         const newRow = await newCliente.json() as Array<Record<string, unknown>>;

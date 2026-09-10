@@ -651,7 +651,7 @@
       + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
       + '</button></div>'
       + '<div class="ct-modal-cuerpo">'
-      + '<div class="ct-modal-txt">Empezamos a prepararlo apenas entre el pago, para que no tengas que esperar cuando llegues.</div>'
+      + '<div class="ct-modal-txt">Lo preparamos apenas confirmamos el pago, para que no esperes nada.</div>'
       + '<div class="ct-modal-txt ct-destacado">Págalo ' + esc(conQue) + '.</div>'
       + '<div class="ct-modal-txt ct-nota-chica">¿Prefieres efectivo? Acércate al local y te lo preparamos ahí mismo.</div>'
       + '<button class="ct-btn ct-entendido" data-cerrar="1">Entendido</button></div></div>';
