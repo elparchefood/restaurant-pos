@@ -97,12 +97,12 @@ async function mandarCodigoSMS(tenant: string, tel10: string, monto: number, mar
       que toca "Usar mi saldo", se arrepiente y vuelve, no gasta un SMS cada
       vez ni se choca contra el tope.                                     */
   const vivo = await db(`pos_web_codigos?tenant_id=eq.${tenant}&telefono=eq.${tel10}` +
-    `&usado=eq.false&motivo=eq.pago&expira_at=gt.${new Date().toISOString()}` +
+    `&usado=eq.false&motivo=eq.pago_carta&expira_at=gt.${new Date().toISOString()}` +
     `&intentos=lt.3&order=created_at.desc&select=id&limit=1`);
   if (filas(vivo.data).length > 0) return "";
 
   const desdeHora = new Date(Date.now() - 3600000).toISOString();
-  const ult = await db(`pos_web_codigos?tenant_id=eq.${tenant}&telefono=eq.${tel10}&created_at=gte.${desdeHora}&select=id`);
+  const ult = await db(`pos_web_codigos?tenant_id=eq.${tenant}&telefono=eq.${tel10}&motivo=eq.pago_carta&created_at=gte.${desdeHora}&select=id`);
   if (filas(ult.data).length >= 3) return "pediste varios códigos seguidos. Espera unos minutos y vuelve a intentarlo";
   const codigo = String(Math.floor(100000 + Math.random() * 900000));
   const ins = await db(`pos_web_codigos`, {
@@ -110,7 +110,12 @@ async function mandarCodigoSMS(tenant: string, tel10: string, monto: number, mar
     body: JSON.stringify({
       tenant_id: tenant, telefono: tel10,
       codigo_hash: await sha256Hex(codigo + "|" + tel10),
-      motivo: "pago", expira_at: new Date(Date.now() + 10 * 60000).toISOString(),
+      /*  Motivo PROPIO. La caja y el chat usan "pago"; si la carta escribiera
+          ahi tambien, un codigo que el cajero pidio para cobrar en el local
+          se lo podria comer esta pagina —y al cajero le saldria "ese codigo
+          ya no esta vigente". `web-acceso` separa igual: un codigo de pagar
+          no sirve para entrar, ni uno de entrar para pagar.             */
+      motivo: "pago_carta", expira_at: new Date(Date.now() + 10 * 60000).toISOString(),
     }),
   });
   if (!ins.ok) return "no pudimos preparar tu código. Inténtalo otra vez";
@@ -149,7 +154,7 @@ async function mandarCodigoSMS(tenant: string, tel10: string, monto: number, mar
 async function comprobarCodigo(tenant: string, tel10: string, codigo: string): Promise<string> {
   const cod = String(codigo || "").replace(/\D/g, "");
   if (cod.length !== 6) return "el código son 6 números";
-  const r = await db(`pos_web_codigos?tenant_id=eq.${tenant}&telefono=eq.${tel10}&usado=eq.false&motivo=eq.pago&order=created_at.desc&select=*&limit=1`);
+  const r = await db(`pos_web_codigos?tenant_id=eq.${tenant}&telefono=eq.${tel10}&usado=eq.false&motivo=eq.pago_carta&order=created_at.desc&select=*&limit=1`);
   const c = filas(r.data)[0];
   if (!c) return "ese código ya no está vigente. Vuelve a intentarlo y te mandamos uno nuevo";
   if (new Date(String(c.expira_at)).getTime() < Date.now()) return "ese código ya venció. Vuelve a intentarlo y te mandamos uno nuevo";
