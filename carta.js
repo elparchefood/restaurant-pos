@@ -501,7 +501,12 @@
       Va encima de la hoja del producto y no dentro: el cliente estaba
       escogiendo el tamaño y vuelve a lo mismo al cerrarlo.                */
   function verQueLleva(p) {
-    var base = String((p && p.base) || '').trim();
+    /*  Su base: el nombre —"Base Salchipapas"— y sus ingredientes. Sale de
+        Inventario > Bases de recetas, que es donde el restaurante ya las
+        tiene escritas.                                                   */
+    var bs = (p && p.base) || null;
+    var base = bs && bs.ing && bs.ing.length ? bs.ing.join(', ') : '';
+    var baseNom = bs && bs.n ? String(bs.n) : '';
     /*  Lo suyo: la descripción sin el "Base +" del principio, que ya se
         explica arriba y repetido no dice nada.                           */
     var suyo = String((p && p.d) || '').replace(/^\s*base\s*\+?\s*/i, '').trim();
@@ -511,7 +516,8 @@
       + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
       + '</button></div>';
     if (base) {
-      h += '<div class="ct-campo"><div class="ct-campo-tit">La base</div>'
+      h += '<div class="ct-campo"><div class="ct-campo-tit">'
+         + esc(baseNom || 'La base') + '</div>'
          + '<div class="ct-modal-txt">' + esc(base) + '</div></div>';
     }
     if (suyo) {

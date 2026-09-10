@@ -367,10 +367,25 @@ Deno.serve(async (req) => {
       const catNom = new Map<string, string>();
       for (const c of cats) catNom.set(String(c.id), String(c.name));
 
-      /*  La descripcion de cada categoria es LA BASE: lo que llevan todos sus
-          platos antes de lo suyo.                                        */
-      const catBase = new Map<string, string>();
-      for (const c of cats) catBase.set(String(c.id), String(c.description || "").trim());
+      /*  ══ LAS BASES, DE DONDE DE VERDAD VIVEN ═════════════════════════════
+          `pos_bases` — Inventario > Bases de recetas. Cada base tiene sus
+          ingredientes y la lista de productos a los que aplica.
+
+          Va por PRODUCTO y no por categoria, que es mas fino: dos productos
+          de la misma categoria pueden llevar bases distintas y esta tabla lo
+          permite. (Yo lo habia leido de la descripcion de la categoria: ahi
+          esta vacio, y de ahi salio mi "no existe en ninguna parte".)     */
+      const baseDe = new Map<string, Fila>();
+      try {
+        const bRes = await db(`pos_bases?tenant_id=eq.${tenant}&select=name,ingredients,product_ids`);
+        for (const bs of filas(bRes.data)) {
+          const ing = filas(bs.ingredients).map((x) => String(x)).filter(Boolean);
+          if (!ing.length) continue;
+          for (const pid of filas(bs.product_ids).map(String)) {
+            baseDe.set(pid, { n: String(bs.name || "").trim(), ing });
+          }
+        }
+      } catch (e) { console.error("[carta] bases:", String(e).slice(0, 120)); }
 
       const prods: Fila[] = [];
       for (const p of filas(pRes.data)) {
@@ -402,11 +417,9 @@ Deno.serve(async (req) => {
 
         prods.push({
           id: p.id, cat: catNom.get(catId), catId,
-          /*  Lo que lleva la base de esa categoria. Vacio hoy en las siete de
-              El Parche: mientras nadie lo escriba, la pagina no habla de
-              ninguna base — inventar ingredientes es lo peor que se puede
-              hacer aqui, y mas con alergias de por medio.               */
-          base: catBase.get(catId) || "",
+          /*  Su base: el nombre y sus ingredientes. Si ese producto no tiene
+              base asignada, no se habla de ninguna.                     */
+          base: baseDe.get(String(p.id)) || null,
           n: String(p.name || "").trim(),
           d: String(p.description || "").slice(0, 120),
           f: p.photo_url || p.image_url || "",
