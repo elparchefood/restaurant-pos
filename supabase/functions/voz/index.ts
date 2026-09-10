@@ -129,6 +129,9 @@ async function vozDeLaSede(tenant: string, branch: string): Promise<string | nul
    Si le falta su llave, dice "no_conectado": el catalogo puede tener la
    voz lista antes de que el proveedor este conectado, y no se cae nada. */
 class NoSirve extends Error { constructor(public motivo: string, detalle = "") { super(detalle || motivo); } }
+function claveGoogle(): string {
+  return Deno.env.get("VOZ_GOOGLE_CLAVE") || Deno.env.get("MAPAS_CLAVE_COBRA") || "";
+}
 function b64aBytes(b64: string): Uint8Array {
   const s = atob(b64); const u = new Uint8Array(s.length);
   for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
@@ -143,7 +146,7 @@ function bytesAb64(u: Uint8Array): string {
 const ENCHUFES: Record<string, (texto: string, c: Record<string, any>) => Promise<Uint8Array>> = {
   //  Google Cloud Text-to-Speech. config: { voz: 'es-US-Neural2-A', idioma: 'es-US', velocidad: 1, tono: 0 }
   async google(texto, c) {
-    const key = Deno.env.get("VOZ_GOOGLE_CLAVE") || Deno.env.get("MAPAS_CLAVE_COBRA") || "";
+    const key = claveGoogle();
     if (!key) throw new NoSirve("no_conectado", "falta la llave de Google");
     const r = await fetchCorto(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(key)}`, {
       method: "POST", headers: { "content-type": "application/json" },
@@ -199,6 +202,27 @@ const ENCHUFES: Record<string, (texto: string, c: Record<string, any>) => Promis
   },
 };
 
+/*  QUE VOCES OFRECE CADA PROVEEDOR, para escuchar y escoger cuales entran al
+    catalogo. Un proveedor nuevo trae aqui su lista (si la tiene).         */
+const LISTAS: Record<string, (idioma: string) => Promise<Array<Record<string, unknown>>>> = {
+  async google(idioma) {
+    const key = claveGoogle();
+    if (!key) throw new NoSirve("no_conectado", "falta la llave de Google");
+    const r = await fetchCorto(`https://texttospeech.googleapis.com/v1/voices?languageCode=${encodeURIComponent(idioma)}&key=${encodeURIComponent(key)}`);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new NoSirve("proveedor", `google ${r.status}: ${String(j?.error?.message || "").replace(key, "[llave]")}`);
+    return (j.voices || []).map((v: any) => ({ id: v.name, genero: v.ssmlGender, idiomas: v.languageCodes }));
+  },
+  async elevenlabs() {
+    const key = Deno.env.get("ELEVENLABS_API_KEY") || "";
+    if (!key) throw new NoSirve("no_conectado", "falta ELEVENLABS_API_KEY");
+    const r = await fetchCorto("https://api.elevenlabs.io/v1/voices", { headers: { "xi-api-key": key } });
+    if (!r.ok) throw new NoSirve("proveedor", `elevenlabs ${r.status}`);
+    const j = await r.json();
+    return (j.voices || []).map((v: any) => ({ id: v.voice_id, nombre: v.name, etiquetas: v.labels, muestra: v.preview_url }));
+  },
+};
+
 /* ── 4. La memoria ─────────────────────────────────────────────────────── */
 async function sha256(t: string): Promise<string> {
   const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
@@ -231,10 +255,34 @@ async function guardarEnMemoria(clave: string, voz: Voz, texto: string, audio: U
 /* ── El puerto ─────────────────────────────────────────────────────────── */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
-  const quien = await quienLlama(req);
-  if (!quien) return ok({ ok: false, motivo: "sin_sesion" });
   const body = await req.json().catch(() => ({})) as Record<string, any>;
   const accion = String(body.accion || "decir");
+
+  /*  HERRAMIENTAS DE COBRA, no de los restaurantes: listar las voces de un
+      proveedor y escuchar una ANTES de meterla al catalogo. Solo la
+      plataforma (su sesion, o la llave de servicio desde un script). No
+      pasan por el contador: son un punado de frases para comparar.        */
+  if (accion === "lista_proveedor" || accion === "probar") {
+    const tk = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    if (!tk || !(tk === SERVICE_KEY || (await esAdminPlataforma(tk)))) return ok({ ok: false, motivo: "solo_plataforma" });
+    const prov = String(body.proveedor || "");
+    try {
+      if (accion === "lista_proveedor") {
+        const listar = LISTAS[prov];
+        if (!listar) return ok({ ok: false, motivo: "no_conectado" });
+        return ok({ ok: true, voces: await listar(String(body.idioma || "es-US")) });
+      }
+      const enchufe = ENCHUFES[prov];
+      const texto = String(body.texto || "").replace(/\s+/g, " ").trim().slice(0, MAX_TEXTO);
+      if (!enchufe || !texto) return ok({ ok: false, motivo: "no_conectado" });
+      return ok({ ok: true, audio: bytesAb64(await enchufe(texto, body.config || {})) });
+    } catch (e) {
+      return ok({ ok: false, motivo: e instanceof NoSirve ? e.motivo : "proveedor", detalle: String((e as Error).message || e).slice(0, 300) });
+    }
+  }
+
+  const quien = await quienLlama(req);
+  if (!quien) return ok({ ok: false, motivo: "sin_sesion" });
 
   //  El catalogo, para escoger (pantallas de configuracion y comparacion).
   if (accion === "voces") {
