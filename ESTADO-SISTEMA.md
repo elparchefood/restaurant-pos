@@ -19065,3 +19065,74 @@ archivo se escribe con un archivo, no por la línea de órdenes.
 `delay-reply-banco` es una copia vieja (v96, 10.794 líneas) que sigue
 desplegada pero que el webhook NO llama. No se tocó. Si algún día se
 resucita, le falta este paso.
+
+
+---
+
+# LA CARTA WEB — PAGO Y RECARGA CON BILLETERA (9/10-sep-2026)
+
+## Lo que se puede hacer desde la carta
+
+El cliente **paga con la Billetera El Parche y la recarga sin salir de la
+página**. Cinco pantallas: billetera vacía → código para entrar → recarga →
+vuelve al pedido con la billetera puesta → código para aprobar el pago.
+
+Se hace dentro de la carta y no mandándolo a la app **porque la carta no guarda
+el carrito**: si sale de la página, pierde el pedido que acaba de armar.
+
+## Las dos reglas que NO se pueden romper
+
+**1. La plata se acredita en UN solo sitio.** `carta` no lee comprobantes, no
+calcula bonos y no toca `pos_saldo`. Todo eso lo sigue haciendo `web-recarga`,
+que cruza el comprobante contra el abono real del banco. Dos formas de
+acreditar dinero son dos cuentas que tienen que cuadrar con el banco, y el día
+que se separen la diferencia es del restaurante.
+
+**2. El navegador NUNCA recibe una sesión de la app.** La sesión se crea en el
+servidor, se usa para llamar a `web-recarga` y se borra en el mismo suspiro
+(con `finally`, así que también si algo falla). Si el token bajara al
+navegador, esa página podría ver puntos, direcciones e historial — y lo que se
+autorizó fue recargar esa billetera, nada más.
+
+## Los códigos: cada uno con su motivo
+
+`pos_web_codigos` la comparten cuatro caminos y **cada uno tiene su motivo**,
+igual que ya hacía `web-acceso` ("un código de pagar no sirve para entrar"):
+
+| motivo | quién | para qué |
+|---|---|---|
+| `pago` | la caja y el chat | cobrar con billetera |
+| `pago_carta` | la carta | aprobar el pago del pedido |
+| `entrar_carta` | la carta | entrar a recargar |
+| `pase_recarga` | la carta | el permiso de esa recarga (30 min) |
+
+⚠️ Si se mezclan, un código que el cajero pidió se lo puede comer la página.
+Pasó y está corregido.
+
+⚠️ El **pase no se quema al comprobarlo**, solo cuando la recarga entra de
+verdad: un comprobante movido —lo más normal del mundo— no puede costar otro
+SMS y volver a empezar.
+
+## Que el código se autocomplete
+
+Hacen falta **las dos piezas** o no pasa nada:
+1. el SMS tiene que **terminar** exactamente en `@dominio #codigo`
+2. la página tiene que pedirlo con `navigator.credentials.get` (WebOTP)
+
+El dominio sale de `ia_config.carta_web.url`, nunca del navegador: es la
+comprobación que hace que el código solo se autocomplete en NUESTRA página.
+
+⚠️ **No se promete en pantalla.** Depende del celular; en el de Sergio no
+ocurrió. Si pasa, es un regalo.
+
+## La llave es Bre-B, no Nequi
+
+`ia_config.pagos.llave` es una llave **Bre-B**: se transfiere desde cualquier
+banco. Decir "por Nequi" deja fuera a quien no lo tenga. La pantalla lleva el
+logo (`bre-b.png`, negro sobre transparente, se invierte en modo oscuro).
+
+## Frases que se guardan y nadie leía
+
+`aviso_despacho` ya se envía (segundo mensaje tras pagar con billetera a
+domicilio). **`pedido_listo_recoger` sigue sin que nadie la lea** — la
+auditoría del 20-jul tiene la lista completa.
