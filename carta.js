@@ -1376,11 +1376,21 @@
           + '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>'
           + '</button><div class="ct-paso-tit"><b>Tu saldo</b></div></div>'
           + '<div class="ct-preg">Tienes ' + cop(saldo) + '</div>'
-          + '<div class="ct-sub">' + (falta === 0 ? 'Cubre <b>todos tus productos</b>.' : 'Cubre una parte de tu pedido.') + '</div>'
+          /*  ⚠️ LA BILLETERA PAGA EL PEDIDO ENTERO O NO LO PAGA. Nunca hubo
+              pago a medias —ni aqui ni en el chat—, pero esta pantalla lo
+              insinuaba con un "queda por pagar" y ofrecia usar el saldo
+              igual. El cliente se enteraba DESPUES de tocar. Ahora se dice
+              antes.                                                      */
+          + '<div class="ct-sub">' + (falta === 0
+              ? 'Cubre <b>todos tus productos</b>.'
+              : 'Te faltan <b>' + cop(falta) + '</b> para pagar este pedido con tu saldo.') + '</div>'
           + '<div class="ct-cuenta">'
           + '<div class="ct-fila"><span>Tu pedido</span><i>' + cop(total) + '</i></div>'
-          + '<div class="ct-fila"><span>Pagas con tu saldo</span><i class="ok">− ' + cop(cubre) + '</i></div>'
-          + '<div class="ct-fila fuerte"><span>Queda por pagar</span><i>' + cop(falta) + '</i></div>'
+          + (falta === 0
+              ? '<div class="ct-fila"><span>Pagas con tu saldo</span><i class="ok">− ' + cop(cubre) + '</i></div>'
+                + '<div class="ct-fila fuerte"><span>Queda por pagar</span><i>' + cop(0) + '</i></div>'
+              : '<div class="ct-fila"><span>Tu saldo</span><i>' + cop(saldo) + '</i></div>'
+                + '<div class="ct-fila fuerte"><span>Te faltan</span><i>' + cop(falta) + '</i></div>')
           + '<div class="ct-nota-chica">Más el domicilio, si lo pides. Te confirmamos el total en el chat.</div>'
           + '</div>'
           /*  Aqui es donde el cliente esta mirando cuando toca "Usar mi
@@ -1391,7 +1401,17 @@
     $('volverPago').onclick = function () { cerrarHoja(); irAlPago(); };
     $('hojaPie').hidden = false;
     $('btnPrincipal').disabled = false;
-    $('btnPrincipal').innerHTML = 'Usar mi saldo · ' + cop(cubre);
+    $('btnPrincipal').innerHTML = falta === 0
+      ? 'Usar mi saldo · ' + cop(cubre)
+      : 'Pagar de otra forma';
+    /*  Si no alcanza, el boton grande hace lo unico que se puede hacer, y no
+        promete un pago a medias que el servidor va a rechazar.           */
+    if (falta > 0) {
+      $('btnPrincipal').onclick = function () { cerrarHoja(); irAlPago(); };
+      otroBoton(false);
+      $('hojaCuerpo').scrollTop = 0;
+      return;
+    }
     $('btnPrincipal').onclick = function () {
       var m = (D.pagos || []).find(function (x) { return x.tipo === 'saldo' || /billetera/i.test(x.n || ''); });
       pagoElegido = { n: m ? m.n : 'Saldo', id: m ? m.id : '', tipo: 'saldo', cubre: cubre, falta: falta };
