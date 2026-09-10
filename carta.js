@@ -1675,7 +1675,15 @@
     otroBoton(true, 'Mejor pago de otra forma', function () { cerrarHoja(); irAlPago(); });
   }
 
-  /*  ══ LA RECARGA ══════════════════════════════════════════════════════ */
+  /*  ══ LA RECARGA ══════════════════════════════════════════════════════
+
+      Todo cabe SIN BAJAR. Sergio: *"todo debería estar a la vista, el cliente
+      no lo va a ver, queda oculto"*. Un boton que hay que buscar bajando es un
+      boton que no existe — y aqui el que se perdia era el de subir el
+      comprobante, que es el que cierra la recarga.
+
+      Por eso esta pantalla no lleva boton secundario: la flecha de atras ya
+      es la salida, y cada boton de mas empuja algo fuera de la vista.     */
   function verRecargar() {
     var g = D.recarga || {}, p = D.pago_recarga || {};
     /*  Viene escogido el primer monto que de verdad le ALCANZA para este
@@ -1686,30 +1694,24 @@
       if (RECARGAS[i] >= necesita && RECARGAS[i] >= (g.minimo || 0)) { recargaMonto = RECARGAS[i]; break; }
       if (i === RECARGAS.length - 1) recargaMonto = RECARGAS[i];
     }
+
     var h = '<div class="ct-paso"><button class="ct-atras" id="volverEnt">'
           + '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>'
-          + '</button><div class="ct-paso-tit"><b>Recargar</b></div></div>'
-          + '<div class="ct-preg">¿Cuánto recargas?</div>'
-          + '<div class="ct-sub">Transfiere y sube el comprobante. Tu saldo entra apenas '
-          + 'quede verificado.</div>'
+          + '</button><div class="ct-paso-tit"><b>¿Cuánto recargas?</b></div>'
+          /*  El paso a paso, a la vista desde el primer segundo: quien no ha
+              recargado nunca no tiene por que adivinar como se hace.      */
+          + '<button class="ct-como" id="comoRec">¿Cómo recargo?</button></div>'
           + '<div class="ct-montos">';
     RECARGAS.forEach(function (m) {
       var b = bonoDe(m);
       h += '<button class="ct-monto' + (m === recargaMonto ? ' on' : '') + '" data-m="' + m + '">'
          + '<b>' + cop(m) + '</b>' + (b > 0 ? '<span>+ ' + cop(b) + '</span>' : '') + '</button>';
     });
-    h += '</div><div id="recBono"></div>'
-      + '<div class="ct-cuenta" style="margin-top:0">'
-      + '<div class="ct-fila-tit">A dónde transferir</div>'
-      + (p.llave ? '<div class="ct-fila"><span>Nequi</span><i>' + esc(p.llave) + '</i></div>' : '')
-      + (p.titular ? '<div class="ct-fila"><span>Titular</span><i>' + esc(p.titular) + '</i></div>' : '')
-      + '<div class="ct-fila" id="recTot"></div></div>'
+    h += '</div><div id="recBono"></div>' + bloqueLlave(p, 'Transfiere a ')
       + '<label class="ct-subir"><input type="file" id="recFoto" accept="image/*" hidden>'
+      + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>'
       + '<span id="recFotoTxt">Adjuntar comprobante</span></label>'
-      + '<div id="recMal" class="ct-codigo-mal" hidden></div>'
-      + '<div class="ct-nota-chica" style="margin-top:12px">El saldo solo se usa en '
-      + esc((D.restaurante && D.restaurante.nombre) || 'el restaurante')
-      + ' y no se devuelve en efectivo. No vence.</div>';
+      + '<div id="recMal" class="ct-codigo-mal" hidden></div>';
     $('hojaCuerpo').innerHTML = h;
     $('hojaCuerpo').scrollTop = 0;
     $('hojaPie').hidden = false;
@@ -1721,9 +1723,8 @@
       $('recBono').innerHTML = b > 0
         ? '<div class="ct-bono">'
           + '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 21V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>'
-          + '<b>Recibes ' + cop(recargaMonto + b) + ' en tu billetera</b></div>'
-        : '';
-      $('recTot').innerHTML = '<span>Transfieres</span><i>' + cop(recargaMonto) + '</i>';
+          + '<b>Transfieres ' + cop(recargaMonto) + ' y recibes ' + cop(recargaMonto + b) + '</b></div>'
+        : '<div class="ct-bono flojo"><b>Transfieres ' + cop(recargaMonto) + '</b></div>';
       $('hojaCuerpo').querySelectorAll('[data-m]').forEach(function (x) {
         x.classList.toggle('on', Number(x.dataset.m) === recargaMonto);
       });
@@ -1734,6 +1735,8 @@
     $('hojaCuerpo').querySelectorAll('[data-m]').forEach(function (x) {
       x.onclick = function () { recargaMonto = Number(x.dataset.m); refrescar(); };
     });
+    engancharCopiar($('hojaCuerpo'));
+    $('comoRec').onclick = function () { verComoRecargar(p); };
 
     $('recFoto').onchange = async function () {
       var f = this.files && this.files[0];
@@ -1741,10 +1744,12 @@
       $('recFotoTxt').textContent = 'Preparando la foto…';
       try {
         recargaFoto = await achicarFoto(f, 1100);
-        $('recFotoTxt').textContent = '✓ Comprobante listo · tocar para cambiar';
+        $('recFotoTxt').textContent = 'Comprobante listo · tocar para cambiar';
+        $('recFoto').parentNode.classList.add('ok');
       } catch (e) {
         recargaFoto = '';
         $('recFotoTxt').textContent = 'No se pudo leer esa foto. Intenta con otra';
+        $('recFoto').parentNode.classList.remove('ok');
       }
       refrescar();
     };
@@ -1775,7 +1780,92 @@
 
     refrescar();
     $('volverEnt').onclick = function () { abrirPanel(verSaldo); };
-    otroBoton(true, 'Mejor pago de otra forma', function () { cerrarHoja(); irAlPago(); });
+    /*  SIN boton secundario a proposito: cada uno empuja algo fuera de la
+        vista, y la salida ya es la flecha de arriba.                     */
+    otroBoton(false);
+  }
+
+  /*  La llave, grande y con COPIAR. En la app lleva ese boton desde el 17-ago
+      por una razon que ahi esta escrita: *"transcribir diez digitos a mano es
+      donde de verdad se pierde una transferencia"*. Yo la habia puesto como
+      texto muerto.                                                        */
+  function bloqueLlave(p, prefijo) {
+    var destino = String(p.llave || '').trim();
+    if (!destino) return '';
+    return '<div class="ct-llave">'
+      + '<div class="ct-llave-lb">' + esc(prefijo || '') + 'Nequi</div>'
+      + '<div class="ct-llave-fila"><span class="ct-llave-n">' + esc(destino) + '</span>'
+      + '<button class="ct-copiar" type="button" data-copiar="' + esc(destino) + '">Copiar</button></div>'
+      + (p.titular ? '<div class="ct-llave-t">' + esc(p.titular) + '</div>' : '')
+      + '</div>';
+  }
+
+  /*  Copiar, con respaldo: el portapapeles moderno no existe en navegadores
+      viejos. Y sin cuadros del navegador — el propio boton dice que copio.
+      Es la misma solucion que ya usa la app.                              */
+  function copiarTexto(txt, btn) {
+    function listo() {
+      if (!btn) return;
+      var antes = btn.textContent;
+      btn.textContent = 'Copiado';
+      btn.classList.add('ok');
+      setTimeout(function () { btn.textContent = antes; btn.classList.remove('ok'); }, 1500);
+    }
+    function respaldo() {
+      var a = document.createElement('textarea');
+      a.value = txt; a.style.position = 'fixed'; a.style.opacity = '0';
+      document.body.appendChild(a); a.select();
+      try { document.execCommand('copy'); listo(); } catch (e) { /* nada que hacer */ }
+      a.remove();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(listo, respaldo);
+    } else respaldo();
+  }
+
+  function engancharCopiar(raiz) {
+    raiz.querySelectorAll('[data-copiar]').forEach(function (b) {
+      b.onclick = function () { copiarTexto(b.dataset.copiar, b); };
+    });
+  }
+
+  /*  ══ CÓMO RECARGO ════════════════════════════════════════════════════
+
+      Los CUATRO PASOS son los de la app, palabra por palabra: esa pantalla
+      lleva meses afinada con Sergio y no hay ninguna razon para reescribirlos
+      aqui peor. La llave va DENTRO del paso 2, que es donde hace falta.   */
+  function verComoRecargar(p) {
+    var pasos = [
+      ['Elige cuánto quieres recargar', 'Ahí mismo ves cuánto te regalamos', ''],
+      ['Transfiere por Nequi', '', bloqueLlave(p, '')],
+      ['Toma foto del comprobante y súbela', 'Con el botón “Adjuntar comprobante”', ''],
+      ['Toca “Enviar recarga”', 'Tu saldo entra apenas verifiquemos el pago', '']
+    ];
+    var h = '<div class="ct-modal-caja" role="dialog" aria-modal="true">'
+      + '<div class="ct-modal-cab"><div class="ct-modal-titulo ct-sin-foto">'
+      + '<b>Cómo recargar</b></div>'
+      + '<button class="ct-modal-x" data-cerrar="1" aria-label="Cerrar">'
+      + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+      + '</button></div><div class="ct-modal-cuerpo">'
+      + pasos.map(function (x, i) {
+          return '<div class="ct-ins"><span class="ct-ins-n">' + (i + 1) + '</span>'
+            + '<div class="ct-ins-b"><div class="ct-ins-tt">' + x[0] + '</div>'
+            + (x[1] ? '<div class="ct-ins-d">' + x[1] + '</div>' : '') + x[2] + '</div></div>';
+        }).join('')
+      /*  Se dice ANTES de que pague, no despues: es plata suya y tiene derecho
+          a saber la regla antes de entregarla. Igual que en la app.       */
+      + '<div class="ct-nota-chica" style="margin-top:12px">El saldo solo se usa en '
+      + esc((D.restaurante && D.restaurante.nombre) || 'el restaurante')
+      + ' y no se devuelve en efectivo. No vence.</div>'
+      + '<button class="ct-btn ct-entendido" data-cerrar="1">Entendido</button></div></div>';
+    var v = document.createElement('div');
+    v.className = 'ct-modal';
+    v.innerHTML = h;
+    document.body.appendChild(v);
+    engancharCopiar(v);
+    var cerrar = function () { if (v.parentNode) v.parentNode.removeChild(v); };
+    v.onclick = function (ev) { if (ev.target === v) cerrar(); };
+    v.querySelectorAll('[data-cerrar]').forEach(function (x) { x.onclick = cerrar; });
   }
 
   /*  La foto, achicada antes de viajar. Una captura de pantalla moderna pesa

@@ -436,21 +436,51 @@ body.ct-cerrado .ct-prod:active{background:var(--panel)}
 .ct-tel b{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
 
 /*  Los montos y el bono. */
-.ct-montos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0 11px}
-.ct-monto{padding:11px 8px;border-radius:12px;border:1px solid var(--linea);text-align:center;
+.ct-montos{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:12px 0 9px}
+.ct-monto{padding:9px 8px;border-radius:12px;border:1px solid var(--linea);text-align:center;
   color:var(--tinta)}
 .ct-monto.on{border-color:var(--marca);background:var(--marca-suave)}
 .ct-monto b{display:block;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
 .ct-monto span{display:block;font-size:11px;font-weight:700;color:var(--ok);margin-top:3px}
-.ct-bono{display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:12px;
-  background:var(--ok-suave);color:var(--ok);margin-bottom:11px}
+.ct-bono{display:flex;align-items:center;gap:9px;padding:10px 12px;border-radius:12px;
+  background:var(--ok-suave);color:var(--ok);margin-bottom:9px}
+.ct-bono.flojo{background:var(--panel-2);color:var(--tinta-2)}
 .ct-bono b{font-size:13px;font-weight:800;letter-spacing:-.01em}
 .ct-fila-tit{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
   color:var(--tinta-3);padding-bottom:6px}
 .ct-subir{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
-  padding:13px;border-radius:13px;border:1.5px dashed var(--linea);color:var(--tinta-2);
-  font-size:13.5px;font-weight:700;margin-top:10px;cursor:pointer}
+  padding:12px;border-radius:13px;border:1.5px dashed var(--linea);color:var(--tinta-2);
+  font-size:13.5px;font-weight:700;margin-top:9px;cursor:pointer}
+.ct-subir.ok{border-style:solid;border-color:var(--ok);color:var(--ok);background:var(--ok-suave)}
 
 /*  "Ya recargaste": lo que mas quiere ver confirmado. */
 .ct-chip-ok{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;
   background:var(--ok-suave);color:var(--ok);font-size:11.5px;font-weight:800;margin-bottom:11px}
+
+/*  ══ LA LLAVE, CON COPIAR ═════════════════════════════════════════════════
+    Transcribir diez digitos a mano es donde de verdad se pierde una
+    transferencia. La misma pieza que la app lleva desde el 17-ago.        */
+.ct-llave{border:1px solid var(--linea);border-radius:13px;padding:10px 12px;background:var(--panel-2)}
+.ct-llave-lb{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--tinta-3);margin-bottom:3px}
+.ct-llave-fila{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ct-llave-n{font-size:19px;font-weight:800;letter-spacing:.01em;font-variant-numeric:tabular-nums}
+.ct-llave-t{font-size:12.5px;color:var(--tinta-2);margin-top:2px}
+.ct-copiar{flex:none;padding:7px 13px;border-radius:10px;border:1.5px solid var(--marca);
+  color:var(--marca);font-size:12.5px;font-weight:800;background:none}
+.ct-copiar.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+
+/*  "¿Cómo recargo?" — a la vista desde el primer segundo. */
+.ct-como{margin-left:auto;flex:none;padding:6px 11px;border-radius:999px;
+  border:1px solid var(--linea);color:var(--tinta-2);font-size:12px;font-weight:800}
+
+/*  El paso a paso. */
+.ct-ins{display:flex;gap:11px;padding:9px 0;border-top:1px solid var(--linea-2)}
+.ct-ins:first-of-type{border-top:none;padding-top:4px}
+.ct-ins-n{width:22px;height:22px;flex:none;border-radius:50%;background:var(--marca);
+  color:var(--marca-ink);font-size:11.5px;font-weight:800;display:flex;align-items:center;
+  justify-content:center;font-variant-numeric:tabular-nums}
+.ct-ins-b{flex:1;min-width:0}
+.ct-ins-tt{font-size:14px;font-weight:700;letter-spacing:-.01em;line-height:1.3}
+.ct-ins-d{font-size:12.5px;color:var(--tinta-2);margin-top:2px;line-height:1.45}
+.ct-ins .ct-llave{margin-top:8px}
