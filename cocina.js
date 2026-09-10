@@ -169,7 +169,7 @@ function conTope(promesa, seg, queEs) {
    'son' | 'area:barra' | 'tk:<id del pedido>' | 'salir'  */
 
 function mandosArriba() {
-  return [...document.querySelectorAll('#son, .k-area')].filter(x => x.offsetParent !== null);
+  return [...document.querySelectorAll('#son, #voz, .k-area')].filter(x => x.offsetParent !== null);
 }
 function mandosAbajo() {
   return [...document.querySelectorAll('#salir')].filter(x => x.offsetParent !== null);
@@ -179,6 +179,7 @@ function tarjetas() { return [...document.querySelectorAll('.tk[data-tk]')]; }
 function nombreDe(el) {
   if (!el) return null;
   if (el.id === 'son') return 'son';
+  if (el.id === 'voz') return 'voz';
   if (el.id === 'salir') return 'salir';
   if (el.classList.contains('k-area')) return 'area:' + el.dataset.area;
   if (el.classList.contains('tk')) return 'tk:' + el.dataset.tk;
@@ -187,6 +188,7 @@ function nombreDe(el) {
 function elementoDe(nombre) {
   if (!nombre) return null;
   if (nombre === 'son') return $('son');
+  if (nombre === 'voz') return $('voz');
   if (nombre === 'salir') return $('salir');
   if (nombre.indexOf('area:') === 0)
     return document.querySelector('.k-area[data-area="' + CSS.escape(nombre.slice(5)) + '"]');
@@ -231,7 +233,7 @@ function mover(k) {
   if (!S.cursor) { irA(tk.length ? nombreDe(tk[0]) : 'son'); return; }
 
   /* ── Piso de arriba ── */
-  if (S.cursor === 'son' || S.cursor.indexOf('area:') === 0) {
+  if (S.cursor === 'son' || S.cursor === 'voz' || S.cursor.indexOf('area:') === 0) {
     const i = arriba.findIndex(x => nombreDe(x) === S.cursor);
     if (k === 'ArrowLeft'  && i > 0)                 return irA(nombreDe(arriba[i - 1]));
     if (k === 'ArrowRight' && i < arriba.length - 1) return irA(nombreDe(arriba[i + 1]));
@@ -358,6 +360,158 @@ async function probarSonido() {
   } else {
     aviso('Sonó: ' + S.sonTono + ' al ' + S.sonVol + '%');
   }
+}
+
+/* ══ LA VOZ QUE LEE CADA PEDIDO NUEVO (10-sep-2026) ══════════════════════
+   Sergio: "cuando llegue un pedido a la cocina, despues del sonido, que una
+   voz diga el pedido: «Personal premium mixta y hamburguesa mexicana, para
+   la mesa»". La voz la escogio el: «Google español de Estados Unidos», la
+   de Google que traen Chrome y Android. Se busca esa por nombre y, si el
+   aparato no la tiene, la de Google en español de EE. UU. que traiga.
+
+   Se enciende o apaga EN ESTE APARATO, como el sonido, y nace APAGADA. Al
+   encenderla dice que voz va a usar — o que el aparato no trae ninguna: la
+   app de la tablet es un navegador interno de Android y puede no traerla.
+   Lee solo lo que prepara ESTA pantalla (repartoDe) y, por ahora, solo los
+   pedidos NUEVOS, igual que el sonido.                                    */
+const VOZ_KEY = 'cobra.cocina.voz';
+const VOZ_PREFERIDA = 'Google español de Estados Unidos';
+function vozEncendida() {
+  try { return localStorage.getItem(VOZ_KEY) === '1'; } catch (e) { return false; }
+}
+function hayVozEnAparato() { return !!(window.speechSynthesis && window.SpeechSynthesisUtterance); }
+function elegirVoz() {
+  if (!hayVozEnAparato()) return null;
+  const vs = speechSynthesis.getVoices() || [];
+  return vs.find(v => v.name === VOZ_PREFERIDA)
+      || vs.find(v => /google/i.test(v.name) && /^es[-_]US/i.test(v.lang))
+      || vs.find(v => /^es[-_](US|419|MX|CO)/i.test(v.lang))
+      || vs.find(v => /^es/i.test(v.lang))
+      || null;
+}
+//  getVoices() llega vacio la primera vez en Chrome: se le pide temprano.
+if (hayVozEnAparato()) { try { speechSynthesis.getVoices(); } catch (e) {} }
+
+function pintarVoz() {
+  const b = $('voz');
+  if (!b) return;
+  const on = vozEncendida();
+  b.classList.toggle('on', on);
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  b.title = on ? 'Voz encendida en este aparato: lee cada pedido nuevo' : 'Voz apagada en este aparato';
+  //  Una persona hablando: con ondas si esta encendida, con una X si no.
+  const a = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"';
+  b.innerHTML = on
+    ? '<svg ' + a + '><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16.5 5.5a4 4 0 0 1 0 5"/><path d="M19.5 3a8 8 0 0 1 0 10"/></svg>'
+    : '<svg ' + a + '><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><line x1="17" y1="4" x2="22" y2="9"/><line x1="22" y1="4" x2="17" y2="9"/></svg>';
+}
+
+addEventListener('click', function (ev) {
+  const b = ev.target && ev.target.closest && ev.target.closest('#voz');
+  if (!b) return;
+  const nuevo = !vozEncendida();
+  try { localStorage.setItem(VOZ_KEY, nuevo ? '1' : '0'); } catch (e) {}
+  pintarVoz();
+  if (!nuevo) { try { speechSynthesis.cancel(); } catch (e) {} aviso('Voz apagada en este aparato'); return; }
+  if (!hayVozEnAparato()) { aviso('Este aparato no trae voz para leer los pedidos', true); return; }
+  //  Las voces pueden tardar en cargar: se espera un momento antes de decidir.
+  setTimeout(function () {
+    const v = elegirVoz();
+    if (!v) { aviso('Este aparato no tiene voces en español', true); return; }
+    decirCocina('Voz de la cocina encendida');   // este toque es el que la deja hablar
+    const esLaDeGoogle = v.name === VOZ_PREFERIDA || /google/i.test(v.name);
+    aviso('Voz encendida · ' + v.name + (esLaDeGoogle ? '' : ' — no está la de Google'), !esLaDeGoogle);
+  }, 400);
+});
+
+//  Lo que la voz leeria como pausa y no lo es: "carne - chorizo" va de corrido
+//  (Sergio). Tambien el "2×" de las adiciones y lo que va entre corchetes.
+function limpiarVoz(t) {
+  return String(t || '')
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/(\d+)\s*[×x]\s+/gi, '$1 ')
+    .replace(/\s*[-–—\/]\s*/g, ' ')
+    .replace(/[()]/g, ' ')
+    .replace(/\s+([,.])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+//  El destino como se diria en voz alta: "la mesa 5", "las mesas 5 y 6",
+//  "Llanos de Calibío", "el turno 4".
+function destinoVoz(o) {
+  //  Si la mesa ya se llama "Mesa 5", la etiqueta sale "Mesa Mesa 5": en
+  //  voz alta eso no se dice dos veces.
+  const t = String(tituloDe(o) || '').trim().replace(/^(mesas?)\s+mesa\s+/i, '$1 ');
+  const z = zonaDe(o);
+  if (z === 'salon') {
+    //  Las mesas de El Parche se llaman "01", "02"...: en voz alta es "la
+    //  mesa 1", no "la mesa cero uno". Solo aqui, en las mesas.
+    const m = t.replace(/\b0+(\d)/g, '$1');
+    if (/^mesas\b/i.test(m)) return 'las ' + m.charAt(0).toLowerCase() + m.slice(1);
+    if (/^mesa\b/i.test(m)) return 'la ' + m.charAt(0).toLowerCase() + m.slice(1);
+    return m || 'el salón';
+  }
+  if (z === 'rapido') {
+    const m = /^turno\s*#?0*(\d+)/i.exec(t);
+    return m ? 'el turno ' + m[1] : (t || 'venta rápida');
+  }
+  return (t && t.toLowerCase() !== 'domicilio') ? t : 'domicilio';
+}
+//  "A, B y C": como lo diria una persona.
+function unirVoz(partes) {
+  if (partes.length < 2) return partes.join('');
+  return partes.slice(0, -1).join(', ') + ' y ' + partes[partes.length - 1];
+}
+function fraseVoz(o) {
+  const its = repartoDe(S.items.get(o.id) || []).mios;
+  if (!its.length) return '';
+  const partes = its.map(i => {
+    const q = parseInt(i.quantity, 10) || 1;
+    const adic = adiciones(i);
+    return (q > 1 ? q + ' ' : '') + (i.product_name || i.name || 'producto')
+      + (adic ? ' ' + adic : '') + (i.notes ? ' ' + i.notes : '');
+  });
+  return limpiarVoz(unirVoz(partes) + ', para ' + destinoVoz(o) + '.');
+}
+function decirCocina(texto) {
+  if (!hayVozEnAparato() || !texto) return;
+  const u = new SpeechSynthesisUtterance(texto);
+  const v = elegirVoz();
+  if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = 'es-US'; }
+  u.rate = 0.95;
+  speechSynthesis.speak(u);   // en cola: si llegan dos pedidos juntos, uno detras del otro
+}
+//  Cuanto dura el sonido, para hablar DESPUES de el y no encima.
+const _durTono = {};
+function duracionTono(cb) {
+  if (!sonidoEncendido()) return cb(0);
+  const t = S.sonTono;
+  if (_durTono[t] != null) return cb(_durTono[t]);
+  let hecho = false;
+  const fin = function (ms) { if (hecho) return; hecho = true; _durTono[t] = ms; cb(ms); };
+  try {
+    const a = new Audio('assets/son/' + t + '.mp3');
+    a.addEventListener('loadedmetadata', function () { fin(isFinite(a.duration) ? Math.round(a.duration * 1000) : 1200); });
+    a.addEventListener('error', function () { fin(700); });   // tono sintetico: dura poco
+    a.load();
+  } catch (e) { fin(1200); }
+  setTimeout(function () { fin(1500); }, 2500);
+}
+/*  Los productos pueden llegar un instante DESPUES que el pedido (van por
+    otro canal). Si todavia no estan, se espera un poco antes de hablar, en
+    vez de decir un pedido vacio.                                          */
+function anunciar(pedidos) {
+  if (!vozEncendida() || !hayVozEnAparato()) return;
+  duracionTono(function (ms) {
+    pedidos.forEach(function (o) {
+      let intentos = 0;
+      (function probar() {
+        const f = fraseVoz(o);
+        if (f) { setTimeout(function () { decirCocina(f); }, ms + 200); return; }
+        if (++intentos < 8) setTimeout(probar, 500);
+      })();
+    });
+  });
 }
 
 addEventListener('click', function (ev) {
@@ -518,6 +672,7 @@ async function cargarBase() {
   S.sonTono = cn.tono || 'caja';
   S.sonVol  = (typeof cn.vol === 'number') ? cn.vol : 80;
   pintarSonido();
+  pintarVoz();
   /* En la tablet se intenta abrir el audio de una, sin esperar a que alguien
      toque nada: es una pantalla de pared y puede pasar la noche entera sin que
      nadie la roce. Si el aparato no lo permite, el primer toque o la primera
@@ -1057,6 +1212,7 @@ function pintar() {
   });
 
   let sonar = false;
+  const nuevos = [];   // los pedidos que acaban de llegar: la voz los lee
   Object.keys(porZona).forEach(z => {
     /*  DOS ORDENES DISTINTOS, PORQUE SIRVEN PARA COSAS DISTINTAS.
 
@@ -1086,13 +1242,14 @@ function pintar() {
       return;
     }
     cont.innerHTML = lista.map(o => {
-      if (!S.vistas.has(o.id)) { S.vistas.add(o.id); if (!S.arrancando) sonar = true; }
+      if (!S.vistas.has(o.id)) { S.vistas.add(o.id); if (!S.arrancando) { sonar = true; nuevos.push(o); } }
       return tarjeta(o);
     }).join('');
   });
 
   $('cuenta').textContent = aLaVista;
   if (sonar) sonarUnaVez();
+  if (nuevos.length) anunciar(nuevos);
   pintarCursor();
 }
 
@@ -1499,6 +1656,13 @@ function abrirAudio() {
   } catch (_) {}
   /* Y el reproductor de las grabaciones, que tiene el suyo propio. */
   try { if (typeof window.posTocarTono === 'function') window.posTocarTono(S.sonTono, 0); } catch (_) {}
+  /* Y la voz, que tambien necesita un toque para poder hablar: una frase
+     muda la deja lista para el primer pedido. */
+  try {
+    if (vozEncendida() && hayVozEnAparato()) {
+      const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u);
+    }
+  } catch (_) {}
 }
 ['pointerdown', 'keydown', 'touchstart'].forEach(function (ev) {
   addEventListener(ev, abrirAudio, { once: false, passive: true });

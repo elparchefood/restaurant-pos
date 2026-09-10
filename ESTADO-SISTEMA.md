@@ -681,6 +681,56 @@ domicilios" escribe la configuracion de la sede sin permiso (`pos-arranque.js`).
 
 - `supabase/sql/2026-09-10-escritorio-por-bloques.sql`
 
+## 🟢 La voz de la cocina — 10-sep-2026
+
+Sergio: *"cuando llegue un pedido a la cocina, despues del sonido, que hable
+una voz diciendo el pedido: «Personal premium mixta y hamburguesa mexicana
+para la mesa» · «Personal tropical, personal super queso carne chorizo y perro
+especial solo ajo para Llanos de Calibio»"*.
+
+**La voz la escogio el, y no hay otra:** «Google español de Estados Unidos» —la
+de Google que traen Chrome y Android—. Se le mostraron las de Windows (España,
+roboticas) y las de Microsoft/Azure; dijo *"la que te mostre es exactamente la
+que quiero"*. Por eso NO se usa un servicio en la nube: esas son parecidas, no
+esa.
+
+### Como funciona (cocina.js, bloque "LA VOZ QUE LEE CADA PEDIDO NUEVO")
+
+- Boton **Voz** (`#voz`) al lado del altavoz, por APARATO (`cobra.cocina.voz`),
+  nace APAGADO. Al encenderlo dice "Voz de la cocina encendida" y avisa que
+  voz usa — o que el aparato no trae ninguna. El control remoto llega a el.
+- `elegirVoz()`: esa por nombre; si no, una Google `es-US`; si no, cualquier
+  `es-US/419/MX/CO`; si no, cualquier `es`.
+- Cuando entra un pedido NUEVO (el mismo momento en que suena el tono), espera
+  lo que dura el tono (`duracionTono`, del mp3) y lee `fraseVoz(o)`: los
+  productos de ESTA pantalla (`repartoDe`), con adiciones y notas, y el destino
+  (`destinoVoz`: "la mesa 1", "las mesas 5 y 6", el barrio o conjunto, "el
+  turno 4", el nombre). Si los productos aun no llegaron, espera hasta 4 s.
+- `limpiarVoz`: "carne - chorizo" se dice de corrido (la pausa del guion la
+  pidio quitar Sergio); se quitan corchetes y el "×" de las adiciones.
+- Las mesas de El Parche se llaman "01".."08" y la etiqueta sale "Mesa 01":
+  en voz se dice "la mesa 1". Y si una mesa ya se llama "Mesa 5", no se dice
+  "mesa mesa".
+- Por ahora solo los pedidos NUEVOS, igual que el sonido (lo que una mesa pide
+  de mas no se anuncia).
+
+### ⚠️ Donde SI esta esa voz y donde no
+
+- **Chrome** (PC o Android): si.
+- **App de la tablet de cocina** (Capacitor, `cobra-cocina-capacitor`, carga
+  `cobrapos.app` → el boton le llega sin reinstalar): su navegador interno de
+  Android **puede no traer voces**. El boton lo dice al encenderlo. Si no trae,
+  el paso siguiente es agregarle a la APK un modulo de voz nativo de Android
+  (usa la misma voz de Google del aparato) y recompilar — receta en la seccion
+  "Las dos APK".
+- **Programa de Windows (.exe)**: no tiene las voces de Google; usaria las de
+  Windows.
+
+Probado: `probar-frases.js` saca de cocina.js las funciones reales y arma 11
+frases (los dos ejemplos de Sergio, mesas unidas, "01", mostrador, conjunto,
+cantidades, pedido sin productos); y una copia de la pantalla de cocina con
+base de mentira (boton, control remoto, aviso de que voz usa, sin errores).
+
 ## 🟢 La campana pedia un PIN y unas fotos que ya estaban — 10-sep-2026
 
 Sergio: *"me esta pidiendo que coloque un PIN y que suba las fotos de la carta,
