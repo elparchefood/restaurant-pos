@@ -449,16 +449,15 @@ a{color:inherit;text-decoration:none}
   .ch-vivo i,.ch-pt{animation:none}
 }
 
-/* ══ EL PORTATIL QUE SE ABRE ══════════════════════════════════════════════
+/* ══ EL MONITOR ═══════════════════════════════════════════════════════════
 
-   Cerrado de lejos; segun la seccion se acerca al centro de la pantalla, la
-   tapa se levanta. Dentro va el MISMO chat de la tarjeta del asistente —las
+   Antes era un portatil que se abria con el scroll (tapa en 3D, teclado de
+   76 teclas, sello, respaldo, luz que prendia...). Sergio (11-sep-2026): "es
+   muy tedioso; mejor una simple pantalla de computador, grande, se ve mucho
+   mas limpio". Dentro va el MISMO chat de la tarjeta del asistente —las
    clases `.ch-*` no se repiten aqui—, con una conversacion ya empezada y el
-   comprobante del cliente esperando.
-
-   El angulo lo escribe el guion en --abre. Aqui solo esta el de reposo, por
-   si el guion no llega a correr: cerrado del todo se veria una raya, asi que
-   el reposo es "abierto" y cerrarlo es cosa del guion.                    */
+   comprobante del cliente esperando. Sin 3D: nada de `preserve-3d`, ni
+   `pointer-events` cruzados, ni variables que escriba el guion.           */
 .cmp{padding:0 0 104px}
 .cmp-cab{text-align:center;max-width:640px;margin:0 auto 40px}
 .cmp-cab .eyeb{justify-content:center}
@@ -466,154 +465,46 @@ a{color:inherit;text-decoration:none}
 .cmp-cab h2{font-size:clamp(28px,3.4vw,44px);line-height:1;letter-spacing:-.03em}
 .cmp-cab .lead{font-size:16.5px;color:var(--t2);margin-top:14px}
 
-/*  ── LA GEOMETRIA ──────────────────────────────────────────────────────
-    Las dos piezas comparten la BISAGRA —el borde de abajo de la tapa— y el
-    ancho, asi que la perspectiva las deforma igual y encajan solas.
+.pc{width:min(100%,800px);margin:0 auto;position:relative}
+/*  El marco: el mismo chasis de la tablet del simulador (mismo degradado,
+    misma sombra), para que las dos pantallas de la pagina sean familia.
+    El relleno de abajo es la barbilla, donde va la lucecita.            */
+.pc-mon{position:relative;background:linear-gradient(150deg,#1C2130,#0A0D16 60%);
+  border-radius:18px;padding:16px 16px 24px;
+  box-shadow:0 0 0 1px rgba(255,255,255,.07),0 42px 80px -34px rgba(15,23,42,.55),
+             0 8px 22px -10px rgba(15,23,42,.28),inset 0 1px 0 rgba(255,255,255,.09)}
+.pc-mon::after{content:'';position:absolute;left:50%;bottom:9px;transform:translateX(-50%);
+  width:36px;height:3px;border-radius:999px;background:rgba(255,255,255,.12)}   /* la luz */
+.pc-camara{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:5px;height:5px;
+  border-radius:999px;background:#2C3346;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.pc-pantalla{aspect-ratio:16/10;border-radius:8px;overflow:hidden;background:#08080A;position:relative}
+.pc-brillo{position:absolute;inset:0;z-index:9;pointer-events:none;border-radius:8px;
+  background:linear-gradient(103deg,rgba(255,255,255,.07) 0 18%,transparent 34%)}
 
-    Antes la base era una BARRA PLANA de 15 px mientras la tapa si giraba en
-    3D: al cerrarse se abria en abanico y quedaba mas ancha que la barra.  */
-.pc{width:min(100%,660px);margin:0 auto;perspective:1500px;padding-bottom:30%}
-/*  -13 y no +13: en positivo la camara se va POR DEBAJO del teclado y el
-    panel tactil sale por encima de las teclas. Medido: con +13 el borde
-    de delante de la base cae mas arriba que la bisagra.               */
-.pc-cuerpo{position:relative;transform-style:preserve-3d;transform:rotateX(-13deg);
-  /*  `pointer-events:none` es OBLIGATORIO. Es un envoltorio sin fondo, pero
-      una caja transparente si recibe pulsaciones, y su plano esta en Z=0.
-      La tapa va inclinada hacia atras, asi que su parte de ARRIBA —la
-      cabecera, donde vive "Crear pedido"— queda por DETRAS de ese plano y el
-      envoltorio se llevaba el clic. El boton del comprobante si respondia
-      porque esta mas abajo, casi a la altura de la bisagra.             */
-  pointer-events:none}
-
-/*  La tapa: de pie con --abre en 0, tumbada sobre la base a -90.
-
-    `margin:0 5px` — entra por los lados. Al cerrarse se levanta sobre la
-    base y, por la perspectiva, lo mas alto se ve mas ancho: sin el margen
-    la tapa sobresalia unos pixeles y por debajo de ese voladizo no hay base,
-    sino el fondo de la pagina. Es el hueco blanco de las esquinas.
-
-    `translateZ(-5px)` — la separa del plano de la base. Va DESPUES del giro,
-    asi que se mueve por su propia normal: cerrada, eso es hacia arriba. Dos
-    planos exactamente encima se pelean por quien pinta y dejan costuras. */
-/*  `preserve-3d` es OBLIGATORIO aqui, aunque sume una capa: sin el, los
-    hijos de la tapa quedan aplanados y DEJAN DE RECIBIR EL CLIC —el
-    navegador da la pulsacion al contenedor y los botones del chat no
-    responden—. Lo que si se quito fue la banda de canto que colgaba de
-    ella; el grosor de la pantalla lo da ahora el sello.                 */
-.pc-tapa{position:relative;margin:0 5px;transform-origin:50% 100%;
-  transform-style:preserve-3d;
-  transform:rotateX(var(--abre,12deg)) translateZ(-5px);
-  background:linear-gradient(158deg,#232A3D,#0D111C 64%);
-  border-radius:12px 12px 4px 4px;padding:10px 10px 12px;
-  /*  El ultimo es EL SELLO: una banda opaca del color del chasis alrededor
-      de la tapa, en su propio plano. Crece de 0 a 16 px segun se cierra
-      (--sello lo escribe el guion). Abierta vale 0 y no se ve; cerrada tapa
-      cualquier rendija que quede entre la tapa y la base. Va el ultimo para
-      que se pinte por DEBAJO de los otros dos.                          */
-  box-shadow:0 0 0 1px rgba(255,255,255,.07),0 -6px 34px -16px rgba(0,0,0,.85),
-             0 0 0 var(--sello,0px) #0B0F19}
-.pc-camara{width:4px;height:4px;border-radius:999px;background:#2C3346;margin:0 auto 6px;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
-/*  NUNCA `opacity` aqui. Un valor distinto de 1 la convierte en capa
-    compuesta y, dentro de la cadena de `preserve-3d`, el navegador deja de
-    pasar la pulsacion a traves: los botones del chat dejan de responder.
-    Para apagarla esta `.pc-apaga`, que va ENCIMA y no envuelve a nadie.  */
-.pc-pantalla{aspect-ratio:16/10;border-radius:5px;overflow:hidden;background:#08080A;
-  position:relative}
-/*  La tapadera: el mismo aluminio de la tapa, que aparece al reves que la
-    luz. Cerrada la cubre entera y se ve un portatil cerrado; abierta vale
-    cero y no existe. `pointer-events:none` para que el clic la atraviese. */
-.pc-apaga{position:absolute;inset:0;z-index:10;pointer-events:none;border-radius:5px;
-  background:linear-gradient(158deg,#232A3D,#0D111C 64%);
-  opacity:calc(1 - var(--luz,1))}
-.pc-brillo{position:absolute;inset:0;z-index:9;pointer-events:none;border-radius:5px;
-  background:linear-gradient(103deg,rgba(255,255,255,.10) 0 18%,transparent 34%)}
-
-/*  EL RESPALDO. Un plano opaco por debajo de todo, un poco mas grande que
-    la base y que la tapa. No arregla ninguna rendija: hace que deje de
-    importar, porque por ella se ve este azul oscuro y no el blanco de la
-    pagina. Perseguir como reparte el navegador dos planos que casi se tocan
-    es una pelea que cambia con cada zoom.                               */
-.pc-suelo{position:absolute;left:-8px;right:-8px;top:100%;aspect-ratio:100/71;
-  transform-origin:50% 0;transform:rotateX(90deg) translateZ(-3px);
-  border-radius:0 0 14px 14px;background:#0B0F19}
-
-/*  Mas honda que alto tiene la tapa (69 contra los ~65 que mide ella), para
-    que cerrada la tapa quede DENTRO y no se pase por delante.           */
-.pc-base{position:absolute;left:0;right:0;top:100%;aspect-ratio:100/69;
-  transform-origin:50% 0;transform:rotateX(90deg);
-  /*  SIN `preserve-3d`. Con el, cada una de las 74 teclas se iba a su propia
-      capa 3D y al ampliar la pagina las juntas no casaban al pixel: por ahi
-      se veia el blanco del fondo. Plana, la base se dibuja como UNA imagen y
-      se gira entera, asi que no hay juntas que puedan fallar.           */
-  background:linear-gradient(180deg,#2A3145 0%,#1B2130 26%,#141926 70%,#0D1119);
-  box-shadow:0 0 0 1px rgba(255,255,255,.06)}
-
-/*  EL GRUESO DEL CHASIS. La base ya va girada +90 —tumbada—, asi que este
-    -90 encima la devuelve a la vertical: el canto queda de pie, mirando de
-    frente, colgando del borde de delante. Sin el, la base es un plano de un
-    pixel y el portatil parece una hoja.                                  */
-/*  Fuera de la base, para que ella pueda ser plana. Se coloca solo: cuelga
-    del borde de la bisagra y se echa hacia delante --fondo pixeles, que es
-    lo que mide la base de fondo. Lo escribe el guion porque `translateZ` no
-    admite porcentajes.                                                  */
-.pc-canto{position:absolute;left:0;right:0;top:100%;height:14px;
-  transform:translateZ(var(--fondo,455px));
-  border-radius:0 0 10px 10px;
-  background:linear-gradient(180deg,#252C40 0%,#171D2C 45%,#0B0F19);
-  box-shadow:0 0 0 1px rgba(255,255,255,.05),0 20px 34px -14px rgba(0,0,0,.75)}
-/*  la muesca del dedo para levantar la tapa */
-.pc-canto::after{content:'';position:absolute;left:50%;transform:translateX(-50%);
-  top:0;width:16%;height:5px;border-radius:0 0 7px 7px;background:rgba(0,0,0,.45)}
-.pc-base::before{content:'';position:absolute;left:22%;right:22%;top:0;height:3px;
-  border-radius:0 0 4px 4px;background:rgba(0,0,0,.5)}          /* la bisagra */
-.pc-base::after{content:'';position:absolute;left:50%;transform:translateX(-50%);
-  top:56%;width:26%;height:30%;border-radius:6px;               /* el tactil  */
-  background:rgba(255,255,255,.035);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
-/*  El teclado, tecla por tecla. No hay que dibujarlo en perspectiva: la
-    base ya es un plano girado, asi que las teclas se colocan en
-    coordenadas normales y la perspectiva se las aplica sola. Las filas las
-    escribe el guion, que son seis y setenta y pico teclas.              */
-.pc-teclas{position:absolute;left:7.5%;right:7.5%;top:8%;height:45%;
-  display:flex;flex-direction:column;gap:3px}
-.pc-fila{display:flex;gap:3px;flex:1}
-.pc-fila.fn{flex:.66}
-.pc-tec{flex:1;min-width:0;border-radius:3px;overflow:hidden;
-  display:flex;align-items:center;justify-content:center;
-  font-family:'DM Sans',system-ui,sans-serif;font-size:8px;font-weight:600;
-  color:#7E88A3;line-height:1;white-space:nowrap;
-  background:linear-gradient(180deg,#222A3D 0%,#161C2B 62%,#111624);
-  box-shadow:inset 0 -1.5px 0 rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.055),
-             0 1px 1.5px rgba(0,0,0,.45)}
-/*  Las que no son una letra van mas pequenas: "Bloq" no cabe al mismo
-    cuerpo que una "A".                                                  */
-.pc-tec.mini{font-size:6px;color:#69738C}
-
-/*  FUERA del espacio 3D. Lleva `filter:blur()`, y un filtro dentro de un
-    `preserve-3d` obliga al navegador a aplanar y es fuente conocida de
-    fallos al componer las capas. La sombra no necesita 3D: es una mancha
-    debajo del portatil.                                                 */
-.pc-sombra{position:absolute;left:8%;right:8%;bottom:6px;height:26px;
-  border-radius:50%;filter:blur(7px);z-index:-1;
-  background:radial-gradient(ellipse at center,rgba(0,0,0,.40),transparent 72%)}
+/*  El pie: un cuello que se ensancha hacia abajo y una peana plana.     */
+.pc-cuello{width:min(17%,124px);height:clamp(30px,5.6vw,54px);margin:0 auto;
+  background:linear-gradient(90deg,#10141F,#262D40 50%,#10141F);
+  clip-path:polygon(10% 0,90% 0,100% 100%,0 100%)}
+.pc-base{width:min(44%,330px);height:clamp(9px,1.5vw,13px);margin:0 auto;
+  border-radius:4px 4px 14px 14px;
+  background:linear-gradient(180deg,#2A3145,#161C2B 60%,#0D1119);
+  box-shadow:0 0 0 1px rgba(255,255,255,.06),inset 0 1px 0 rgba(255,255,255,.08)}
+/*  La sombra en el suelo. Lleva `filter:blur()`, fuera de cualquier 3D.  */
+.pc-sombra{position:absolute;left:16%;right:16%;bottom:-10px;height:22px;
+  border-radius:50%;filter:blur(8px);z-index:-1;
+  background:radial-gradient(ellipse at center,rgba(0,0,0,.34),transparent 72%)}
 
 /*  Dentro de la pantalla el chat va a 16/10, no a 16/11 como en la tarjeta. */
 .pc-pantalla .ch{aspect-ratio:auto;height:100%;border:none;border-radius:0;box-shadow:none}
-/*  (la pantalla entera ya se apaga con --luz, ver mas arriba)           */
-/*  SIN `backdrop-filter` dentro del portatil. Un filtro de fondo crea una
-    capa compuesta y, dentro de la cadena de `preserve-3d`, el navegador deja
-    de pasar la pulsacion a lo que hay dentro: "Crear pedido" no respondia.
-    Los fondos se suben de opacidad para que no se note que falta.       */
+/*  Sin `backdrop-filter` dentro de la pantalla: era obligatorio con el 3D
+    y se deja igual —el fondo opaco se ve bien y ya esta probado—.       */
 .pc-pantalla .ch-head{-webkit-backdrop-filter:none;backdrop-filter:none;
   background:rgba(13,14,18,.94)}
 .pc-pantalla .ch-comp{-webkit-backdrop-filter:none;backdrop-filter:none;
   background:rgba(13,14,18,.96)}
-
-/*  Y AQUI SI SE TOCA. Se le devuelve solo a la pantalla, que es lo unico
-    que hay que tocar. (`.ch-esc` lo lleva apagado porque en la tarjeta del
-    asistente es una animacion y nada es pulsable; en el portatil el
-    recorrido lo hace quien visita la pagina.)                           */
-.pc-pantalla{pointer-events:auto}
+/*  Aqui SI se toca (`.ch-esc` lo lleva apagado porque en la tarjeta del
+    asistente es una animacion; en el monitor el recorrido lo hace quien
+    visita la pagina).                                                    */
 .pc-pantalla .ch-esc{pointer-events:auto}
 
 .sim-otra.cmp-otra{display:flex;margin:26px auto 0}
@@ -2001,8 +1892,8 @@ body{background:#FFFFFF}
 </div></section>
 
 <!-- ══════ EL COMPROBANTE ══════
-     El portatil se abre con el scroll y dentro esta el chat de verdad, con
-     una conversacion ya empezada y el comprobante del cliente esperando. -->
+     Un monitor, y dentro el chat de verdad con una conversacion ya
+     empezada y el comprobante del cliente esperando. -->
 <section class="sec cmp" id="comprobante"><div class="env">
   <div class="cmp-cab rev">
     <div class="eyeb"><span class="lab">El comprobante</span><span class="rl"></span></div>
@@ -2011,24 +1902,19 @@ body{background:#FFFFFF}
   </div>
 
   <div class="pc rev" id="pc">
-    <div class="pc-cuerpo">
-      <div class="pc-tapa">
-        <span class="pc-camara"></span>
-        <div class="pc-pantalla">
-          <!--  El chat lo dibuja el guion; son las mismas clases .ch-* de la
-                tarjeta del asistente.                                     -->
-          <div class="ch" id="ch2"></div>
-          <span class="pc-apaga"></span>
-          <span class="pc-brillo"></span>
-        </div>
+    <div class="pc-mon">
+      <span class="pc-camara"></span>
+      <div class="pc-pantalla">
+        <!--  El chat lo dibuja el guion; son las mismas clases .ch-* de la
+              tarjeta del asistente.                                     -->
+        <div class="ch" id="ch2"></div>
+        <span class="pc-brillo"></span>
       </div>
-      <div class="pc-suelo"></div>
-      <div class="pc-base"><span class="pc-teclas"></span></div>
-      <div class="pc-canto"></div>
     </div>
+    <div class="pc-cuello"></div>
+    <div class="pc-base"></div>
     <div class="pc-sombra"></div>
   </div>
-
   <button class="sim-otra cmp-otra" id="cmp-otra" type="button">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
     Otra vez
@@ -3687,10 +3573,10 @@ window.CobraPlan.iniciar({
 </script>
 
 <script>
-/*  ══ EL PORTATIL: VERIFICAR EL COMPROBANTE Y CREAR EL PEDIDO ═════════════
+/*  ══ EL MONITOR: VERIFICAR EL COMPROBANTE Y CREAR EL PEDIDO ══════════════
 
-    La tapa se abre segun la seccion se acerca al centro de la pantalla, con
-    la misma cuenta que endereza la tablet del simulador.
+    (Hasta el 11-sep era un portatil que se abria con el scroll; el monitor
+    no tiene tapa ni teclado, asi que aqui ya no se escribe nada por scroll.)
 
     Dentro, el recorrido lo hace quien visita la pagina:
       1 · toca "Verificar pago" -> sale el modal, la rueda y el veredicto
@@ -3701,44 +3587,7 @@ window.CobraPlan.iniciar({
     vuelve a describir ninguno.                                            */
 (function () {
   var caja = document.getElementById('ch2');
-  var pc   = document.getElementById('pc');
-  if (!caja || !pc) return;
-
-  /*  ── EL TECLADO ────────────────────────────────────────────────────
-      Cada numero es lo que ocupa una tecla en su fila: 1 es una normal,
-      6.25 es la barra espaciadora. Van aqui y no en el HTML porque son
-      setenta y seis teclas y a mano seria una pared ilegible.          */
-  (function () {
-    /*  Teclado latinoamericano. Cada tecla es letra + ancho; las seis
-        filas suman 15, que es lo que suma un teclado de verdad, asi que
-        las columnas se alinean solas.                                */
-    var A = function (t, w, mini) { return { t: t, w: w || 1, m: mini }; };
-    var FILAS = [
-      [A('esc',1,1),A('F1',1,1),A('F2',1,1),A('F3',1,1),A('F4',1,1),A('F5',1,1),
-       A('F6',1,1),A('F7',1,1),A('F8',1,1),A('F9',1,1),A('F10',1,1),A('F11',1,1),
-       A('F12',1,1),A('',2,1)],
-      [A('\u00b0'),A('1'),A('2'),A('3'),A('4'),A('5'),A('6'),A('7'),A('8'),A('9'),
-       A('0'),A('\u00bf'),A('!'),A('\u232b',2,1)],
-      [A('Tab',1.5,1),A('Q'),A('W'),A('E'),A('R'),A('T'),A('Y'),A('U'),A('I'),A('O'),
-       A('P'),A('\u00b4'),A('+'),A('\\',1.5,1)],
-      [A('Bloq',1.75,1),A('A'),A('S'),A('D'),A('F'),A('G'),A('H'),A('J'),A('K'),
-       A('L'),A('\u00d1'),A('{'),A('Enter',2.25,1)],
-      [A('\u21e7',2.25,1),A('Z'),A('X'),A('C'),A('V'),A('B'),A('N'),A('M'),A(','),
-       A('.'),A('-'),A('\u21e7',2.75,1)],
-      [A('Ctrl',1.25,1),A('Fn',1.25,1),A('\u229e',1.25,1),A('Alt',1.25,1),A('',6.25),
-       A('AltGr',1.25,1),A('Ctrl',1.25,1),A('\u25c4\u25ba',1.5,1)]
-    ];
-    var t = pc.querySelector('.pc-teclas');
-    if (!t) return;
-    t.innerHTML = FILAS.map(function (fila, i) {
-      return '<span class="pc-fila' + (i === 0 ? ' fn' : '') + '">'
-        + fila.map(function (k) {
-            return '<span class="pc-tec' + (k.m ? ' mini' : '') + '" style="flex:'
-              + k.w + '">' + k.t + '</span>';
-          }).join('')
-        + '</span>';
-    }).join('');
-  })();
+  if (!caja) return;
 
   var IC = {
     wa:    '<svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 0 0-8.5 15.3L2 22l4.8-1.3A10 10 0 1 0 12 2zm0 1.8a8.2 8.2 0 1 1-4.2 15.2l-.3-.2-2.9.8.8-2.8-.2-.3A8.2 8.2 0 0 1 12 3.8zm-2.8 4c-.2 0-.5.1-.6.3-.2.3-.8.8-.8 1.9s.8 2.2.9 2.3c.1.2 1.6 2.6 4 3.5 2 .8 2.4.7 2.8.6.4 0 1.3-.5 1.5-1 .2-.5.2-.9.1-1l-.6-.3s-1.3-.6-1.5-.7c-.2-.1-.4-.1-.5.1l-.7.9c-.1.1-.2.1-.4 0-.2 0-.9-.3-1.7-1-.6-.6-1-1.2-1.2-1.4-.1-.2 0-.3.1-.4l.3-.4.2-.4v-.3l-.7-1.7c-.1-.4-.3-.3-.4-.3h-.4z"/></svg>',
@@ -3966,51 +3815,6 @@ window.CobraPlan.iniciar({
 
   alPrincipio();
 
-  // ═══════════════════════════════════════════════════════════════════
-  //  LA TAPA
-  //  Cerrada de lejos; se levanta segun la seccion llega al centro. Misma
-  //  cuenta que endereza la tablet del simulador, con su meseta para que no
-  //  se cierre en la cara de quien la esta usando.
-  // ═══════════════════════════════════════════════════════════════════
-  (function () {
-    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      pc.style.setProperty('--abre', '12deg');
-      pc.style.setProperty('--luz', '1');
-      pc.style.setProperty('--sello', '0px');
-      return;
-    }
-    /*  Abierta no es 0: a 0 la tapa queda en el plano del conjunto, que va
-        inclinado, y la pantalla se caeria hacia quien mira. 12 grados la
-        dejan casi vertical, como una de verdad.                          */
-    var ABIERTA = 12, CERRADA = -90, pedido = false;
-    function medir(){
-      pedido = false;
-      var r = pc.getBoundingClientRect();
-      var alto = window.innerHeight || document.documentElement.clientHeight;
-      if (!alto) return;
-      var d = Math.abs((r.top + r.height / 2) - alto / 2) / (alto / 2 + r.height / 2);
-      var k = Math.min(1, Math.max(0, (d - .20) / .50));
-      k = k * k * (3 - 2 * k);
-      pc.style.setProperty('--abre', (ABIERTA + (CERRADA - ABIERTA) * k).toFixed(2) + 'deg');
-      /*  La luz entra mas tarde que el giro: primero se abre la tapa y
-          despues prende, no las dos cosas a la vez.                     */
-      pc.style.setProperty('--luz', Math.max(0, 1 - k * 1.6).toFixed(3));
-      /*  Lo que mide la base de fondo, para colocar el canto en 3D: el 69%
-          del ancho, el mismo `aspect-ratio` que lleva en el CSS. Si se
-          cambia uno hay que cambiar el otro.                            */
-      pc.style.setProperty('--fondo', Math.round(pc.offsetWidth * .69) + 'px');
-      /*  El sello: nada con la tapa abierta, 16 px con la tapa cerrada.  */
-      pc.style.setProperty('--sello', (16 * k).toFixed(1) + 'px');
-    }
-    function alScroll(){
-      if (pedido) return;
-      pedido = true;
-      requestAnimationFrame(medir);
-    }
-    window.addEventListener('scroll', alScroll, { passive: true });
-    window.addEventListener('resize', alScroll);
-    medir();
-  })();
 })();
 </script>
 </body>

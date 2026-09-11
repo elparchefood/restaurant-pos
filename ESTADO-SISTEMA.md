@@ -18758,6 +18758,26 @@ esto se queda viejo y hay que compararlo contra esos dos archivos.
   centro de la pantalla, con una meseta de +-26 % para que no se tuerza
   mientras alguien la esta usando.
 
+### El monitor del comprobante (11-sep-2026)
+
+La seccion `#comprobante` tenia un PORTATIL que se abria con el scroll (tapa
+en 3D, 76 teclas, sello, respaldo, luz que prendia; ocho commits del 2-sep
+peleando con rendijas). Sergio: *"es muy tedioso; mejor una simple pantalla
+de computador, grande, se ve mucho mas limpio"*. Ahora es un MONITOR:
+`.pc` (800 px) > `.pc-mon` (marco, mismo chasis que la tablet del simulador)
+> `.pc-pantalla` > `#ch2`; debajo `.pc-cuello`, `.pc-base` y `.pc-sombra`.
+Sin 3D, sin `preserve-3d`, sin variables escritas por scroll: el guion del
+monitor ya solo hace el recorrido (Verificar pago -> modal -> Crear pedido
+-> tarjeta -> Otra vez), que no cambio. Se dejaron los `backdrop-filter:
+none` de dentro de la pantalla: ya no son obligatorios, pero se ven bien.
+Probado sin red (`scratchpad/capturas-monitor.mjs`): recorrido completo en
+escritorio y celular.
+
+⚠️ PENDIENTE (ya venia asi, medido en la version publicada): en celular la
+pagina mide 674 px de ancho en vez de 390 por `.cx-via` y sus `.cx-t`
+(el carrusel de la seccion `cx`), que se salen por los dos lados. No es del
+monitor. Diagnostico: `scratchpad/diag-ancho-movil.mjs`.
+
 ### De paso
 
 `document.getElementById('q').addEventListener(...)` seguia en la landing
