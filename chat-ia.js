@@ -1629,6 +1629,14 @@ function messageBubbleHTML(m) {
     let extra = "";
     if (_pay.tipo === "botones") {
       extra = (_pay.botones || []).map(function (b) {
+        /*  Sin enlace = boton de RESPUESTA ("Sí, confirmo" / "Corregir
+            algo"): el cliente lo toca para contestar, no abre nada. Se
+            dibuja igual que en su telefono, con la flechita de responder. */
+        if (!b.url) {
+          return '<span class="ci-wa-btn resp">'
+            + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>'
+            + escHtml(b.titulo || "Responder") + '</span>';
+        }
         return '<a class="ci-wa-btn" href="' + escHtml(b.url || "#") + '" target="_blank" rel="noopener">'
           + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'
           + escHtml(b.titulo || "Abrir") + '</a>';

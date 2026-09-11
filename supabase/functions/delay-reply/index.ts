@@ -12031,6 +12031,17 @@ function loQueRecibio(canal: string, cuerpoWa: Record<string, unknown>): Record<
     const url = String(par.url || "");
     const titulo = String(par.display_text || "Abrir");
     if (esRed) return { tipo: "texto", texto: [texto, url].filter(Boolean).join("\n") };
+    /*  Botones de RESPUESTA (el resumen: "Sí, confirmo" / "Corregir algo"):
+        no abren una pagina, contestan. Se guardaban como un "Abrir" sin
+        enlace y la bandeja no mostraba lo que el cliente vio (10-sep-2026). */
+    if (it.type === "button") {
+      const bts = (Array.isArray(acc.buttons) ? acc.buttons : []) as Array<Record<string, any>>;
+      return { tipo: "botones", texto,
+        botones: bts.map((b) => ({ titulo: String(b?.reply?.title || ""), url: "" })).filter((b) => b.titulo) };
+    }
+    if (it.type === "list") {
+      return { tipo: "botones", texto, botones: [{ titulo: String(acc.button || "Ver opciones"), url: "" }] };
+    }
     return { tipo: "botones", texto, botones: [{ titulo, url }] };
   }
 

@@ -2164,6 +2164,8 @@ body { font-family: var(--font); background: var(--bg); height: 100vh; overflow:
 .ci-bubble.in .ci-wa-btn + .ci-wa-btn { border-top-color: var(--border); }
 .ci-wa-btn:hover { background: rgba(255,255,255,.10); }
 .ci-bubble.in .ci-wa-btn:hover { background: rgba(110,168,255,.10); }
+/* Boton de respuesta: no abre nada, solo se muestra como lo vio el cliente. */
+.ci-wa-btn.resp, .ci-wa-btn.resp:hover { cursor: default; background: transparent; }
 
 /*  El pie de una plantilla: gris y chiquito, como en el telefono. */
 .ci-wa-pie { margin-top: 6px; font-size: 12px; opacity: .65; }
