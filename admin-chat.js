@@ -17,7 +17,15 @@
   var FN = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/chat-cobra';
   var OAUTH = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/meta-oauth-callback';
   var META_APP_ID = '1732760657903466';
-  var META_CONFIG_ID = '1280428637212702';     // Facebook + Instagram
+  /*  11-sep: la configuracion de siempre (1280428637212702) tiene en Meta el
+      aviso "Some permissions have been restricted": todavia pide 7 permisos
+      que ya no estan aprobados, y la ventana se cae con "Sorry, something
+      went wrong" (tambien en el Chat IA del restaurante de prueba). Sergio
+      creo esta NUEVA solo con los aprobados (business_management,
+      instagram_basic, instagram_manage_messages, pages_show_list,
+      pages_manage_metadata, pages_messaging, pages_read_engagement). Se
+      prueba primero AQUI; el Chat IA de los restaurantes sigue con la vieja. */
+  var META_CONFIG_ID = '1622565852807804';     // Facebook + Instagram (nueva)
   var META_WA_CONFIG_ID = '926832250416998';   // WhatsApp
   var CONV_URL = 'consola-chat.html?v=1801140000';
   var CANAL = {

@@ -509,6 +509,14 @@ asistente virtual; lleva nombre propio (lo pone Sergio en la consola).
     portafolio (Sergio Abadía) o se agrega directo en el panel de la app.
     `chat-cobra` reintenta al buscar el restaurante interno: una consulta
     tropezó una vez («Falta el restaurante interno») y la siguiente no.
+    **La configuración de Facebook/Instagram (11-sep):** la de siempre
+    (`1280428637212702`) lleva en Meta el aviso *"Some permissions have been
+    restricted"* — pide 16 permisos, 7 ya no aprobados — y la ventana se cae
+    TAMBIÉN en el Chat IA del Restaurante de Prueba (lo probó Sergio). Las
+    conexiones ya hechas (El Parche) siguen andando con su llave. Sergio creó
+    `1622565852807804` («Cobra IG y FB aprobados»: Pages + Instagram sin
+    «Asset Required», System-user token, solo los 7 aprobados). Va PRIMERO
+    solo en la consola; si conecta, se decide pasar el Chat IA a esa.
 - SQL: `supabase/sql/2026-09-11-chat-de-cobra.sql`. ⚠️ La sede nueva crea su
   `ia_config` sola al nacer; el insert del SQL no aplicó y se marcó
   `perfil.cerebro` con un UPDATE.
