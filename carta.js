@@ -324,17 +324,21 @@
           + '</button><h3>' + esc(c) + '</h3><span class="ct-pill">' + ps.length + '</span></div>';
     ps.forEach(function (p) {
       var i = D.prods.indexOf(p);
-      var pie = hayQueEscoger(p)
+      /*  AGOTADO (10-sep-2026): sigue a la vista, en gris, sin precio y sin
+          el "+". Esconderlo dejaba al cliente buscando algo que no esta. */
+      var pie = p.ag ? '<span class="ct-agotado">Agotado</span>'
+        : hayQueEscoger(p)
         ? '<span class="ct-elige">' + esc(queEscoger(p)) + '</span>'
         : '<span class="ct-precio">' + cop(p.pres[0].p + empDe(p, p.pres[0].id)) + '</span>';
-      h += '<button class="ct-prod" data-i="' + i + '">'
+      h += '<button class="ct-prod' + (p.ag ? ' agotado' : '') + '" data-i="' + i + '"'
+         + (p.ag ? ' aria-disabled="true"' : '') + '>'
          + (p.f ? '<img class="ct-foto" src="' + esc(p.f) + '" alt="" loading="lazy">' : '<div class="ct-foto"></div>')
          + '<div class="ct-txt"><div class="ct-pnom">' + esc(p.n) + '</div>'
          + (p.d ? '<div class="ct-pdesc">' + esc(p.d) + '</div>'
                  + '<span class="ct-lleva" data-lleva="' + i + '">'
                  + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M5 6h.01M5 12h.01M5 18h.01"/></svg>'
                  + '¿Qué lleva?</span>' : '')
-         + '<div class="ct-ppie">' + pie + '</div></div><span class="ct-mas">+</span></button>';
+         + '<div class="ct-ppie">' + pie + '</div></div>' + (p.ag ? '' : '<span class="ct-mas">+</span>') + '</button>';
     });
     $('lista').innerHTML = h;
     $('lista').scrollTop = 0;
@@ -368,6 +372,7 @@
 
   function abrirHoja(i) {
     if (D.abierto === false) return;    // cerrado: se mira, no se pide
+    if (D.prods[i] && D.prods[i].ag) return;   // agotado: se ve, no se pide
     abierto = D.prods[i];
     var unaSola = abierto.pres.length === 1 && !abierto.pres[0].n;
     elegido = { cant: 1, adic: [], nota: '', vars: {}, verAdic: false,
@@ -465,6 +470,11 @@
       }
       var precia = (p.vg || []).some(function (g) { return g.precia; });
       p.pres.forEach(function (x) {
+        //  Un tamaño agotado se ve pero no se toca: sin `data-pres`, no hace nada.
+        if (x.ag) {
+          h += '<button class="ct-op agotado" disabled><span>' + esc(x.n) + '</span><i>Agotado</i></button>';
+          return;
+        }
         h += '<button class="ct-op" data-pres="' + esc(x.id) + '" aria-pressed="'
            + (elegido.presId === x.id) + '"><span>' + esc(x.n) + '</span>'
            + '<i>' + (!precia && x.p ? cop(x.p + empDe(p, x.id)) : '') + '</i></button>';
@@ -476,6 +486,10 @@
          + '<div class="ct-sub">Toca una opción para seguir.</div>';
       var iP = p.pres.findIndex(function (x) { return x.id === elegido.presId; });
       g.ops.forEach(function (o) {
+        if (o.ag) {   // el sabor que se acabo: a la vista, sin poder escogerlo
+          h += '<button class="ct-op agotado" disabled><span>' + esc(o.n) + '</span><i>Agotado</i></button>';
+          return;
+        }
         var extra = '';
         if (g.precia && iP >= 0 && o.prs && o.prs[iP] != null) extra = cop(o.prs[iP] + empDe(p, elegido.presId));
         else if (!g.precia && o.p) extra = '+' + cop(o.p);
@@ -824,6 +838,10 @@
           + '<div class="ct-preg">¿Cuál te provoca?</div><div class="ct-sub">Toca una para agregarla.</div>';
     ps.forEach(function (p) {
       var i = D.prods.indexOf(p);
+      if (p.ag) {
+        h += '<button class="ct-op agotado" disabled><span>' + esc(p.n) + '</span><i>Agotado</i></button>';
+        return;
+      }
       var pie = hayQueEscoger(p) ? esc(queEscoger(p)) : cop(p.pres[0].p + empDe(p, p.pres[0].id));
       h += '<button class="ct-op" data-beb="' + i + '"><span>' + esc(p.n) + '</span><i>' + pie + '</i></button>';
     });
@@ -957,6 +975,10 @@
     (p.vg || []).forEach(function (g, gi) {
       h += '<div class="ct-campo"><div class="ct-campo-tit">' + esc(g.n) + '</div></div>';
       g.ops.forEach(function (o) {
+        if (o.ag && elegido.vars[g.id] !== o.id) {   // agotado: no se cambia a ese
+          h += '<button class="ct-op agotado" disabled><span>' + esc(o.n) + '</span><i>Agotado</i></button>';
+          return;
+        }
         var extra = '';
         if (g.precia && iP >= 0 && o.prs && o.prs[iP] != null) extra = cop(o.prs[iP] + empDe(p, elegido.presId));
         else if (!g.precia && o.p) extra = '+' + cop(o.p);

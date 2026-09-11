@@ -510,6 +510,85 @@ async function linkDeVuelta(link: Fila): Promise<string> {
   return "";
 }
 
+/* ══ LO QUE NO HAY, IGUAL QUE EN VENTAS (10-sep-2026) ══════════════════
+   Sergio, en pleno turno: la gaseosa Premio 1.5 no habia y un cliente la
+   pidio por la carta. Ventas SI la mostraba agotada — lo decide el
+   INVENTARIO (pos-stock.js) —, pero la carta solo miraba la casilla
+   "Agotado hoy" del producto.
+
+   Aqui se repite, del lado del servidor, la MISMA regla de pos-stock.js
+   (`insAgotado` + `faltForCombo`) para que la carta y Ventas digan lo
+   mismo. Y se aplica aunque el restaurante permita "vender sin inventario":
+   ese permiso es para el cajero, que ve el aviso y decide; el cliente de la
+   carta no ve ningun aviso y no tiene como decidir.
+
+   Si algo falla al leer el inventario, no se bloquea nada: la casilla del
+   producto sigue funcionando y una carta que no deja pedir nada es peor. */
+const NADA = 0.000001;
+type Agotados = {
+  combo: (pid: string, varOpt: string | null, presId: string | null) => boolean;
+  opcion: (pid: string, varOpt: string, presId: string | null) => boolean;
+};
+async function agotadosDe(tenant: string, branch: string): Promise<Agotados> {
+  const nunca: Agotados = { combo: () => false, opcion: () => false };
+  try {
+    let brand = "", modo = "global";
+    if (branch) {
+      const b = filas((await db(`branches?id=eq.${branch}&select=brand_id&limit=1`)).data)[0];
+      brand = String(b?.brand_id || "");
+    }
+    if (brand) {
+      const m = filas((await db(`brands?id=eq.${brand}&select=inventario_modo&limit=1`)).data)[0];
+      modo = String(m?.inventario_modo || "global");
+    }
+    //  Insumos y recetas son de la MARCA (igual que en pos-stock.js).
+    const filtro = brand ? `brand_id=eq.${brand}` : branch ? `branch_id=eq.${branch}` : `tenant_id=eq.${tenant}`;
+    const [iRes, rRes, eRes] = await Promise.all([
+      db(`iv_insumos?${filtro}&select=id,control_manual,sub_inventario,vender_bodega,agota_producto`),
+      db(`iv_recetas?${filtro}&mod_option_id=is.null&select=product_id,insumo_id,variant_option_id,cantidades`),
+      db(`iv_existencias?tenant_id=eq.${tenant}&select=insumo_id,branch_id,stock,stock_servicio,agotado_manual`),
+    ]);
+    if (!iRes.ok || !rRes.ok || !eRes.ok) return nunca;
+    //  En modo `global` la fila de existencias tiene la sede VACIA, a proposito.
+    const sedeEx = modo === "sucursal" ? branch : null;
+    const ex = new Map<string, Fila>();
+    for (const e of filas(eRes.data)) if ((e.branch_id || null) === sedeEx) ex.set(String(e.insumo_id), e);
+    const sinInsumo = new Set<string>();
+    for (const i of filas(iRes.data)) {
+      if (i.agota_producto === false) continue;       // la salsa que no frena la venta
+      const e = ex.get(String(i.id)) || {};
+      const stock = Number(e.stock) || 0, serv = Number(e.stock_servicio) || 0;
+      const sin = i.control_manual ? e.agotado_manual === true
+        : i.sub_inventario ? !(serv > NADA || (stock > NADA && i.vender_bodega === true))
+        : stock <= NADA;
+      if (sin) sinInsumo.add(String(i.id));
+    }
+    const lineas = new Map<string, Array<{ varOpt: string; qty: Fila | null }>>();
+    for (const r of filas(rRes.data)) {
+      if (!sinInsumo.has(String(r.insumo_id))) continue;  // solo interesan las que bloquean
+      const k = String(r.product_id);
+      if (!lineas.has(k)) lineas.set(k, []);
+      lineas.get(k)!.push({ varOpt: String(r.variant_option_id || ""), qty: (r.cantidades as Fila) || null });
+    }
+    //  ¿Esa presentacion lleva esta linea? Mismo `cantDe` de pos-stock.js.
+    const lleva = (qty: Fila | null, presId: string | null) => {
+      if (presId === null || !qty || !Object.keys(qty).length) return true;
+      const v = qty[presId] ?? qty["_"];
+      if (v == null) return false;
+      return (Number(typeof v === "object" ? (v as Fila).q : v) || 0) > 0;
+    };
+    return {
+      combo: (pid, varOpt, presId) => (lineas.get(pid) || []).some((l) =>
+        (!l.varOpt || (varOpt !== null && l.varOpt === varOpt)) && lleva(l.qty, presId)),
+      opcion: (pid, varOpt, presId) => (lineas.get(pid) || []).some((l) =>
+        l.varOpt === varOpt && lleva(l.qty, presId)),
+    };
+  } catch (e) {
+    console.error("[carta] agotados:", String(e).slice(0, 160));
+    return nunca;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
@@ -592,9 +671,12 @@ Deno.serve(async (req) => {
         }
       } catch (e) { console.error("[carta] bases:", String(e).slice(0, 120)); }
 
+      const agot = await agotadosDe(tenant, branch);
       const prods: Fila[] = [];
       for (const p of filas(pRes.data)) {
-        if (p.agotado === true) continue;                       // lo agotado no aparece
+        /*  Lo agotado YA NO desaparece (10-sep-2026): sale en gris con
+            "Agotado" y no se deja escoger. Es lo que promete la casilla
+            "Agotado hoy" del producto, y lo que pidio Sergio.            */
         const catId = String(p.category_id || "");
         if (!catNom.has(catId)) continue;                       // categoría escondida o apagada
         const pres = filas(p.presentations);
@@ -620,20 +702,25 @@ Deno.serve(async (req) => {
           }
         }
 
+        const presOut = pres.map((x) => ({ id: x.id, n: x.name || "", p: Number(x.price) || 0,
+          ...(agot.combo(String(p.id), null, String(x.id)) ? { ag: true } : {}) }));
         prods.push({
           id: p.id, cat: catNom.get(catId), catId,
+          //  Agotado entero: por la casilla, o porque no queda NINGUN tamaño.
+          ...((p.agotado === true || presOut.every((x) => (x as Fila).ag === true)) ? { ag: true } : {}),
           /*  Su base: el nombre y sus ingredientes. Si ese producto no tiene
               base asignada, no se habla de ninguna.                     */
           base: baseDe.get(String(p.id)) || null,
           n: String(p.name || "").trim(),
           d: String(p.description || "").slice(0, 120),
           f: p.photo_url || p.image_url || "",
-          pres: pres.map((x) => ({ id: x.id, n: x.name || "", p: Number(x.price) || 0 })),
+          pres: presOut,
           emp,
           vg: filas(p.variables).map((g) => ({
             id: g.id, n: g.name, precia: g.isPricing === true,
             ops: filas(g.options).map((o) => ({
               id: o.id, n: o.name, p: Number(o.price) || 0,
+              ...(agot.opcion(String(p.id), String(o.id), null) ? { ag: true } : {}),
               prs: filas(o.prices).map((y) => Number(y) || 0),
             })),
           })),
@@ -1070,6 +1157,9 @@ Deno.serve(async (req) => {
       const cpRes = await db(`pos_puntos_catalogo?tenant_id=eq.${tenant}&select=product_id,pres_nombre,puntos,activo`);
       const premiosCat = filas(cpRes.data).filter((x) => x.activo !== false);
       let puntosPedidos = 0;
+      //  Lo que no hay se frena AQUI tambien: la pagina pudo abrirse antes de
+      //  que se acabara, y lo que decide es el servidor.
+      const agot = await agotadosDe(tenant, String(link.branch_id || sede.id || ""));
 
       const productos: Fila[] = [];
       let subtotal = 0, empaque = 0;
@@ -1084,6 +1174,9 @@ Deno.serve(async (req) => {
         const presId = String(it.pres_id || "");
         const pr = pres.find((x) => String(x.id) === presId);
         if (!pr) return json(400, { error: "falta escoger el tamaño de un producto" });
+        if (agot.combo(String(p.id), null, presId)) {
+          return json(409, { error: `Se acabó ${p.name}. Quita ese producto y vuelve a intentar.` });
+        }
 
         const cant = Math.max(1, Math.min(20, Number(it.cantidad) || 1));
         const vars = (it.variantes as Record<string, string> | undefined) || {};
@@ -1099,6 +1192,9 @@ Deno.serve(async (req) => {
           const escogida = String(vars[String(g.id)] || "");
           const o = filas(g.options).find((x) => String(x.id) === escogida);
           if (!o) return json(400, { error: `falta escoger ${g.name} en ${p.name}` });
+          if (agot.opcion(String(p.id), String(o.id), presId)) {
+            return json(409, { error: `Se acabó ${p.name} ${o.name}. Escoge otra opción y vuelve a intentar.` });
+          }
           varsObj[String(g.id)] = { id: o.id, name: o.name, price: Number(o.price) || 0, group: g.name };
           partes.push(String(o.name));
           if (g === precia) {

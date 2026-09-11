@@ -111,6 +111,15 @@ body.ct-cerrado .ct-prod:active{background:var(--panel)}
 .ct-mas{margin-left:auto;width:29px;height:29px;border-radius:9px;background:var(--marca);
   color:var(--marca-ink);font-size:19px;font-weight:700;line-height:1;flex:none;
   display:flex;align-items:center;justify-content:center;padding-bottom:2px}
+/* Agotado: sigue a la vista, en gris, y no se deja escoger (10-sep-2026). */
+.ct-prod.agotado{cursor:default}
+.ct-prod.agotado:active{background:var(--panel)}
+.ct-prod.agotado .ct-foto{filter:grayscale(1);opacity:.55}
+.ct-prod.agotado .ct-pnom,.ct-prod.agotado .ct-pdesc{opacity:.55}
+.ct-agotado{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--tinta-2);background:var(--panel-2);border:1px solid var(--linea);border-radius:999px;padding:2px 9px}
+.ct-op.agotado{opacity:.5;cursor:default}
+.ct-op.agotado i{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
 
 /* ── la barra del pedido ──────────────────────────────────────────────── */
 .ct-barra{position:absolute;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));
