@@ -724,37 +724,6 @@ a{color:inherit;text-decoration:none}
 .dt{width:7px;height:7px;border-radius:99px;background:rgba(255,255,255,.2);transition:.25s}
 .dt.on{width:26px;background:var(--acid)}
 
-/* ═══ COLLAGE / GALERÍA ═══ */
-.tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:30px}
-.tb{padding:8px 17px;border-radius:99px;border:1px solid var(--linea);font-size:12.5px;font-weight:700;
-  color:var(--t2);font-family:'Archivo';text-transform:uppercase;letter-spacing:.05em;transition:.15s}
-.tb.on{background:var(--acid);border-color:var(--acid);color:#fff}
-.col{position:relative;height:660px}
-.col .b{position:absolute;border-radius:16px;overflow:hidden;border:1px solid var(--linea);
-  box-shadow:0 30px 60px -30px #000;transition:transform .25s}
-.col .b:hover{transform:translateY(-6px) scale(1.015);z-index:20!important}
-.col .b .ph{width:100%;height:100%}
-.col .b .pie{position:absolute;left:0;right:0;bottom:0;padding:22px 11px 9px;font-size:10.5px;color:var(--t2);
-  background:linear-gradient(0deg,rgba(6,7,11,.95),transparent)}
-.col .b .pie b{color:#fff}
-.b1{left:0;top:40px;width:44%;height:56%;z-index:3;transform:rotate(-1.4deg)}
-.b2{left:38%;top:0;width:30%;height:38%;z-index:5;transform:rotate(1.8deg)}
-.b3{right:16%;top:30%;width:26%;height:34%;z-index:4}
-.b4{left:22%;bottom:0;width:30%;height:36%;z-index:6;transform:rotate(1.2deg)}
-.b5{right:2%;bottom:6%;width:22%;height:30%;z-index:3;transform:rotate(-2deg)}
-.agua{position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);z-index:1;
-  font-family:'Archivo';font-weight:900;font-size:290px;line-height:1;color:transparent;
-  -webkit-text-stroke:1px rgba(255,216,77,.14);pointer-events:none}
-.movil{position:absolute;right:0;top:8%;width:186px;z-index:9;border-radius:26px;border:7px solid #171B27;
-  overflow:hidden;box-shadow:0 40px 80px -26px #000;animation:flo 6s ease-in-out infinite}
-@keyframes flo{0%,100%{transform:translateY(0) rotate(2deg)}50%{transform:translateY(-14px) rotate(2deg)}}
-.movil .ph{aspect-ratio:9/19.5}
-.movil::before{content:"";position:absolute;left:50%;top:7px;transform:translateX(-50%);
-  width:52px;height:5px;border-radius:9px;background:#0A0C11;z-index:2}
-.gbar{display:flex;align-items:center;justify-content:space-between;margin-top:24px}
-.pgn{font-family:'DM Mono',monospace;font-size:13px;color:var(--t4);letter-spacing:.1em}
-.pgn b{color:var(--acid)}
-
 /* ═══ PRECIOS ═══ */
 .precios{position:relative;background:var(--neg2);padding:110px 0;
   clip-path:polygon(0 42px,100% 0,100% 100%,0 calc(100% - 42px))}
@@ -854,7 +823,6 @@ a{color:inherit;text-decoration:none}
   .autor-fotos{height:400px}
   .arg .cont{width:100%;padding:32px}
   .arg .rep{display:none}
-  .col{height:520px}.agua{font-size:170px}.movil{display:none}
 }
 @media(max-width:760px){
   .mn{display:none}.brg{display:grid}
@@ -864,7 +832,6 @@ a{color:inherit;text-decoration:none}
   .cf:nth-child(3){border-left:none}.cf:nth-child(n+3){border-top:1px solid var(--linea)}
   .pasos{grid-template-columns:1fr}.ln{display:none}
   .mb{display:flex}.wa{bottom:84px}body{padding-bottom:70px}
-  .col{height:460px}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.rev{opacity:1;transform:none}}
 
@@ -1772,7 +1739,7 @@ body{background:#FFFFFF}
     Como las variables bajan por el arbol, la escala clara de `.sec` se
     colaba dentro de ellas y les oscurecia el texto encima de la foto.
     Aqui se les devuelve la escala de siempre, entera.                     */
-.sec .arg, .sec .b, .sec .movil,
+.sec .arg,
 .sec .p1, .sec .p2, .sec .p3, .pie, .mb{
   --neg:#070A18; --neg2:#0B1026; --caja:#141A38; --vidrio:rgba(26,32,64,.62);
   --linea:rgba(255,255,255,.09); --linea2:rgba(255,255,255,.05);
@@ -2044,29 +2011,6 @@ body{background:#FFFFFF}
     <button class="ic" data-c="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
     <div class="dots" id="dots"></div>
     <button class="ic" data-c="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
-  </div>
-</div></section>
-
-<!-- ══════ COLLAGE ══════ -->
-<section class="sec" style="padding-top:0"><div class="env">
-  <div class="eyeb rev"><span class="lab">Por dentro</span><span class="fl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></span><span class="rl"></span></div>
-  <div class="tabs rev"><button class="tb on">Ventas</button><button class="tb">Cocina</button><button class="tb">Caja</button><button class="tb">WhatsApp</button><button class="tb">Inventario</button></div>
-  <div class="col rev">
-    <span class="agua disp">28</span>
-    <div class="b b1"><div class="ph" data-et="captura · pantalla de ventas" style="background-image:url(img/landing/pantalla-ventas.jpg)"></div><div class="pie"><b>Ventas</b> · Salón en tiempo real</div></div>
-    <div class="b b2"><div class="ph claro" data-et="captura · cocina" style="background-image:url(img/landing/pantalla-cocina.jpg)"></div><div class="pie"><b>Cocina</b></div></div>
-    <div class="b b3"><div class="ph" data-et="captura · cierre de caja" style="background-image:url(img/landing/pantalla-caja.jpg)"></div><div class="pie"><b>Cierre</b></div></div>
-    <div class="b b4"><div class="ph claro" data-et="captura · chat de WhatsApp" style="background-image:url(img/landing/pantalla-whatsapp.jpg)"></div><div class="pie"><b>Comanda</b></div></div>
-    <div class="b b5"><div class="ph" data-et="captura · inventario" style="background-image:url(img/landing/pantalla-inventario.jpg)"></div><div class="pie"><b>Informes</b></div></div>
-    <div class="movil"><div class="ph claro" data-et="móvil" style="background-image:url(img/landing/pantalla-movil.jpg)"></div></div>
-  </div>
-  <div class="gbar rev">
-    <div style="display:flex;gap:8px">
-      <button class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></button>
-      <button class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
-      <button class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
-    </div>
-    <span class="pgn"><b>01</b> / 02</span>
   </div>
 </div></section>
 
@@ -2344,8 +2288,6 @@ body{background:#FFFFFF}
   crd.forEach(function(c,i){c.addEventListener('click',function(){pinta(i)})});
   pinta(0);
 
-  [].forEach.call(document.querySelectorAll('.tb'),function(t){t.addEventListener('click',function(){
-    [].forEach.call(document.querySelectorAll('.tb'),function(x){x.classList.remove('on')});t.classList.add('on');});});
   [].forEach.call(document.querySelectorAll('.fqb'),function(b){b.addEventListener('click',function(){
     var f=b.parentElement,ab=f.classList.contains('on');
     [].forEach.call(document.querySelectorAll('.fq'),function(x){x.classList.remove('on')});

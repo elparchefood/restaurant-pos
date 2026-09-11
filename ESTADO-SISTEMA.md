@@ -18802,6 +18802,15 @@ orden de Sergio ("me parece horrible"). Con ella se fue una linea de
 id en la lista del subrayado (`ids`). «Para tu equipo» ahora sigue
 directo con «Por dentro».
 
+**Fuera el COLLAGE «Por dentro» (11-sep):** pestanas `.tabs/.tb`, las
+capturas apiladas `.col .b1-.b5`, la marca de agua `.agua`, el celular
+flotante `.movil` (con `@keyframes flo`) y la barra `.gbar/.pgn`; con su
+guion de pestanas y sus reglas en los `@media`. Tambien por orden de
+Sergio ("se ve horrible"). Se borraron 5 capturas de `img/landing/`
+(`pantalla-cocina/caja/whatsapp/inventario/movil.jpg`);
+`pantalla-ventas.jpg` SE QUEDA porque es la imagen `og:image` de la pagina.
+Ahora «Para tu equipo» sigue directo con Precios.
+
 ⚠️ PENDIENTE (ya venia asi, medido en la version publicada): en celular la
 pagina mide 674 px de ancho en vez de 390 por `.cx-via` y sus `.cx-t`
 (el carrusel de la seccion `cx`), que se salen por los dos lados. No es del
