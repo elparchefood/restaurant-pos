@@ -1044,6 +1044,10 @@
   }
 
   function timbreSiEsMio(payload) {
+    /*  APAGADO (10-sep-2026): el timbre de "listo" ahora es pos-timbre.js, en
+        el nucleo, y suena en TODAS las pantallas, repetido hasta que lo
+        confirmen. Dejar este tambien lo haria sonar doble en Ventas. */
+    return;
     try {
       if (!payload || payload.eventType !== 'UPDATE') return;
       const n = payload.new, o = payload.old;

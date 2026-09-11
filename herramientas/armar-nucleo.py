@@ -21,6 +21,9 @@ ORDEN = [
     'pos-brand.js', 'pos-events.js', 'pos-impuestos.js', 'pos-print.js',
     'pos-print-listener.js', 'pos-caja-guard.js', 'pos-metodos.js',
     'pos-saldo.js', 'pos-mapa.js', 'pos-traspaso.js', 'pos-mesas.js',
+    # 10-sep-2026: los tonos (antes dentro de pos-notify.js) y el timbre de
+    # "listo", que tiene que sonar en TODAS las pantallas.
+    'pos-tonos.js', 'pos-timbre.js',
 ]
 
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -852,6 +852,27 @@ la lee).
    donde se ve y solo entonces pasa a la derecha; si las dos se llenan, lo
    que sobra va a la mas corta. Mide una vez por pintado (corre cada 1 s).
 7. **Voz**: dice "con adición de ranchera" (`adicionesVoz`, solo `mods`).
+8. **El timbre de "listo" suena en TODAS las pantallas y se repite hasta
+   confirmarlo** — `pos-timbre.js` (en el nucleo). A quien: lo de
+   Configuracion → Operacion (`cocinaAvisa`, un rol por mesa / llevar /
+   domicilio; lo del cajero tambien a gerente/admin/dueño). Suena al 100% ×
+   `FUERZA 1.35` (nuevo 3er parametro de `posTocarTono`) cada 3,5 s hasta
+   "Ya lo escuché" (aviso oscuro abajo al centro). Pendientes guardados en
+   `localStorage['pos.timbre.v1']`: cambiar de pantalla no lo calla, y
+   confirmarlo en una ventana lo apaga en todas; con dos ventanas suena una
+   (`pos.timbre.ultimo`). ⚠️ `pos_orders` tiene replica identity DEFAULT: el
+   aviso en vivo NO trae el estado anterior, por eso se recuerda cada pedido
+   avisado (el timbre viejo de Ventas volvia a sonar con cualquier pago de
+   un pedido ya listo). Al abrir cada pantalla revisa lo listo de los
+   ultimos 3 min. El timbre de ventas-salon.js quedo apagado (`return`).
+   Los TONOS se mudaron de pos-notify.js a **`pos-tonos.js`** (nucleo; y
+   domiciliario.html lo carga suelto porque no usa el nucleo). pos-notify.js
+   usa `window.posBeep`. No suena en cocina, entrar, registro ni la carta.
+9. **Domicilio listo en cocina = "Listo" en Ventas**: trigger
+   `tg_domicilio_listo_desde_cocina` (BEFORE UPDATE OF estado): `estado`
+   listo → `delivery_status` listo si estaba en preparacion/recibido; el
+   deshacer lo devuelve; si ya va en camino/entregado no lo toca.
+   `supabase/sql/2026-09-10-domicilio-listo-desde-cocina.sql`.
 
 ## 🟢 La campana pedia un PIN y unas fotos que ya estaban — 10-sep-2026
 
