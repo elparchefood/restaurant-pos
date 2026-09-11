@@ -58,6 +58,7 @@
     chocaba con el const del nucleo y tumbaba la pantalla entera. */
 
 const TARDE_MIN   = 15;    // minutos para el marco rojo
+const LISTO_SE_VA_MS = 120000;   // lo listo, en gris, se va a los 2 minutos
 const REFRESCO_MS = 20000; // la red por si se cae un evento en vivo
 
 const S = {
@@ -1340,6 +1341,19 @@ function paroEn(o) {
   return S.paro.get(o.id);
 }
 
+/*  LO LISTO SE VA A LOS DOS MINUTOS (Sergio, 10-sep-2026, en pleno turno).
+    El 28-ago se decidio dejar lo terminado a la vista, en morado y abajo.
+    Trabajando se vio que estorba: *"mejor que desaparezcan... pero que no
+    desaparezcan de una: se ponen en gris y un minutico, dos minuticos
+    despues, desaparece"*. Esos dos minutos son los que dan tiempo a ver que
+    se marco y a deshacerlo si fue un error. Se mide desde la hora de salida
+    (`paroEn`), asi que lo que ya habia salido antes se va al recargar.    */
+function seFue(o) {
+  if (estadoDe(o) !== 'listo') return false;
+  const t = paroEn(o);
+  return !!t && Date.now() - t > LISTO_SE_VA_MS;
+}
+
 /* ── Pintar ─────────────────────────────────────────────────────────────── */
 const RELOJ_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 const ETIQUETA  = { prep:'En preparación', pago:'Pendiente de pago', listo:'Listo' };
@@ -1352,6 +1366,7 @@ function pintar() {
      antes de entender que no es suya. */
   let aLaVista = 0;
   S.orders.forEach(o => {
+    if (seFue(o)) return;
     const r = repartoDe(S.items.get(o.id));
     if (!r.mios.length && !r.ajenos.length) return;
     aLaVista++;

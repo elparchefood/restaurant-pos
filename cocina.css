@@ -227,7 +227,7 @@ svg{display:block;}
 :root{
   /* En preparacion nace VERDE: es el estado en el que esta casi siempre una
      comanda, y el naranja de antes gritaba como si algo fuera mal. */
-  --c-prep:#16A34A; --c-pago:#DC2626; --c-listo:#7C3AED;
+  --c-prep:#16A34A; --c-pago:#DC2626; --c-listo:#64748B; /* gris: lo listo se apaga y se va (10-sep-2026) */
 }
 .tk.prep {border-color:color-mix(in srgb, var(--c-prep) 55%, #fff);
           background:linear-gradient(180deg,
@@ -406,7 +406,7 @@ svg{display:block;}
    en una cocina nadie confirma nada, por eso el arrepentimiento va DESPUÉS. */
 .tk.listo .tk-items{opacity:.45;}
 .tk-listo{display:flex;align-items:center;gap:calc(var(--u) * .5);padding:calc(var(--u) * .35) calc(var(--u) * .7) calc(var(--u) * .6);}
-.tk-listo b{font-size:calc(var(--u) * 1.15);font-weight:800;color:#6D28D9;}
+.tk-listo b{font-size:calc(var(--u) * 1.15);font-weight:800;color:#475569;}
 .tk-desh{
   margin-left:auto; border:1px solid #DDD6FE; background:#F5F3FF; color:#6D28D9;
   border-radius:calc(var(--u) * .45); padding:calc(var(--u) * .4) calc(var(--u) * .8); font-size:calc(var(--u) * .95); font-weight:800;
