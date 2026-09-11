@@ -916,6 +916,34 @@ la lee).
     aprobo: *"cobrar por PIN y codigo, para emergencias el PIN"*. Tope de
     codigos: 3 por hora y 8 por dia por numero.
 
+## 🟢 Videollamadas de soporte: agendador propio de Cobra — 10-sep-2026
+
+Punto 7 de la lista (detalle y decisiones en `PLAN-7-SEP-PENDIENTES.md` §7).
+El restaurante agenda desde el Escritorio ("¿Necesitas ayuda?" →
+`soporte-llamada.js`, calendario del mes + horas); Sergio las ve y configura
+en la consola (`admin-llamadas.js`, vista `view-llamadas`, nav "Videollamadas"
+con numerito de proximas).
+
+- **Servidor**: Edge Function `soporte-llamadas` (verify_jwt false; el
+  restaurante sale del TOKEN; la plataforma = `es_admin_plataforma()` o la
+  llave de servicio). Valida la hora contra `plataforma_agenda.horario` (por
+  dia 0-6, rangos "HH:MM" hora de Colombia, UTC-5 fijo), `anticipacion_min`,
+  `dias_adelante`, `bloqueos`, y contra lo ya tomado.
+- **Tablas**: `plataforma_agenda` (una fila: meet_url, correo_aviso,
+  duracion_min 30, horario, bloqueos) y `plataforma_llamadas` (estado
+  agendada/hecha/cancelada; **indice unico por `inicio` agendada**: dos
+  restaurantes no toman la misma hora ni en el mismo segundo). Solo lectura
+  por RLS: cada restaurante lo suyo, la plataforma todo.
+- **Correos** (Resend, desde ingreso@cobrapos.app, responder a
+  sergio@cobrapos.app): a Sergio al agendar y si el restaurante cancela; al
+  restaurante la confirmacion con el enlace de Meet, y si Cobra cancela. Las
+  cuentas @ejemplo/@example no reciben.
+- **Meet**: una sala FIJA de Sergio (`meet_url`). Crear una por cita exigiria
+  permiso sobre su Google Calendar y otra revision de Google.
+- Probado de punta a punta con el Restaurante de Prueba (huecos, agendar, una
+  sola activa, la hora tomada desaparece, lista y cancelar de la plataforma).
+- `supabase/sql/2026-09-10-soporte-llamadas.sql`.
+
 ## 🟢 La campana pedia un PIN y unas fotos que ya estaban — 10-sep-2026
 
 Sergio: *"me esta pidiendo que coloque un PIN y que suba las fotos de la carta,

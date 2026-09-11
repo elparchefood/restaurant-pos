@@ -301,7 +301,26 @@ reenviarle nada a nadie ni volver a publicar el programita.
 
 ---
 
-## 7. El botón de contacto en el Escritorio
+## 7. El botón de contacto en el Escritorio — ✅ HECHO el 10-sep-2026
+
+Agendador PROPIO, sin Calendly (Sergio lo prefirio; se le explico que lo
+unico que Calendly haria de mas es leer su Google Calendar). Decidido con el:
+**videollamada de Google Meet** (una sala fija suya), **30 min**, aviso por
+**correo** a sergio@cobrapos.app + seccion **Videollamadas** en la consola, y
+**"Escribir ahora" quitado** hasta la bandeja de Cobra (punto 4). Pidio el
+**calendario del mes** en vez de pestañas de fechas.
+
+- Escritorio: `soporte-llamada.js` (bloque "¿Necesitas ayuda?" + ventana con
+  calendario y horas). Consola: `admin-llamadas.js` (proximas, anteriores,
+  "Tu agenda": sala de Meet, correo, duracion, anticipacion, dias adelante,
+  horario por dia, dias sin atencion).
+- Servidor: Edge Function `soporte-llamadas` (huecos · mia · agendar ·
+  cancelar · lista · marcar · config · guardar_config). Tablas
+  `plataforma_agenda` (1 fila) y `plataforma_llamadas` (indice unico por hora
+  agendada). Colombia UTC-5. Un restaurante = una cita activa a la vez.
+- ⏳ Falta que Sergio cree su sala fija de Meet y la pegue en la consola.
+
+Lo que se habia anotado:
 
 Un botón en el tablero para que **un cliente con un problema pueda hablar con
 Sergio**. Desde ahí se agenda una llamada.
