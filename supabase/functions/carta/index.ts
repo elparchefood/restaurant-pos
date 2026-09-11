@@ -518,9 +518,13 @@ async function linkDeVuelta(link: Fila): Promise<string> {
 
    Aqui se repite, del lado del servidor, la MISMA regla de pos-stock.js
    (`insAgotado` + `faltForCombo`) para que la carta y Ventas digan lo
-   mismo. Y se aplica aunque el restaurante permita "vender sin inventario":
-   ese permiso es para el cajero, que ve el aviso y decide; el cliente de la
-   carta no ve ningun aviso y no tiene como decidir.
+   mismo.
+
+   ⚠️ Y SE RESPETA "VENDER SIN INVENTARIO". La primera version lo ignoraba
+   y en pleno turno dejo 19 de 42 productos de El Parche en "Agotado": su
+   inventario no esta al dia —justo por eso tiene ese permiso encendido— y
+   Ventas NO los frena, solo avisa. La carta bloquea lo mismo que Ventas
+   bloquea: con el permiso encendido, solo la casilla "Agotado hoy".
 
    Si algo falla al leer el inventario, no se bloquea nada: la casilla del
    producto sigue funcionando y una carta que no deja pedir nada es peor. */
@@ -529,8 +533,9 @@ type Agotados = {
   combo: (pid: string, varOpt: string | null, presId: string | null) => boolean;
   opcion: (pid: string, varOpt: string, presId: string | null) => boolean;
 };
-async function agotadosDe(tenant: string, branch: string): Promise<Agotados> {
+async function agotadosDe(tenant: string, branch: string, sinInventario: boolean): Promise<Agotados> {
   const nunca: Agotados = { combo: () => false, opcion: () => false };
+  if (sinInventario) return nunca;   // Ventas no frena: la carta tampoco
   try {
     let brand = "", modo = "global";
     if (branch) {
@@ -671,7 +676,7 @@ Deno.serve(async (req) => {
         }
       } catch (e) { console.error("[carta] bases:", String(e).slice(0, 120)); }
 
-      const agot = await agotadosDe(tenant, branch);
+      const agot = await agotadosDe(tenant, branch, cfg.ventaSinInventario === true);
       const prods: Fila[] = [];
       for (const p of filas(pRes.data)) {
         /*  Lo agotado YA NO desaparece (10-sep-2026): sale en gris con
@@ -1159,7 +1164,7 @@ Deno.serve(async (req) => {
       let puntosPedidos = 0;
       //  Lo que no hay se frena AQUI tambien: la pagina pudo abrirse antes de
       //  que se acabara, y lo que decide es el servidor.
-      const agot = await agotadosDe(tenant, String(link.branch_id || sede.id || ""));
+      const agot = await agotadosDe(tenant, String(link.branch_id || sede.id || ""), cfg.ventaSinInventario === true);
 
       const productos: Fila[] = [];
       let subtotal = 0, empaque = 0;
