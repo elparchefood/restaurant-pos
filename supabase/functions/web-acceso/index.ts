@@ -299,9 +299,12 @@ async function mandarPorSms(telefono: string, codigo: string, negocio: string, a
   return false;
 }
 
-async function mandarCodigo(tenantId: string, telefono: string, codigo: string, negocio: string, autocompleta = false, frase = "") {
+/*  Devuelve POR DONDE salio ("whatsapp" | "sms") o "" si no salio (10-sep-2026):
+    la caja le tiene que decir al cliente donde mirar. Cameron busco el codigo
+    en los SMS y le habia llegado por WhatsApp. */
+async function mandarCodigo(tenantId: string, telefono: string, codigo: string, negocio: string, autocompleta = false, frase = ""): Promise<string> {
   const wa = await canalWhatsApp(tenantId);
-  if (!wa) return frase ? await mandarPorSms(telefono, codigo, negocio, autocompleta, frase) : false;
+  if (!wa) return (frase && await mandarPorSms(telefono, codigo, negocio, autocompleta, frase)) ? "sms" : "";
   const para = "57" + telefono;
   const url = `https://graph.facebook.com/v22.0/${wa.phoneId}/messages`;
   const cabeceras = { "Authorization": `Bearer ${wa.token}`, "Content-Type": "application/json" };
@@ -327,7 +330,7 @@ async function mandarCodigo(tenantId: string, telefono: string, codigo: string, 
         },
       }),
     });
-    if (rp.ok) return true;
+    if (rp.ok) return "whatsapp";
     /* No se cae al respaldo en silencio: si la plantilla existe y falla por
        otra razon, hay que enterarse. */
     console.error("[acceso] plantilla del codigo no salio:", (await rp.text()).slice(0, 300));
@@ -345,12 +348,12 @@ async function mandarCodigo(tenantId: string, telefono: string, codigo: string, 
       type: "text", text: { body: cuerpo },
     }),
   });
-  if (r.ok) return true;
+  if (r.ok) return "whatsapp";
   console.error("[acceso] Meta rechazo el codigo:", (await r.text()).slice(0, 300));
   }
 
   /* 3. Fuera de la ventana, o WhatsApp no pudo. Va por SMS. */
-  return await mandarPorSms(telefono, codigo, negocio, autocompleta, frase);
+  return (await mandarPorSms(telefono, codigo, negocio, autocompleta, frase)) ? "sms" : "";
 }
 
 /* EL CLIENTE, BUSCADO COMO SE DEBE (15-ago). Antes se buscaba con
@@ -1207,7 +1210,7 @@ Deno.serve(async (req) => {
           await sbPatch(`/pos_web_codigos?id=eq.${filaId}`, { usado: true });
           return json({ ok: false, razon: "no_salio", mensaje: "No se pudo enviar el código a ese celular." });
         }
-        return json({ ok: true, vence_en_min: CODIGO_VIVE_MIN });
+        return json({ ok: true, vence_en_min: CODIGO_VIVE_MIN, canal: enviado });
       }
 
       // pago-verificar: SOLO valida y quema. Nada de pases ni fichas: esos

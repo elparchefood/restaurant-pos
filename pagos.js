@@ -667,7 +667,14 @@ async function _sdMandarCodigo(ov, tel, monto) {
   catch (e) { d = { ok: false, mensaje: 'Sin conexión con el servidor.' }; }
   if (!ov.isConnected) return;   // el cajero ya cerro el modal
   if (d.ok) {
-    if (est) { est.textContent = 'Código enviado. Vence en ' + (d.vence_en_min || 10) + ' minutos.'; est.style.color = '#16A34A'; }
+    /*  POR DONDE LE LLEGO (10-sep-2026). Sergio le dijo a Cameron "te llego
+        como mensaje de texto" y ella lo busco en los SMS: habia escrito en
+        las ultimas 24 horas, asi que el codigo salio por WhatsApp, al chat con
+        el restaurante. El cajero tiene que saber donde decirle que mire. */
+    var donde = d.canal === 'sms' ? 'por mensaje de texto (SMS)'
+              : d.canal === 'whatsapp' ? 'por WhatsApp, en el chat con el restaurante'
+              : '';
+    if (est) { est.textContent = 'Código enviado' + (donde ? ' ' + donde : '') + '. Vence en ' + (d.vence_en_min || 10) + ' minutos.'; est.style.color = '#16A34A'; }
     /* Reenviar se despierta a los 20 s: antes de eso el mensaje va en camino
        y reenviar solo gastaria el cupo del cliente. */
     setTimeout(function () { if (re && ov.isConnected) re.disabled = false; }, 20000);
