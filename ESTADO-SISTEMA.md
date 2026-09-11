@@ -18773,6 +18773,15 @@ none` de dentro de la pantalla: ya no son obligatorios, pero se ven bien.
 Probado sin red (`scratchpad/capturas-monitor.mjs`): recorrido completo en
 escritorio y celular.
 
+**El boton de compra a mitad de pagina (11-sep):** debajo del monitor va
+`.cmp-cta` (frase + `.btn` «Empezar ahora» a `#precios`, como el de la
+cabecera, + «Desde $149.000 al mes»). Regla de Sergio para la landing: no
+puede haber solo un boton arriba y otro abajo; en medio debe ir uno que
+otro por si la persona se anima. «Otra vez» dejo de reservar su hueco:
+flota centrado bajo la peana (`position:absolute; top:calc(100% + 12px)`)
+y el boton de compra no salta cuando aparece. Sergio: primero se disena
+toda la pagina en escritorio; el celular se ajusta despues.
+
 ⚠️ PENDIENTE (ya venia asi, medido en la version publicada): en celular la
 pagina mide 674 px de ancho en vez de 390 por `.cx-via` y sus `.cx-t`
 (el carrusel de la seccion `cx`), que se salen por los dos lados. No es del

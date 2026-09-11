@@ -458,7 +458,7 @@ a{color:inherit;text-decoration:none}
    clases `.ch-*` no se repiten aqui—, con una conversacion ya empezada y el
    comprobante del cliente esperando. Sin 3D: nada de `preserve-3d`, ni
    `pointer-events` cruzados, ni variables que escriba el guion.           */
-.cmp{padding:0 0 104px}
+.cmp{padding:0 0 84px}
 .cmp-cab{text-align:center;max-width:640px;margin:0 auto 40px}
 .cmp-cab .eyeb{justify-content:center}
 .cmp-cab .eyeb .rl{display:none}
@@ -507,7 +507,23 @@ a{color:inherit;text-decoration:none}
     visita la pagina).                                                    */
 .pc-pantalla .ch-esc{pointer-events:auto}
 
-.sim-otra.cmp-otra{display:flex;margin:26px auto 0}
+/*  «Otra vez» ya no reserva su hueco: flota centrado justo debajo de la
+    peana y solo se ve al terminar el recorrido. Asi el boton de compra de
+    abajo no salta cuando aparece.                                        */
+.sim-otra.cmp-otra{position:absolute;left:50%;top:calc(100% + 12px);transform:translateX(-50%);
+  margin:0;display:inline-flex;white-space:nowrap}
+
+/*  EL BOTON DE COMPRA A MITAD DE PAGINA (11-sep-2026). Sergio: en una
+    landing no puede haber solo un boton arriba y otro abajo; en medio debe
+    ir uno que otro por si la persona se anima. Aqui acaba de tocar el chat
+    con sus manos: es el mejor momento. Mismo `.btn` y mismo destino que el
+    de la cabecera (#precios: primero ve los planes).                    */
+.cmp-cta{text-align:center;margin:74px auto 0;max-width:600px}
+.cmp-cta p{font-size:clamp(18px,2.1vw,23px);line-height:1.3;letter-spacing:-.015em;
+  color:var(--tinta);font-weight:700;text-wrap:balance}
+.cmp-cta p em{color:var(--ind);font-style:normal}
+.cmp-cta .btn{margin-top:20px;padding:15px 32px;font-size:14px}
+.cmp-cta small{display:block;margin-top:13px;font-size:12.5px;color:var(--t3);letter-spacing:.01em}
 
 /*  El aviso, colgado por DEBAJO. "Crear pedido" vive en el borde de arriba
     de la pantalla y la etiqueta encima se salia del recuadro.           */
@@ -1914,11 +1930,18 @@ body{background:#FFFFFF}
     <div class="pc-cuello"></div>
     <div class="pc-base"></div>
     <div class="pc-sombra"></div>
+    <button class="sim-otra cmp-otra" id="cmp-otra" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+      Otra vez
+    </button>
   </div>
-  <button class="sim-otra cmp-otra" id="cmp-otra" type="button">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
-    Otra vez
-  </button>
+
+  <!--  El boton de compra a mitad de pagina, justo despues de probar el chat.  -->
+  <div class="cmp-cta rev">
+    <p>Lo que acabas de tocar es <em>Cobra</em>.<br>Ponlo a trabajar en tu restaurante.</p>
+    <a class="btn" href="#precios">Empezar ahora</a>
+    <small>Desde $149.000 al mes · Starter o Pro, tú eliges</small>
+  </div>
 </div></section>
 
 <!-- ══════ LOS PAGOS ══════
