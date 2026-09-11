@@ -919,6 +919,31 @@ la lee).
     aprobo: *"cobrar por PIN y codigo, para emergencias el PIN"*. Tope de
     codigos: 3 por hora y 8 por dia por numero.
 
+12. **Listo en la cocina = Listo en Ventas, CON su mensaje** (caso Kevin,
+    para llevar: la cocina lo marco, en Ventas no cambio nada y Sergio le tuvo
+    que escribir a mano "ya puedes pasar"). Eran DOS fallas:
+    - **El mensaje**: `marcarListo` (cocina.js) escribia `estado` DIRECTO en
+      la base y se saltaba `cambiar-estado` — la funcion central que manda el
+      mensaje de Configuracion → Estados, pone la etiqueta del chat, escribe
+      `delivery_status` y anota el tiempo en `pos_domi_tiempos`. Ahora la
+      cocina la llama igual que la caja, para **llevar y domicilio**. **Las
+      mesas NO**: `cambiar-estado` trata todo lo que no es domicilio como
+      "llevar" y a la mesa le llegaria "puedes pasar a recogerlo"; siguen con
+      el update directo + `mesaAComiendo`. Si la funcion no responde, se
+      guarda directo (el estado nunca se pierde, el mensaje si). Se pinta
+      antes de esperarla (tarda: espera el aviso al celular). Deshacer sigue
+      directo (no le escribe al cliente) y si se vuelve a marcar se manda
+      `sin_mensaje:true` (`_listoAvisado`): el cliente no lo recibe dos veces.
+    - **Ventas no lo mostraba**: la pastilla de la venta rapida leia solo
+      `status` (el COBRO: en preparacion / cobrado / pendiente), nunca
+      `estado`. `quickPillMeta(o)` (ventas-salon.js): si `estado` es listo y
+      no esta entregado → "Listo" con el color del Listo de domicilios.
+    Probado de verdad (dos Chrome a la vez, Restaurante de Prueba, chat de
+    canal tiktok para que no saliera a nadie): Ventas paso a "Listo" sola, el
+    mensaje quedo en el chat, deshacer → "En preparación", volver a marcar →
+    "Listo" y 1 solo mensaje. El aviso en vivo SI llegaba (el timbre del
+    dashboard sono a las 10:01 p. m. con Kevin): nunca fue la conexion.
+
 ## 🟢 Cocina: el fondo de la pantalla, a escoger — 10-sep-2026
 
 Sergio: *"que desde operación se pueda cambiar el fondo: negro, rojo,

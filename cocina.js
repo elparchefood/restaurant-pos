@@ -1647,23 +1647,65 @@ document.addEventListener('click', async ev => {
   }
 });
 
+/*  LISTO EN COCINA = LISTO EN VENTAS, CON SU MENSAJE (10-sep-2026).
+
+    Sergio, en pleno turno: la cocina marco listo un pedido para llevar, en
+    Ventas no cambio nada y al cliente no le llego el "ya esta listo" que SI le
+    llega cuando lo marca la caja. Le toco escribirselo a mano.
+
+    La cocina escribia el estado DIRECTO en la base y se saltaba
+    `cambiar-estado`, la funcion central por la que pasan la caja, el chat y el
+    cron: la que manda el mensaje configurado en Estados, pone la etiqueta del
+    chat y anota cuanto tardo en prepararse. Ahora la cocina entra por la misma
+    puerta que la caja: el Listo de las dos es el mismo Listo.
+
+    LAS MESAS NO. `cambiar-estado` trata todo lo que no es domicilio como "para
+    llevar", y al cliente sentado en la mesa 4 le llegaria "puedes pasar a
+    recogerlo". La mesa sigue como estaba: pasa a comiendo y ya.
+
+    Si la funcion no responde, se guarda directo como antes: el mensaje se
+    pierde, pero el estado —que es lo que mira todo el mundo— no.           */
+const ESTADO_URL = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/cambiar-estado';
+//  Pedidos a los que ESTA pantalla ya les aviso. Si lo deshacen y lo vuelven a
+//  marcar, el estado se sincroniza igual pero el cliente no recibe el mensaje dos veces.
+const _listoAvisado = new Set();
+
 async function marcarListo(id, btn) {
   const o = S.orders.get(id);
   if (!o) return;
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  /*  Se guarda TAMBIEN la hora: es lo que para el reloj de la tarjeta y lo
+      que deja saber despues cuanto tardo en hacerse. */
+  const ahoraIso = new Date().toISOString();
+  const antes = { estado: o.estado, estado_at: o.estado_at, listo_at: o.listo_at };
+  //  Se pinta YA: la funcion central tarda unos segundos (espera el aviso al
+  //  celular del cliente) y el cocinero no tiene por que quedarse mirandola.
+  o.estado = 'listo'; o.estado_at = ahoraIso;
+  if (!o.listo_at) o.listo_at = ahoraIso;   // la base pone la suya; esta congela ya el reloj
+  pintar();
   try {
-    /*  Se guarda TAMBIEN la hora: es lo que para el reloj de la tarjeta y lo
-        que deja saber despues cuanto tardo en hacerse. */
-    const ahoraIso = new Date().toISOString();
-    const { error } = await sb.from('pos_orders').update({ estado:'listo', estado_at: ahoraIso }).eq('id', id);
-    if (error) throw error;
-    o.estado = 'listo'; o.estado_at = ahoraIso;
-    if (!o.listo_at) o.listo_at = ahoraIso;   // la base pone la suya; esta congela ya el reloj
+    let hecho = false;
+    if (zonaDe(o) !== 'salon') {
+      try {
+        const r = await fetch(ESTADO_URL, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: id, estado: 'listo', sin_mensaje: _listoAvisado.has(id) }),
+        });
+        const x = r.ok ? await r.json().catch(() => null) : null;
+        hecho = !!(x && x.ok);
+        if (hecho) _listoAvisado.add(id);
+        else console.warn('[cocina] cambiar-estado no respondio bien:', r.status, x && x.error);
+      } catch (e) { console.warn('[cocina] cambiar-estado no respondio:', e && e.message); }
+    }
+    if (!hecho) {
+      const { error } = await sb.from('pos_orders').update({ estado:'listo', estado_at: ahoraIso }).eq('id', id);
+      if (error) throw error;
+    }
     await mesaAComiendo(o, true);
-    pintar();
   } catch (e) {
     console.error('[cocina] no se pudo marcar listo:', e);
-    if (btn) { btn.disabled = false; btn.textContent = 'Listo'; }
+    o.estado = antes.estado; o.estado_at = antes.estado_at; o.listo_at = antes.listo_at;
+    pintar();
     marcarRed(false);
   }
 }

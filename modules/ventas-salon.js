@@ -55,6 +55,18 @@
     listo:          { label: 'Listo',          color: '#3b82f6' },
     entregado:      { label: 'Entregado',       color: '#22c55e' },
   };
+  /*  LA PASTILLA DE LA VENTA RAPIDA DICE "LISTO" CUANDO LA COCINA LO SACO
+      (10-sep-2026). Leia solo el estado del COBRO (`status`: en preparacion,
+      cobrado, pendiente de pago), asi que el Listo de la cocina —que vive en
+      `estado`— llegaba a esta pantalla y no se veia en ningun lado. Sergio:
+      "no se actualizo el Estado a listo en la pantalla de ventas".
+      Mismo color que el Listo de los domicilios, para que Listo sea uno solo
+      en toda la pantalla. Entregado sigue mandando: ese pedido ya termino.  */
+  function quickPillMeta(o) {
+    if (o && o.estado === 'listo' && o.status !== 'entregado') return DELIVERY_META.listo;
+    return QUICK_STATE_META[o && o.status] || QUICK_STATE_META.esperando;
+  }
+
   function quickEstadoControl(o) {
     const est = o.estado || 'en_preparacion';
     const meta = QUICK_ESTADO_META[est] || QUICK_ESTADO_META.en_preparacion;
@@ -3027,7 +3039,7 @@
   }
 
   function renderQuickCard(o) {
-    const meta = QUICK_STATE_META[o.status] || QUICK_STATE_META.esperando;
+    const meta = quickPillMeta(o);
     const isSelected = o.id === state.selectedQuickId;
     const titulo = o.customer_name || ('Turno #' + String(o.turno || 0).padStart(3, '0'));
     const mins = Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000);
@@ -3083,7 +3095,7 @@
   }
 
   function renderQuickRailDetail(o) {
-    const meta = QUICK_STATE_META[o.status] || QUICK_STATE_META.esperando;
+    const meta = quickPillMeta(o);
     const titulo = o.customer_name || ('Turno #' + String(o.turno || 0).padStart(3, '0'));
     const isPaid = o.status === 'paid';
     const total = o.total || 0;
@@ -3411,7 +3423,7 @@
         })();
         container.querySelectorAll('.lm-mesa[data-quick-id]').forEach(c2 => {
           const o2 = state.quickOrders.find(x => x.id === c2.dataset.quickId);
-          const m2 = (o2 && QUICK_STATE_META[o2.status]) || QUICK_STATE_META.esperando;
+          const m2 = quickPillMeta(o2);
           c2.style.boxShadow = c2.dataset.quickId === state.selectedQuickId ? `0 0 0 3px ${m2.color}33` : 'none';
           c2.style.borderColor = c2.dataset.quickId === state.selectedQuickId ? m2.color : m2.ring;
         });
