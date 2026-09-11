@@ -631,9 +631,11 @@ a{color:inherit;text-decoration:none}
   .oc{animation:none}}
 .arg .fr{display:block;margin-top:20px;font-family:'Archivo';font-size:17px;font-weight:800;
   color:#fff;border-left:3px solid var(--acid);padding-left:14px;text-transform:none;letter-spacing:-.01em}
-.arg .rep{position:absolute;z-index:4;right:5%;top:50%;transform:translateY(-50%) rotate(1.4deg);
+/*  Sin giro (11-sep): las tarjetas iban ladeadas 1,4° y Sergio las quiere derechas
+    —el chat del asistente, las notificaciones de pago y el celular de la factura—. */
+.arg .rep{position:absolute;z-index:4;right:5%;top:50%;transform:translateY(-50%);
   width:min(38%,330px);padding:16px}
-.arg.d .rep{right:auto;left:5%;transform:translateY(-50%) rotate(-1.4deg)}
+.arg.d .rep{right:auto;left:5%;transform:translateY(-50%)}
 .arg .nbig{position:absolute;z-index:2;font-family:'Archivo';font-weight:900;font-size:190px;
   line-height:1;color:transparent;-webkit-text-stroke:1px rgba(255,255,255,.07);right:3%;bottom:-6%}
 .arg.d .nbig{right:auto;left:3%}
