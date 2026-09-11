@@ -422,6 +422,84 @@ quedaba sin su propio bloque hasta que la base confirmara.
   con guardas que revientan si el permiso no quedo, y tambien si se le colo a
   un rol que no es administrador.
 
+## 🟢 El Chat de Cobra — 11-sep-2026 (punto 4)
+
+Sergio atiende desde su consola a los interesados que escriben al WhatsApp,
+Instagram y Facebook **de Cobra** (no los de El Parche). Los atiende un
+asistente que **vende el sistema** (no es Paco). Decidido con Sergio: contesta
+SIEMPRE (él entra cuando quiere y ahí se calla), resuelve dudas, manda el
+registro, agenda la demo y le pasa la conversación; siempre dice que es un
+asistente virtual; lleva nombre propio (lo pone Sergio en la consola).
+
+- **Cómo, sin otro Chat IA:** Cobra es un **restaurante interno**
+  (`tenants.es_plataforma = true`: "Cobra POS", sede "Ventas"). Sus cuentas se
+  conectan con los mismos botones de Meta (meta-oauth-callback) desde la
+  consola → Cuentas. No aparece como cliente (no tiene solicitud ni
+  vencimiento; el reloj de cobro no lo ve).
+- **meta-webhook (v101):** `queueAiReply` lee `ia_config.perfil.cerebro`; si es
+  `'cobra'` despierta **`chat-cobra`** en vez de `delay-reply`. Misma cola,
+  misma espera. Es el único punto donde se decide (texto, audio, foto,
+  Instagram y Messenger pasan todos por ahí).
+- **`chat-cobra` (Edge Function nueva):** el cerebro (gpt-4o con tres
+  herramientas: `ver_horarios_demo`, `agendar_demo`, `pasar_a_sergio`) y las
+  acciones de la consola (`estado`, `enviar`, `tomar`, `leido`,
+  `guardar_asistente`, solo admin de plataforma). Precios de `pos_planes`; lo
+  demás, de la landing y `pos-plan.js`. **Nunca** ofrece NFC, billetera/recargas,
+  app de clientes ni Premium. Si la IA falla, le dice al interesado que Sergio
+  le escribe y le pasa la conversación (nadie queda hablando solo). Una
+  conversación con contacto `prueba…` no manda correos.
+- **`soporte-llamadas` (v7):** `agendar_interesado` (solo llave de servicio):
+  la demo queda en la lista de Videollamadas con `origen='interesado'` y la
+  conversación enlazada (`plataforma_llamadas.conversation_id`); `silencio`
+  para las pruebas.
+- **Consola, dos entradas del menú:**
+  - **«Conversaciones»** — Sergio pidió el diseño EXACTO del Chat IA de los
+    restaurantes y *"no tocar, modificar ni dañar nada de lo que ya existe con
+    los restaurantes"*. Por eso es un iframe con **`consola-chat.html`**, que al
+    abrir trae `chat-ia.html` TAL CUAL y carga sus mismos archivos SIN cambiarles
+    una línea (cualquier mejora del Chat IA le llega sola). `consola-chat.js`
+    hace, desde afuera: (1) fija el restaurante al interno de Cobra en
+    `window._pos.state` con un getter (el núcleo lo reescribe varias veces desde
+    la sesión de Sergio, que es de El Parche); (2) **nada se guarda en el
+    equipo**: lo que escribe esa página vive en memoria (salvo la sesión), y no
+    lee `pos.cache.*`, `pos.branchId` ni `pos.cuenta.estado` — si no, la copia
+    de la bandeja y la sede de El Parche se pisaban; (3) no carga `pos-notify.js`;
+    (4) esconde Regresar, Pagos por confirmar, Crear pedido y la Ficha. Los
+    `DOMContentLoaded` del chat se guardan y se corren cuando ya está Cobra.
+    Permisos: `supabase/sql/2026-09-11-consola-conversaciones.sql` —
+    `plataforma_chat_cobra` (chat_conversations, chat_messages, chat_channels,
+    ia_config, pos_clientes, pos_wa_contactos) y `plataforma_ve_sede_cobra`
+    (branches, lectura). SOLO se agregan: admin de plataforma + restaurante
+    interno, escritas con `(select …)` para calcularse una vez por consulta. Las
+    de los restaurantes no se tocan. Los botones Apagado/Encendido de esa
+    pantalla mandan sobre el asistente (`chat-cobra` respeta `modo_asistente`).
+    Como en los restaurantes: la que tomó una persona sale en «En humano».
+    **A pantalla completa** (Sergio): el iframe se vuelve fijo y tapa la
+    consola entera; el «Regresar» del propio Chat IA (que allá lleva a Ventas)
+    aquí avisa por `postMessage` y la consola se destapa en la vista donde
+    estaba. El chat no se descarga: volver a entrar es instantáneo.
+  - **«Chat de Cobra»** (`admin-chat.js`): Cuentas (conectar las 3) y Asistente
+    (nombre, encendido, lo que sabe y lo que Sergio le agrega). Escribe por
+    `chat-cobra`; las llaves no bajan (`estado` no devuelve `meta`). El numerito
+    de «Conversaciones» cuenta a quienes el asistente le pasó a Sergio.
+- SQL: `supabase/sql/2026-09-11-chat-de-cobra.sql`. ⚠️ La sede nueva crea su
+  `ia_config` sola al nacer; el insert del SQL no aplicó y se marcó
+  `perfil.cerebro` con un UPDATE.
+- **Probado de verdad** (interesado simulado, cerebro desplegado): precio para
+  2 sedes con el −10%, "no ofrecemos tarjetas NFC ni recargas", demo propuesta
+  y agendada en el calendario real, paso a Sergio con motivo, y silencio
+  después. La consola lo muestra con "Te necesita" y el numerito del menú.
+  Corregido en las pruebas: precios con punto ($268.200); el markdown se
+  limpia EN CÓDIGO antes de enviar (`limpiarFormato`: `**x**`→`*x*`,
+  `[txt](url)`→`txt: url` — pedírselo al modelo no bastó); horas de demo
+  repartidas; y una hora SIN zona que manda el modelo se toma como hora de
+  Colombia (`normalizarHora`) — el resultado de `ver_horarios_demo` no queda en
+  el historial y al reescribirla de memoria la demo "ya no estaba disponible".
+  Tercera prueba: los 6 turnos bien.
+- **Falta:** Sergio conecta las 3 cuentas de Cobra y le pone nombre al
+  asistente; con el número de WhatsApp de Cobra se arreglan los 4 botones de la
+  landing (punto 3.1).
+
 ## 🟢 El extintor: "Cobrar por transferencia esta vez" — 11-sep-2026
 
 Todo se cobra por Wompi y la transferencia NO se ofrece (PLAN-COBRO-

@@ -49,7 +49,7 @@ async function quien(req: Request) {
   const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   if (!token) return null;
   //  La llave de servicio (pruebas desde el servidor) cuenta como plataforma.
-  if (token === SERVICE_KEY) return { admin: true, tenant: "", sub: "", email: "", nombre: "Cobra" };
+  if (token === SERVICE_KEY) return { admin: true, servicio: true, tenant: "", sub: "", email: "", nombre: "Cobra" };
   const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` } });
   if (!r.ok) return null;
   const u = await r.json();
@@ -64,7 +64,7 @@ async function quien(req: Request) {
   });
   const admin = a.ok ? (await a.json().catch(() => false)) === true : false;
   const md = u.user_metadata || {};
-  return { admin, tenant, sub, email: String(u.email || ""), nombre: String(md.nombre || md.full_name || md.name || "") };
+  return { admin, servicio: false, tenant, sub, email: String(u.email || ""), nombre: String(md.nombre || md.full_name || md.name || "") };
 }
 
 /* ── El horario y los huecos ─────────────────────────────────────────── */
@@ -240,6 +240,64 @@ Deno.serve(async (req) => {
         `Tuvimos que cancelar tu videollamada del ${hora}. Escoge otra hora desde el Escritorio de Cobra.`);
     }
     return ok({ ok: true });
+  }
+
+  /* ── El INTERESADO que agenda por el chat de Cobra (11-sep-2026) ──────
+     Todavia no tiene cuenta, asi que no hay token de restaurante: lo agenda
+     el asistente de Cobra (`chat-cobra`) con la llave de servicio. La cita
+     queda a nombre del restaurante interno de Cobra, con `origen='interesado'`
+     y la conversacion enlazada, y sale en la misma lista de Videollamadas de
+     la consola. Misma validacion de la hora que un restaurante.          */
+  if (accion === "agendar_interesado") {
+    if (!q.servicio) return ok({ ok: false, error: "Solo el asistente de Cobra." });
+    const inicio = new Date(String(b.inicio || ""));
+    if (isNaN(inicio.getTime())) return ok({ ok: false, error: "Falta el día y la hora." });
+    const cfg = await agenda();
+    const libres = await huecos(cfg);
+    const iso = inicio.toISOString();
+    if (!libres.dias.some((d) => d.slots.includes(iso))) {
+      return ok({ ok: false, error: "Esa hora ya no está disponible." });
+    }
+    const plat = await db("tenants?es_plataforma=is.true&select=id&limit=1");
+    const tenantPlat = String(plat.data?.[0]?.id || "");
+    if (!tenantPlat) return ok({ ok: false, error: "Falta el restaurante interno de Cobra." });
+    //  Una cita viva por conversacion: si ya tiene una, no se le crea otra.
+    const conv = String(b.conversation_id || "");
+    if (conv) {
+      const ya = await db(`plataforma_llamadas?conversation_id=eq.${conv}&estado=eq.agendada&fin=gt.${ahora}&select=id,inicio&limit=1`);
+      if (ya.data?.length) return ok({ ok: false, error: "Ya tiene una demo agendada: " + cuando(ya.data[0].inicio) });
+    }
+    const fin = new Date(inicio.getTime() + libres.duracion * 60000).toISOString();
+    const correoI = String(b.correo || "").trim().toLowerCase();
+    const fila = {
+      tenant_id: tenantPlat, origen: "interesado", conversation_id: conv || null,
+      restaurante: String(b.restaurante || "").trim().slice(0, 80) || "Interesado",
+      contacto: String(b.contacto || "").trim().slice(0, 80) || null,
+      correo: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correoI) ? correoI : null,
+      telefono: String(b.telefono || "").replace(/[^0-9+ ]/g, "").slice(0, 20) || null,
+      motivo: String(b.motivo || "Demostración de Cobra POS").trim().slice(0, 500), inicio: iso, fin,
+    };
+    const ins = await db("plataforma_llamadas", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(fila) });
+    if (!ins.ok) return ok({ ok: false, error: ins.status === 409 ? "Esa hora la acaban de tomar." : "No se pudo agendar." });
+    const hora = cuando(iso);
+    const meet = String(cfg.meet_url || "");
+    //  `silencio`: las pruebas del asistente no le mandan correo a nadie.
+    if (b.silencio !== true) await correo(String(cfg.correo_aviso || "sergio@cobrapos.app"),
+      `Demo agendada por el chat: ${fila.restaurante} · ${hora}`,
+      caja("Un interesado agendó una demostración", [
+        ["Negocio", fila.restaurante], ["Cuándo", hora], ["Quién", fila.contacto || ""],
+        ["Correo", fila.correo || ""], ["Celular", fila.telefono || ""], ["Sobre qué es", fila.motivo],
+      ], meet ? ["Abrir la sala de Meet", meet] : undefined, "La agendó el asistente de Cobra. La conversación está en la consola, en Chat de Cobra."),
+      `Demo agendada por el chat\n${fila.restaurante}\n${hora}\n${fila.contacto || ""} ${fila.correo || ""} ${fila.telefono || ""}\n${meet}`);
+    if (b.silencio !== true && fila.correo && !/@(ejemplo|example)\./i.test(fila.correo)) {
+      await correo(fila.correo, `Tu demostración de Cobra POS: ${hora}`,
+        caja("Tu demostración quedó agendada", [
+          ["Cuándo", hora + " (hora de Colombia)"], ["Duración", libres.duracion + " minutos por Google Meet"],
+        ], meet ? ["Entrar a la videollamada", meet] : undefined,
+        "A la hora de la cita entra con este botón. Si necesitas cambiarla, escríbenos por el mismo chat."),
+        `Tu demostracion de Cobra POS quedo agendada\n${hora} (hora de Colombia), ${libres.duracion} minutos por Google Meet.\n${meet}`);
+    }
+    return ok({ ok: true, llamada: { id: ins.data?.[0]?.id, inicio: iso, fin, cuando: hora, meet_url: meet, duracion: libres.duracion } });
   }
 
   /* ── De la plataforma ── */

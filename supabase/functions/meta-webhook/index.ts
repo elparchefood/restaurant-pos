@@ -924,6 +924,8 @@ async function recibirMeta(canal: string, entries: Array<Record<string, unknown>
 // ── Cola de respuesta IA ──────────────────────────────────────────────────────
 
 const DELAY_REPLY_URL = `${Deno.env.get("SUPABASE_URL")}/functions/v1/delay-reply`;
+//  El asistente que vende Cobra (sus propias cuentas): ver `queueAiReply`.
+const CHAT_COBRA_URL = `${Deno.env.get("SUPABASE_URL")}/functions/v1/chat-cobra`;
 
 interface QueueOpts {
   branchId: string; tenantId: string; convId: string;
@@ -939,9 +941,16 @@ async function queueAiReply(opts: QueueOpts): Promise<void> {
   const { branchId, tenantId, convId, fromPhone, phoneId, accessToken, msgSentAt } = opts;
   try {
     // Leer delay configurado (default 5 seg)
-    const cfgRes = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&select=activo,delay_segundos&limit=1`);
+    const cfgRes = await sbGet(`/rest/v1/ia_config?branch_id=eq.${branchId}&select=activo,delay_segundos,perfil&limit=1`);
     const cfg = cfgRes?.[0] as Record<string, unknown> | undefined;
     if (!cfg || !cfg.activo) return;
+    /*  EL CHAT DE COBRA (11-sep-2026). Las cuentas DE COBRA (su WhatsApp,
+        Instagram y Facebook) estan conectadas a un restaurante interno cuyo
+        asistente no es Paco: vende el sistema. Se marca en
+        `ia_config.perfil.cerebro = 'cobra'` y aqui solo cambia A QUIEN se
+        despierta; la cola, la espera y el agrupado son los mismos.        */
+    const cerebro = ((cfg.perfil || {}) as Record<string, unknown>).cerebro === "cobra"
+      ? CHAT_COBRA_URL : DELAY_REPLY_URL;
     /*  ══ TOCAR UN BOTON NO ES ESCRIBIR DE A POQUITOS ══════════════════════
 
         La espera existe para AGRUPAR: quien manda "hola", "para un pedido" y
@@ -977,7 +986,7 @@ async function queueAiReply(opts: QueueOpts): Promise<void> {
 
     // Lanzar delay-reply en segundo plano solo si es el primer mensaje del batch
     if (isNew) {
-      fetch(DELAY_REPLY_URL, {
+      fetch(cerebro, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${SUPABASE_KEY}`,

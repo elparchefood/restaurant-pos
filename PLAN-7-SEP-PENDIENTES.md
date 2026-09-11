@@ -209,7 +209,11 @@ Instagram y WhatsApp **de Cobra** (no de El Parche) y contestarle a los
 interesados. Con su propio asistente virtual, **distinto de Paco**: este vende
 el sistema, no comida.
 
-*(Sin empezar: hay que decidir qué cuentas se conectan y qué dice el asistente.)*
+✅ **Construido el 11-sep-2026** ("Chat de Cobra" en la consola). Decidido:
+contesta siempre, resuelve dudas, manda el registro, agenda la demo y le pasa la
+conversación a Sergio; con nombre propio. **Falta de Sergio:** conectar el
+WhatsApp, Instagram y Facebook de Cobra (Consola → Chat de Cobra → Cuentas) y
+ponerle nombre al asistente. Detalle en ESTADO-SISTEMA.md, "El Chat de Cobra".
 
 ---
 
