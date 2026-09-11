@@ -1017,6 +1017,12 @@
       Se pide una vez al arrancar y se guarda en memoria. Si falla, no suena —
       pero no se cae nada: lo que hace el mesero no depende de esto. */
   var _avisaCfg = null;
+  /*  LO MISMO QUE MUESTRA CONFIGURACION CUANDO NADIE LO HA TOCADO (10-sep-2026).
+      El valor por defecto vivia SOLO en la pantalla de configuracion: un
+      restaurante que nunca la guardo tenia `cocinaAvisa` vacio y el timbre no
+      le sonaba a NADIE. Paso en El Parche en pleno turno: la cocina marco
+      listo y en la caja no sono nada.                                      */
+  const AVISA_POR_DEFECTO = { salon: 'mesero', llevar: 'cajero', domicilio: 'cajero', tono: 'campana', vol: 80 };
 
   async function cargarAvisa() {
     try {
@@ -1026,7 +1032,7 @@
       const data = window.posSucursal ? await window.posSucursal(bid)
                  : (await sb.from('branches').select('operacion_config').eq('id', bid).maybeSingle()).data;
       const op = (data && data.operacion_config) || {};
-      _avisaCfg = op.cocinaAvisa || {};
+      _avisaCfg = op.cocinaAvisa || AVISA_POR_DEFECTO;
     } catch (e) { console.warn('[VS] no se pudo leer a quien avisar:', e && e.message); }
   }
 
@@ -1034,7 +1040,7 @@
     if (_avisaCfg) return _avisaCfg;
     //  Mientras llega, sirve la copia del equipo si la hay.
     const cfg = _getCfg() || {};
-    return cfg.cocinaAvisa || {};
+    return cfg.cocinaAvisa || AVISA_POR_DEFECTO;
   }
 
   function timbreSiEsMio(payload) {
@@ -1054,7 +1060,13 @@
       if (!rolQueVa) return;
 
       const mio = String(state.userRole || '').toLowerCase();
-      if (mio !== rolQueVa.toLowerCase()) return;
+      /*  El timbre de la CAJA tambien le suena a quien manda: cuando el
+          gerente es el que esta en el computador de la caja —como Sergio en
+          pleno turno el 10-sep-2026—, si no le suena, nadie se entera.    */
+      const JEFES = ['gerente', 'admin', 'administrador', 'owner', 'dueno', 'dueño'];
+      const meToca = mio === rolQueVa.toLowerCase()
+        || (rolQueVa.toLowerCase() === 'cajero' && JEFES.indexOf(mio) >= 0);
+      if (!meToca) return;
 
       try { window.posTocarTono(avisa.tono || 'campana', avisa.vol == null ? 80 : avisa.vol); } catch (e) {}
       const donde = zona === 'salon' ? 'de una mesa' : zona === 'domicilio' ? 'de domicilio' : 'para llevar';

@@ -198,12 +198,18 @@ Deno.serve(async (req) => {
 
     // Notas del pedido: dirección + [barrio:X] (comanda) + [tel:X] (recibo) + notas — mismo formato que domicilios.js
     const barrioTag = barrio ? ` [barrio:${barrio.toUpperCase()}]` : "";
+    /*  EL CONJUNTO, CON SU ETIQUETA (Sergio, 10-sep-2026): un domicilio a un
+        conjunto sin barrio salia "Domicilio" en la comanda, en papel y en
+        pantalla. Las dos leen `[conjunto:]` —igual que lo escriben
+        domicilios.js y ventas— pero desde el chat nunca se escribia.     */
+    const conjunto = String(b.conjunto || "").trim();
+    const conjTag  = conjunto ? ` [conjunto:${conjunto}]` : "";
     const telTag    = telefono ? ` [tel:${telefono}]` : "";
     /* Va junto a [barrio:] y [tel:], NO dentro del texto libre de notas: es el
        mismo formato que ya escribe venta-rapida.js y que pos-print.js sabe
        sacar de la linea de la direccion. */
     const etqTag    = etiqueta ? ` [etq:${etiqueta.toUpperCase()}]` : "";
-    const orderNotes = ((direccion || "") + barrioTag + telTag + etqTag + (notas ? " — " + notas : "")).trim() || null;
+    const orderNotes = ((direccion || "") + conjTag + barrioTag + telTag + etqTag + (notas ? " — " + notas : "")).trim() || null;
 
     // 3. Pedido
     const orderRecord: Record<string, unknown> = {

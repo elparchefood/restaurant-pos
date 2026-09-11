@@ -3896,7 +3896,7 @@ async function cpEnviarCocina(){
     }
   }catch(_e){}
   const _oc = cpComponer(o);   // los cuatro campos del conjunto, ya juntos
-  const payload={ conversation_id:convId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:_oc.direccion||'', barrio:_oc.barrio||'', tipo:o.tipo, pago:o.pago, notas:o.notas, etiqueta:o.etiqueta||'', domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0), empaque:Number(o.empaque)||0,
+  const payload={ conversation_id:convId, branch_id:o.branch_id, tenant_id:o.tenant_id, cliente:o.cliente, telefono:o.telefono, direccion:_oc.direccion||'', barrio:_oc.barrio||'', conjunto:(o.es_conjunto ? String(o.conjunto||'').trim() : ''), tipo:o.tipo, pago:o.pago, notas:o.notas, etiqueta:o.etiqueta||'', domi_precio:(o.tipo==='domicilio'?(Number(o.domi_precio)||0):0), empaque:Number(o.empaque)||0,
     productos:(o.productos||[]).map(p=>({ product_id:p.product_id, product_name:p.product_name, unit_price:p.unit_price, cantidad:p.cantidad, tamano:p.tamano, variantes:p.variantes||{}, adiciones:p.adiciones||[], notas:p.notas })) };
   const btn=document.getElementById('cpDraftSend'); if(btn){ btn.disabled=true; btn.textContent='Enviando…'; }
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
