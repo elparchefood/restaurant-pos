@@ -171,9 +171,18 @@ funcione de más y el cajero no pueda cobrar un sábado por la noche.
 
 ---
 
-## 2. La verificación de marca de Google
-Para que la pantalla de entrar diga **Cobra POS** con su logo, en vez de
-`tblujfduscslxjmrjbdr.supabase.co`. Necesita:
+## 2. La verificación de marca de Google — ✅ HECHA el 10-sep-2026
+Verificada y PUBLICADA ("se muestra a los usuarios"), aprobada al instante.
+Lo que hizo falta: (1) la politica de privacidad no hablaba de "Entrar con
+Google" — se agrego la seccion (datos basicos, uso limitado, como revocar);
+(2) el login enlazaba terminos y privacidad a "#"; (3) Search Console con
+creatorspremium (propiedad **Dominio** `cobrapos.app`) + TXT
+`google-site-verification=ViipTE2k…RBYxw` en Porkbun. ⚠️ **Ese TXT no se
+borra nunca**: sin el se pierde la verificacion. El correo de asistencia
+quedo en creatorspremium.co@gmail.com (Google solo deja la cuenta propia o
+un grupo); contacto del desarrollador: sergio@cobrapos.app.
+
+Lo que se pedia originalmente:
 - Search Console con la MISMA cuenta (`creatorspremium.co@gmail.com`)
 - un registro TXT en Porkbun
 - y mandar la marca a revisión
