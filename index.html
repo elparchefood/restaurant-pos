@@ -701,7 +701,7 @@ a{color:inherit;text-decoration:none}
 @keyframes facSube{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
 /* ═══ CARRUSEL 3D ═══ */
-.cars{position:relative;height:440px;perspective:1400px;margin-top:20px}
+.cars{position:relative;height:400px;perspective:1400px;margin-top:20px}
 .cars .via{position:absolute;inset:0;display:grid;place-items:center;transform-style:preserve-3d}
 .crd{position:absolute;width:250px;height:340px;border-radius:20px;overflow:hidden;
   border:1px solid var(--linea);transition:transform .5s cubic-bezier(.2,.8,.2,1),opacity .5s,filter .5s;
@@ -1998,7 +1998,9 @@ body{background:#FFFFFF}
 </div></section>
 
 <!-- ══════ CARRUSEL 3D ══════ -->
-<section class="sec" style="padding-top:0"><div class="env">
+<!--  `padding-bottom` corto: despues de quitar la ruleta y el collage (11-sep)
+      esta seccion lleva directo a Precios y los 110 px de siempre eran un hueco.  -->
+<section class="sec" style="padding:0 0 48px"><div class="env">
   <div class="eyeb rev"><span class="lab">Para tu equipo :</span><span class="fl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></span><span class="rl"></span></div>
   <div class="cars rev"><div class="via" id="via">
     <article class="crd"><div class="ph claro" data-et="foto · cajera" style="background-image:url(img/landing/oficio-cajera.jpg)"></div><div class="tx"><b>La cajera</b><span>Cobra en tres toques</span></div></article>
