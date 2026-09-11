@@ -813,6 +813,46 @@ mujer primero, nombre). Falta la pantalla donde el dueño escoge su voz
 (se guardaria en `branches.operacion_config.cocinaNotif.voz`; el servidor ya
 la lee).
 
+## 🟢 En pleno turno (10-sep-2026, noche) — lo que Sergio fue viendo
+
+1. **Bandeja: el boton que recibe el cliente no se veia.** `MSG_COLS`
+   (chat-ia.js) no traia `payload` → la burbuja salia sin boton y parecia que
+   Paco no lo habia mandado. Ahora lo trae (los payload miden < 500 bytes).
+   Y los botones de RESPUESTA del resumen ("Sí, confirmo" / "Corregir algo",
+   `interactive.type = "button"`) se guardaban como un "Abrir" sin enlace:
+   `formaParaGuardar` en delay-reply (v467) ya traduce `button` y `list`, y la
+   bandeja dibuja un boton sin `url` como respuesta (`.ci-wa-btn.resp`, con
+   la flechita). 21 resumenes viejos corregidos por SQL.
+2. **El timbre de "listo" no sonaba**: `operacion_config.cocinaAvisa` era
+   NULL en El Parche (nunca se guardo Configuracion) y el valor por defecto
+   vivia solo en esa pantalla. ventas-salon.js usa `AVISA_POR_DEFECTO` (el
+   mismo) y el timbre de la caja tambien le suena a gerente/admin/owner.
+   Suena en la pantalla de **Ventas** (no en Chat IA).
+3. **Conjunto en la comanda**: los pedidos de "Crear pedido" del chat con
+   Conjunto no escribian `[conjunto:X]` → la comanda decia "Domicilio".
+   chat-ia.js manda `conjunto` y crear-pedido-chat (v38) escribe la etiqueta.
+4. **Plantillas que no salen**: Meta responde **131042 "Business eligibility
+   payment issue"** (queda en `pos_diag` como `meta/no-entregado`). Es el pago
+   de la cuenta de WhatsApp Business en Meta; lo arregla Sergio en Billing Hub.
+   Los mensajes normales dentro de 24 h siguen saliendo.
+5. **Carta: lo agotado se ve en gris y no se deja pedir** (antes
+   desaparecia; la casilla "Agotado hoy" del producto ya prometia eso).
+   Servidor `carta` v31: `agotadosDe()` repite la regla de pos-stock.js
+   (insumos/recetas/existencias), pero **solo si el restaurante NO permite
+   "vender sin inventario"**. ⚠️ La primera version lo ignoraba y dejo 19 de
+   42 productos de El Parche en "Agotado" en pleno turno (su inventario no
+   esta al dia; corregido en minutos). Con el permiso encendido cuenta solo
+   `pos_products.agotado`. El pedido tambien se frena en el servidor (409),
+   aunque la pagina se haya abierto antes. Tamaños y sabores agotados salen
+   igual (en gris, sin poderse escoger).
+6. **Cocina**: lo listo se pone GRIS y se va a los 2 minutos
+   (`LISTO_SE_VA_MS`, `seFue()`, medido desde `paroEn`) — reemplaza la regla
+   del 28-ago de dejarlo en morado. Y las dos subcolumnas ya no las empareja
+   el navegador (`columns:2`): `repartirColumnas()` llena la IZQUIERDA hasta
+   donde se ve y solo entonces pasa a la derecha; si las dos se llenan, lo
+   que sobra va a la mas corta. Mide una vez por pintado (corre cada 1 s).
+7. **Voz**: dice "con adición de ranchera" (`adicionesVoz`, solo `mods`).
+
 ## 🟢 La campana pedia un PIN y unas fotos que ya estaban — 10-sep-2026
 
 Sergio: *"me esta pidiendo que coloque un PIN y que suba las fotos de la carta,
