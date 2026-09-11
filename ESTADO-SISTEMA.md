@@ -499,6 +499,16 @@ asistente virtual; lleva nombre propio (lo pone Sergio en la consola).
     recibe `redirect_uri` para el
     canje. Los canales del chat de «Conversaciones» (`.ci-chan-row`) llevan a
     «Chat de Cobra → Cuentas».
+    **El rastro (11-sep):** cada intento de conectar anota sus pasos en
+    `pos_diag` (`donde='consola/conectar'`): inicio (con/SIN negocio), lo que
+    contestó Facebook, el código, lo que dijo el servidor y el error — nunca
+    el código ni llaves. El error queda fijo en Cuentas (`#ch-con-err`): la
+    ventana de Facebook tapaba el aviso rojo. **El portafolio dueño de la app
+    NO se puede escoger** en la ventana de Meta (sale gris: *"This Meta
+    Business Account owns the app"*): el WhatsApp de Cobra va en otro
+    portafolio (Sergio Abadía) o se agrega directo en el panel de la app.
+    `chat-cobra` reintenta al buscar el restaurante interno: una consulta
+    tropezó una vez («Falta el restaurante interno») y la siguiente no.
 - SQL: `supabase/sql/2026-09-11-chat-de-cobra.sql`. ⚠️ La sede nueva crea su
   `ia_config` sola al nacer; el insert del SQL no aplicó y se marcó
   `perfil.cerebro` con un UPDATE.

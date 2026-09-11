@@ -57,11 +57,18 @@ const esc = (t: unknown) => String(t == null ? "" : t).replace(/&/g, "&amp;").re
 let PLAT: { tenant: string; branch: string } | null = null;
 async function plataforma() {
   if (PLAT) return PLAT;
-  const t = await db("tenants?es_plataforma=is.true&select=id&limit=1");
-  const tenant = String(t.data?.[0]?.id || "");
-  if (!tenant) return null;
-  const b = await db(`branches?tenant_id=eq.${tenant}&select=id&order=created_at.asc&limit=1`);
-  PLAT = { tenant, branch: String(b.data?.[0]?.id || "") };
+  /*  11-sep: una consulta que tropezo UNA vez dejo la consola sin negocio
+      ("Falta el restaurante interno") y la siguiente si lo encontro. Se
+      reintenta, y solo se guarda cuando llegaron el restaurante Y la sede. */
+  for (let i = 0; i < 3 && !PLAT; i++) {
+    if (i) await sleep(400);
+    const t = await db("tenants?es_plataforma=is.true&select=id&limit=1");
+    const tenant = String(t.data?.[0]?.id || "");
+    if (!tenant) continue;
+    const b = await db(`branches?tenant_id=eq.${tenant}&select=id&order=created_at.asc&limit=1`);
+    const branch = String(b.data?.[0]?.id || "");
+    if (branch) PLAT = { tenant, branch };
+  }
   return PLAT;
 }
 

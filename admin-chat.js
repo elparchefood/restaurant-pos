@@ -46,6 +46,16 @@
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
   function toast(m, tono) { if (typeof showToast === 'function') showToast(m, tono); }
+  /*  Rastro de cada intento de conectar (11-sep): la ventana de Facebook tapa
+      el aviso rojo y el servidor no guarda por que dijo que no. Cada paso
+      queda en pos_diag (donde 'consola/conectar'). NUNCA el codigo ni llaves. */
+  function rastro(canal, paso, detalle) {
+    try {
+      sb.from('pos_diag').insert({ donde: 'consola/conectar',
+        mensaje: canal + ' · ' + paso + (detalle ? ' · ' + String(detalle).slice(0, 300) : '') })
+        .then(function () {}, function () {});
+    } catch (e) {}
+  }
   async function sesion() { try { return (await sb.auth.getSession()).data.session.access_token; } catch (e) { return ''; } }
   async function llamar(c) {
     try {
@@ -162,7 +172,8 @@
         return '<div class="ch-card"><div class="ch-card-t"><span class="ch-av" style="width:30px;height:30px;background:' + m.tint + ';color:' + m.color + '">' + m.nombre.charAt(0) + '</span>' + m.nombre + '</div>'
           + '<div class="ch-est">' + (c ? '<b>Conectado</b> · ' + esc(c.handle || c.display_name || '') : 'Sin conectar') + '</div>'
           + '<button class="ch-btn' + (c ? ' gho' : '') + '" data-con="' + k + '">' + (c ? 'Volver a conectar' : 'Conectar') + '</button></div>';
-      }).join('') + '</div>';
+      }).join('') + '</div>'
+      + '<div id="ch-con-err" class="ch-sabe" style="margin-top:14px;max-width:760px;color:#DC2626;background:#FEF2F2" hidden></div>';
     cargarSDK();   // como el Chat IA: listo antes del toque (FB.login necesita el gesto)
     box.querySelectorAll('[data-con]').forEach(function (b) {
       //  SIN async: la ventana de Facebook necesita el mismo toque del usuario,
@@ -217,8 +228,16 @@
     var listo = false;
     var fin = function (err) {
       boton.disabled = false; boton.textContent = 'Conectar';
-      if (err) toast(err.message || String(err), 'red');
+      if (!err) return;
+      var txt = err.message || String(err);
+      toast(txt, 'red');
+      rastro(canal, 'error', txt);
+      var caja = $('ch-con-err');
+      if (caja) { caja.textContent = CANAL[canal].nombre + ': ' + txt; caja.hidden = false; }
     };
+    var caja0 = $('ch-con-err'); if (caja0) caja0.hidden = true;
+    var b0 = base();
+    rastro(canal, 'inicio', b0.tenant_id && b0.branch_id ? 'con negocio' : 'SIN negocio');
 
     /* ── Instagram y Facebook: FB.login, como el Chat IA ── */
     if (canal !== 'whatsapp') {
@@ -226,6 +245,7 @@
       var listar = function (cuerpo) {
         postOAuth(Object.assign({ paso: 'listar', channel: canal }, cuerpo, base()))
           .then(function (d) {
+            rastro(canal, 'servidor', 'páginas: ' + (d.paginas ? d.paginas.length : 0));
             if (d.paginas) return elegirPagina(d, canal).then(function () { fin(); });
             fin(); toast(CANAL[canal].nombre + ' de Cobra conectado', 'green'); recargarEstado();
           })
@@ -237,6 +257,7 @@
         if (listo) return;
         listo = true;
         window.removeEventListener('meta-oauth-code', onElectronFB);
+        rastro(canal, 'código por el programa');
         listar({ code: ev.detail.code, redirect_uri: location.origin + PAGINA_CHAT });
       };
       window.addEventListener('meta-oauth-code', onElectronFB);
@@ -245,6 +266,7 @@
       try {
         FB.login(function (resp) {
           window.removeEventListener('meta-oauth-code', onElectronFB);
+          rastro(canal, 'respuesta de Facebook', (resp && resp.status) + (resp && resp.authResponse ? ' · con código' : ' · sin código'));
           if (listo) return;
           if (!resp || !resp.authResponse) return fin(new Error('Conexión cancelada'));
           listo = true;
@@ -273,9 +295,10 @@
     var conCodigo = function (code) {
       if (listo || !code) return;
       listo = true; soltar();
+      rastro('whatsapp', 'código recibido', 'waba ' + (waba ? 'sí' : 'no') + ' · número ' + (phone ? 'sí' : 'no'));
       try { if (pop && !pop.closed) pop.close(); } catch (e) {}
       postOAuth(Object.assign({ code: code, channel: 'whatsapp', waba_id: waba, phone_number_id: phone }, base()))
-        .then(function (d) { fin(); toast('WhatsApp de Cobra conectado: ' + (d.handle || ''), 'green'); recargarEstado(); })
+        .then(function (d) { rastro('whatsapp', 'guardado', d.handle || ''); fin(); toast('WhatsApp de Cobra conectado: ' + (d.handle || ''), 'green'); recargarEstado(); })
         .catch(fin);
     };
     var onElectron = function (ev) { conCodigo(ev && ev.detail && ev.detail.code); };
@@ -330,6 +353,7 @@
           postOAuth({ paso: 'guardar', sesion: res.sesion, page_id: b.dataset.id })
             .then(function (d) { ov.remove(); toast(CANAL[canal].nombre + ' de Cobra conectado: ' + (d.handle || ''), 'green'); recargarEstado(); resolve(); })
             .catch(function (e) {
+              rastro(canal, 'guardar página', e.message || e);
               var er = ov.querySelector('#ch-pag-err'); er.textContent = e.message || e; er.hidden = false;
               ov.querySelectorAll('.ch-pag').forEach(function (x) { x.disabled = false; });
             });
