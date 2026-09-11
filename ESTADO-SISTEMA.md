@@ -18793,6 +18793,15 @@ conversacion completa y quieta. `#que .arg` sube a 600 px de alto para
 que quepa el telefono (252 px de ancho, 9/19). Colores de WhatsApp real:
 fondo #0B141A, saliente #005C4B, entrante/cabecera #202C33.
 
+**Fuera la RULETA (11-sep):** la seccion `#como` («Todo en una pantalla»:
+rueda de tarjetas `.rt` con un video en el medio, dos iconos `.ins`, el
+texto circular `.curv` y flechas) se quito entera —HTML, CSS, guion— por
+orden de Sergio ("me parece horrible"). Con ella se fue una linea de
+245 KB de fotos en base64 que solo usaba ella (index.html paso de 500 a
+248 KB), `img/landing/video-portada.jpg`, el enlace «Como» del menu y su
+id en la lista del subrayado (`ids`). «Para tu equipo» ahora sigue
+directo con «Por dentro».
+
 ⚠️ PENDIENTE (ya venia asi, medido en la version publicada): en celular la
 pagina mide 674 px de ancho en vez de 390 por `.cx-via` y sus `.cx-t`
 (el carrusel de la seccion `cx`), que se salen por los dos lados. No es del
