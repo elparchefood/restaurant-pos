@@ -523,6 +523,35 @@ asistente virtual; lleva nombre propio (lo pone Sergio en la consola).
     están en el portafolio DUEÑO de la app («Cobra Pos»), que Meta no deja
     escoger en la ventana; hay que pasarlos al portafolio «Sergio Abadía»,
     donde ya quedó el WhatsApp de Cobra (+57 300 8345000).
+    **LAS TRES CUENTAS DE COBRA CONECTADAS (11-sep, 2:50 pm):** WhatsApp
+    +57 300 8345000 · Instagram @cobrapos.co · Facebook «Cobra Pos» (página
+    1178311018696826), todas en el portafolio «Sergio Abadía» y el asistente
+    contestó en las tres. Lo que costó, para no repetirlo con un restaurante:
+    1. La página no se puede sacar de un portafolio mientras tenga un
+       Instagram unido (Business settings → Pages → página → pestaña
+       *Connected assets* → **Disconnect**); si el Instagram solo tenía una
+       solicitud pendiente, es *Cancel request* en Instagram accounts.
+    2. **Cobra exige que el Instagram esté unido a la página de Facebook**
+       (`instagram_business_account`): así entrega Meta los mensajes por el
+       camino «Facebook Login». Si no, el modal de elegir página lo muestra
+       en gris «Sin Instagram vinculado». Se une desde la app de Instagram
+       (Editar perfil → Página) o en Business settings → *Connect assets*.
+       La «segunda puerta» de Meta («Instagram Login», sin página) es un
+       desarrollo aparte: otros permisos, otra ventana, otras llaves.
+    3. **Conectado pero no llega nada = el interruptor de Instagram.** Meta
+       lo dice con `GET /{page}/conversations?platform=instagram` con la
+       llave de la página: error `(#200) subcode 2534041 "The account owner
+       has disabled access to instagram direct messages"`. Se abre en la
+       app de Instagram («Permitir acceso a los mensajes», sección
+       *Herramientas conectadas*; Instagram lo mueve de sitio según la
+       versión). Comprobado: la página estaba suscrita igual que la de El
+       Parche y a `meta-webhook` no llegaba NINGÚN aviso de Instagram.
+       ⚠️ NO pasar la cuenta de creador a empresa para «encontrar» el
+       interruptor: pierde la música en reels; El Parche es de creador y
+       funciona. Script del diagnóstico: `scratchpad/ver_ig_acceso.py`.
+    Pendiente (decisión de Sergio): `chat-ia.js` a la configuración nueva;
+    que Cobra avise en pantalla el punto 2 (por qué está en gris) y el 3
+    (consultar la bandeja justo al conectar y decir qué activar).
 - SQL: `supabase/sql/2026-09-11-chat-de-cobra.sql`. ⚠️ La sede nueva crea su
   `ia_config` sola al nacer; el insert del SQL no aplicó y se marcó
   `perfil.cerebro` con un UPDATE.
