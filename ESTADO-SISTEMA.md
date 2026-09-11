@@ -515,8 +515,14 @@ asistente virtual; lleva nombre propio (lo pone Sergio en la consola).
     TAMBIÉN en el Chat IA del Restaurante de Prueba (lo probó Sergio). Las
     conexiones ya hechas (El Parche) siguen andando con su llave. Sergio creó
     `1622565852807804` («Cobra IG y FB aprobados»: Pages + Instagram sin
-    «Asset Required», System-user token, solo los 7 aprobados). Va PRIMERO
-    solo en la consola; si conecta, se decide pasar el Chat IA a esa.
+    «Asset Required», System-user token, solo los 7 aprobados).
+    **CONFIRMADO (11-sep, Sergio): con la nueva la ventana abre perfecto.**
+    ⚠️ `chat-ia.js` (`META_CONFIG_ID`) sigue con la vieja: ningún restaurante
+    nuevo puede conectar Instagram/Facebook hasta cambiarla (decisión de
+    Sergio pendiente). Lo que sigue para Cobra: su página y su Instagram
+    están en el portafolio DUEÑO de la app («Cobra Pos»), que Meta no deja
+    escoger en la ventana; hay que pasarlos al portafolio «Sergio Abadía»,
+    donde ya quedó el WhatsApp de Cobra (+57 300 8345000).
 - SQL: `supabase/sql/2026-09-11-chat-de-cobra.sql`. ⚠️ La sede nueva crea su
   `ia_config` sola al nacer; el insert del SQL no aplicó y se marcó
   `perfil.cerebro` con un UPDATE.
