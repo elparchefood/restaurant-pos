@@ -845,9 +845,14 @@ la lee).
    `pos_products.agotado`. El pedido tambien se frena en el servidor (409),
    aunque la pagina se haya abierto antes. Tamaños y sabores agotados salen
    igual (en gris, sin poderse escoger).
-6. **Cocina**: lo listo se pone GRIS y se va a los 2 minutos
-   (`LISTO_SE_VA_MS`, `seFue()`, medido desde `paroEn`) — reemplaza la regla
-   del 28-ago de dejarlo en morado. Y las dos subcolumnas ya no las empareja
+6. **Cocina**: lo listo se pone GRIS y **se queda, pero FUERA DE LA VISTA**
+   (Sergio lo aprobo con muestra): cada zona tiene dos bloques —
+   `.zl-pend` (lo que falta, con `min-height` = alto visible, lo pone
+   `armarZona()`) y, despues de la raya "Ya salieron · N", `.zl-hechos` (lo
+   listo, el ultimo que salio de primero). Si ya salio todo, la pantalla
+   queda en blanco y al bajar con el control aparece lo listo (se puede
+   deshacer desde ahi). El contador de la zona cuenta solo lo que falta.
+   (Un rato fue "se va a los 2 minutos" — `seFue`, ya quitado.) Y las dos subcolumnas ya no las empareja
    el navegador (`columns:2`): `repartirColumnas()` llena la IZQUIERDA hasta
    donde se ve y solo entonces pasa a la derecha; si las dos se llenan, lo
    que sobra va a la mas corta. Mide una vez por pintado (corre cada 1 s).
