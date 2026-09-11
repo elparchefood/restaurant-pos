@@ -4113,7 +4113,24 @@ INTENCION, no las palabras exactas.` },
      sin presentacion porque la regex solo acepta saludos PUROS). Solo en el
      primer contacto (el bot no ha hablado nunca en esta conversacion), y
      nunca por encima de una pregunta, la carta o un producto ya nombrado. */
-  const botYaHablo = histCtx.some(h => h.direction === "out");
+  /*  ══ "YA HABLO" ES EN ESTA VISITA, NO EN LA VIDA (11-sep-2026) ═══════════
+      Veronica volvio a los 5 dias con "Hola / Buenas / Para un domicilio por
+      favor" y no recibio la presentacion con el boton de la carta; Sergio la
+      vio en pleno turno. Aqui se miraba si el bot habia hablado ALGUNA VEZ en
+      la conversacion (los ultimos 15 mensajes, sin importar de que dia), y
+      con un cliente que ya pidio antes eso es siempre cierto: la puerta no
+      abria nunca para quien vuelve, que es justo la mayoria. La presentacion
+      es para quien LLEGA, y llega igual el que ya vino. Ahora "ya hablo" es
+      que el bot escribio en la ULTIMA MEDIA HORA: mas que los 15 minutos de
+      la sesion, para no presentarse dos veces dentro de un mismo chat. Si la
+      consulta falla, se cae a lo de antes.                                */
+  let botYaHablo = histCtx.some(h => h.direction === "out");
+  try {
+    const ultOut = await sbGet(`/rest/v1/chat_messages?conversation_id=eq.${convId}&direction=eq.out&sent_at=lt.${encodeURIComponent(batchStart)}&order=sent_at.desc&limit=1&select=sent_at`);
+    const tsOut = ultOut?.[0]?.sent_at ? Date.parse(String(ultOut[0].sent_at)) : 0;
+    const tsAhora = Number.isFinite(Date.parse(batchStart)) ? Date.parse(batchStart) : Date.now();
+    botYaHablo = tsOut > 0 && (tsAhora - tsOut) < 30 * 60000;
+  } catch (e) { console.error("[saludo] no se pudo mirar cuando hablo el bot:", String(e).slice(0, 120)); }
   const saludoImplicito = !botYaHablo && clasifico
     && (intenciones.pedir === true || intenciones.domicilio === true
         || intenciones.entrega === "domicilio")

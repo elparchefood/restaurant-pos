@@ -18695,6 +18695,31 @@ haría que se notara enseguida.
 
 ---
 
+## 2026-09-11 · Paco no se presentó (ni mandó el botón) a una clienta que volvía
+
+Verónica (ya había pedido el 6-sep) escribió «Hola / Buenas / Para un domicilio
+por favor» y Paco contestó como conversación («Claro que sí, hoy estamos de
+6:30 a 10:30, ¿qué se te antoja?») sin la presentación con el botón «Hacer mi
+pedido». Sergio lo vio en pleno turno. Anoche Kevin sí lo recibió: escribió
+solo «Buenas noches» (la puerta del saludo puro, `esGaludo`).
+
+**Causa:** la puerta del saludo implícito («hola, para un domicilio», sin
+producto) exigía `!botYaHablo`, y `botYaHablo` miraba si el bot había
+hablado ALGUNA VEZ en la conversación (los últimos 15 mensajes, de cualquier
+día). Con un cliente que ya pidió antes eso es siempre cierto: la puerta no
+abría nunca para quien vuelve, que es la mayoría.
+
+**Arreglo (delay-reply v473):** `botYaHablo` = el bot escribió en la ÚLTIMA
+MEDIA HORA (una consulta de un solo mensaje `out` anterior al lote; si
+falla, se cae a lo de antes). Más que los 15 min de la sesión, para no
+presentarse dos veces dentro de un mismo chat. Desplegado en servicio con
+respaldo de la v472 a mano y comprobación de arranque (POST vacío → 400
+«missing convId»).
+
+De paso: el «[pedido en curso] encontrado por telefono» que salió en el
+registro era su pedido del 6-sep (status `open` pero `estado` entregado);
+no intervino en la respuesta.
+
 ## 2026-09-02 · La landing: la portada y el simulador de la tablet
 
 ### La portada mantiene el color
