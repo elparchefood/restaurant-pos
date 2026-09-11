@@ -623,13 +623,30 @@ function _sdCobrarConCodigo(def, amount) {
   }
   var oculto = '••• ' + tel.slice(-4);
   var cuerpo = ''
-    + '<div style="font-size:13px;color:#475569;line-height:1.55;margin-bottom:12px">Le enviamos un código de 6 dígitos al celular <b>' + oculto + '</b>. Pídeselo al cliente: es la prueba de que la cuenta es suya.</div>'
+    + '<div style="font-size:13px;color:#475569;line-height:1.55;margin-bottom:12px">Toca <b>Enviar código</b> y le llega un SMS de 6 dígitos al celular <b>' + oculto + '</b>: es la prueba de que la cuenta es suya. Si el cliente ya lo autorizó por el chat, puedes usar tu PIN.</div>'
     + '<input id="sdCod" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ECEEF2;border-radius:10px;font-size:22px;letter-spacing:8px;text-align:center;font-family:inherit;font-variant-numeric:tabular-nums" oninput="this.value=this.value.replace(/[^0-9]/g,&quot;&quot;)">'
     + '<div id="sdCodErr" style="display:none;font-size:12.5px;color:#DC2626;margin-top:8px"></div>'
-    + '<div id="sdCodEstado" style="font-size:12px;color:#94A3B8;margin-top:8px">Enviando el código…</div>';
+    + '<div id="sdCodEstado" style="font-size:12px;color:#94A3B8;margin-top:8px">Todavía no se ha enviado ningún código.</div>';
   var ov = _sdModalBase('Confirmar pago con billetera', cuerpo, [
     { txt: 'Cancelar', ghost: true, fn: function () { ov.remove(); } },
-    { txt: 'Reenviar código', ghost: true, id: 'sdReenviar', fn: function () { _sdMandarCodigo(ov, tel, amount); } },
+    /*  SIN MOLESTAR AL CLIENTE (Sergio, 10-sep-2026, en pleno turno). A
+        Cameron no le llegaron dos codigos y el pedido ya habia salido: el
+        cliente ya habia pedido pagar con su billetera por el chat, y volver a
+        pedirle un codigo era molestarlo. El administrador lo autoriza con SU
+        PIN — lo revisa el servidor (fn_pin_verificar, con tope de intentos) y
+        queda en pos_autorizaciones como 'billetera_sin_codigo'. La plata se
+        descuenta igual que siempre, al cobrar. */
+    { txt: 'Autorizar con PIN', ghost: true, fn: function () {
+        if (typeof window.posPinPrompt !== 'function') return;
+        ov.remove();
+        window.posPinPrompt('Cobrar ' + _payMoney(amount) + ' de la billetera sin el código del cliente', function () {
+          SP.payments.push({ id: Date.now(), method: def.nombre, methodKey: def.key,
+                             methodTipo: 'saldo', amount: amount, received: amount });
+          SP.entry = 0;
+          renderAll();
+        }, null, { accion: 'billetera_sin_codigo' });
+      } },
+    { txt: 'Enviar código', ghost: true, id: 'sdReenviar', fn: function () { _sdMandarCodigo(ov, tel, amount); } },
     { txt: 'Confirmar ' + _payMoney(amount), id: 'sdConfirmar', fn: async function () {
         var inp = ov.querySelector('#sdCod');
         var cod = (inp.value || '').replace(/[^0-9]/g, '');
@@ -653,7 +670,9 @@ function _sdCobrarConCodigo(def, amount) {
       } },
   ]);
   var inp0 = ov.querySelector('#sdCod'); if (inp0) inp0.focus();
-  _sdMandarCodigo(ov, tel, amount);
+  /*  El codigo ya NO sale solo al abrir (10-sep-2026): con "Autorizar con
+      PIN" al lado, abrir esta ventana le mandaba al cliente un SMS que nadie
+      iba a usar. Sale al tocar "Enviar código". */
 }
 async function _sdMandarCodigo(ov, tel, monto) {
   var est = ov.querySelector('#sdCodEstado');
@@ -675,6 +694,7 @@ async function _sdMandarCodigo(ov, tel, monto) {
               : d.canal === 'whatsapp' ? 'por WhatsApp, en el chat con el restaurante'
               : '';
     if (est) { est.textContent = 'Código enviado' + (donde ? ' ' + donde : '') + '. Vence en ' + (d.vence_en_min || 10) + ' minutos.'; est.style.color = '#16A34A'; }
+    if (re) re.textContent = 'Reenviar código';
     /* Reenviar se despierta a los 20 s: antes de eso el mensaje va en camino
        y reenviar solo gastaria el cupo del cliente. */
     setTimeout(function () { if (re && ov.isConnected) re.disabled = false; }, 20000);
