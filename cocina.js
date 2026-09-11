@@ -481,6 +481,9 @@ function destinoVoz(o) {
     const m = t.replace(/\b0+(\d)/g, '$1');
     if (/^mesas\b/i.test(m)) return 'las ' + m.charAt(0).toLowerCase() + m.slice(1);
     if (/^mesa\b/i.test(m)) return 'la ' + m.charAt(0).toLowerCase() + m.slice(1);
+    //  Una mesa que se llama solo con numero ("08") decia "para 8" (registro
+    //  de la voz, 10-sep-2026): se dice "para la mesa 8" / "las mesas 5 y 6".
+    if (/^\d+(\s*(y|,)\s*\d+)*$/i.test(m)) return (/y|,/i.test(m) ? 'las mesas ' : 'la mesa ') + m;
     return m || 'el salón';
   }
   if (z === 'rapido') {
@@ -488,14 +491,17 @@ function destinoVoz(o) {
         que diga turno numero... quiero que diga la etiqueta: Personal premium
         mixta para llevar esperan". Otro restaurante puede preferir el turno:
         Configuracion → Operacion → cocinaNotif.vozLlevar = 'turno'.        */
+    /*  Y SIEMPRE "PARA LLEVAR" (Sergio, 10-sep-2026, noche): un pedido de
+        WhatsApp para recoger no trae etiqueta y la voz dijo "personal premium
+        mixta, para Kevin" — "suena muy raro". El nombre del cliente no se
+        dice; la etiqueta si, cuando la hay. Con el modo turno: "para llevar,
+        turno 4". */
     if (S.vozLlevar === 'turno') {
-      const m = /^turno\s*#?0*(\d+)/i.exec(t);
-      return m ? 'el turno ' + m[1] : (t || 'venta rápida');
+      const m = /^turno\s*#?0*(\d+)/i.exec(t) || (o.turno ? [null, String(o.turno)] : null);
+      return 'llevar' + (m ? ', turno ' + String(m[1]).replace(/^0+(\d)/, '$1') : '');
     }
     const etq = (/\[etq:([^\]]+)\]/i.exec(o.notes || '') || [])[1];
-    if (etq && etq.trim()) return 'llevar ' + etq.trim().toLowerCase();
-    const nom = String(o.customer_name || '').trim();
-    return 'llevar' + (nom ? ', ' + nom : '');
+    return 'llevar' + (etq && etq.trim() ? ' ' + etq.trim().toLowerCase() : '');
   }
   return (t && t.toLowerCase() !== 'domicilio') ? t : 'domicilio';
 }
