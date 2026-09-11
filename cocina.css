@@ -508,6 +508,41 @@ svg{display:block;}
 .zona-lista::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,.22);background-clip:padding-box;}
 .zona-lista::-webkit-scrollbar-button,
 .zona-lista::-webkit-scrollbar-corner{display:none;height:0;width:0;}
+
+/*  ══ EL FONDO DE LA PANTALLA, A ESCOGER (Sergio, 10-sep-2026) ══════════════
+    Configuracion → Operacion → Cocina → "Fondo de la pantalla de cocina"
+    (`operacion_config.cocinaFondo`). Cambia SOLO el fondo y lo que va escrito
+    sobre el fondo (barra de arriba, cabeceras de las zonas, la raya de "Ya
+    salieron", la leyenda). **Las comandas no se tocan: por dentro son
+    exactamente iguales en cualquier fondo** — ninguna regla de aqui toca .tk.
+    Sin escoger (o "blanco") no hay atributo y todo queda como siempre. */
+.lg-tarde{color:#DC2626;}
+html[data-fondo="negro"]{--kf-fondo:#0B0D12;--kf-barra:#111419;--kf-borde:#22262F;--kf-zona:#15181E;--kf-zona-borde:#252A33;--kf-cab:#1B1F27;--kf-texto:#E6E8EC;--kf-medio:#A0A7B4;--kf-tenue:#6F7785;--kf-chip:#252A33;--kf-btn:#1B1F27;--kf-btn-borde:#2E3440;--kf-raya:#3A404C;--kf-scroll:rgba(255,255,255,.16);--kf-tarde:#F87171;}
+html[data-fondo="gris"]{--kf-fondo:#1F2430;--kf-barra:#262C39;--kf-borde:#343B4A;--kf-zona:#2A3140;--kf-zona-borde:#363E4F;--kf-cab:#313949;--kf-texto:#F1F3F7;--kf-medio:#B8C0CC;--kf-tenue:#8A93A3;--kf-chip:#3A4354;--kf-btn:#313949;--kf-btn-borde:#444E61;--kf-raya:#4A5467;--kf-scroll:rgba(255,255,255,.18);--kf-tarde:#FCA5A5;}
+html[data-fondo="azul"]{--kf-fondo:#0B1426;--kf-barra:#0F1B33;--kf-borde:#1B2A4C;--kf-zona:#122041;--kf-zona-borde:#1E2F55;--kf-cab:#16264A;--kf-texto:#E8EEFB;--kf-medio:#A9B6D3;--kf-tenue:#7282A6;--kf-chip:#1E2F55;--kf-btn:#16264A;--kf-btn-borde:#26386A;--kf-raya:#2E4278;--kf-scroll:rgba(255,255,255,.16);--kf-tarde:#FCA5A5;}
+html[data-fondo="rojo"]{--kf-fondo:#4A0E0E;--kf-barra:#5C1212;--kf-borde:#7A1F1F;--kf-zona:#641515;--kf-zona-borde:#7A1F1F;--kf-cab:#6E1818;--kf-texto:#FFF1F1;--kf-medio:#F5C2C2;--kf-tenue:#D99494;--kf-chip:#7A1F1F;--kf-btn:#6E1818;--kf-btn-borde:#8C2A2A;--kf-raya:#9A3A3A;--kf-scroll:rgba(255,255,255,.2);--kf-tarde:#FFD1D1;}
+html[data-fondo] body, html[data-fondo] .k-cargando{background:var(--kf-fondo);}
+html[data-fondo] .k-top, html[data-fondo] .k-pie{background:var(--kf-barra);border-color:var(--kf-borde);}
+html[data-fondo] .k-marca{background:var(--kf-chip);}
+html[data-fondo] .k-sede{color:var(--kf-tenue);}
+html[data-fondo] .k-area:not(.on){background:var(--kf-btn);border-color:var(--kf-btn-borde);color:var(--kf-medio);}
+html[data-fondo] .k-pastilla{background:var(--kf-chip);color:var(--kf-medio);}
+html[data-fondo] .k-pastilla b{color:var(--kf-texto);}
+html[data-fondo] .k-son:not(.on){background:var(--kf-btn);border-color:var(--kf-btn-borde);color:var(--kf-medio);}
+html[data-fondo] .k-reloj{color:var(--kf-texto);}
+html[data-fondo] .zona{background:var(--kf-zona);border-color:var(--kf-zona-borde);}
+html[data-fondo] .zona-cab{background:var(--kf-cab);border-color:var(--kf-zona-borde);}
+html[data-fondo] .zona-cab h2{color:var(--kf-texto);}
+html[data-fondo] .zona-cab b{background:var(--kf-chip);color:var(--kf-texto);}
+html[data-fondo] .zona-cab svg{color:var(--kf-tenue);}
+html[data-fondo] .zl-sep, html[data-fondo] .zona-vacia{color:var(--kf-tenue);}
+html[data-fondo] .zl-sep::before, html[data-fondo] .zl-sep::after{border-color:var(--kf-raya);}
+html[data-fondo] .lg{color:var(--kf-medio);}
+html[data-fondo] .lg-tarde{color:var(--kf-tarde);}
+html[data-fondo] .k-salir{background:var(--kf-btn);border-color:var(--kf-btn-borde);color:var(--kf-medio);}
+html[data-fondo] .zona-lista::-webkit-scrollbar-thumb{background:var(--kf-scroll);background-clip:padding-box;}
+html[data-fondo] .k-cargando p{color:var(--kf-medio);}
+html[data-fondo] .k-spin{border-color:var(--kf-borde);border-top-color:#5B6BFF;}
 /*  ⚠️ AQUI NO VA `scrollbar-width` NI `scrollbar-color`.
 
     Lo tenia puesto para Firefox y me apago las esquinas redondeadas sin dar

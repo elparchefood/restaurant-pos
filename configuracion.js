@@ -3113,8 +3113,37 @@ function opRenderCocinaColores() {
   });
 }
 
+/*  EL FONDO DE LA PANTALLA DE COCINA (10-sep-2026). Sin escoger, blanco (como
+    siempre). Lo aplica cocina.js (`aplicarFondo`); las comandas no cambian. */
+var OP_FONDOS = [
+  { id: 'negro', nombre: 'Negro',       color: '#0B0D12' },
+  { id: 'gris',  nombre: 'Gris oscuro', color: '#1F2430' },
+  { id: 'azul',  nombre: 'Azul noche',  color: '#0B1426' },
+  { id: 'rojo',  nombre: 'Rojo',        color: '#4A0E0E' },
+  { id: 'blanco', nombre: 'Blanco',     color: '#FAFAFB' },
+];
+function opRenderCocinaFondo() {
+  var d = _opDraft; if (!d) return;
+  var caja = $('op-cocina-fondo'); if (!caja) return;
+  var actual = d.cocinaFondo || 'blanco';
+  caja.innerHTML = OP_FONDOS.map(function (f) {
+    var on = actual === f.id;
+    return '<button type="button" data-fondo="' + f.id + '" style="display:flex;align-items:center;gap:8px;padding:7px 12px 7px 7px;border-radius:10px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700;'
+      + (on ? 'background:#EEF2FF;border:1.5px solid #5B6BFF;color:#4F5BE3' : 'background:#fff;border:1px solid #ECEEF2;color:#475569') + '">'
+      + '<span style="width:22px;height:22px;border-radius:6px;background:' + f.color + ';box-shadow:inset 0 0 0 1px rgba(15,23,42,.15)"></span>'
+      + _empEsc(f.nombre) + '</button>';
+  }).join('');
+  caja.querySelectorAll('[data-fondo]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      d.cocinaFondo = b.dataset.fondo;
+      opRenderCocinaFondo(); opCheckDirty(); opPintarResumenes();
+    });
+  });
+}
+
 function opRenderCocinaSon() {
   var d = _opDraft; if (!d) return;
+  opRenderCocinaFondo();
   var caja = $('op-cocina-tonos'); if (!caja) return;
   var cn = d.cocinaNotif || (d.cocinaNotif = { tono:'alerta', vol:80 });
   var lista = (typeof window.posTonosCocina === 'function')

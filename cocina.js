@@ -835,6 +835,7 @@ async function cargarBase() {
   S.sonVol  = (typeof cn.vol === 'number') ? cn.vol : 80;
   //  Que dice la voz en un pedido para llevar: la etiqueta (por defecto) o el turno.
   S.vozLlevar = cn.vozLlevar === 'turno' ? 'turno' : 'etiqueta';
+  aplicarFondo(op.cocinaFondo);
   pintarSonido();
   pintarVoz();
   /* En la tablet se intenta abrir el audio de una, sin esperar a que alguien
@@ -1391,6 +1392,17 @@ function repartirColumnas(cont, alto) {
   aDer.forEach(t => der.appendChild(t));
 }
 
+/*  EL FONDO DE LA PANTALLA (Sergio, 10-sep-2026): negro, gris, azul noche,
+    rojo o blanco, desde Configuracion → Operacion. Solo el fondo y lo escrito
+    sobre el (cocina.css, bloque "EL FONDO DE LA PANTALLA"): las comandas no
+    cambian. Se guarda en el equipo para pintarlo antes de que cargue nada. */
+function aplicarFondo(f) {
+  const v = ['negro', 'gris', 'azul', 'rojo'].indexOf(f) >= 0 ? f : '';
+  if (v) document.documentElement.setAttribute('data-fondo', v);
+  else document.documentElement.removeAttribute('data-fondo');
+  try { localStorage.setItem('cobra.cocina.fondo', v); } catch (e) {}
+}
+
 /*  LO LISTO SE QUEDA, PERO FUERA DE LA VISTA (Sergio, 10-sep-2026, noche).
     Primero pidio que lo listo se fuera a los 2 minutos; en el turno cambio:
     *"que no desaparezcan del todo. Que queden en la parte de abajo, pero
@@ -1407,7 +1419,11 @@ function armarZona(cont) {
   const cs = getComputedStyle(cont);
   const alto = cont.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
   const pend = cont.querySelector('.zl-pend'), hechos = cont.querySelector('.zl-hechos');
-  if (pend) { pend.style.minHeight = Math.max(0, alto) + 'px'; repartirColumnas(pend, alto); }
+  //  + el relleno de abajo: sin eso la raya "Ya salieron" asomaba en el borde.
+  if (pend) {
+    pend.style.minHeight = Math.max(0, alto + (parseFloat(cs.paddingBottom) || 0) + 6) + 'px';
+    repartirColumnas(pend, alto);
+  }
   if (hechos) repartirColumnas(hechos, 0);
 }
 
