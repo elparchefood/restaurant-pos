@@ -857,6 +857,13 @@ la lee).
    donde se ve y solo entonces pasa a la derecha; si las dos se llenan, lo
    que sobra va a la mas corta. Mide una vez por pintado (corre cada 1 s).
 7. **Voz**: dice "con adición de ranchera" (`adicionesVoz`, solo `mods`).
+   Y `limpiarVoz` pasa toda palabra en MAYUSCULAS a "Hojarazca": la voz
+   deletreaba "HOJARAZCA" como sigla (el barrio se guarda en mayusculas, y
+   hay productos como "SÚPER QUESO"). **Para llevar** ya no dice el turno:
+   dice la etiqueta del pedido (`[etq:]`) — "Personal premium mixta, para
+   llevar esperan" —; sin etiqueta, "para llevar" o "para llevar, Juan".
+   Configurable por restaurante en Configuracion → Operacion → Cocina
+   (`cocinaNotif.vozLlevar` = `'etiqueta'` por defecto | `'turno'`).
 8. **El timbre de "listo" suena en TODAS las pantallas y se repite hasta
    confirmarlo** — `pos-timbre.js` (en el nucleo). A quien: lo de
    Configuracion → Operacion (`cocinaAvisa`, un rol por mesa / llevar /
