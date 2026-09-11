@@ -163,6 +163,7 @@
           + '<div class="ch-est">' + (c ? '<b>Conectado</b> · ' + esc(c.handle || c.display_name || '') : 'Sin conectar') + '</div>'
           + '<button class="ch-btn' + (c ? ' gho' : '') + '" data-con="' + k + '">' + (c ? 'Volver a conectar' : 'Conectar') + '</button></div>';
       }).join('') + '</div>';
+    cargarSDK();   // como el Chat IA: listo antes del toque (FB.login necesita el gesto)
     box.querySelectorAll('[data-con]').forEach(function (b) {
       //  SIN async: la ventana de Facebook necesita el mismo toque del usuario,
       //  si no el navegador la bloquea (misma regla que en Chat IA).
@@ -179,27 +180,87 @@
     return d;
   }
 
-  /*  ══ CONECTAR: EL MISMO CAMINO PARA LAS TRES CUENTAS (11-sep-2026) ══════
-      La primera version conectaba Instagram y Facebook con el SDK de
-      Facebook (FB.login), como el Chat IA. Sergio lo probo desde el programa
-      de escritorio y Facebook contesto "Sorry, something went wrong": el SDK
-      manda como direccion la PAGINA desde donde se llama, y la pagina nueva
-      de la consola no es una que Facebook tenga registrada.
+  /*  ══ CONECTAR: EXACTAMENTE COMO EL CHAT IA DE LOS RESTAURANTES (11-sep-2026) ══
 
-      Ahora las tres van por el camino de WhatsApp, que ya funciona en el
-      navegador y en el programa: una ventana a Facebook que vuelve a la
-      direccion de siempre (github.io, registrada en la app de Meta). En el
-      navegador se lee el codigo en esa ventana; en el programa de escritorio
-      main.js lo atrapa y lo avisa con el evento `meta-oauth-code`.         */
-  var VUELTA = 'https://elparchefood.github.io/restaurant-pos/';
+      Para no repetir la historia:
+      1) FB.login desde consola-chat.html (dentro de la consola): Facebook
+         contesto "Sorry, something went wrong".
+      2) La ventana armada a mano con vuelta a github.io (el camino de
+         WhatsApp): el mismo error. La configuracion de Instagram/Facebook de
+         la app de Meta NO acepta esa vuelta (la de WhatsApp si).
+
+      Sergio: en el Chat IA de los restaurantes conecta perfecto, "hazlo
+      igual". El Chat IA llama FB.login desde chat-ia.html y, en el programa
+      de escritorio, Facebook devuelve el codigo a ESA direccion (main.js lo
+      atrapa y avisa `meta-oauth-code`). Es la direccion registrada en Meta.
+
+      Aqui se hace lo mismo, con la misma configuracion: durante el instante
+      en que se abre la ventana, la direccion de esta pagina dice chat-ia.html
+      (history.replaceState: no se cambia de pagina, solo lo que se ve en la
+      barra) y enseguida vuelve a la suya. Para Facebook es identico a
+      conectar un restaurante. WhatsApp sigue por su camino, que ya es el
+      mismo del Chat IA.                                                    */
+  var VUELTA_WA = 'https://elparchefood.github.io/restaurant-pos/';
+  var PAGINA_CHAT = '/chat-ia.html';
+
+  function cargarSDK() {
+    if ($('fb-sdk')) return;
+    //  El mismo arranque del Chat IA (loadFBSDK en chat-ia.js).
+    window.fbAsyncInit = function () { FB.init({ appId: META_APP_ID, cookie: true, xfbml: false, version: 'v22.0' }); };
+    var s = document.createElement('script');
+    s.id = 'fb-sdk'; s.src = 'https://connect.facebook.net/en_US/sdk.js'; s.async = true; s.defer = true;
+    document.head.appendChild(s);
+  }
 
   function conectar(canal, boton) {
     boton.disabled = true; boton.textContent = 'Conectando…';
+    var listo = false;
     var fin = function (err) {
       boton.disabled = false; boton.textContent = 'Conectar';
       if (err) toast(err.message || String(err), 'red');
     };
-    var waba = null, phone = null, listo = false, poll = null, pop = null;
+
+    /* ── Instagram y Facebook: FB.login, como el Chat IA ── */
+    if (canal !== 'whatsapp') {
+      if (typeof FB === 'undefined' || !FB.login) return fin(new Error('Facebook todavía está cargando. Intenta en unos segundos.'));
+      var listar = function (cuerpo) {
+        postOAuth(Object.assign({ paso: 'listar', channel: canal }, cuerpo, base()))
+          .then(function (d) {
+            if (d.paginas) return elegirPagina(d, canal).then(function () { fin(); });
+            fin(); toast(CANAL[canal].nombre + ' de Cobra conectado', 'green'); recargarEstado();
+          })
+          .catch(fin);
+      };
+      //  El programa de escritorio: main.js atrapa la vuelta a chat-ia.html
+      //  y avisa el codigo. Se canjea con ESA direccion, como el Chat IA.
+      var onElectronFB = function (ev) {
+        if (listo) return;
+        listo = true;
+        window.removeEventListener('meta-oauth-code', onElectronFB);
+        listar({ code: ev.detail.code, redirect_uri: location.origin + PAGINA_CHAT });
+      };
+      window.addEventListener('meta-oauth-code', onElectronFB);
+      var aqui = location.pathname + location.search + location.hash;
+      try { history.replaceState(history.state, '', PAGINA_CHAT); } catch (e) {}
+      try {
+        FB.login(function (resp) {
+          window.removeEventListener('meta-oauth-code', onElectronFB);
+          if (listo) return;
+          if (!resp || !resp.authResponse) return fin(new Error('Conexión cancelada'));
+          listo = true;
+          listar({ code: resp.authResponse.code });
+        }, { config_id: META_CONFIG_ID, response_type: 'code', override_default_response_type: true });
+      } catch (e) {
+        window.removeEventListener('meta-oauth-code', onElectronFB);
+        fin(e);
+      } finally {
+        try { history.replaceState(history.state, '', aqui); } catch (e) {}
+      }
+      return;
+    }
+
+    /* ── WhatsApp: la ventana de Meta con vuelta a github.io, como el Chat IA ── */
+    var waba = null, phone = null, poll = null, pop = null;
     var onMsg = function (ev) {
       if (ev.origin !== 'https://www.facebook.com') return;
       try { var d = JSON.parse(ev.data); if (d.type === 'WA_EMBEDDED_SIGNUP' && d.event === 'FINISH') { waba = d.data.waba_id; phone = d.data.phone_number_id; } } catch (e) {}
@@ -213,41 +274,24 @@
       if (listo || !code) return;
       listo = true; soltar();
       try { if (pop && !pop.closed) pop.close(); } catch (e) {}
-      var cuerpo = Object.assign({ code: code, channel: canal, redirect_uri: VUELTA }, base());
-      if (canal === 'whatsapp') {
-        cuerpo.waba_id = waba; cuerpo.phone_number_id = phone;
-        postOAuth(cuerpo)
-          .then(function (d) { fin(); toast('WhatsApp de Cobra conectado: ' + (d.handle || ''), 'green'); recargarEstado(); })
-          .catch(fin);
-        return;
-      }
-      cuerpo.paso = 'listar';
-      postOAuth(cuerpo)
-        .then(function (d) {
-          if (d.paginas) return elegirPagina(d, canal).then(function () { fin(); });
-          fin(); toast(CANAL[canal].nombre + ' de Cobra conectado', 'green'); recargarEstado();
-        })
+      postOAuth(Object.assign({ code: code, channel: 'whatsapp', waba_id: waba, phone_number_id: phone }, base()))
+        .then(function (d) { fin(); toast('WhatsApp de Cobra conectado: ' + (d.handle || ''), 'green'); recargarEstado(); })
         .catch(fin);
     };
-    //  El programa de escritorio avisa el codigo con este evento (main.js).
     var onElectron = function (ev) { conCodigo(ev && ev.detail && ev.detail.code); };
     window.addEventListener('message', onMsg);
     window.addEventListener('meta-oauth-code', onElectron);
-
-    var W = 600, H = 720;
-    var qp = new URLSearchParams({
-      client_id: META_APP_ID, config_id: canal === 'whatsapp' ? META_WA_CONFIG_ID : META_CONFIG_ID,
-      response_type: 'code', override_default_response_type: 'true', redirect_uri: VUELTA
-    });
-    pop = window.open('https://www.facebook.com/v22.0/dialog/oauth?' + qp.toString(), 'Conectar_' + canal,
+    var W = 600, H = 700;
+    var qp = new URLSearchParams({ client_id: META_APP_ID, config_id: META_WA_CONFIG_ID, response_type: 'code',
+      override_default_response_type: 'true', redirect_uri: VUELTA_WA });
+    pop = window.open('https://www.facebook.com/v22.0/dialog/oauth?' + qp.toString(), 'WA_Signup',
       'popup,width=' + W + ',height=' + H + ',left=' + Math.max(0, (screen.width - W) / 2) + ',top=' + Math.max(0, (screen.height - H) / 2));
-    if (!pop) { soltar(); return fin(new Error('El navegador bloqueó la ventana. Permite ventanas emergentes para este sitio.')); }
+    if (!pop || pop.closed) { soltar(); return fin(new Error('El navegador bloqueó la ventana. Permite ventanas emergentes para este sitio.')); }
     poll = setInterval(function () {
       if (listo) return;
       if (pop.closed) {
-        //  En el programa de escritorio la ventana la cierra main.js DESPUES de
-        //  avisar el codigo: se le da un momento antes de darla por cancelada.
         clearInterval(poll);
+        //  En el programa la cierra main.js DESPUES de avisar el codigo.
         setTimeout(function () { if (!listo) { soltar(); fin(new Error('Conexión cancelada')); } }, 1500);
         return;
       }
