@@ -637,13 +637,46 @@ a{color:inherit;text-decoration:none}
 .arg .nbig{position:absolute;z-index:2;font-family:'Archivo';font-weight:900;font-size:190px;
   line-height:1;color:transparent;-webkit-text-stroke:1px rgba(255,255,255,.07);right:3%;bottom:-6%}
 .arg.d .nbig{right:auto;left:3%}
-.pg{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.06);border:1px solid var(--linea);
-  border-radius:11px;padding:8px 11px;margin-bottom:7px}
-.pg .bk{font-size:9px;font-weight:800;background:rgba(255,255,255,.1);border-radius:4px;padding:3px 6px}
-.pg .dt{display:flex;flex-direction:column;line-height:1.2}
-.pg .dt b{font-size:13px}.pg .dt span{font-size:10px;color:var(--t3)}
-.pg .ok{margin-left:auto;font-size:9.5px;font-weight:800;color:var(--verde);
-  background:rgba(74,222,128,.14);padding:3px 8px;border-radius:99px}
+/* ══ LAS NOTIFICACIONES DE PAGO (bloque «Los pagos», 11-sep-2026) ════════
+   Sergio: "que realmente lleguen como notificaciones push, con los logos
+   oficiales de Bancolombia y Nequi; aparecen en Pendiente y medio segundo
+   despues cambian a Confirmado". Las pone el guion (#pn-pila) y solo se
+   mueven mientras el bloque se ve. El logo de Nequi es el oficial que ya
+   usa la pantalla de pago (assets/brand/nequi.png); el de Bancolombia va en
+   assets/brand/bancolombia.png y, si falta, el <img> se quita solo y queda
+   el rotulo amarillo de respaldo (regla de Sergio, 7-sep: sin logo oficial
+   "pareceria pirata"; peor seria un icono roto).                          */
+#pagos .rep{width:min(40%,350px);padding:0;background:none;border:none;box-shadow:none;
+  -webkit-backdrop-filter:none;backdrop-filter:none}
+.pn-pila{display:flex;flex-direction:column;gap:9px;transition:opacity .45s}
+.pn-pila.apaga{opacity:0}
+.pn{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:16px;overflow:hidden;
+  background:rgba(20,24,38,.9);border:1px solid rgba(255,255,255,.1);
+  box-shadow:0 22px 50px -22px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.08);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  animation:pnEntra .5s cubic-bezier(.2,.8,.2,1) both}
+/*  Nace sin alto y crece: asi las de abajo bajan suave en vez de saltar. */
+@keyframes pnEntra{from{opacity:0;transform:translateY(-16px) scale(.96);max-height:0;padding-top:0;padding-bottom:0;margin-bottom:-9px}
+  to{opacity:1;transform:none;max-height:96px;padding-top:11px;padding-bottom:11px;margin-bottom:0}}
+.pn-logo{width:38px;height:38px;border-radius:11px;background:#fff;display:grid;place-items:center;
+  flex:0 0 auto;overflow:hidden;position:relative}
+.pn-logo img{width:100%;height:100%;object-fit:contain;padding:7px;box-sizing:border-box;display:block;position:relative;z-index:1}
+.pn-logo.bc{background:#FDDA24}
+.pn-logo.bc b{position:absolute;inset:0;display:grid;place-items:center;font-family:'Archivo';font-weight:900;
+  font-size:8px;letter-spacing:-.02em;color:#000;text-transform:uppercase}    /* respaldo si falta el logo */
+.pn-tx{flex:1;min-width:0;line-height:1.25;display:block}
+.pn-t{display:flex;align-items:baseline;gap:6px;font-size:11px;font-weight:800;color:#fff}
+.pn-t span{margin-left:auto;font-size:9px;font-weight:600;color:rgba(255,255,255,.45)}
+.pn-v{display:block;font-size:16px;font-weight:800;letter-spacing:-.02em;color:#fff;font-variant-numeric:tabular-nums;margin-top:1px}
+.pn-d{display:block;font-size:10.5px;color:rgba(255,255,255,.62);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pn-est{flex:0 0 auto;font-size:9.5px;font-weight:800;padding:4px 9px;border-radius:99px;
+  display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.pn-est.pend{background:rgba(251,191,36,.16);color:#FBBF24}
+.pn-est.pend i{width:6px;height:6px;border-radius:50%;background:#FBBF24;animation:pnLate .9s ease-in-out infinite}
+.pn-est.ok{background:rgba(74,222,128,.16);color:#4ADE80;animation:pnPop .35s cubic-bezier(.2,.8,.2,1)}
+@keyframes pnLate{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes pnPop{from{transform:scale(.6)}to{transform:none}}
+@media(prefers-reduced-motion:reduce){.pn,.pn-est.ok,.pn-est.pend i{animation:none}}
 .itm{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--t2);
   padding:7px 0;border-bottom:1px solid var(--linea2)}
 .itm b{color:var(--acid);font-size:11.5px}
@@ -1939,10 +1972,9 @@ body{background:#FFFFFF}
       <p>Cobra lee el aviso del banco y marca el pedido como pagado. Nadie revisa el celular, nadie se queda esperando la plata para entregar.</p>
       <span class="fr">«¿Ya te llegó?» — la pregunta que no vuelves a hacer.</span>
     </div>
-    <div class="rep vidrio">
-      <div class="pg"><span class="bk">Bancolombia</span><span class="dt"><b>$58.000</b><span>Mesa 05</span></span><span class="ok">✓ Confirmado</span></div>
-      <div class="pg"><span class="bk">Nequi</span><span class="dt"><b>$27.000</b><span>Turno #418</span></span><span class="ok">✓ Confirmado</span></div>
-      <div class="pg"><span class="bk">Bancolombia</span><span class="dt"><b>$48.000</b><span>Domicilio</span></span><span class="ok">✓ Confirmado</span></div>
+    <div class="rep" id="pn" aria-hidden="true">
+      <!--  Las notificaciones las pone el guion.  -->
+      <div class="pn-pila" id="pn-pila"></div>
     </div>
   </div>
 </div></section>
@@ -3798,6 +3830,69 @@ window.CobraPlan.iniciar({
   }
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     hilo.innerHTML = FECHA + P1 + P2 + P3;
+    return;
+  }
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (ent) {
+      if (ent[0].isIntersecting) { if (!viendo) { viendo = true; ciclo(); } }
+      else { viendo = false; parar(); }
+    }, { threshold: .3 }).observe(caja);
+  } else {
+    ciclo();
+  }
+})();
+</script>
+<script>
+/*  ══ LAS NOTIFICACIONES DE PAGO ══════════════════════════════════════════
+    Van llegando una a una, arriba de la pila; cada una nace "Pendiente" y
+    a los 800 ms pasa a "Confirmado". Con cuatro en pantalla se apaga la
+    pila y vuelve a empezar. Solo se mueve mientras el bloque se ve.
+    Bancos: los dos que la caja de El Parche confirma de verdad. Nombres y
+    cifras: inventados.                                                    */
+(function () {
+  var pila = document.getElementById('pn-pila');
+  var caja = document.getElementById('pn');
+  if (!pila || !caja) return;
+  var AVISOS = [
+    ['bc', 'Bancolombia', '$58.000', 'Mesa 05 · de Juan P.'],
+    ['nq', 'Nequi',       '$27.000', 'Turno #418 · de Laura M.'],
+    ['bc', 'Bancolombia', '$48.000', 'Domicilio · de Carlos R.'],
+    ['nq', 'Nequi',       '$19.500', 'Mesa 02 · de Sofía G.']
+  ];
+  var OK = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  function logo(b) {
+    return b === 'nq'
+      ? '<span class="pn-logo"><img src="assets/brand/nequi.png" alt="Nequi" onerror="this.remove()"></span>'
+      : '<span class="pn-logo bc"><b>Banco<br>lombia</b><img src="assets/brand/bancolombia.png" alt="Bancolombia" onload="this.previousElementSibling.remove()" onerror="this.remove()"></span>';
+  }
+  function aviso(a, ok) {
+    return '<div class="pn">' + logo(a[0])
+      + '<span class="pn-tx"><span class="pn-t">' + a[1] + '<span>ahora</span></span>'
+      + '<span class="pn-v">' + a[2] + '</span><span class="pn-d">' + a[3] + '</span></span>'
+      + (ok ? '<span class="pn-est ok">' + OK + 'Confirmado</span>' : '<span class="pn-est pend"><i></i>Pendiente</span>')
+      + '</div>';
+  }
+  var relojes = [], viendo = false;
+  function luego(f, ms) { relojes.push(setTimeout(f, ms)); }
+  function parar() { relojes.forEach(clearTimeout); relojes = []; }
+  function llega(i) {
+    pila.insertAdjacentHTML('afterbegin', aviso(AVISOS[i], false));
+    var el = pila.firstElementChild;
+    luego(function () {
+      var e = el.querySelector('.pn-est');
+      if (e) { e.className = 'pn-est ok'; e.innerHTML = OK + 'Confirmado'; }
+    }, 800);
+  }
+  function ciclo() {
+    parar();
+    pila.classList.remove('apaga');
+    pila.innerHTML = '';
+    AVISOS.forEach(function (_, i) { luego(function () { llega(i); }, 600 + i * 2200); });
+    luego(function () { pila.classList.add('apaga'); }, 600 + AVISOS.length * 2200 + 2600);
+    luego(ciclo, 600 + AVISOS.length * 2200 + 3200);
+  }
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    pila.innerHTML = AVISOS.slice(0, 3).map(function (a) { return aviso(a, true); }).join('');
     return;
   }
   if ('IntersectionObserver' in window) {

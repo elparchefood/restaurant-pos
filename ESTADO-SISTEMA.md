@@ -18811,6 +18811,19 @@ Sergio ("se ve horrible"). Se borraron 5 capturas de `img/landing/`
 `pantalla-ventas.jpg` SE QUEDA porque es la imagen `og:image` de la pagina.
 Ahora «Para tu equipo» sigue directo con Precios.
 
+**Las notificaciones de pago (bloque «Los pagos», 11-sep):** la tarjeta
+quieta con tres filas `.pg` paso a ser una pila de avisos push (`.pn-*`,
+`#pn-pila`, los pone el guion): llegan uno a uno cada 2,2 s entrando por
+arriba (nacen sin alto y crecen, para que las de abajo bajen suave), nacen
+«Pendiente» (ambar, punto que late) y a los 800 ms pasan a «✓ Confirmado»
+(verde, con salto). Cuatro avisos, se apaga la pila y vuelve a empezar;
+solo mientras el bloque se ve. **Logos OFICIALES** (regla de Sergio del
+7-sep: sin logo oficial «pareceria pirata»): Nequi `assets/brand/nequi.png`
+(el mismo de la pantalla de pago) y Bancolombia `assets/brand/bancolombia.png`
+(el isotipo, circulo oscuro con tres franjas, 1000x1000 transparente, lo
+dio Sergio el 11-sep). Si el de Bancolombia faltara, el `<img>` se quita
+solo y queda un rotulo amarillo «BANCOLOMBIA» de respaldo.
+
 ⚠️ PENDIENTE (ya venia asi, medido en la version publicada): en celular la
 pagina mide 674 px de ancho en vez de 390 por `.cx-via` y sus `.cx-t`
 (el carrusel de la seccion `cx`), que se salen por los dos lados. No es del
