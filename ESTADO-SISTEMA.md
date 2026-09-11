@@ -868,7 +868,10 @@ la lee).
    deletreaba "HOJARAZCA" como sigla (el barrio se guarda en mayusculas, y
    hay productos como "SÚPER QUESO"). **Para llevar** ya no dice el turno:
    dice la etiqueta del pedido (`[etq:]`) — "Personal premium mixta, para
-   llevar esperan" —; sin etiqueta, "para llevar" o "para llevar, Juan".
+   llevar esperan" —; sin etiqueta, solo "para llevar". **Nunca el nombre del
+   cliente** (Sergio: "para Kevin" sonaba raro; lo dijo la tablet con la
+   version vieja). En modo turno: "para llevar, turno 4". Y una mesa que se
+   llama solo con numero ("08") dice "para la mesa 8" (antes "para 8").
    Configurable por restaurante en Configuracion → Operacion → Cocina
    (`cocinaNotif.vozLlevar` = `'etiqueta'` por defecto | `'turno'`).
 8. **El timbre de "listo" suena en TODAS las pantallas y se repite hasta
