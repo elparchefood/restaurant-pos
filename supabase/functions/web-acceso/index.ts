@@ -303,8 +303,18 @@ async function mandarPorSms(telefono: string, codigo: string, negocio: string, a
     la caja le tiene que decir al cliente donde mirar. Cameron busco el codigo
     en los SMS y le habia llegado por WhatsApp. */
 async function mandarCodigo(tenantId: string, telefono: string, codigo: string, negocio: string, autocompleta = false, frase = ""): Promise<string> {
+  /*  LOS CODIGOS DE PAGO VAN POR SMS, SIEMPRE (Sergio, 10-sep-2026, en pleno
+      turno): "cuando se autoriza el pago desde la pantalla de pago el codigo
+      se debe enviar por mensaje de texto". A Cameron le salieron dos por
+      WhatsApp (tenia la ventana de 24 h abierta) y no le llego ninguno; el
+      cajero no puede soltar el pedido sin ese codigo. WhatsApp queda solo
+      de respaldo, si el SMS no sale. (`frase` solo la trae el pago.)     */
+  if (frase) {
+    if (await mandarPorSms(telefono, codigo, negocio, autocompleta, frase)) return "sms";
+    console.error("[acceso] el SMS del codigo de pago no salio; se intenta por WhatsApp");
+  }
   const wa = await canalWhatsApp(tenantId);
-  if (!wa) return (frase && await mandarPorSms(telefono, codigo, negocio, autocompleta, frase)) ? "sms" : "";
+  if (!wa) return "";
   const para = "57" + telefono;
   const url = `https://graph.facebook.com/v22.0/${wa.phoneId}/messages`;
   const cabeceras = { "Authorization": `Bearer ${wa.token}`, "Content-Type": "application/json" };
@@ -353,7 +363,8 @@ async function mandarCodigo(tenantId: string, telefono: string, codigo: string, 
   }
 
   /* 3. Fuera de la ventana, o WhatsApp no pudo. Va por SMS. */
-  return (await mandarPorSms(telefono, codigo, negocio, autocompleta, frase)) ? "sms" : "";
+  //  (El de pago ya intento el SMS arriba: no se repite.)
+  return (!frase && await mandarPorSms(telefono, codigo, negocio, autocompleta, frase)) ? "sms" : "";
 }
 
 /* EL CLIENTE, BUSCADO COMO SE DEBE (15-ago). Antes se buscaba con
