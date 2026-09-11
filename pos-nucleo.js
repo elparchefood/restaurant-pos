@@ -7363,6 +7363,17 @@ console.log('[POS Events] Sistema de eventos listo');
     try { localStorage.setItem(LLAVE, JSON.stringify(d)); } catch (e) {}
   }
   function hayPendientes() { return Object.keys(leer().pend).length > 0; }
+  /*  RASTRO (10-sep-2026). La primera noche el timbre "no sono" en el
+      computador de Sergio y en la prueba de verdad si sonaba: la ventana
+      seguia con la version anterior. Para no adivinar la proxima vez, cada
+      equipo anota en pos_diag UNA vez al dia que el timbre arranco, y cada
+      pedido listo que le llega (con si le tocaba o no). */
+  function rastro(que, extra) {
+    try {
+      if (sbC) sbC.from('pos_diag').insert({ donde: 'timbre/' + que, mensaje: AQUI, extra: extra || null })
+        .then(function () {}, function () {});
+    } catch (e) {}
+  }
   function esc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
@@ -7404,7 +7415,9 @@ console.log('[POS Events] Sistema de eventos listo');
     if (d.visto[o.id] || d.pend[o.id]) return;        // este pedido ya se aviso
     d.visto[o.id] = Date.now();
     guardar(d);
-    if (!meToca(zonaDe(o))) return;
+    var toca = meToca(zonaDe(o));
+    rastro('aviso', { pedido: o.id, zona: zonaDe(o), rol: miRol, le_toca: toca });
+    if (!toca) return;
     var txt = await textoDe(o);
     d = leer();                                        // pudo cambiar mientras se buscaba la mesa
     d.pend[o.id] = { txt: txt, at: Date.now() };
@@ -7502,6 +7515,14 @@ console.log('[POS Events] Sistema de eventos listo');
               : (await sbC.from('branches').select('operacion_config').eq('id', branchId).maybeSingle()).data;
       avisa = (suc && suc.operacion_config && suc.operacion_config.cocinaAvisa) || POR_DEFECTO;
     } catch (e) { avisa = POR_DEFECTO; }
+
+    try {
+      var hoy = new Date().toISOString().slice(0, 10) + '|1';
+      if (localStorage.getItem('pos.timbre.rastro') !== hoy) {
+        localStorage.setItem('pos.timbre.rastro', hoy);
+        rastro('arranque', { rol: miRol, avisa: avisa, ua: String(navigator.userAgent || '').slice(0, 140) });
+      }
+    } catch (e) {}
 
     //  Si en la pantalla anterior quedo sonando, sigue aqui.
     pintar();
