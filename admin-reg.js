@@ -420,6 +420,7 @@ function renderSolicitudes() {
       '<td class="a-num a-cell-strong">'+total+'<span style="font-weight:500;color:#94A3B8;font-size:11.5px">/mes</span></td>'+
       '<td class="a-cell-muted">'+fechaRaw+'</td>'+
       '<td>'+statusBadge(r.status)+
+        (r.transf_ok && isPend ? '<div style="margin-top:5px">'+tagTransf()+'</div>' : '')+
         /*  POR QUE NO SE PUDO VERIFICAR SOLO. Sin esto, aprobar a mano es
             aprobar a ciegas: no se sabe si el sistema fallo por un
             comprobante ilegible, por un monto que no cuadra o porque el
@@ -442,6 +443,11 @@ function renderSolicitudes() {
           : '<span style="color:#CBD5E1;font-size:12px">—</span>')+
       '</td>'+
       '<td><div class="a-act-col">'+
+        (isPend
+          ? (r.transf_ok
+              ? '<button class="a-act a-act--neutral" onclick="pedirTransferencia(\''+r.id+'\', false)">Quitar la transferencia</button>'
+              : '<button class="a-act a-act--neutral" onclick="pedirTransferencia(\''+r.id+'\', true)">Cobrar por transferencia esta vez</button>')
+          : '')+
         (isPend
           ? '<button class="a-act a-act--reject" onclick="handleReject(\''+r.id+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rechazar</button>'+
              '<button class="a-act a-act--approve" onclick="handleApprove(\''+r.id+'\',\''+r.email+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Aprobar</button>'
@@ -572,7 +578,11 @@ function renderClientes() {
       '<td class="a-num a-cell-strong">'+total+'<span style="font-weight:500;color:#94A3B8;font-size:11.5px">/mes</span></td>'+
       '<td class="a-cell-muted">'+fechaRaw+'<div style="font-size:11.5px;margin-top:3px">'+vence+'</div></td>'+
       '<td>'+statusBadge(r.tenant_status || r.status)+
-        (r.pago_pend ? '<div style="margin-top:5px">'+badgeHtml('amber','Pago por revisar',true)+'</div>' : '')+'</td>'+
+        (r.transf_ok ? '<div style="margin-top:5px">'+tagTransf()+'</div>' : '')+
+        (r.pago_pend ? '<div style="margin-top:5px">'+badgeHtml('amber','Pago por revisar',true)+'</div>'+
+          (r.pago_pend.verif_detalle
+            ? '<div style="margin-top:4px;font-size:11px;color:#92400E;line-height:1.4;max-width:230px">'+escapeHtml(String(r.pago_pend.verif_detalle).slice(0,120))+'</div>'
+            : '') : '')+'</td>'+
       '<td><div class="a-act-col">'+
         '<button class="a-act a-act--neutral"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg> Detalle</button>'+
         /* Dar acceso a la consola desde AQUI: los dueños de restaurante son
@@ -593,6 +603,12 @@ function renderClientes() {
         (r.pago_pend
           ? '<button class="a-act a-act--neutral" data-comp-pago="'+r.pago_pend.id+'">Ver el pago '+cop(r.pago_pend.monto)+'</button>'+
             '<button class="a-act a-act--approve" data-ok-pago="'+r.pago_pend.id+'" data-ok-reg="'+r.id+'">Aprobar pago y reactivar</button>'
+          : '')+
+        /* EL EXTINTOR (11-sep-2026): la transferencia para UN pago. */
+        (r.tenant_id
+          ? (r.transf_ok
+              ? '<button class="a-act a-act--neutral" onclick="pedirTransferencia(\''+r.id+'\', false)">Quitar la transferencia</button>'
+              : '<button class="a-act a-act--neutral" onclick="pedirTransferencia(\''+r.id+'\', true)">Cobrar por transferencia esta vez</button>')
           : '')+
         (activo
           ? '<button class="a-act a-act--warn" onclick="handleSuspend(\''+r.id+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> Suspender</button>'
@@ -999,6 +1015,62 @@ async function handleAprobarPago(regId, pagoId) {
     });
 }
 
+/* ════ EL EXTINTOR: "COBRAR POR TRANSFERENCIA ESTA VEZ" (11-sep-2026) ════
+   Todo se cobra por Wompi y la transferencia no se ofrece (PLAN-COBRO-
+   SUSCRIPCIONES.md §1). Este boton la enciende para UN cliente y UN pago:
+   a un restaurante que ya existe (cuenta suspendida o al dia) o a una
+   solicitud nueva que no pudo pagar con Wompi. Le llega un correo con el valor
+   y la cuenta; sube el comprobante desde Cobra y el lector lo verifica solo.
+   Al aprobarse el pago, se apaga sola. Lo hace `provision` (action
+   `transferencia`), que comprueba en la base que quien llama es admin.   */
+function tagTransf() {
+  return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;' +
+    'color:#3730A3;background:#EEF2FF;border-radius:999px;padding:2px 9px">' +
+    '<span style="width:6px;height:6px;border-radius:999px;background:#5B6BFF"></span>Transferencia habilitada</span>';
+}
+
+function pedirTransferencia(regId, activar) {
+  var r = (S.registrations || []).find(function (x) { return x.id === regId; });
+  if (!r) return;
+  var nombre = r.negocio || r.nombre || 'este cliente';
+  if (!activar) {
+    showConfirm('Quitar la transferencia',
+      nombre + ' vuelve a pagar solo con Nequi, tarjeta o cuenta Bancolombia. ' +
+      'Si ya subió un comprobante, ese pago sigue en revisión.',
+      function () { cambiarTransferencia(r, false); });
+    return;
+  }
+  showConfirm('Cobrar por transferencia esta vez',
+    'A ' + nombre + ' le llega un correo (' + r.email + ') con el valor y los datos de tu cuenta. ' +
+    (r.tenant_id
+      ? 'Desde Cobra sube el comprobante, el lector lo revisa solo contra el correo del banco y, si cuadra, queda al día sin que hagas nada. Mientras tanto no se le cobra por Wompi. '
+      : 'Entra a cobrapos.app con su correo, sube el comprobante y el lector lo revisa solo: si cuadra, su cuenta se crea sola. ') +
+    'Sirve para un solo pago: al aprobarse, se apaga.',
+    function () { cambiarTransferencia(r, true); });
+}
+
+async function cambiarTransferencia(r, activar) {
+  try {
+    var ses = (await sb.auth.getSession()).data.session;
+    if (!ses) throw new Error('Sesión expirada — vuelve a iniciar sesión');
+    var cuerpo = { action: 'transferencia', activa: activar };
+    if (r.tenant_id) cuerpo.tenant_id = r.tenant_id; else cuerpo.registration_id = r.id;
+    var res = await fetch(PROVISION_URL, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + ses.access_token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(cuerpo)
+    });
+    var d = await res.json().catch(function () { return {}; });
+    if (!res.ok || !d.ok) throw new Error(d.error || ('No se pudo (' + res.status + ')'));
+    if (!activar) showToast('Transferencia quitada', 'green');
+    else if (d.correo) showToast('Listo: le enviamos los datos a ' + d.para, 'green');
+    else showToast('Transferencia habilitada, pero el correo no salió (' + (d.razon || 'sin motivo') + '). Avísale tú.', 'red');
+    loadRegistrations();
+  } catch (e) {
+    showToast('No se pudo: ' + (e.message || e), 'red');
+  }
+}
+
 function handleReactivate(id) {
   showConfirm('Reactivar cliente',
     'El restaurante vuelve a entrar al sistema con todo como lo dejó. ¿Continuar?',
@@ -1018,7 +1090,8 @@ async function loadRegistrations() {
     /*  `periodo_fin` va en esta lista a proposito: es lo que dice a quien hay
         que cobrarle pronto. Sin el, la consola no puede avisar de nada — y un
         select sin la columna no da error, devuelve la fila sin el dato.   */
-    var ten = await sb.from('tenants').select('id,status,plan,periodo_fin,saldo_favor');
+    //  `transferencia_ok_at`: el extintor encendido (11-sep-2026).
+    var ten = await sb.from('tenants').select('id,status,plan,periodo_fin,saldo_favor,transferencia_ok_at');
     var porId = {};
     (ten.data || []).forEach(function (t) { porId[t.id] = t; });
     /* Y los pagos de renovacion que esperan revision. Un cliente suspendido
@@ -1026,7 +1099,7 @@ async function loadRegistrations() {
        primero esta esperando a que alguien mire, y ese alguien esta en esta
        pantalla. Sin esto el comprobante llega a la base y se queda ahi. */
     var pg = await sb.from('pos_pagos_suscripcion')
-      .select('id,tenant_id,monto,periodo,comprobante_url,created_at')
+      .select('id,tenant_id,monto,periodo,comprobante_url,created_at,verif_detalle,verif_intentos')
       .eq('status', 'pending').order('created_at', { ascending: false });
     var pagoDe = {};
     (pg.data || []).forEach(function (p) { if (!pagoDe[p.tenant_id]) pagoDe[p.tenant_id] = p; });
@@ -1038,6 +1111,9 @@ async function loadRegistrations() {
       r.periodo_fin   = t ? t.periodo_fin : null;
       r.saldo_favor   = t ? (Number(t.saldo_favor) || 0) : 0;
       r.pago_pend     = r.tenant_id ? (pagoDe[r.tenant_id] || null) : null;
+      //  El extintor encendido: el del restaurante si ya existe, el de la
+      //  solicitud si todavia no (11-sep-2026).
+      r.transf_ok     = t ? !!t.transferencia_ok_at : !!r.transferencia_ok_at;
     });
   } catch(e) {
     console.error('loadRegistrations:', e);

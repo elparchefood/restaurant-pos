@@ -225,8 +225,9 @@ Todo el detalle, y los tres fallos que solo aparecieron al probarlo, en
 `PLAN-COBRO-SUSCRIPCIONES.md` §8 y §9.
 
 **Lo que queda:**
-- El botón de **"cobrar por transferencia"** para Sergio — el extintor de la §1
-  de ese plan.
+- ~~El botón de **"cobrar por transferencia"** para Sergio — el extintor de la §1
+  de ese plan.~~ ✅ **Hecho el 11-sep-2026** para los tres casos (suspendida,
+  al día y cliente nuevo). Detalle en ESTADO-SISTEMA.md, "El extintor".
 - Que Sergio pruebe el registro completo de punta a punta.
 - ~~Al pasar a producción: cambiar las llaves de sandbox por las de verdad.~~
   ✅ **Hecho el 11-sep-2026**: llaves `_PROD` puestas por Sergio y

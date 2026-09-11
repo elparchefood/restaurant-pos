@@ -514,6 +514,34 @@
         </button>
       </div>
 
+      <!-- ── VIEW: PAGO POR TRANSFERENCIA (el extintor, 11-sep-2026) ──
+           Solo la ve quien tiene una solicitud pendiente y a quien Sergio le
+           encendió la transferencia desde su panel. La llena
+           `mostrarTransferencia()` con lo que devuelve el servidor.  -->
+      <div id="view-transferencia" hidden>
+        <div class="form-head">
+          <h2 class="form-title">Paga por transferencia</h2>
+          <p class="form-sub" id="tr-sub">Cobra habilitó el pago por transferencia para tu registro.</p>
+        </div>
+        <div id="tr-error" class="error-banner">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span id="tr-error-msg">Error</span>
+        </div>
+        <div class="bank-card" id="tr-card"></div>
+        <div class="upload-zone" id="tr-zone" onclick="document.getElementById('tr-file').click()">
+          <input type="file" id="tr-file" accept="image/jpeg,image/png,application/pdf" hidden onchange="trArchivo(this.files[0])">
+          <div class="upload-ic">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+          </div>
+          <div id="tr-zone-text" class="upload-text">Toca para subir el comprobante</div>
+          <div class="upload-sub">JPEG, PNG o PDF · máx. 5 MB</div>
+        </div>
+        <button class="au-submit" id="btn-tr" onclick="handleTransferencia()" style="margin-top:18px" disabled>
+          <span id="btn-tr-text">Enviar comprobante</span>
+        </button>
+        <div class="toggle-row"><button class="au-toggle" onclick="salirTransferencia()">Salir</button></div>
+      </div>
+
       <!-- ── VIEW: CONFIRMADO (paso 4) ── -->
       <div id="view-confirmado" hidden>
         <div class="confirm-ic">
@@ -722,9 +750,9 @@
 <div class="auth-toast" id="auth-toast"></div>
 
 <script src="vendor/supabase-2.js?v=1789520000"></script>
-<script src="pos-nucleo.js?v=1801000000"></script>
+<script src="pos-nucleo.js?v=1801100000"></script>
 <script src="planes.js?v=1798956000"></script>
 <script src="pos-suscripcion.js?v=1800130000"></script>
-  <script src="login.js?v=1800120000"></script>
+  <script src="login.js?v=1801100000"></script>
 </body>
 </html>

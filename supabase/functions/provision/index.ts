@@ -431,6 +431,133 @@ Deno.serve(async (req) => {
         fila quedaria diciendo que pago completo. El precio sale del plan que la
         cuenta TIENE hoy, de cuantas sucursales tiene abiertas y del periodo que
         elija — las mismas tres cosas que decide la consola.                 */
+    /*  ══ EL EXTINTOR: "COBRAR POR TRANSFERENCIA ESTA VEZ" (11-sep-2026) ════
+
+        Todo se cobra por Wompi y la transferencia NO se ofrece (Sergio: "si
+        les das a escoger, la mayoria va a escoger transferencia, luego se
+        olvidan y se salen"). Pero hay emergencias: una tarjeta que no pasa,
+        alguien sin Nequi. Para eso, este boton de SU panel enciende la
+        transferencia para UN cliente — uno que ya existe (`tenant_id`) o una
+        solicitud nueva (`registration_id`) — y le manda los datos por correo.
+        Se apaga sola al aprobarse el pago (trigger en la base).
+
+        Solo un administrador de la plataforma. Misma comprobacion que aprobar
+        solicitudes: el rol sale de la base, nunca del cuerpo.              */
+    if (action === "transferencia") {
+      const adm = await sbAdmin("GET", `/rest/v1/user_profiles?id=eq.${user.id}&select=role&limit=1`);
+      const esAdm = Array.isArray(adm.data) && (adm.data as Array<Record<string, unknown>>)[0]?.role === "admin";
+      if (!esAdm) return json(403, { error: "Solo un administrador de la plataforma puede hacer esto" });
+
+      const tidT = String(body.tenant_id || "");
+      const regT = String(body.registration_id || "");
+      if (!tidT && !regT) return json(400, { error: "falta a quien" });
+      const activa = body.activa !== false;
+      const tabla = tidT ? "tenants" : "pos_registrations";
+      const up = await sbAdmin("PATCH", `/rest/v1/${tabla}?id=eq.${tidT || regT}`, activa
+        ? { transferencia_ok_at: new Date().toISOString(), transferencia_ok_por: user.id }
+        : { transferencia_ok_at: null, transferencia_ok_por: null });
+      if (!up.ok) return json(500, { error: "no se pudo guardar: " + String(up.text || "").slice(0, 200) });
+      if (!activa) return json(200, { ok: true, activa: false });
+
+      //  El correo: a quien, cuanto y a donde. El monto sale de la base, igual
+      //  que en el cobro: nunca de la pantalla.
+      let para = "", nombre = "", negocio = "", monto = 0, periodo = "mensual";
+      if (tidT) {
+        const t = await sbAdmin("GET", `/rest/v1/tenants?id=eq.${tidT}&select=name,email,owner_user_id,saldo_favor&limit=1`);
+        const tt = Array.isArray(t.data) ? (t.data as Array<Record<string, unknown>>)[0] : null;
+        para = String(tt?.email || ""); negocio = String(tt?.name || "");
+        if (tt?.owner_user_id) {
+          const ou = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${tt.owner_user_id}`, {
+            headers: { "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}` },
+          });
+          if (ou.ok) {
+            const uo = await ou.json().catch(() => ({})) as Record<string, unknown>;
+            const m = (uo.user_metadata || {}) as Record<string, unknown>;
+            nombre = String(m.nombre || m.full_name || "").split(" ")[0] || "";
+            if (!para) para = String(uo.email || "");
+          }
+        }
+        const pr = await sbAdmin("POST", "/rest/v1/rpc/fn_precio_suscripcion", { p_tenant: tidT, p_periodo: "mensual" });
+        monto = Number(pr.data) || 0;
+        /*  MENOS EL SALDO A FAVOR, igual que la pantalla (`cuenta_estado`) y
+            que el cobro de Wompi. Sin esto el correo decia $249.000 y la
+            pantalla $219.000: quien transfiriera lo del correo no cuadraba
+            con el lector (lo vi en la prueba del 11-sep).                  */
+        const saldoT = Math.max(0, Number(tt?.saldo_favor || 0));
+        monto = Math.max(0, monto - Math.min(saldoT, monto));
+      } else {
+        const r = await sbAdmin("GET", `/rest/v1/pos_registrations?id=eq.${regT}&select=email,nombre,negocio,billing&limit=1`);
+        const rg = Array.isArray(r.data) ? (r.data as Array<Record<string, unknown>>)[0] : null;
+        para = String(rg?.email || ""); negocio = String(rg?.negocio || "");
+        nombre = String(rg?.nombre || "").split(" ")[0] || "";
+        periodo = String(rg?.billing || "mensual");
+        const pr = await sbAdmin("POST", "/rest/v1/rpc/fn_precio_registro", { p_registro: regT });
+        monto = Number(pr.data) || 0;
+      }
+      const cR = await sbAdmin("GET", "/rest/v1/plataforma_cobro?id=eq.1&limit=1");
+      const ct = Array.isArray(cR.data) ? (cR.data as Array<Record<string, unknown>>)[0] || {} : {};
+      let enviado = false, razon: unknown = null;
+      if (para) {
+        try {
+          const ce = await fetch(`${SUPABASE_URL}/functions/v1/enviar-correo`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tipo: "pago_transferencia", para, nombre, negocio, monto, periodo, nuevo: !tidT,
+              cuenta: { banco: ct.banco || "", tipo: ct.tipo || "", titular: ct.titular || "",
+                        numero: ct.numero || "", nota: ct.nota || "" },
+            }),
+          });
+          const cd = await ce.json().catch(() => ({})) as Record<string, unknown>;
+          enviado = cd.enviado === true; razon = cd.razon || null;
+        } catch (e) { razon = String(e).slice(0, 120); }
+      } else razon = "sin correo";
+      return json(200, { ok: true, activa: true, para, monto, correo: enviado, razon });
+    }
+
+    /*  ══ EL CLIENTE NUEVO QUE VUELVE A PAGAR POR TRANSFERENCIA ═════════════
+        Quien se registro y no pudo pagar con Wompi todavia NO tiene
+        restaurante: tiene una SOLICITUD pendiente, atada a su correo. Con el
+        permiso encendido, al volver a entrar ve la transferencia y sube el
+        comprobante. El correo sale del TOKEN, no del cuerpo (misma regla que
+        `wompi/inscribir`).                                                 */
+    if (action === "registro_estado" || action === "comprobante_registro") {
+      const correoR = String(user.email || "").trim().toLowerCase();
+      if (!correoR) return json(400, { error: "sin correo" });
+      const rr = await sbAdmin("GET", `/rest/v1/pos_registrations?email=eq.${encodeURIComponent(correoR)}` +
+        `&status=eq.pending&select=id,negocio,plan,sucursales,billing,comprobante_url,transferencia_ok_at` +
+        `&order=created_at.desc&limit=1`);
+      const reg = Array.isArray(rr.data) ? (rr.data as Array<Record<string, unknown>>)[0] : null;
+      if (!reg) return json(200, { ok: true, pendiente: false });
+      const permitido = !!reg.transferencia_ok_at;
+
+      if (action === "registro_estado") {
+        const pr = await sbAdmin("POST", "/rest/v1/rpc/fn_precio_registro", { p_registro: reg.id });
+        let cuenta = null;
+        if (permitido) {
+          const cR = await sbAdmin("GET", "/rest/v1/plataforma_cobro?id=eq.1&limit=1");
+          const ct = Array.isArray(cR.data) ? (cR.data as Array<Record<string, unknown>>)[0] : null;
+          if (ct) cuenta = { banco: ct.banco, tipo: ct.tipo, titular: ct.titular, numero: ct.numero, nota: ct.nota, qr_url: ct.qr_url };
+        }
+        return json(200, {
+          ok: true, pendiente: true, registration_id: reg.id, negocio: reg.negocio,
+          plan: reg.plan, sucursales: reg.sucursales, billing: reg.billing || "mensual",
+          monto: Number(pr.data) || null, transferencia: permitido, cuenta,
+          comprobante: !!reg.comprobante_url,
+        });
+      }
+
+      if (!permitido) return json(403, { error: "El pago por transferencia no está habilitado para tu solicitud." });
+      const compR = String(body.comprobante_url || "").trim();
+      if (!compR) return json(400, { error: "falta el comprobante" });
+      //  Comprobante nuevo = el lector empieza de cero con el.
+      const upR = await sbAdmin("PATCH", `/rest/v1/pos_registrations?id=eq.${reg.id}`, {
+        comprobante_url: compR, verif_intentos: 0, verif_at: null, verif_detalle: null, verif_extraido: null,
+      });
+      if (!upR.ok) return json(500, { error: "no se pudo guardar el comprobante" });
+      return json(200, { ok: true, registration_id: reg.id });
+    }
+
     if (action === "cuenta_estado" || action === "renovar") {
       const tid = String((user.user_metadata || {}).tenant_id || "");
       if (!tid) return json(400, { error: "esta cuenta todavia no tiene un negocio" });
@@ -438,7 +565,7 @@ Deno.serve(async (req) => {
       /*  Las fechas y el saldo van en este select a proposito: sin ellos no se
           puede decir cuando vence ni descontar lo que se debe a favor — y un
           select sin la columna NO da error, devuelve la fila sin el dato.  */
-      const tRes = await sbAdmin("GET", `/rest/v1/tenants?id=eq.${tid}&select=id,name,plan,status,periodo_inicio,periodo_fin,saldo_favor&limit=1`);
+      const tRes = await sbAdmin("GET", `/rest/v1/tenants?id=eq.${tid}&select=id,name,plan,status,periodo_inicio,periodo_fin,saldo_favor,transferencia_ok_at&limit=1`);
       const ten = Array.isArray(tRes.data) ? (tRes.data as Array<Record<string, unknown>>)[0] : null;
       if (!ten) return json(404, { error: "cuenta no encontrada" });
 
@@ -492,14 +619,25 @@ Deno.serve(async (req) => {
         `/rest/v1/pos_pagos_suscripcion?tenant_id=eq.${tid}&status=eq.pending&select=id,monto,periodo,created_at&order=created_at.desc&limit=1`);
       const pendiente = Array.isArray(yaRes.data) ? (yaRes.data as Array<Record<string, unknown>>)[0] || null : null;
 
+      /*  ¿Sergio le encendio el pago por transferencia? (el extintor,
+          11-sep-2026). Sin permiso, la cuenta suspendida paga por Wompi y la
+          transferencia no existe para este cliente.                        */
+      const transferencia = !!ten.transferencia_ok_at;
+
       if (action === "cuenta_estado") {
         /*  La cuenta de cobro se manda desde aqui y no se lee en la pantalla:
             `plataforma_cobro` es de la plataforma, no del restaurante, y no
-            tiene por que ser legible para un cliente cualquiera. */
-        const cRes = await sbAdmin("GET", "/rest/v1/plataforma_cobro?id=eq.1&limit=1");
-        const cta = Array.isArray(cRes.data) ? (cRes.data as Array<Record<string, unknown>>)[0] || null : null;
+            tiene por que ser legible para un cliente cualquiera. Y SOLO viaja
+            si la transferencia esta encendida: sin ella no hay a donde
+            transferir.                                                     */
+        let cta: Record<string, unknown> | null = null;
+        if (transferencia) {
+          const cRes = await sbAdmin("GET", "/rest/v1/plataforma_cobro?id=eq.1&limit=1");
+          cta = Array.isArray(cRes.data) ? (cRes.data as Array<Record<string, unknown>>)[0] || null : null;
+        }
         return json(200, {
           ok: true,
+          transferencia,
           status: ten.status || "active",
           negocio: ten.name || "",
           plan, plan_nombre: (pl && pl.nombre) || plan, sucursales,
@@ -518,6 +656,14 @@ Deno.serve(async (req) => {
       // ── renovar: queda un pago EN REVISION, no se reactiva solo ────────────
       if (pendiente) return json(409, { error: "Ya tenemos tu comprobante y lo estamos revisando.", pendiente });
 
+      /*  SIN EL PERMISO DE COBRA NO HAY TRANSFERENCIA (11-sep-2026). Antes
+          cualquier cuenta podia subir un comprobante: la pantalla de suspendida
+          le ofrecia transferencia a todo el mundo. Ahora se paga por Wompi, y
+          la transferencia es el extintor que enciende Sergio.               */
+      if (!transferencia) {
+        return json(403, { error: "El pago por transferencia no está habilitado para tu cuenta. Paga con Nequi, tarjeta o tu cuenta Bancolombia." });
+      }
+
       const periodo = String(body.periodo || "mensual");
       if (!PERIODOS[periodo]) return json(400, { error: "periodo invalido" });
       const comp = String(body.comprobante_url || "").trim();
@@ -532,7 +678,11 @@ Deno.serve(async (req) => {
         comprobante_url: comp, status: "pending", creado_por: user.id,
       });
       if (!ins.ok) return json(500, { error: "no se pudo registrar el pago: " + ins.text });
-      return json(200, { ok: true, monto: cobro(periodo), periodo, saldo_aplicado: aplicado(periodo) });
+      //  El id del pago, para que la pantalla le pida al lector que lo revise
+      //  de una (si no, lo repasa la tarea de cada 5 minutos).
+      const nuevo = await sbAdmin("GET", `/rest/v1/pos_pagos_suscripcion?tenant_id=eq.${tid}&status=eq.pending&select=id&order=created_at.desc&limit=1`);
+      const pagoId = Array.isArray(nuevo.data) ? String((nuevo.data as Array<Record<string, unknown>>)[0]?.id || "") : "";
+      return json(200, { ok: true, pago_id: pagoId || null, monto: cobro(periodo), periodo, saldo_aplicado: aplicado(periodo) });
     }
 
     // ── ONBOARDING: el usuario crea SU propio negocio (una sola vez) ──────────

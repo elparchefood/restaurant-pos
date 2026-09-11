@@ -230,12 +230,114 @@ async function buscarEnCorreo(
   return { hallado: false, detalle: `No llegó ningún aviso del banco por $${conPuntos} en los últimos ${VENTANA_HORAS / 24} días` };
 }
 
+/*  ══ EL PAGO DE UN RESTAURANTE QUE YA EXISTE (el extintor, 11-sep-2026) ════
+
+    Hasta hoy esto solo revisaba REGISTROS. La renovacion por transferencia
+    (cuenta suspendida o cliente al dia, con el permiso que enciende Sergio)
+    quedaba "en revision" hasta que el entrara a aprobarla a mano. Ahora pasa
+    por las mismas dos comprobaciones —el comprobante y el aviso del banco— y
+    si cuadran se aprueba sola: el disparador `trg_sellar_periodo` corre el
+    vencimiento y `trg_pago_apaga_transferencia` apaga el permiso.
+
+    El monto esperado es el de la fila, que calculo `provision` en el servidor
+    al recibir el comprobante: nunca uno que mande la pantalla.            */
+async function verificarPago(pagoId: string) {
+  const pagos = await sbGet(`pos_pagos_suscripcion?id=eq.${pagoId}&limit=1`);
+  const pago = pagos[0];
+  if (!pago) return json({ error: "pago no encontrado" }, 404);
+  if (pago.status === "approved") return json({ ok: true, verificado: true, ya: true, detalle: "ese pago ya estaba aprobado" });
+  if (pago.status !== "pending") return json({ ok: true, verificado: false, detalle: "el pago no está pendiente" });
+
+  const intentos = Number(pago.verif_intentos || 0);
+  if (intentos >= TOPE_INTENTOS) {
+    return json({ ok: true, verificado: false, tope: true,
+      detalle: "Ya lo intentamos varias veces. Un humano lo va a revisar." });
+  }
+  const ruta = String(pago.comprobante_url || "");
+  if (!ruta) return json({ ok: true, verificado: false, detalle: "todavía no hay comprobante" });
+
+  //  El intento se cuenta ANTES de gastar nada (misma razon que en registros).
+  await sbPatch(`pos_pagos_suscripcion?id=eq.${pagoId}`, {
+    verif_intentos: intentos + 1, verif_at: new Date().toISOString(),
+  });
+  const fallar = async (detalle: string, extraido: unknown = null) => {
+    await sbPatch(`pos_pagos_suscripcion?id=eq.${pagoId}`,
+      { verif_detalle: detalle, ...(extraido ? { verif_extraido: extraido } : {}) });
+    return json({ ok: true, verificado: false, detalle });
+  };
+
+  const correo = (await sbGet("plataforma_correo?id=eq.1&limit=1"))[0];
+  const refresh = String(correo?.gmail_refresh_token || "");
+  if (!refresh) return await fallar("El correo de verificación de Cobra no está conectado en la consola");
+
+  let c: Record<string, unknown>;
+  const guardado = pago.verif_extraido as Record<string, unknown> | null;
+  if (guardado && guardado.parece_valido && guardado.monto) {
+    c = guardado;
+  } else {
+    const firmada = await urlFirmada(ruta);
+    if (!firmada) return await fallar("No se pudo abrir el comprobante");
+    c = await leerComprobante(firmada) as unknown as Record<string, unknown>;
+    if (!c.parece_valido || !c.monto) return await fallar("La imagen no parece un comprobante de pago legible", c);
+    await sbPatch(`pos_pagos_suscripcion?id=eq.${pagoId}`, { verif_extraido: c });
+  }
+
+  const esperado = Math.round(Number(pago.monto || 0));
+  const pagado   = Number(String(c.monto).replace(/\D/g, "")) || 0;
+  if (esperado > 0 && pagado !== esperado) {
+    return await fallar(
+      `El comprobante dice $${pagado.toLocaleString("es-CO")} y el pago es de $${esperado.toLocaleString("es-CO")}`, c);
+  }
+
+  const token = await tokenGmail(refresh);
+  if (!token) return await fallar("No se pudo entrar al correo de verificación (vuelve a conectarlo en la consola)", c);
+  const cuenta = (await sbGet("plataforma_cobro?id=eq.1&limit=1"))[0];
+  const llave  = String(cuenta?.numero || "").replace(/\s/g, "");
+  const hallazgo = await buscarEnCorreo(token, String(pagado), llave);
+  if (!hallazgo.hallado) return await fallar(hallazgo.detalle, c);
+
+  //  Llego la plata: se aprueba. `status=eq.pending` en el filtro para que
+  //  dos barridos a la vez no lo aprueben dos veces (el vencimiento correria
+  //  dos meses por un pago).
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/pos_pagos_suscripcion?id=eq.${pagoId}&status=eq.pending`, {
+    method: "PATCH", headers: { ...H, "Prefer": "return=representation" },
+    body: JSON.stringify({
+      status: "approved", revisado_en: new Date().toISOString(),
+      verif_detalle: hallazgo.detalle, verif_extraido: c, nota: "Aprobado solo por el lector de comprobantes",
+    }),
+  });
+  const filas = r.ok ? await r.json().catch(() => []) as Array<Record<string, unknown>> : [];
+  if (!filas.length) {
+    return json({ ok: true, verificado: true, creado: false,
+      detalle: "Pago confirmado, pero no se pudo marcar: apruébalo en la consola" });
+  }
+  await sbPatch(`tenants?id=eq.${pago.tenant_id}`, { status: "active" });
+
+  //  El papel que la gente guarda. Si no sale, el pago igual quedo.
+  try {
+    const t = (await sbGet(`tenants?id=eq.${pago.tenant_id}&select=name,email,plan&limit=1`))[0];
+    if (t?.email) {
+      await fetch(`${SUPABASE_URL}/functions/v1/enviar-correo`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo: "pago_recibido", para: t.email, nombre: "", negocio: t.name || "",
+          monto: esperado, plan: t.plan || pago.plan || "", sucursales: pago.sucursales || 1,
+          periodo: pago.periodo || "mensual" }),
+      });
+    }
+  } catch (e) { console.error("[pago] correo:", String(e).slice(0, 120)); }
+
+  return json({ ok: true, verificado: true, creado: true, detalle: hallazgo.detalle });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { /* cuerpo vacío -> falta el id */ }
   const regId = String(body.registration_id || "");
+  const pagoId = String(body.pago_id || "");
+  if (pagoId) return await verificarPago(pagoId);
 
   /*  ══ MODO BARRIDO: SIN ID, SE REVISAN LAS QUE ESTAN ESPERANDO ═════════
 
@@ -260,9 +362,23 @@ Deno.serve(async (req: Request) => {
       `pos_registrations?status=eq.pending&comprobante_url=not.is.null` +
       `&verif_intentos=lt.${TOPE_INTENTOS}&select=id&order=created_at.asc&limit=20`
     );
-    if (!pend.length) return json({ ok: true, barrido: true, revisadas: 0 });
+    //  Y los pagos de restaurantes que ya existen (el extintor, 11-sep-2026).
+    //  Mismo tope de intentos, mismo motivo.
+    const pendP = await sbGet(
+      `pos_pagos_suscripcion?status=eq.pending&comprobante_url=not.is.null` +
+      `&verif_intentos=lt.${TOPE_INTENTOS}&select=id&order=created_at.asc&limit=20`
+    );
+    if (!pend.length && !pendP.length) return json({ ok: true, barrido: true, revisadas: 0 });
 
     let aprobadas = 0;
+    for (const p of pendP) {
+      try {
+        const dd = await (await verificarPago(String(p.id))).json().catch(() => ({}));
+        if (dd && dd.verificado && dd.creado) aprobadas++;
+      } catch (e) {
+        console.error("[barrido] pago", p.id, String((e as Error).message || e).slice(0, 120));
+      }
+    }
     for (const r of pend) {
       try {
         const rr = await fetch(`${SUPABASE_URL}/functions/v1/verificar-pago-plataforma`, {
@@ -344,7 +460,18 @@ Deno.serve(async (req: Request) => {
   }
 
   // 4. ¿Coincide con lo que tenía que pagar?
-  const esperado = Math.round(Number(reg.monto_total || 0));
+  /*  El precio sale de la BASE (`fn_precio_registro`), no de `monto_total`,
+      que lo mando el navegador al registrarse. El correo del extintor
+      (11-sep-2026) le dice al cliente la cifra de la base, y el comprobante
+      tiene que cuadrar con ESA. Si la base no contesta, queda la de la
+      solicitud, como antes.                                              */
+  let esperado = Math.round(Number(reg.monto_total || 0));
+  try {
+    const pr = await fetch(`${SUPABASE_URL}/rest/v1/rpc/fn_precio_registro`, {
+      method: "POST", headers: H, body: JSON.stringify({ p_registro: regId }),
+    });
+    if (pr.ok) { const v = Number(await pr.json()); if (v > 0) esperado = Math.round(v); }
+  } catch { /* se queda la de la solicitud */ }
   const pagado   = Number(String(c.monto).replace(/\D/g, "")) || 0;
   if (esperado > 0 && pagado !== esperado) {
     return await fallar(

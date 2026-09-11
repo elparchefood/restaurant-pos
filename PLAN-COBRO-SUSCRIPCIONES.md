@@ -45,6 +45,11 @@ Cobra) **no se toca**. Cambia dónde vive:
 Sergio: *"El sistema que ya tenemos puede ser para emergencias."*
 Es la diferencia entre una puerta de la tienda y un extintor.
 
+> ✅ **Construido el 11-sep-2026.** El botón vive en Clientes y en Solicitudes
+> del panel; sirve para una cuenta suspendida, un cliente al día y un cliente
+> nuevo; y se apaga solo al aprobarse el pago. Detalle en ESTADO-SISTEMA.md,
+> "El extintor".
+
 ---
 
 ## 2. Los avisos y los reintentos

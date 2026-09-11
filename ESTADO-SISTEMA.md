@@ -422,6 +422,62 @@ quedaba sin su propio bloque hasta que la base confirmara.
   con guardas que revientan si el permiso no quedo, y tambien si se le colo a
   un rol que no es administrador.
 
+## 🟢 El extintor: "Cobrar por transferencia esta vez" — 11-sep-2026
+
+Todo se cobra por Wompi y la transferencia NO se ofrece (PLAN-COBRO-
+SUSCRIPCIONES.md §1). El extintor la enciende para UN cliente y UN pago, en
+los tres casos que escogio Sergio: **cuenta suspendida, cliente al dia y
+cliente nuevo**.
+
+- **Base** (`supabase/sql/2026-09-11-transferencia-emergencia.sql`):
+  `transferencia_ok_at/_por` en `tenants` y `pos_registrations`; columnas del
+  lector (`verif_*`) en `pos_pagos_suscripcion`; `trg_pago_apaga_transferencia`
+  (un pago aprobado APAGA el permiso: es "esta vez"); `trg_registro_sin_permiso_propio`
+  (quien se registra no puede traerlo encendido: el INSERT es publico); la
+  vista `v_suscripciones_por_vencer` trae la columna.
+- **Panel** (admin-reg.js): en Clientes y en Solicitudes pendientes, "Cobrar
+  por transferencia esta vez" / "Quitar la transferencia" + etiqueta
+  "Transferencia habilitada". Llama `provision` → `transferencia` (admin de
+  plataforma comprobado en la base), que guarda el permiso y manda el correo
+  `pago_transferencia` (enviar-correo): valor, cuenta de `plataforma_cobro` y
+  donde subir el comprobante. El valor de un cliente es el mes MENOS el saldo a
+  favor (igual que la pantalla y que Wompi; en la prueba salio $249.000 vs
+  $219.000 y se corrigio).
+- **Cuenta suspendida** (pos-suspendida.js, reescrita): ⚠️ hasta hoy le
+  ofrecia transferencia A TODOS (era del 28-ago, antes de Wompi). Ahora por
+  defecto paga por **Wompi** (`posSuscripcion.abrir` con `cobrarYa`); solo con
+  el permiso ve la transferencia. Clases `sp-` (antes `sus-`, chocaban con
+  pos-suscripcion.js) y la ventana de Wompi va encima (`z-index`) y puede
+  recibir el teclado.
+- **Cliente al dia**: `pos-core.js` (`comprobarCuenta`) trae
+  `transferencia_ok_at` en la MISMA consulta del estado; en el Escritorio,
+  para quien no es mesero/cajero/cocina, sale la tarjetica
+  `posAvisoTransferencia()` que abre la misma ventana (esta si se cierra).
+- **Cliente nuevo** (login.js/html): con la solicitud pendiente y el permiso,
+  al entrar (correo, Google o el boton Pagar) sale `view-transferencia`;
+  `provision` → `registro_estado` / `comprobante_registro`.
+- **El lector** (`verificar-pago-plataforma`): acepta `pago_id` (renovaciones)
+  ademas de registros, y el barrido de cada 5 min revisa los dos. Si cuadra con
+  el aviso del banco: aprueba (filtro `status=eq.pending`), reactiva la cuenta
+  y manda `pago_recibido`. Los registros comparan contra `fn_precio_registro`,
+  no contra lo que mando el navegador.
+- `provision` → `renovar` exige el permiso (403 sin el) y devuelve `pago_id`.
+- **El reloj** no le cobra por Wompi ni le manda avisos de tarjeta a quien
+  tiene el permiso; si pasa una semana del vencimiento sin pago, lo pausa igual.
+- **Dos fallos de Wompi que salieron de paso** (wompi v17): (1) al reautorizar
+  una cuenta suspendida el cobro usaba siempre el intento 1, chocaba con el del
+  reloj y NO cobraba ("ya existia"); ahora usa el siguiente, y si hay uno
+  aprobado o en camino no cobra otra vez. (2) El pago aprobado sumaba los meses
+  al vencimiento viejo: una cuenta vencida hace tiempo quedaba con la fecha en
+  el pasado. Ahora cuenta desde el mayor entre el vencimiento y hoy (como
+  `trg_sellar_periodo`).
+- Probado de verdad en el Restaurante de Prueba (usuario de prueba admin SOLO
+  durante la prueba): los 5 caminos, el 403 sin permiso, la ventana de Wompi
+  encima, y el lector rechazando una imagen que no es comprobante. Todo limpio.
+- ⚠️ Pendiente conocido: un mismo aviso del banco podria aprobar DOS pagos del
+  mismo valor el mismo dia (el lector de registros ya tenia ese limite). Con
+  pocos clientes no pasa; el dia que haya volumen, guardar el id del correo usado.
+
 ## 🟢 Wompi cobra DE VERDAD — 11-sep-2026
 
 Las cuatro llaves de producción las puso Sergio en los secretos de Supabase

@@ -423,10 +423,35 @@ Deno.serve(async (req) => {
           guardada y se puede reintentar sin volver a pedirle nada.       */
       let cobro = null;
       if (body.cobrar_ya === true) {
-        const r2 = tenant
-          ? await cobrarTenant(tenant, String(body.periodo || "mensual"), 1)
-          : await cobrarRegistro(regId, 1);
-        cobro = r2.cuerpo;
+        /*  ══ EL INTENTO QUE SIGUE, NO SIEMPRE EL 1 (11-sep-2026) ════════════
+            La referencia lleva el numero de intento, y Wompi no deja repetir
+            una. Un restaurante SUSPENDIDO que vuelve a autorizar su medio ya
+            tiene los intentos del reloj de este periodo (el 1 fallo, el 2...):
+            con un 1 fijo, su cobro chocaba contra el viejo y se contestaba
+            "ya existia ese cobro" — sin cobrarle nada y con la cuenta en pausa.
+            Si el ultimo esta aprobado o en camino, NO se cobra otra vez.   */
+        let intento = 1, yaVa: Record<string, unknown> | null = null;
+        if (tenant) {
+          const tt = await db(`tenants?id=eq.${tenant}&select=periodo_fin&limit=1`);
+          const pf = String((tt.data as Array<Record<string, unknown>>)?.[0]?.periodo_fin || "").slice(0, 10);
+          if (pf) {
+            const ya = await db(`pos_wompi_cobros?tenant_id=eq.${tenant}&periodo_fin=eq.${pf}` +
+                                `&select=intento,estado,referencia&order=intento.desc&limit=1`);
+            const u = (ya.data as Array<Record<string, unknown>>)?.[0];
+            if (u) {
+              if (["APPROVED", "PENDIENTE", "PENDING"].includes(String(u.estado || ""))) yaVa = u;
+              else intento = Number(u.intento || 0) + 1;
+            }
+          }
+        }
+        if (yaVa) {
+          cobro = { ok: true, repetido: true, referencia: yaVa.referencia, estado_cobro: yaVa.estado };
+        } else {
+          const r2 = tenant
+            ? await cobrarTenant(tenant, String(body.periodo || "mensual"), intento)
+            : await cobrarRegistro(regId, 1);
+          cobro = r2.cuerpo;
+        }
       }
       return json(200, { ok: true, tipo, ultimos4, marca, cobro });
     }
@@ -535,15 +560,27 @@ Deno.serve(async (req) => {
         const t2 = await db(`tenants?id=eq.${cobro.tenant_id}&select=periodo_fin,saldo_favor&limit=1`);
         const ten = (t2.data as Array<Record<string, unknown>>)?.[0];
         if (ten) {
-          const fin = new Date(String(ten.periodo_fin || new Date().toISOString().slice(0, 10)) + "T00:00:00Z");
+          /*  SE CUENTA DESDE HOY SI YA HABIA VENCIDO (11-sep-2026). Antes se
+              sumaba siempre al vencimiento viejo: una cuenta en pausa desde
+              hacia dos meses pagaba uno y quedaba "al dia" con la fecha TODAVIA
+              en el pasado — y al dia siguiente el reloj le volvia a cobrar. Es
+              la misma regla que ya usa el pago por transferencia
+              (`trg_sellar_periodo`): el mayor entre el vencimiento y hoy.    */
+          const hoy  = hoyEnColombia();
+          const pf   = String(ten.periodo_fin || "").slice(0, 10);
+          const base = pf && pf > hoy ? pf : hoy;
+          const fin  = new Date(base + "T00:00:00Z");
           fin.setUTCMonth(fin.getUTCMonth() + meses);
           await db(`tenants?id=eq.${cobro.tenant_id}`, {
             method: "PATCH", headers: { Prefer: "return=minimal" },
             body: JSON.stringify({
               status: "active",
-              periodo_inicio: String(ten.periodo_fin || "").slice(0, 10),
+              periodo_inicio: base,
               periodo_fin: fin.toISOString().slice(0, 10),
               pagado_periodo: cobro.monto,
+              //  Si tenia la transferencia encendida y pago por Wompi, ese era
+              //  el pago de "esta vez": el permiso se apaga igual.
+              transferencia_ok_at: null, transferencia_ok_por: null,
             }),
           });
           console.log(`[wompi] periodo corrido hasta ${fin.toISOString().slice(0, 10)} para ${cobro.tenant_id}`);

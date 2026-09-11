@@ -1606,18 +1606,43 @@ function daysAgoISO(n) {
           var g = JSON.parse(localStorage.getItem(LLAVE) || 'null');
           if (g && g.tid === tid && (Date.now() - g.en) < 30 * 60000) {
             if (g.estado && g.estado !== 'active') cerrarPorCuenta(g.estado);
+            else if (g.transf) avisarTransferencia();
             return;
           }
         } catch (e) {}
-        var estado = null;
+        var estado = null, transf = false;
         try {
-          var r = await sb.from('tenants').select('status').eq('id', tid).maybeSingle();
+          //  `transferencia_ok_at`: Sergio encendio desde su panel el pago por
+          //  transferencia para esta cuenta (el extintor, 11-sep-2026). Viaja
+          //  en la MISMA consulta: no cuesta un viaje mas.
+          var r = await sb.from('tenants').select('status, transferencia_ok_at').eq('id', tid).maybeSingle();
           estado = (r && r.data && r.data.status) || null;
+          transf = !!(r && r.data && r.data.transferencia_ok_at);
         } catch (e) { return; }        // no se pudo preguntar → se entra
         if (!estado) return;           // sin respuesta → se entra
-        try { localStorage.setItem(LLAVE, JSON.stringify({ tid: tid, estado: estado, en: Date.now() })); } catch (e) {}
+        try { localStorage.setItem(LLAVE, JSON.stringify({ tid: tid, estado: estado, transf: transf, en: Date.now() })); } catch (e) {}
         if (estado !== 'active') cerrarPorCuenta(estado);
+        else if (transf) avisarTransferencia();
       })();
+
+      /*  EL AVISO DE "PUEDES PAGAR POR TRANSFERENCIA" (11-sep-2026).
+          Para el cliente AL DIA al que Sergio le encendio la transferencia:
+          una tarjetica en el Escritorio, que no tapa nada, con el boton para
+          pagar y subir el comprobante. Solo en el Escritorio y solo para quien
+          maneja el negocio: al mesero o al cocinero no les toca pagar el plan. */
+      function avisarTransferencia() {
+        if (!/dashboard\.html/i.test(location.pathname)) return;
+        var rol = '';
+        try { rol = String(((window._pos.state.user || {}).user_metadata || {}).role || '').toLowerCase(); } catch (e) {}
+        if (/mesero|cajer|cocin|domicil/.test(rol)) return;
+        var ir = function () { if (window.posAvisoTransferencia) window.posAvisoTransferencia(); };
+        if (window.posAvisoTransferencia) return ir();
+        var sc = document.createElement('script');
+        sc.src = 'pos-suspendida.js?v=1801100000';
+        sc.onload = ir;
+        sc.onerror = function () { console.warn('[cuenta] no se pudo cargar el aviso de transferencia'); };
+        document.head.appendChild(sc);
+      }
 
       /*  LA PANTALLA DE SUSPENSIÓN VIVE APARTE (`pos-suspendida.js`).
           No es un aviso de dos líneas: lleva el cobro, la cuenta a la que se
@@ -1639,7 +1664,7 @@ function daysAgoISO(n) {
       function cerrarPorCuenta(estado) {
         if (window.posPantallaSuspendida) return window.posPantallaSuspendida(estado);
         var sc = document.createElement('script');
-        sc.src = 'pos-suspendida.js';
+        sc.src = 'pos-suspendida.js?v=1801100000';
         sc.onload = function () {
           if (window.posPantallaSuspendida) window.posPantallaSuspendida(estado);
         };

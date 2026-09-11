@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
   if (!conLlaveMaestra && !conSecreto) return json(403, { error: "no autorizado" });
 
   const hoy = hoyEnColombia();
-  const resumen = { avisados: 0, cobrados: 0, reintentados: 0, pausados: 0, sin_medio: 0 };
+  const resumen = { avisados: 0, cobrados: 0, reintentados: 0, pausados: 0, sin_medio: 0, por_transferencia: 0 };
 
   try {
     /*  Los que tienen restaurante activo y medio de pago inscrito. Se pide la
@@ -151,6 +151,26 @@ Deno.serve(async (req) => {
       const tenant = String(s.tenant_id);
       const dias = Number(s.dias_para_vencer);
       const estado = String(s.status || "");
+
+      /*  ══ VA A PAGAR POR TRANSFERENCIA (el extintor, 11-sep-2026) ════════
+          Sergio encendio la transferencia para este cliente, esta vez. Nada
+          de Wompi: ni los avisos de "se cobra en tu tarjeta", ni el cobro, ni
+          los reintentos — cobrarle por los dos lados seria cobrarle dos
+          veces. Lo unico que sigue igual es la pausa: una semana despues del
+          vencimiento sin pago, como a todos. El permiso se apaga solo en
+          cuanto se aprueba el pago.                                        */
+      if (s.transferencia_ok_at) {
+        resumen.por_transferencia++;
+        if (estado === "active" && dias <= -8) {
+          await db(`tenants?id=eq.${tenant}`, {
+            method: "PATCH", headers: { Prefer: "return=minimal" },
+            body: JSON.stringify({ status: "suspended" }),
+          });
+          resumen.pausados++;
+          console.log("[reloj] en pausa: iba a pagar por transferencia y no llego el pago:", tenant);
+        }
+        continue;
+      }
 
       const fRes = await db(`pos_wompi_fuentes?tenant_id=eq.${tenant}&activa=is.true&select=marca,ultimos4&limit=1`);
       const fuente = (fRes.data as Array<Record<string, unknown>>)?.[0];

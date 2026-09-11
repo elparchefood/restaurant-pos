@@ -26,6 +26,7 @@ function goStep(step) {
   $('view-login').hidden     = (step !== 'login');
   $('view-datos').hidden     = (step !== 'datos');
   $('view-pago').hidden      = (step !== 'pago');
+  $('view-transferencia').hidden = (step !== 'transferencia');
   $('view-confirmado').hidden = (step !== 'confirmado');
   window.scrollTo(0, 0);
 }
@@ -72,6 +73,12 @@ async function handleLogin() {
   try {
     const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
     if (error) throw error;
+    //  Sin restaurante todavia: puede ser un cliente nuevo al que Cobra le
+    //  habilito pagar por transferencia (el extintor, 11-sep-2026).
+    if (!((data && data.user && data.user.user_metadata) || {}).tenant_id && await transferenciaSiToca(data.user)) {
+      btn.disabled = false; txt.textContent = 'Iniciar sesión';
+      return;
+    }
     const role = data?.user?.user_metadata?.role || '';
     const esMesero = role === 'mesero' || role === 'cajero' || role === 'cajera';
     window.location.href = esMesero ? 'ventas.html' : 'dashboard.html';
@@ -185,6 +192,8 @@ async function volverDeRed() {
       let queria = '';
       try { queria = sessionStorage.getItem(RED_MARCA) || ''; sessionStorage.removeItem(RED_MARCA); } catch (e) {}
       if (queria === '1') { arrancarRegistroConRed(u, red); return true; }
+      //  O vuelve a pagar por transferencia lo que no pudo pagar con Wompi.
+      if (await transferenciaSiToca(u)) return true;
 
       /*  Y si venia a ENTRAR, no se queda dentro. Con correo y contrasena
           este caso casi no existe —la cuenta solo existe si alguien se
@@ -467,6 +476,9 @@ async function handleCobroAuto() {
 
     btn.disabled = false; txt.textContent = 'Pagar';
 
+    //  Si Cobra le habilito la transferencia (el extintor), va por ahi.
+    if (await transferenciaSiToca()) return;
+
     //  3. autorizar y cobrar
     posSuscripcion.abrir({
       monto: Math.round(REG.totalCiclo),
@@ -619,6 +631,127 @@ async function handlePago() {
     btn.disabled = false; txt.textContent = 'Enviar comprobante';
     showError('pago-error','pago-error-msg', e.message || 'Error al enviar');
   }
+}
+
+/* ══ EL CLIENTE NUEVO QUE PAGA POR TRANSFERENCIA (el extintor, 11-sep-2026) ══
+
+   Quien se registro y no pudo pagar con Wompi le pide ayuda a Sergio; el le
+   enciende la transferencia desde su panel y a esta persona le llega un
+   correo. Al volver a entrar —con su correo o con Google— todavia no hay
+   restaurante: hay una solicitud pendiente. Con el permiso, ve la cuenta,
+   sube el comprobante y el lector de siempre lo verifica solo.
+
+   Lo decide el servidor (`provision` → `registro_estado`): esta pantalla no
+   sabe de permisos, solo pinta lo que le dicen.                           */
+let TR = null;
+
+function _escTr(t) {
+  return String(t == null ? '' : t).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function transferenciaSiToca(usuario) {
+  try {
+    const { data: ses } = await sb.auth.getSession();
+    const tk = ses && ses.session && ses.session.access_token;
+    if (!tk) return false;
+    const r = await fetch(SUPABASE_URL + '/functions/v1/provision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + tk },
+      body: JSON.stringify({ action: 'registro_estado' })
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.pendiente || !d.transferencia) return false;
+    TR = d;
+    TR.email = (usuario && usuario.email) || (ses.session.user && ses.session.user.email) || REG.email || '';
+    mostrarTransferencia(d);
+    return true;
+  } catch (e) {
+    console.warn('[registro] transferencia:', e && e.message);
+    return false;
+  }
+}
+
+function mostrarTransferencia(d) {
+  const c = d.cuenta || {};
+  const fila = (k, v) => v
+    ? '<div class="bank-row"><span class="bank-key">' + _escTr(k) + '</span><span class="bank-val">' + _escTr(v) + '</span></div>'
+    : '';
+  $('tr-sub').textContent = 'Cobra habilitó el pago por transferencia para ' + (d.negocio || 'tu registro') +
+    '. Transfiere el valor exacto y sube el comprobante: lo verificamos solos.';
+  $('tr-card').innerHTML =
+    fila(c.banco || 'Cuenta', c.tipo) + fila('Titular', c.titular) +
+    fila('Número', c.numero ? _agrupar(c.numero) : '') +
+    (c.nota ? '<div class="bank-row"><span class="bank-key">' + _escTr(c.nota) + '</span></div>' : '') +
+    '<div class="bank-row"><span class="bank-key">Monto a pagar</span><span class="bank-monto">' + COPF(d.monto || 0) + '</span></div>';
+  goStep('transferencia');
+}
+
+function trArchivo(file) {
+  if (!file || !TR) return;
+  if (file.size > 5 * 1024 * 1024) return showToast('Archivo demasiado grande (máx 5 MB)');
+  TR.archivo = file;
+  $('tr-zone').classList.add('has-file');
+  $('tr-zone-text').textContent = file.name;
+  $('btn-tr').disabled = false;
+}
+
+async function handleTransferencia() {
+  if (!TR || !TR.archivo) return;
+  const btn = $('btn-tr'), txt = $('btn-tr-text');
+  btn.disabled = true; txt.innerHTML = '<span class="au-spin"></span> Subiendo…';
+  try {
+    const f = TR.archivo;
+    //  Nombre al azar: un comprobante lleva datos bancarios (misma regla que
+    //  el registro y la cuenta suspendida).
+    const ext = String(f.name || '').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+    const nom = ((crypto && crypto.randomUUID) ? crypto.randomUUID()
+                 : String(Date.now()) + '-' + Math.floor(Math.random() * 1e9)) + '.' + ext;
+    const { error: upErr } = await sb.storage.from('comprobantes').upload(nom, f, { contentType: f.type, upsert: false });
+    if (upErr) throw upErr;
+
+    const { data: ses } = await sb.auth.getSession();
+    const tk = ses && ses.session && ses.session.access_token;
+    if (!tk) throw new Error('Se cerró tu sesión. Vuelve a entrar.');
+    const r = await fetch(SUPABASE_URL + '/functions/v1/provision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + tk },
+      body: JSON.stringify({ action: 'comprobante_registro', comprobante_url: nom })
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || 'No se pudo enviar el comprobante.');
+
+    txt.innerHTML = '<span class="au-spin"></span> Verificando tu pago…';
+    REG.verificado = false;
+    try {
+      const vr = await Promise.race([
+        fetch(SUPABASE_URL + '/functions/v1/verificar-pago-plataforma', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+          body: JSON.stringify({ registration_id: d.registration_id }),
+        }).then(x => x.json()),
+        new Promise(res => setTimeout(() => res({ lento: true }), 45000)),
+      ]);
+      REG.verificado = !!(vr && vr.verificado && vr.creado);
+    } catch (e) { console.warn('[registro] verificacion:', e && e.message); }
+
+    //  El final de siempre, con los datos de SU solicitud.
+    REG.plan = TR.plan || REG.plan;
+    REG.branches = TR.sucursales || REG.branches || 1;
+    REG.billing = TR.billing || REG.billing;
+    REG.totalCiclo = TR.monto || REG.totalCiclo;
+    REG.email = TR.email || REG.email;
+    fillConfirm();
+    goStep('confirmado');
+  } catch (e) {
+    btn.disabled = false; txt.textContent = 'Enviar comprobante';
+    showError('tr-error', 'tr-error-msg', (e && e.message) || 'No se pudo enviar');
+  }
+}
+
+async function salirTransferencia() {
+  try { await sb.auth.signOut(); } catch (e) {}
+  TR = null;
+  goStep('login');
 }
 
 function fillConfirm() {
