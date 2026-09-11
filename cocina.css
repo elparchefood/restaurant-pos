@@ -175,14 +175,15 @@ svg{display:block;}
      Con columnas, cada tarjeta ocupa lo suyo y la siguiente sube a llenar el
      hueco: al lado de una grande caben dos pequenas. Y el orden sigue siendo
      el de llegada, leyendo la columna de arriba abajo como un periodico. */
-  columns:2; column-gap:calc(var(--u) * .5);
+  /* PRIMERO SE LLENA LA IZQUIERDA (Sergio, 10-sep-2026). Con `columns:2` el
+     navegador EMPAREJABA las dos columnas: una comanda de Reserva del Oeste
+     se fue a la derecha habiendo sitio a la izquierda, debajo de San Eduardo.
+     Ahora son dos columnas de verdad y cocina.js (`repartirColumnas`) llena
+     la izquierda hasta donde se ve y solo entonces pasa a la derecha. */
+  display:flex; align-items:flex-start; gap:calc(var(--u) * .5);
 }
-.zona-lista > *{
-  /* Sin esto el navegador parte una comanda por la mitad entre dos columnas:
-     media comanda abajo de una y la otra mitad arriba de la siguiente. */
-  break-inside:avoid; -webkit-column-break-inside:avoid; page-break-inside:avoid;
-  margin-bottom:calc(var(--u) * .5);
-}
+.zl-col{flex:1 1 0; min-width:0; display:flex; flex-direction:column;}
+.zl-col > *{margin-bottom:calc(var(--u) * .5);}
 .zona-vacia{
   margin:auto; font-size:calc(var(--u) * 1.15); font-weight:700; color:#94A3B8;
   letter-spacing:.08em; text-transform:uppercase;

@@ -1341,6 +1341,39 @@ function paroEn(o) {
   return S.paro.get(o.id);
 }
 
+/*  PRIMERO LA COLUMNA IZQUIERDA, HASTA DONDE SE VE (Sergio, 10-sep-2026).
+    Las comandas van en orden hacia abajo por la izquierda; cuando la
+    siguiente ya no cabe en lo que se ve de la pantalla, pasa a la derecha.
+    Si las dos se llenan, lo que sobra va a la mas corta (se ve bajando).
+
+    Se mide UNA vez (todas en la izquierda, que tiene el mismo ancho que la
+    derecha) y se reparte con esas alturas: pintar() corre cada segundo, y
+    medir tarjeta por tarjeta obligaria al navegador a recalcular la
+    pantalla decenas de veces por segundo en el TV box.                  */
+function repartirColumnas(cont) {
+  const tarjetas = [...cont.children];
+  if (!tarjetas.length) return;
+  const izq = document.createElement('div'), der = document.createElement('div');
+  izq.className = der.className = 'zl-col';
+  cont.textContent = '';
+  cont.append(izq, der);
+  tarjetas.forEach(t => izq.appendChild(t));
+  const cs = getComputedStyle(cont);
+  const alto = cont.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+  const sep = parseFloat(getComputedStyle(tarjetas[0]).marginBottom) || 0;
+  const hs = tarjetas.map(t => t.offsetHeight + sep);
+  let hI = 0, hD = 0, fase = 0;
+  const aDer = [];
+  tarjetas.forEach((t, i) => {
+    const h = hs[i];
+    if (fase === 0) { if (hI === 0 || hI + h <= alto + sep) { hI += h; return; } fase = 1; }
+    if (fase === 1) { if (hD === 0 || hD + h <= alto + sep) { hD += h; aDer.push(t); return; } fase = 2; }
+    if (hI <= hD) { hI += h; izq.appendChild(t); }   // re-anexar = mandarla al final de la izquierda
+    else { hD += h; aDer.push(t); }
+  });
+  aDer.forEach(t => der.appendChild(t));
+}
+
 /*  LO LISTO SE VA A LOS DOS MINUTOS (Sergio, 10-sep-2026, en pleno turno).
     El 28-ago se decidio dejar lo terminado a la vista, en morado y abajo.
     Trabajando se vio que estorba: *"mejor que desaparezcan... pero que no
@@ -1407,6 +1440,7 @@ function pintar() {
       if (!S.vistas.has(o.id)) { S.vistas.add(o.id); if (!S.arrancando) { sonar = true; nuevos.push(o); } }
       return tarjeta(o);
     }).join('');
+    repartirColumnas(cont);
   });
 
   $('cuenta').textContent = aLaVista;
