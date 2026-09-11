@@ -874,6 +874,16 @@ la lee).
    deshacer lo devuelve; si ya va en camino/entregado no lo toca.
    `supabase/sql/2026-09-10-domicilio-listo-desde-cocina.sql`.
 
+10. **Un cliente que "no existia" (Cameron Ruiz)**: su nombre venia de
+    WhatsApp con letras de adorno ("ℭ𝔞𝔪𝔢𝔯𝔬𝔫 ℜ𝔲𝔦𝔷", bloque matematico de
+    Unicode) y ningun buscador lo encontraba al escribir "cameron"; en la
+    lista estaba, pero ordenada por gasto entre 304. Corregido, y el trigger
+    `tg_cliente_nombre_normal` (BEFORE INSERT/UPDATE OF nombre en
+    `pos_clientes`) pasa todo nombre por `normalize(NFKC)`: letras normales,
+    sin tocar tildes, eñes ni emojis. El nombre de la conversacion del chat
+    se deja como lo escribio la persona.
+    `supabase/sql/2026-09-10-clientes-nombre-letras-normales.sql`.
+
 ## 🟢 La campana pedia un PIN y unas fotos que ya estaban — 10-sep-2026
 
 Sergio: *"me esta pidiendo que coloque un PIN y que suba las fotos de la carta,
