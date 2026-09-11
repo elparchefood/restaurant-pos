@@ -18782,6 +18782,17 @@ flota centrado bajo la peana (`position:absolute; top:calc(100% + 12px)`)
 y el boton de compra no salta cuando aparece. Sergio: primero se disena
 toda la pagina en escritorio; el celular se ajusta despues.
 
+**El celular de la factura (bloque «El inventario», 11-sep):** la tarjeta
+«Leyendo factura.jpg…» paso a ser un celular con WhatsApp en modo oscuro
+(`.fac-*`, `#fac`, hilo `#fac-hilo` que pone el guion): el dueño manda la
+foto de la factura (un papel dibujado, como el recibo del monitor), el
+asistente contesta lo que leyo y despues «Inventario actualizado» con el
+antes → despues. Ciclo de ~6 s que se repite cada 11,5 s solo mientras el
+bloque se ve (IntersectionObserver); con `prefers-reduced-motion` queda la
+conversacion completa y quieta. `#que .arg` sube a 600 px de alto para
+que quepa el telefono (252 px de ancho, 9/19). Colores de WhatsApp real:
+fondo #0B141A, saliente #005C4B, entrante/cabecera #202C33.
+
 ⚠️ PENDIENTE (ya venia asi, medido en la version publicada): en celular la
 pagina mide 674 px de ancho en vez de 390 por `.cx-via` y sus `.cx-t`
 (el carrusel de la seccion `cx`), que se salen por los dos lados. No es del

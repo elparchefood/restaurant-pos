@@ -648,6 +648,58 @@ a{color:inherit;text-decoration:none}
   padding:7px 0;border-bottom:1px solid var(--linea2)}
 .itm b{color:var(--acid);font-size:11.5px}
 
+/* ══ EL CELULAR DE LA FACTURA (bloque «El inventario», 11-sep-2026) ═══════
+   Sergio: "en lugar de esa animacion tan sencilla, un mockup de un celular
+   real donde se esta enviando por WhatsApp la factura y el bot le contesta
+   actualizando el inventario". Es WhatsApp en modo oscuro: fondo #0B141A,
+   burbuja saliente #005C4B, entrante #202C33, cabecera #202C33. La factura
+   es un papelito dibujado (como el recibo del monitor), no una imagen.
+   Los mensajes los pone el guion (id fac-hilo) y solo se mueven mientras
+   el bloque se ve.                                                        */
+#que .arg{min-height:600px}
+#que .rep{width:min(36%,252px);padding:0;background:none;border:none;box-shadow:none;
+  -webkit-backdrop-filter:none;backdrop-filter:none}
+.fac-tel{position:relative;border:8px solid #171B27;border-radius:32px;background:#0B141A;
+  overflow:hidden;aspect-ratio:9/19;display:flex;flex-direction:column;
+  box-shadow:0 40px 80px -26px #000,0 0 0 1px rgba(255,255,255,.06);
+  font-family:'DM Sans',system-ui,sans-serif;color:#E9EDEF;-webkit-font-smoothing:antialiased}
+.fac-tel::before{content:"";position:absolute;left:50%;top:6px;transform:translateX(-50%);
+  width:54px;height:6px;border-radius:9px;background:#0A0C11;z-index:3}
+.fac-cab{display:flex;align-items:center;gap:7px;padding:22px 10px 8px;background:#202C33;flex:0 0 auto}
+.fac-av{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#F97316,#F43F5E);
+  display:grid;place-items:center;font-size:8px;font-weight:800;color:#fff;flex:0 0 auto}
+.fac-quien{display:flex;flex-direction:column;line-height:1.15;min-width:0}
+.fac-quien b{font-size:9.5px;font-weight:700;white-space:nowrap}
+.fac-quien s{text-decoration:none;font-size:7px;color:#8696A0}
+.fac-ic{margin-left:auto;display:flex;gap:8px;color:#AEBAC1}
+.fac-ic svg{width:11px;height:11px;display:block}
+.fac-hilo{flex:1;min-height:0;padding:8px 8px 6px;display:flex;flex-direction:column;gap:5px;
+  justify-content:flex-end;overflow:hidden;
+  background:#0B141A radial-gradient(rgba(255,255,255,.04) 1px,transparent 1.2px) 0 0/14px 14px}
+.fac-fecha{align-self:center;font-size:6.5px;color:#8696A0;background:#182229;border-radius:6px;
+  padding:3px 7px;margin-bottom:2px}
+.fac-bb{position:relative;max-width:86%;padding:5px 7px 4px;border-radius:8px;font-size:8px;line-height:1.45;
+  white-space:pre-line;animation:facSube .32s cubic-bezier(.2,.8,.2,1) both}
+.fac-bb.ent{align-self:flex-start;background:#202C33;border-top-left-radius:2px}
+.fac-bb.sal{align-self:flex-end;background:#005C4B;border-top-right-radius:2px}
+.fac-bb b{font-weight:700}
+.fac-m{display:block;font-size:6px;color:rgba(233,237,239,.55);text-align:right;margin-top:2px;line-height:1}
+.fac-m i{font-style:normal;color:#53BDEB;margin-left:2px}
+.fac-esc{padding:7px 9px;display:flex;gap:3px;align-items:center;min-width:30px}
+.fac-img{padding:3px 3px 4px}
+.fac-foto{display:block;width:146px;border-radius:6px;background:#F6F2E8;color:#1E293B;padding:8px 9px;
+  font-family:'DM Mono',monospace;font-size:5.5px;line-height:1.55;letter-spacing:.01em;
+  box-shadow:inset 0 0 34px rgba(0,0,0,.14)}
+.fac-foto b{display:block;font-size:6.5px;font-weight:800;letter-spacing:.06em;margin-bottom:2px}
+.fac-foto .l{display:flex;justify-content:space-between;gap:6px;border-bottom:1px dashed rgba(30,41,59,.25);padding:2px 0}
+.fac-foto .t{display:flex;justify-content:space-between;font-weight:800;margin-top:4px;font-size:6.5px}
+.fac-cap{display:block;font-size:8px;padding:4px 4px 0}
+.fac-pie{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:6px 8px 12px;background:#0B141A}
+.fac-in{flex:1;background:#2A3942;border-radius:99px;padding:6px 10px;font-size:8px;color:#8696A0}
+.fac-mic{width:24px;height:24px;border-radius:50%;background:#00A884;display:grid;place-items:center;flex:0 0 auto}
+.fac-mic svg{width:11px;height:11px;display:block}
+@keyframes facSube{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
 /* ═══ CARRUSEL 3D ═══ */
 .cars{position:relative;height:440px;perspective:1400px;margin-top:20px}
 .cars .via{position:absolute;inset:0;display:grid;place-items:center;transform-style:preserve-3d}
@@ -2000,14 +2052,17 @@ body{background:#FFFFFF}
       <p>Le mandas la foto de la factura del proveedor por WhatsApp y él la carga. Y se descuenta solo cuando vendes.</p>
       <span class="fr">«El inventario que sí vas a mantener, porque no tienes que digitarlo.»</span>
     </div>
-    <div class="rep vidrio">
-      <div style="display:flex;align-items:center;gap:11px;margin-bottom:12px">
-        <span style="width:44px;height:56px;border-radius:7px;background:repeating-linear-gradient(128deg,#2A3247 0 6px,#1E2434 6px 12px);border:1px solid var(--linea);flex-shrink:0"></span>
-        <span style="font-size:11.5px;color:var(--t3)">Leyendo factura.jpg…</span>
+    <div class="rep" id="fac">
+      <div class="fac-tel">
+        <div class="fac-cab">
+          <span class="fac-av">SB</span>
+          <span class="fac-quien"><b>Sabor y Brasa</b><s>Cobra · contesta solo</s></span>
+          <span class="fac-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 10l4.5-2.5v9L15 14"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></span>
+        </div>
+        <!--  Los mensajes los pone el guion.  -->
+        <div class="fac-hilo" id="fac-hilo"></div>
+        <div class="fac-pie"><span class="fac-in">Mensaje</span><span class="fac-mic"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12h-2z"/></svg></span></div>
       </div>
-      <div class="itm"><span>Churrasco · 8 kg</span><b>$184.000</b></div>
-      <div class="itm"><span>Limonada de coco · 24</span><b>$96.000</b></div>
-      <div class="itm" style="border:none"><span>Papa · 2 bultos</span><b>$140.000</b></div>
     </div>
   </div>
 </div></section>
@@ -3838,6 +3893,64 @@ window.CobraPlan.iniciar({
 
   alPrincipio();
 
+})();
+</script>
+<script>
+/*  ══ EL CELULAR DE LA FACTURA ═══════════════════════════════════════════
+    El dueño manda la foto de la factura del proveedor y el asistente
+    contesta dos veces: lo que leyo y el inventario ya actualizado. Se
+    repite mientras el bloque este a la vista; fuera de pantalla se para.
+    Nombres, numeros y cifras: inventados (los mismos de la tarjeta vieja). */
+(function () {
+  var hilo = document.getElementById('fac-hilo');
+  var caja = document.getElementById('fac');
+  if (!hilo || !caja) return;
+  var relojes = [], viendo = false;
+  function luego(f, ms) { relojes.push(setTimeout(f, ms)); }
+  function parar() { relojes.forEach(clearTimeout); relojes = []; }
+
+  var FOTO = '<span class="fac-foto"><b>DISTRIBUIDORA EL CAMPO</b>Factura de venta N° 4471 · 11/09'
+    + '<span class="l"><span>Churrasco 8 kg</span><span>184.000</span></span>'
+    + '<span class="l"><span>Limonada de coco x24</span><span>96.000</span></span>'
+    + '<span class="l"><span>Papa 2 bultos</span><span>140.000</span></span>'
+    + '<span class="t"><span>TOTAL</span><span>$420.000</span></span></span>';
+  function bb(tipo, html, hora, extra) {
+    return '<div class="fac-bb ' + tipo + (extra ? ' ' + extra : '') + '">' + html
+      + '<span class="fac-m">' + hora + (tipo === 'sal' ? ' <i>\u2713\u2713</i>' : '') + '</span></div>';
+  }
+  var ESC = '<div class="fac-bb ent fac-esc" id="fac-esc"><span class="ch-pt"></span><span class="ch-pt"></span><span class="ch-pt"></span></div>';
+  var P1 = bb('sal', FOTO + '<span class="fac-cap">La factura de hoy</span>', '7:41 a. m.', 'fac-img');
+  var P2 = bb('ent', 'Le\u00ed la factura de <b>Distribuidora El Campo</b> (N\u00b0 4471):\n'
+    + '\u2022 Churrasco \u00b7 8 kg \u00b7 $184.000\n\u2022 Limonada de coco \u00b7 24 \u00b7 $96.000\n\u2022 Papa \u00b7 2 bultos \u00b7 $140.000\n'
+    + 'Total <b>$420.000</b>', '7:41 a. m.');
+  var P3 = bb('ent', '\u2705 <b>Inventario actualizado</b>\nChurrasco  6 \u2192 14 kg\nLimonada de coco  3 \u2192 27\nPapa  1 \u2192 3 bultos\n'
+    + 'Se descuenta solo con cada venta.', '7:42 a. m.');
+  var FECHA = '<span class="fac-fecha">Hoy</span>';
+
+  function meter(h) { hilo.insertAdjacentHTML('beforeend', h); }
+  function quitarEsc() { var e = document.getElementById('fac-esc'); if (e) e.remove(); }
+  function ciclo() {
+    parar();
+    hilo.innerHTML = FECHA;
+    luego(function () { meter(P1); }, 500);
+    luego(function () { meter(ESC); }, 1800);
+    luego(function () { quitarEsc(); meter(P2); }, 3400);
+    luego(function () { meter(ESC); }, 4500);
+    luego(function () { quitarEsc(); meter(P3); }, 5900);
+    luego(ciclo, 11500);
+  }
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    hilo.innerHTML = FECHA + P1 + P2 + P3;
+    return;
+  }
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (ent) {
+      if (ent[0].isIntersecting) { if (!viendo) { viendo = true; ciclo(); } }
+      else { viendo = false; parar(); }
+    }, { threshold: .3 }).observe(caja);
+  } else {
+    ciclo();
+  }
 })();
 </script>
 </body>
