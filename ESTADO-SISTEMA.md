@@ -549,9 +549,17 @@ asistente virtual; lleva nombre propio (lo pone Sergio en la consola).
        ⚠️ NO pasar la cuenta de creador a empresa para «encontrar» el
        interruptor: pierde la música en reels; El Parche es de creador y
        funciona. Script del diagnóstico: `scratchpad/ver_ig_acceso.py`.
-    Pendiente (decisión de Sergio): `chat-ia.js` a la configuración nueva;
-    que Cobra avise en pantalla el punto 2 (por qué está en gris) y el 3
-    (consultar la bandeja justo al conectar y decir qué activar).
+    HECHO el mismo día (autorizado por Sergio): `chat-ia.js` usa la
+    configuración nueva (`META_CONFIG_ID = 1622565852807804`; la vieja ya
+    no la usa nadie). `meta-oauth-callback` (v53) pregunta la bandeja de
+    Instagram al guardar y devuelve `aviso: 'acceso_mensajes'` si Meta
+    contesta 2534041; `chat-ia.js` (`avisoAccesoInstagram`) y
+    `admin-chat.js` muestran el modal con la ruta del interruptor. El modal
+    de elegir página explica las que salen en gris (sin Instagram unido).
+    Probado sin tocar Meta (`scratchpad/probar-avisos-ig.mjs`: el servidor de
+    conexión se finge dentro de la página y el código llega por el evento
+    `meta-oauth-code`). Pendiente aparte: los 4 botones de WhatsApp de la
+    landing con +57 300 8345000 (Sergio: «eso lo hacemos después»).
 - SQL: `supabase/sql/2026-09-11-chat-de-cobra.sql`. ⚠️ La sede nueva crea su
   `ia_config` sola al nacer; el insert del SQL no aplicó y se marcó
   `perfil.cerebro` con un UPDATE.

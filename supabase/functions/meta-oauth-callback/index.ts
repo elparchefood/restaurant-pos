@@ -445,6 +445,29 @@ async function guardarCanal(
     });
   } catch { /* no es fatal: se puede reintentar conectando otra vez */ }
 
+  /* ══ ¿INSTAGRAM YA NOS DEJA RECIBIR? (11-sep-2026) ═══════════════════
+     Conectar el Instagram de Cobra costo una hora por esto: la cuenta quedo
+     guardada, la pagina suscrita igual que la de El Parche, y a meta-webhook
+     no llegaba NADA. Instagram tiene un interruptor en su app («Permitir
+     acceso a los mensajes») que en las cuentas nuevas viene apagado, y Meta
+     solo lo dice si se le pregunta: pedir la bandeja con la llave de la
+     pagina contesta (#200) subcode 2534041 "The account owner has disabled
+     access to instagram direct messages". Se pregunta AQUI, justo al
+     conectar, y la pantalla le dice al dueño que activar. No es fatal: la
+     cuenta queda conectada igual y recibe apenas lo active.               */
+  let aviso = "";
+  if (channel === "instagram") {
+    try {
+      const rb = await fetch(`${GRAPH}/${pageId}/conversations?platform=instagram&limit=1&access_token=${encodeURIComponent(pageToken)}`);
+      const db = await rb.json().catch(() => ({})) as Record<string, unknown>;
+      const err = db.error as Record<string, unknown> | undefined;
+      if (err && (Number(err.error_subcode) === 2534041
+          || /disabled access to instagram direct messages/i.test(String(err.message || "")))) {
+        aviso = "acceso_mensajes";
+      }
+    } catch { /* si no se pudo preguntar, no se inventa un aviso */ }
+  }
+
   const sbRes = await fetch(`${SUPABASE_URL}/rest/v1/chat_channels?on_conflict=branch_id,channel`, {
     method: "POST",
     headers: {
@@ -460,7 +483,7 @@ async function guardarCanal(
     }),
   });
   if (!sbRes.ok) return json({ error: await sbRes.text() }, 500);
-  return json({ ok: true, handle });
+  return json(aviso ? { ok: true, handle, aviso } : { ok: true, handle });
 }
 
 function json(data: unknown, status = 200) {

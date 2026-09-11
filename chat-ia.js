@@ -5308,7 +5308,11 @@ document.addEventListener('DOMContentLoaded', () => { loadFBSDK(); boot(); });
    META EMBEDDED SIGNUP
 ══════════════════════════════════════════════ */
 const META_APP_ID    = '1732760657903466';
-const META_CONFIG_ID    = '1280428637212702';  // Facebook + Instagram
+/* 11-sep-2026: la configuracion vieja (1280428637212702) quedo con permisos
+   que ya no estan aprobados y Facebook contestaba "Sorry, something went
+   wrong" a TODO restaurante nuevo. Sergio creo esta con solo los aprobados
+   (probada primero en la consola). Las cuentas ya conectadas no se tocan. */
+const META_CONFIG_ID    = '1622565852807804';  // Facebook + Instagram
 const META_WA_CONFIG_ID = '926832250416998';   // WhatsApp (sistema, nunca expira)
 const META_OAUTH_FN  = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/meta-oauth-callback';
 const META_SEND_FN   = 'https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/meta-send';
@@ -5378,6 +5382,12 @@ function elegirPagina(res, channel, meta) {
                 : 'Administras ' + res.paginas.length + ' páginas. Elige la de tu restaurante.'))
       + '</div>'
       + (ningunaConIG ? '' : '<div class="ci-pagina-lista">' + res.paginas.map(fila).join('') + '</div>')
+      /* Una en gris entre varias: decir por que y como se arregla (11-sep). */
+      + (esIG && !ningunaConIG && res.paginas.some(function (p) { return !p.instagram; })
+          ? '<div class="ci-pagina-sub" style="margin:12px 0 0">Las páginas en gris no tienen un Instagram unido. '
+            + 'Para conectar ese Instagram, únelo primero a su página: en la app de Instagram → Editar perfil → Página, '
+            + 'o en Meta Business Suite → Configuración → Páginas → Connect assets. Luego vuelve a conectar.</div>'
+          : '')
       + '<div class="ci-pagina-err" hidden></div>'
       + '<button type="button" class="ci-pagina-cancel">'
       +   (ningunaConIG ? 'Entendido' : 'Cancelar') + '</button>'
@@ -5406,6 +5416,7 @@ function elegirPagina(res, channel, meta) {
           closeModal();
           loadChannels();
           showToast('✅ ' + meta.label + ' conectado: ' + (d.handle || ''), 'success');
+          if (d.aviso === 'acceso_mensajes') await avisoAccesoInstagram(d.handle || '');
           resolve();
         } catch (e) {
           err.textContent = e.message || e;
@@ -5415,6 +5426,28 @@ function elegirPagina(res, channel, meta) {
         }
       });
     });
+  });
+}
+
+/* ══ INSTAGRAM CONECTADO PERO CON EL INTERRUPTOR APAGADO (11-sep-2026) ════
+   El servidor le pregunta a Meta al guardar (ver meta-oauth-callback) y
+   devuelve `aviso`. Sin esto el dueño ve "conectado" y no le llega nada. */
+function avisoAccesoInstagram(cuenta) {
+  return new Promise(function (resolve) {
+    var ov = document.createElement('div');
+    ov.className = 'ci-modal-ov';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;'
+      + 'display:flex;align-items:center;justify-content:center;padding:20px';
+    ov.innerHTML =
+      '<div class="ci-pagina-box" id="ci-aviso-ig">'
+      + '<div class="ci-pagina-tt">Instagram conectado, pero falta un permiso</div>'
+      + '<div class="ci-pagina-sub">Instagram todavía no nos deja recibir los mensajes de <b>' + escHtml(cuenta) + '</b>. '
+      + 'Es un interruptor dentro de la app de Instagram, y en las cuentas nuevas viene apagado.<br><br>'
+      + 'En el celular, con esa cuenta abierta en la app de Instagram: <b>Configuración y privacidad → Mensajes y respuestas a historias → Controles de mensajes</b> y, al final de esa pantalla, <b>Herramientas conectadas → Permitir acceso a los mensajes</b>. Si no aparece ahí, abre la app <b>Meta Business Suite → Bandeja de entrada → Instagram</b>: te lleva al mismo interruptor.' + '<br><br>' + 'Apenas lo actives, los mensajes empiezan a llegar solos. No hay que volver a conectar.' + '</div>'
+      + '<button type="button" class="ci-pagina-cancel">Entendido</button>'
+      + '</div>';
+    document.body.appendChild(ov);
+    ov.querySelector('.ci-pagina-cancel').addEventListener('click', function () { ov.remove(); resolve(); });
   });
 }
 

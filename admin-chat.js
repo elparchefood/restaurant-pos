@@ -349,6 +349,10 @@
               + '<span style="font-size:11.5px;color:#64748B">' + (p.instagram ? '@' + esc(p.instagram) : (esIG ? 'Sin Instagram vinculado' : 'Página de Facebook')) + '</span></span>'
               + (sirve ? '<span style="font-size:12px;font-weight:700;color:#5B6BFF">Conectar</span>' : '') + '</button>';
           }).join('')
+        + (esIG && res.paginas.some(function (p) { return !p.instagram; })
+            ? '<div style="font-size:12px;color:#64748B;line-height:1.5">Las páginas en gris no tienen un Instagram unido. '
+              + 'Únelo primero a su página (app de Instagram → Editar perfil → Página, o Meta Business Suite → Páginas → Connect assets) y vuelve a conectar.</div>'
+            : '')
         + '<div id="ch-pag-err" style="font-size:12.5px;color:#DC2626" hidden></div>'
         + '<button class="ch-btn gho" id="ch-pag-no">Cancelar</button></div>';
       document.body.appendChild(ov);
@@ -359,7 +363,11 @@
         b.onclick = function () {
           ov.querySelectorAll('.ch-pag').forEach(function (x) { x.disabled = true; });
           postOAuth({ paso: 'guardar', sesion: res.sesion, page_id: b.dataset.id })
-            .then(function (d) { ov.remove(); toast(CANAL[canal].nombre + ' de Cobra conectado: ' + (d.handle || ''), 'green'); recargarEstado(); resolve(); })
+            .then(function (d) {
+              ov.remove(); toast(CANAL[canal].nombre + ' de Cobra conectado: ' + (d.handle || ''), 'green'); recargarEstado();
+              if (d.aviso === 'acceso_mensajes') { rastro(canal, 'aviso', 'acceso a mensajes apagado'); return avisoAccesoInstagram(d.handle || '').then(resolve); }
+              resolve();
+            })
             .catch(function (e) {
               rastro(canal, 'guardar página', e.message || e);
               var er = ov.querySelector('#ch-pag-err'); er.textContent = e.message || e; er.hidden = false;
@@ -367,6 +375,22 @@
             });
         };
       });
+    });
+  }
+
+  /*  Instagram conectado pero con el interruptor de mensajes apagado: el
+      servidor se lo pregunta a Meta al guardar y devuelve `aviso` (11-sep). */
+  function avisoAccesoInstagram(cuenta) {
+    return new Promise(function (resolve) {
+      var ov = document.createElement('div');
+      ov.className = 'ch-ov';
+      ov.innerHTML = '<div class="ch-modal" id="ch-aviso-ig"><div style="font-size:16px;font-weight:800;color:#0F172A">Instagram conectado, pero falta un permiso</div>'
+        + '<div style="font-size:12.5px;color:#475569;line-height:1.65">Instagram todavía no nos deja recibir los mensajes de <b>' + esc(cuenta) + '</b>. '
+        + 'Es un interruptor dentro de la app de Instagram, y en las cuentas nuevas viene apagado.<br><br>'
+        + 'En el celular, con esa cuenta abierta en la app de Instagram: <b>Configuración y privacidad → Mensajes y respuestas a historias → Controles de mensajes</b> y, al final de esa pantalla, <b>Herramientas conectadas → Permitir acceso a los mensajes</b>. Si no aparece ahí, abre la app <b>Meta Business Suite → Bandeja de entrada → Instagram</b>: te lleva al mismo interruptor.' + '<br><br>' + 'Apenas lo actives, los mensajes empiezan a llegar solos. No hay que volver a conectar.' + '</div>'
+        + '<button class="ch-btn" id="ch-ig-ok">Entendido</button></div>';
+      document.body.appendChild(ov);
+      ov.querySelector('#ch-ig-ok').onclick = function () { ov.remove(); resolve(); };
     });
   }
 
