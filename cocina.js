@@ -1049,7 +1049,7 @@ function pintarDesdeElEquipo() {
 
 async function cargarComandas() {
   try {
-    const CAMPOS = 'id, channel, status, estado, estado_at, table_id, turno, customer_name, notes, total, total_final, paid_amount, created_at, delivered_at, closed_at, visible_cocina';
+    const CAMPOS = 'id, channel, status, estado, estado_at, listo_at, table_id, turno, customer_name, notes, total, total_final, paid_amount, created_at, delivered_at, closed_at, visible_cocina';
     /* `completed` es un pedido TERMINADO (verificado en la base: los completed
        ya estan cobrados y entregados). `paid` NO se excluye: una venta rapida
        se paga ANTES de cocinarse y tiene que seguir en pantalla. */
@@ -1348,7 +1348,10 @@ function paroEn(o) {
       `closed_at` es cuando se cobro la mesa, que para el salon es cuando los
       clientes se fueron: no es la hora exacta en que salio el plato, pero
       ordena bien, que es para lo que se usa.                             */
-  const t = o.delivered_at || o.estado_at || o.closed_at;
+  /*  `listo_at` MANDA (10-sep-2026): es la hora en que salio de la cocina y
+      no se mueve. `estado_at` cambia cada vez que el domicilio cambia de
+      estado (en camino, entregado) y hacia saltar el reloj de las grises. */
+  const t = o.listo_at || o.delivered_at || o.estado_at || o.closed_at;
   if (t) {
     const ms = new Date(t).getTime();
     if (isFinite(ms)) return ms;
@@ -1633,6 +1636,7 @@ async function marcarListo(id, btn) {
     const { error } = await sb.from('pos_orders').update({ estado:'listo', estado_at: ahoraIso }).eq('id', id);
     if (error) throw error;
     o.estado = 'listo'; o.estado_at = ahoraIso;
+    if (!o.listo_at) o.listo_at = ahoraIso;   // la base pone la suya; esta congela ya el reloj
     await mesaAComiendo(o, true);
     pintar();
   } catch (e) {
@@ -1678,7 +1682,7 @@ async function deshacer(id) {
   try {
     const iso = new Date().toISOString();
     await sb.from('pos_orders').update({ estado:'en_preparacion', estado_at: iso }).eq('id', id);
-    o.estado = 'en_preparacion'; o.estado_at = iso;
+    o.estado = 'en_preparacion'; o.estado_at = iso; o.listo_at = null;
     await mesaAComiendo(o, false);
     pintar();
   } catch (e) { console.error('[cocina] no se pudo deshacer:', e); }

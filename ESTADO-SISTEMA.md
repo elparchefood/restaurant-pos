@@ -852,7 +852,14 @@ la lee).
    listo, el ultimo que salio de primero). Si ya salio todo, la pantalla
    queda en blanco y al bajar con el control aparece lo listo (se puede
    deshacer desde ahi). El contador de la zona cuenta solo lo que falta.
-   (Un rato fue "se va a los 2 minutos" — `seFue`, ya quitado.) Y las dos subcolumnas ya no las empareja
+   (Un rato fue "se va a los 2 minutos" — `seFue`, ya quitado.)
+   **El reloj de la comanda gris queda CONGELADO al marcar listo**: columna
+   nueva `pos_orders.listo_at` (trigger `tg_orden_listo_at`: la primera vez
+   que sale de cocina — listo, en camino o entregado —; se borra si la
+   cocina lo deshace). `paroEn` la usa primero: antes usaba `estado_at`, que
+   cambia al pasar a en camino / entregado y hacia saltar el reloj. Solo en
+   la COCINA: Ventas sigue midiendo cada estado como antes (Sergio).
+   `supabase/sql/2026-09-10-orden-listo-at.sql`. Y las dos subcolumnas ya no las empareja
    el navegador (`columns:2`): `repartirColumnas()` llena la IZQUIERDA hasta
    donde se ve y solo entonces pasa a la derecha; si las dos se llenan, lo
    que sobra va a la mas corta. Mide una vez por pintado (corre cada 1 s).
