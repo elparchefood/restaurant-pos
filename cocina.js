@@ -455,6 +455,11 @@ function anotarVoces(elegida) {
 //  (Sergio). Tambien el "2×" de las adiciones y lo que va entre corchetes.
 function limpiarVoz(t) {
   return String(t || '')
+    /*  Una palabra en MAYUSCULAS la voz la lee como sigla, letra por letra:
+        "HOJARAZCA" salio deletreado (Sergio, 10-sep-2026). El barrio se
+        guarda en mayusculas, y hay productos asi ("SÚPER QUESO"). Toda
+        palabra en mayusculas pasa a "Hojarazca" antes de hablar.         */
+    .replace(/[A-ZÁÉÍÓÚÑÜ]{2,}/g, function (w) { return w.charAt(0) + w.slice(1).toLowerCase(); })
     .replace(/\[[^\]]*\]/g, ' ')
     .replace(/(\d+)\s*[×x]\s+/gi, '$1 ')
     .replace(/\s*[-–—\/·•|]\s*/g, ' ')   // "Personal · Premium" tambien va de corrido
@@ -479,8 +484,18 @@ function destinoVoz(o) {
     return m || 'el salón';
   }
   if (z === 'rapido') {
-    const m = /^turno\s*#?0*(\d+)/i.exec(t);
-    return m ? 'el turno ' + m[1] : (t || 'venta rápida');
+    /*  PARA LLEVAR: LA ETIQUETA, NO EL TURNO (Sergio, 10-sep-2026): "no quiero
+        que diga turno numero... quiero que diga la etiqueta: Personal premium
+        mixta para llevar esperan". Otro restaurante puede preferir el turno:
+        Configuracion → Operacion → cocinaNotif.vozLlevar = 'turno'.        */
+    if (S.vozLlevar === 'turno') {
+      const m = /^turno\s*#?0*(\d+)/i.exec(t);
+      return m ? 'el turno ' + m[1] : (t || 'venta rápida');
+    }
+    const etq = (/\[etq:([^\]]+)\]/i.exec(o.notes || '') || [])[1];
+    if (etq && etq.trim()) return 'llevar ' + etq.trim().toLowerCase();
+    const nom = String(o.customer_name || '').trim();
+    return 'llevar' + (nom ? ', ' + nom : '');
   }
   return (t && t.toLowerCase() !== 'domicilio') ? t : 'domicilio';
 }
@@ -818,6 +833,8 @@ async function cargarBase() {
   const cn = op.cocinaNotif || {};
   S.sonTono = cn.tono || 'caja';
   S.sonVol  = (typeof cn.vol === 'number') ? cn.vol : 80;
+  //  Que dice la voz en un pedido para llevar: la etiqueta (por defecto) o el turno.
+  S.vozLlevar = cn.vozLlevar === 'turno' ? 'turno' : 'etiqueta';
   pintarSonido();
   pintarVoz();
   /* En la tablet se intenta abrir el audio de una, sin esperar a que alguien

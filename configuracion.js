@@ -3144,6 +3144,24 @@ function opRenderCocinaSon() {
     sl.onchange = function () { try { window.posTocarTono(cn.tono, cn.vol); } catch (e) {} };
   }
   if (vl) vl.textContent = (cn.vol || 0) + '%';
+
+  /*  QUE DICE LA VOZ EN UN PEDIDO PARA LLEVAR (10-sep-2026). Sergio quiere
+      la etiqueta ("para llevar esperan"); otro dueño puede preferir el
+      turno. Sin escoger, la etiqueta. Lo lee cocina.js (`S.vozLlevar`). */
+  var vz = $('op-cocina-vozllevar');
+  if (vz) {
+    var modo = cn.vozLlevar === 'turno' ? 'turno' : 'etiqueta';
+    vz.innerHTML = [['etiqueta', 'La etiqueta (Esperan, Avisar…)'], ['turno', 'El número de turno']].map(function (x) {
+      return '<button type="button" class="cf-chip' + (modo === x[0] ? ' on' : '')
+        + '" data-voz-llevar="' + x[0] + '">' + x[1] + '</button>';
+    }).join('');
+    vz.querySelectorAll('[data-voz-llevar]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        cn.vozLlevar = b.dataset.vozLlevar;
+        opRenderCocinaSon(); opCheckDirty(); opPintarResumenes();
+      });
+    });
+  }
 }
 
 /* Cómo sale cada categoría en la comanda. SIEMPRE se pinta, aunque haya un
