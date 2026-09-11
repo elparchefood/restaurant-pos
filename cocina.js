@@ -58,7 +58,6 @@
     chocaba con el const del nucleo y tumbaba la pantalla entera. */
 
 const TARDE_MIN   = 15;    // minutos para el marco rojo
-const LISTO_SE_VA_MS = 120000;   // lo listo, en gris, se va a los 2 minutos
 const REFRESCO_MS = 20000; // la red por si se cae un evento en vivo
 
 const S = {
@@ -1350,7 +1349,7 @@ function paroEn(o) {
     derecha) y se reparte con esas alturas: pintar() corre cada segundo, y
     medir tarjeta por tarjeta obligaria al navegador a recalcular la
     pantalla decenas de veces por segundo en el TV box.                  */
-function repartirColumnas(cont) {
+function repartirColumnas(cont, alto) {
   const tarjetas = [...cont.children];
   if (!tarjetas.length) return;
   const izq = document.createElement('div'), der = document.createElement('div');
@@ -1358,8 +1357,6 @@ function repartirColumnas(cont) {
   cont.textContent = '';
   cont.append(izq, der);
   tarjetas.forEach(t => izq.appendChild(t));
-  const cs = getComputedStyle(cont);
-  const alto = cont.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
   const sep = parseFloat(getComputedStyle(tarjetas[0]).marginBottom) || 0;
   const hs = tarjetas.map(t => t.offsetHeight + sep);
   let hI = 0, hD = 0, fase = 0;
@@ -1374,17 +1371,24 @@ function repartirColumnas(cont) {
   aDer.forEach(t => der.appendChild(t));
 }
 
-/*  LO LISTO SE VA A LOS DOS MINUTOS (Sergio, 10-sep-2026, en pleno turno).
-    El 28-ago se decidio dejar lo terminado a la vista, en morado y abajo.
-    Trabajando se vio que estorba: *"mejor que desaparezcan... pero que no
-    desaparezcan de una: se ponen en gris y un minutico, dos minuticos
-    despues, desaparece"*. Esos dos minutos son los que dan tiempo a ver que
-    se marco y a deshacerlo si fue un error. Se mide desde la hora de salida
-    (`paroEn`), asi que lo que ya habia salido antes se va al recargar.    */
-function seFue(o) {
-  if (estadoDe(o) !== 'listo') return false;
-  const t = paroEn(o);
-  return !!t && Date.now() - t > LISTO_SE_VA_MS;
+/*  LO LISTO SE QUEDA, PERO FUERA DE LA VISTA (Sergio, 10-sep-2026, noche).
+    Primero pidio que lo listo se fuera a los 2 minutos; en el turno cambio:
+    *"que no desaparezcan del todo. Que queden en la parte de abajo, pero
+    totalmente abajo: si ya salieron todos, lo que se ve sin hacer scroll
+    estaria todo en blanco, y si con el control bajamos, si se verian"*.
+
+    Asi que cada zona tiene dos bloques: arriba lo que falta (con su alto
+    minimo = lo que se ve de la pantalla, para que lo listo empiece SIEMPRE
+    debajo del borde) y, despues de la raya "Ya salieron", lo listo en gris,
+    el ultimo que salio de primero. Desde ahi se puede deshacer con el
+    control, y no se va hasta que el pedido sale del turno.
+    Lo pendiente llena la izquierda primero; lo listo va parejo.          */
+function armarZona(cont) {
+  const cs = getComputedStyle(cont);
+  const alto = cont.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+  const pend = cont.querySelector('.zl-pend'), hechos = cont.querySelector('.zl-hechos');
+  if (pend) { pend.style.minHeight = Math.max(0, alto) + 'px'; repartirColumnas(pend, alto); }
+  if (hechos) repartirColumnas(hechos, 0);
 }
 
 /* ── Pintar ─────────────────────────────────────────────────────────────── */
@@ -1399,10 +1403,9 @@ function pintar() {
      antes de entender que no es suya. */
   let aLaVista = 0;
   S.orders.forEach(o => {
-    if (seFue(o)) return;
     const r = repartoDe(S.items.get(o.id));
     if (!r.mios.length && !r.ajenos.length) return;
-    aLaVista++;
+    if (estadoDe(o) !== 'listo') aLaVista++;   // la cuenta es de lo que falta
     porZona[zonaDe(o)].push(o);
   });
 
@@ -1430,17 +1433,23 @@ function pintar() {
       if (la === 1) return (paroEn(b) || 0) - (paroEn(a) || 0);
       return new Date(a.created_at) - new Date(b.created_at);
     });
-    $('n-' + z).textContent = lista.length;
+    const pend   = lista.filter(o => estadoDe(o) !== 'listo');
+    const hechos = lista.filter(o => estadoDe(o) === 'listo');
+    $('n-' + z).textContent = pend.length;
     const cont = $('z-' + z);
     if (!lista.length) {
       cont.innerHTML = '<div class="zona-vacia">Sin comandas</div>';
       return;
     }
-    cont.innerHTML = lista.map(o => {
+    lista.forEach(o => {
       if (!S.vistas.has(o.id)) { S.vistas.add(o.id); if (!S.arrancando) { sonar = true; nuevos.push(o); } }
-      return tarjeta(o);
-    }).join('');
-    repartirColumnas(cont);
+    });
+    cont.innerHTML = '<div class="zl-bloque zl-pend">' + pend.map(o => tarjeta(o)).join('') + '</div>'
+      + (hechos.length
+          ? '<div class="zl-sep">Ya salieron · ' + hechos.length + '</div>'
+            + '<div class="zl-bloque zl-hechos">' + hechos.map(o => tarjeta(o)).join('') + '</div>'
+          : '');
+    armarZona(cont);
   });
 
   $('cuenta').textContent = aLaVista;
