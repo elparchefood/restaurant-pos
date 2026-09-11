@@ -916,6 +916,22 @@ la lee).
     aprobo: *"cobrar por PIN y codigo, para emergencias el PIN"*. Tope de
     codigos: 3 por hora y 8 por dia por numero.
 
+## 🟢 Cocina: el fondo de la pantalla, a escoger — 10-sep-2026
+
+Sergio: *"que desde operación se pueda cambiar el fondo: negro, rojo,
+blanco... déjalo en negro. Las comandas no cambian absolutamente nada; cambia
+el fondo y los títulos que van sobre él, para que hagan contraste"*.
+`operacion_config.cocinaFondo` = `negro` | `gris` | `azul` | `rojo` | (vacío o
+`blanco` = como siempre). Selector en Configuración → Operación → Cocina
+(`opRenderCocinaFondo`). cocina.js `aplicarFondo()` pone `data-fondo` en
+`<html>` y lo guarda en `localStorage['cobra.cocina.fondo']`; un script en el
+`<head>` de cocina.html lo aplica ANTES de pintar (sin parpadeo blanco).
+cocina.css, bloque "EL FONDO DE LA PANTALLA": variables `--kf-*` por fondo y
+reglas SOLO para barra de arriba, zonas, cabeceras, raya "Ya salieron",
+leyenda, Salir, scroll y pantalla de carga — **ninguna regla toca `.tk`**.
+El Parche quedó en `negro` (sede 66e5f12d…). Y la raya "Ya salieron" ya no
+asoma en el borde (`armarZona` suma el relleno de abajo al alto mínimo).
+
 ## 🟢 Videollamadas de soporte: agendador propio de Cobra — 10-sep-2026
 
 Punto 7 de la lista (detalle y decisiones en `PLAN-7-SEP-PENDIENTES.md` §7).
