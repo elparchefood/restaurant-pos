@@ -279,6 +279,60 @@ Esto se probó a fondo el 12-ago; se repite para confirmar que sigue así.
 
 ---
 
+## 8. El cobro de Cobra, de punta a punta — LA PRUEBA DEL DINERO
+
+> **Pedido de Sergio (11-sep-2026), para que nunca se olvide:** *"con la cuenta
+> que voy a hacer todas las pruebas desde el principio tengo que crear la
+> cuenta, hacer el pago por Wompi, luego tú acomodas internamente para que
+> parezca que ya se está venciendo, para poder ver también el botón de
+> transferencia, para probar absolutamente todo"*. Es de lo ÚLTIMO antes de
+> lanzar (CIERRE-PROYECTO.md, FASE 3).
+
+**Por qué hace falta:** todo esto se probó el 11-sep en el Restaurante de
+Prueba, pero con pedazos simulados (el lector recibió una imagen que no era
+comprobante y nadie pagó de verdad). La llave privada, la de eventos y la de
+integridad de Wompi **solo se demuestran con un cobro real**, y los correos
+solo se ven de verdad llegando a una bandeja que alguien lee.
+
+**Quién hace qué:** Sergio hace todo por el camino del usuario (entrar, tocar,
+pagar, leer los correos). Claude "mueve el reloj" por dentro: cambia el
+vencimiento (`tenants.periodo_fin`), dispara el reloj a mano (`wompi-reloj`
+con la llave de servicio) y, para los reintentos, corre las fechas de los
+cobros (`pos_wompi_cobros.created_at`). Nada más se toca por dentro.
+
+**Antes de empezar:**
+- Un correo NUEVO que Sergio pueda leer, y un Nequi o tarjeta de verdad.
+- ⚠️ **Es plata real**: va a la cuenta de Wompi de Cobra (menos la comisión).
+  Escoger el plan más barato. Si se quiere devolver, se reembolsa desde el
+  panel de Wompi.
+- El correo de verificación de Cobra conectado en la Consola (lo usa el lector
+  de comprobantes) y la cuenta de cobro con los datos de hoy.
+
+| # | Quién | Qué hacer | Qué debe pasar |
+|---|---|---|---|
+| 8.1 | Sergio | Registrarse en cobrapos.app desde cero y pagar con Wompi | La cuenta se crea sola. Llega el correo de bienvenida. En el panel → Clientes aparece con "vence en ~30 días" |
+| 8.2 | Claude | Poner el vencimiento a 7 días y correr el reloj | Llega "Tu plan se cobra la próxima semana", con el medio (**** últimos 4) |
+| 8.3 | Claude | Lo mismo a 3 días y a 1 día | Llegan los dos avisos, cada uno UNA vez (correr el reloj dos veces no repite) |
+| 8.4 | Claude | Poner el vencimiento en HOY y correr el reloj | Wompi cobra de verdad; el vencimiento corre un mes. Anotar si llega o no un correo de pago |
+| 8.5 | Sergio + Claude | Cambiar el medio a uno que falle (Nequi sin saldo, o rechazar la notificación en Nequi). Claude pone el vencimiento en hoy y corre el reloj | El cobro sale rechazado. Llega "No pudimos cobrar tu plan". **La cuenta sigue funcionando** |
+| 8.6 | Claude | Correr las fechas para los reintentos de 1, 3 y 7 días | Un intento y un correo por cada uno, sin repetir |
+| 8.7 | Claude | Pasar la semana del último intento | La cuenta queda en PAUSA: llega el correo de pausa y la pantalla se bloquea (no se puede cerrar ni saltar con el teclado) |
+| 8.8 | Sergio | En la pantalla bloqueada, pagar | Ofrece **Wompi**, NO transferencia. Al pagar se reactiva sola, sin recargar. El vencimiento nuevo cuenta **desde hoy** (no queda en el pasado) |
+| 8.9 | Claude + Sergio | Claude la vuelve a pausar. Sergio, en el panel → Clientes: **"Cobrar por transferencia esta vez"** | Llega el correo "Esta vez puedes pagar por transferencia" con el valor (el mes **menos el saldo a favor**) y la cuenta. En el panel sale "Transferencia habilitada" |
+| 8.10 | Sergio | En la pantalla bloqueada: transferir el valor EXACTO y subir el comprobante | El lector lo aprueba solo (o dice por qué no, en el panel). La cuenta se reactiva, el permiso se apaga solo y llega "Recibimos tu pago" |
+| 8.11 | Claude + Sergio | Claude pone el vencimiento a 5 días. Sergio enciende la transferencia | En el Escritorio del restaurante sale la tarjetica "Puedes pagar tu plan por transferencia" (a un mesero NO le sale) |
+| 8.12 | Sergio | Pagar desde la tarjetica | Aprobado solo. Y ese mes el reloj **no** le cobró por Wompi (no hay cobro doble) |
+| 8.13 | Sergio | Registrarse con OTRO correo y NO pagar (cerrar la ventana de Wompi) | Queda en Solicitudes, pendiente |
+| 8.14 | Sergio | En Solicitudes: "Cobrar por transferencia esta vez". Luego entrar a cobrapos.app con ese correo | Sale "Paga por transferencia" con la cuenta y el valor. Al subir el comprobante, la cuenta se crea sola |
+| 8.15 | Sergio | Encender la transferencia a alguien y luego "Quitar la transferencia" | Vuelve a solo Wompi; la pantalla ya no ofrece transferencia |
+| 8.16 | Claude | Al terminar | Limpiar las cuentas y cobros de prueba. Sergio decide si reembolsa |
+
+⚠️ **Límite conocido (anotado el 11-sep):** si dos pagos del MISMO valor
+llegan el mismo día, un solo aviso del banco podría aprobar los dos. Para esta
+prueba no se hacen dos transferencias iguales el mismo día.
+
+---
+
 ## Dónde anotar lo que falle
 
 Anotar tal cual: **en qué pantalla**, **qué se hizo**, **qué salió** y **qué se

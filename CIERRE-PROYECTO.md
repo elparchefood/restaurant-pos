@@ -755,6 +755,11 @@ construya se le agrega ahi su prueba, o no se va a probar.
 
 - [ ] Migración de región del servidor
 - [ ] Ensayo completo de alta de un restaurante nuevo
+- [ ] **LA PRUEBA DEL DINERO** (pedida por Sergio el 11-sep-2026, que no se
+      olvide): cuenta de prueba desde cero, pago REAL por Wompi, y Claude mueve
+      el vencimiento por dentro para ver los avisos, el cobro, el fallo, la
+      pausa y el botón de transferencia en sus tres casos. Guion paso a paso:
+      `AUDITORIA-PRUEBAS.md` §8.
 - [ ] OpenAI Tier 2
 - [ ] Supabase más grande + copias de seguridad
 - [ ] Escribir los planes comerciales
