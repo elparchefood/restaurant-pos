@@ -143,6 +143,17 @@
       }, true);
     }
 
+    //  LOS CANALES DEL CHAT (WhatsApp, Instagram, Facebook) llevan a
+    //  «Chat de Cobra → Cuentas». El Chat IA los conectaria aqui con el SDK de
+    //  Facebook desde esta pagina, y Facebook la rechaza ("Sorry, something went
+    //  wrong", visto el 11-sep en el programa). Alla va por el camino que sirve.
+    document.addEventListener('click', function (e) {
+      var fila = e.target && e.target.closest && e.target.closest('.ci-chan-row');
+      if (!fila || !(window.parent && window.parent !== window)) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      window.parent.postMessage({ cobra: 'ir-a-cuentas' }, location.origin);
+    }, true);
+
     for (var i = 0; i < scripts.length; i++) {
       var s = scripts[i], src = s.getAttribute('src');
       if (src) { if (!NO_CARGAR.test(src)) await cargar(src); }

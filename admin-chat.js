@@ -19,7 +19,7 @@
   var META_APP_ID = '1732760657903466';
   var META_CONFIG_ID = '1280428637212702';     // Facebook + Instagram
   var META_WA_CONFIG_ID = '926832250416998';   // WhatsApp
-  var CONV_URL = 'consola-chat.html?v=1801130000';
+  var CONV_URL = 'consola-chat.html?v=1801140000';
   var CANAL = {
     whatsapp:  { nombre: 'WhatsApp',  color: '#16A34A', tint: '#DCFCE7' },
     instagram: { nombre: 'Instagram', color: '#C026D3', tint: '#FAE8FF' },
@@ -69,10 +69,14 @@
     if (!f.getAttribute('src')) f.setAttribute('src', CONV_URL);
   }
   window.addEventListener('message', function (e) {
-    if (e.origin !== location.origin || !e.data || e.data.cobra !== 'cerrar-conversaciones') return;
+    if (e.origin !== location.origin || !e.data) return;
+    var que = e.data.cobra;
+    if (que !== 'cerrar-conversaciones' && que !== 'ir-a-cuentas') return;
     var f = $('conv-frame');
     if (f) f.style.display = 'none';
     document.documentElement.style.overflow = '';
+    //  Los botones de canales del chat traen a conectar las cuentas aqui.
+    if (que === 'ir-a-cuentas') { S.tab = 'cuentas'; window.setView('chatcobra'); return; }
     window.setView(ultimaVista || 'resumen');
   });
 
@@ -159,20 +163,11 @@
           + '<div class="ch-est">' + (c ? '<b>Conectado</b> · ' + esc(c.handle || c.display_name || '') : 'Sin conectar') + '</div>'
           + '<button class="ch-btn' + (c ? ' gho' : '') + '" data-con="' + k + '">' + (c ? 'Volver a conectar' : 'Conectar') + '</button></div>';
       }).join('') + '</div>';
-    cargarSDK();
     box.querySelectorAll('[data-con]').forEach(function (b) {
       //  SIN async: la ventana de Facebook necesita el mismo toque del usuario,
       //  si no el navegador la bloquea (misma regla que en Chat IA).
       b.onclick = function () { conectar(b.dataset.con, b); };
     });
-  }
-
-  function cargarSDK() {
-    if ($('fb-sdk')) return;
-    window.fbAsyncInit = function () { FB.init({ appId: META_APP_ID, cookie: true, xfbml: false, version: 'v22.0' }); };
-    var s = document.createElement('script');
-    s.id = 'fb-sdk'; s.src = 'https://connect.facebook.net/en_US/sdk.js'; s.async = true; s.defer = true;
-    document.head.appendChild(s);
   }
 
   function base() { return { branch_id: S.estado.branch_id, tenant_id: S.estado.tenant_id }; }
@@ -184,49 +179,83 @@
     return d;
   }
 
+  /*  ══ CONECTAR: EL MISMO CAMINO PARA LAS TRES CUENTAS (11-sep-2026) ══════
+      La primera version conectaba Instagram y Facebook con el SDK de
+      Facebook (FB.login), como el Chat IA. Sergio lo probo desde el programa
+      de escritorio y Facebook contesto "Sorry, something went wrong": el SDK
+      manda como direccion la PAGINA desde donde se llama, y la pagina nueva
+      de la consola no es una que Facebook tenga registrada.
+
+      Ahora las tres van por el camino de WhatsApp, que ya funciona en el
+      navegador y en el programa: una ventana a Facebook que vuelve a la
+      direccion de siempre (github.io, registrada en la app de Meta). En el
+      navegador se lee el codigo en esa ventana; en el programa de escritorio
+      main.js lo atrapa y lo avisa con el evento `meta-oauth-code`.         */
+  var VUELTA = 'https://elparchefood.github.io/restaurant-pos/';
+
   function conectar(canal, boton) {
     boton.disabled = true; boton.textContent = 'Conectando…';
     var fin = function (err) {
       boton.disabled = false; boton.textContent = 'Conectar';
       if (err) toast(err.message || String(err), 'red');
     };
-    if (canal === 'whatsapp') {
-      var waba = null, phone = null, listo = false;
-      var onMsg = function (ev) {
-        if (ev.origin !== 'https://www.facebook.com') return;
-        try { var d = JSON.parse(ev.data); if (d.type === 'WA_EMBEDDED_SIGNUP' && d.event === 'FINISH') { waba = d.data.waba_id; phone = d.data.phone_number_id; } } catch (e) {}
-      };
-      window.addEventListener('message', onMsg);
-      var W = 600, H = 700;
-      var qp = new URLSearchParams({ client_id: META_APP_ID, config_id: META_WA_CONFIG_ID, response_type: 'code',
-        override_default_response_type: 'true', redirect_uri: 'https://elparchefood.github.io/restaurant-pos/' });
-      var pop = window.open('https://www.facebook.com/v22.0/dialog/oauth?' + qp.toString(), 'WA_Signup',
-        'popup,width=' + W + ',height=' + H + ',left=' + Math.max(0, (screen.width - W) / 2) + ',top=' + Math.max(0, (screen.height - H) / 2));
-      if (!pop || pop.closed) { window.removeEventListener('message', onMsg); return fin(new Error('El navegador bloqueó la ventana. Permite ventanas emergentes para este sitio.')); }
-      var poll = setInterval(function () {
-        if (pop.closed) { clearInterval(poll); window.removeEventListener('message', onMsg); if (!listo) fin(new Error('Conexión cancelada')); return; }
-        try {
-          var code = new URL(pop.location.href).searchParams.get('code');
-          if (code && !listo) {
-            listo = true; clearInterval(poll); window.removeEventListener('message', onMsg); pop.close();
-            postOAuth(Object.assign({ code: code, channel: 'whatsapp', waba_id: waba, phone_number_id: phone }, base()))
-              .then(function (d) { toast('WhatsApp de Cobra conectado: ' + (d.handle || ''), 'green'); recargarEstado(); })
-              .catch(fin);
-          }
-        } catch (e) { /* todavia en facebook.com */ }
-      }, 300);
-      return;
-    }
-    if (typeof FB === 'undefined') return fin(new Error('Facebook todavía está cargando. Intenta en unos segundos.'));
-    FB.login(function (resp) {
-      if (!resp.authResponse) return fin(new Error('Conexión cancelada'));
-      postOAuth(Object.assign({ paso: 'listar', code: resp.authResponse.code, channel: canal }, base()))
+    var waba = null, phone = null, listo = false, poll = null, pop = null;
+    var onMsg = function (ev) {
+      if (ev.origin !== 'https://www.facebook.com') return;
+      try { var d = JSON.parse(ev.data); if (d.type === 'WA_EMBEDDED_SIGNUP' && d.event === 'FINISH') { waba = d.data.waba_id; phone = d.data.phone_number_id; } } catch (e) {}
+    };
+    var soltar = function () {
+      clearInterval(poll);
+      window.removeEventListener('message', onMsg);
+      window.removeEventListener('meta-oauth-code', onElectron);
+    };
+    var conCodigo = function (code) {
+      if (listo || !code) return;
+      listo = true; soltar();
+      try { if (pop && !pop.closed) pop.close(); } catch (e) {}
+      var cuerpo = Object.assign({ code: code, channel: canal, redirect_uri: VUELTA }, base());
+      if (canal === 'whatsapp') {
+        cuerpo.waba_id = waba; cuerpo.phone_number_id = phone;
+        postOAuth(cuerpo)
+          .then(function (d) { fin(); toast('WhatsApp de Cobra conectado: ' + (d.handle || ''), 'green'); recargarEstado(); })
+          .catch(fin);
+        return;
+      }
+      cuerpo.paso = 'listar';
+      postOAuth(cuerpo)
         .then(function (d) {
           if (d.paginas) return elegirPagina(d, canal).then(function () { fin(); });
-          toast(CANAL[canal].nombre + ' de Cobra conectado', 'green'); recargarEstado();
+          fin(); toast(CANAL[canal].nombre + ' de Cobra conectado', 'green'); recargarEstado();
         })
         .catch(fin);
-    }, { config_id: META_CONFIG_ID, response_type: 'code', override_default_response_type: true });
+    };
+    //  El programa de escritorio avisa el codigo con este evento (main.js).
+    var onElectron = function (ev) { conCodigo(ev && ev.detail && ev.detail.code); };
+    window.addEventListener('message', onMsg);
+    window.addEventListener('meta-oauth-code', onElectron);
+
+    var W = 600, H = 720;
+    var qp = new URLSearchParams({
+      client_id: META_APP_ID, config_id: canal === 'whatsapp' ? META_WA_CONFIG_ID : META_CONFIG_ID,
+      response_type: 'code', override_default_response_type: 'true', redirect_uri: VUELTA
+    });
+    pop = window.open('https://www.facebook.com/v22.0/dialog/oauth?' + qp.toString(), 'Conectar_' + canal,
+      'popup,width=' + W + ',height=' + H + ',left=' + Math.max(0, (screen.width - W) / 2) + ',top=' + Math.max(0, (screen.height - H) / 2));
+    if (!pop) { soltar(); return fin(new Error('El navegador bloqueó la ventana. Permite ventanas emergentes para este sitio.')); }
+    poll = setInterval(function () {
+      if (listo) return;
+      if (pop.closed) {
+        //  En el programa de escritorio la ventana la cierra main.js DESPUES de
+        //  avisar el codigo: se le da un momento antes de darla por cancelada.
+        clearInterval(poll);
+        setTimeout(function () { if (!listo) { soltar(); fin(new Error('Conexión cancelada')); } }, 1500);
+        return;
+      }
+      try {
+        var code = new URL(pop.location.href).searchParams.get('code');
+        if (code) conCodigo(code);
+      } catch (e) { /* todavia en facebook.com */ }
+    }, 300);
   }
 
   /* El dueño puede administrar varias páginas (El Parche Y Cobra): aquí se

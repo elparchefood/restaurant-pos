@@ -482,6 +482,18 @@ asistente virtual; lleva nombre propio (lo pone Sergio en la consola).
     (nombre, encendido, lo que sabe y lo que Sergio le agrega). Escribe por
     `chat-cobra`; las llaves no bajan (`estado` no devuelve `meta`). El numerito
     de «Conversaciones» cuenta a quienes el asistente le pasó a Sergio.
+    **Conectar va por el camino de WhatsApp, NO por el SDK de Facebook.**
+    Sergio lo probó desde el programa de escritorio con el «Conectar» de
+    Instagram de dentro del chat, y Facebook contestó *"Sorry, something went
+    wrong"*: `FB.login` manda como dirección la página que llama
+    (`consola-chat.html`), que no está registrada en la app de Meta (el
+    registro `cobra-popup-debug.txt` del escritorio lo mostró). Ahora las tres
+    cuentas abren `dialog/oauth` con su `config_id` y vuelven a
+    `https://elparchefood.github.io/restaurant-pos/`; en el navegador se lee el
+    código en esa ventana y en el programa lo avisa `main.js` con el evento
+    `meta-oauth-code`. `meta-oauth-callback` recibe `redirect_uri` para el
+    canje. Los canales del chat de «Conversaciones» (`.ci-chan-row`) llevan a
+    «Chat de Cobra → Cuentas».
 - SQL: `supabase/sql/2026-09-11-chat-de-cobra.sql`. ⚠️ La sede nueva crea su
   `ia_config` sola al nacer; el insert del SQL no aplicó y se marcó
   `perfil.cerebro` con un UPDATE.
