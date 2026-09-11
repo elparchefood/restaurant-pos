@@ -228,7 +228,10 @@ Todo el detalle, y los tres fallos que solo aparecieron al probarlo, en
 - El botón de **"cobrar por transferencia"** para Sergio — el extintor de la §1
   de ese plan.
 - Que Sergio pruebe el registro completo de punta a punta.
-- Al pasar a producción: cambiar las llaves de sandbox por las de verdad.
+- ~~Al pasar a producción: cambiar las llaves de sandbox por las de verdad.~~
+  ✅ **Hecho el 11-sep-2026**: llaves `_PROD` puestas por Sergio y
+  `WOMPI_MODO = produccion`. Las de prueba quedan apartadas (`_TEST`), no se
+  borraron. Detalle y la advertencia de volver a pruebas en ESTADO-SISTEMA.md.
 
 **Anotado de paso, no es del reloj** (§9 de ese plan): la pantalla de
 onboarding crea cuentas gratis sin periodo —decisión de negocio, no se tocó— y

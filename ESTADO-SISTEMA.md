@@ -422,6 +422,29 @@ quedaba sin su propio bloque hasta que la base confirmara.
   con guardas que revientan si el permiso no quedo, y tambien si se le colo a
   un rol que no es administrador.
 
+## 🟢 Wompi cobra DE VERDAD — 11-sep-2026
+
+Las cuatro llaves de producción las puso Sergio en los secretos de Supabase
+(`WOMPI_PUB_PROD`, `WOMPI_PRV_PROD`, `WOMPI_EVENTS_PROD`,
+`WOMPI_INTEGRITY_PROD`) y `WOMPI_MODO = produccion`. Comprobado con
+`arranque`: API `production.wompi.co`, llave `pub_prod_`, y Wompi devolvio los
+permisos del comercio. La URL de eventos de producción en Wompi es
+`https://tblujfduscslxjmrjbdr.supabase.co/functions/v1/wompi`.
+
+- **Las de prueba NO se borraron** (pedido de Sergio): siguen como
+  `WOMPI_*_TEST`, apartadas. Para volver a pruebas basta con cambiar
+  `WOMPI_MODO` a `pruebas` (o quitarlo); para volver, `produccion`. Nada mas.
+- ⚠️ **Volver a pruebas con clientes reales inscritos rompe su débito**: sus
+  medios de pago son de producción y en el sandbox no existen; el reloj
+  (`wompi-reloj`, 9 a. m. todos los días) intentaria cobrarlos, fallaria,
+  mandaria los avisos de fallo y a la semana PAUSARIA la cuenta. Si hay
+  clientes pagando, las pruebas se hacen sin tocar el modo global.
+- Al cambiar no quedaba nada del sandbox: 0 medios de pago y 0 cobros en
+  `pos_wompi_fuentes` / `pos_wompi_cobros`.
+- La llave privada, la de eventos y la de integridad solo se demuestran con
+  el primer cobro real (la privada al inscribir, integridad al cobrar,
+  eventos cuando llega el aviso y se activa la cuenta).
+
 ## 🟢 Clientes: el cajero ve los puntos, no la plata — 10-sep-2026
 
 Sergio: el cajero necesita ver los **puntos** de un cliente en Clientes (para
