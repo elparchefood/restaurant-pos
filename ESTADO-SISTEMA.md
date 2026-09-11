@@ -884,6 +884,19 @@ la lee).
     se deja como lo escribio la persona.
     `supabase/sql/2026-09-10-clientes-nombre-letras-normales.sql`.
 
+11. **Pago con billetera en la caja: el codigo por SMS, y el PIN para
+    emergencias** (Cameron, que no recibio dos codigos). `web-acceso`
+    (`mandarCodigo`) manda los codigos de PAGO por **SMS primero** (Twilio;
+    WhatsApp solo de respaldo) y devuelve `canal` ("sms"/"whatsapp"); la
+    caja dice por donde salio. Los de ENTRAR siguen igual (plantilla →
+    WhatsApp si hay ventana → SMS). El codigo ya **no sale solo al abrir**
+    la ventana: sale con "Enviar código". Y **"Autorizar con PIN"**: el
+    administrador lo autoriza con su PIN (`posPinPrompt` →
+    `fn_pin_verificar`, accion `billetera_sin_codigo`, queda en
+    `pos_autorizaciones`); la plata se descuenta igual, al cobrar. Sergio lo
+    aprobo: *"cobrar por PIN y codigo, para emergencias el PIN"*. Tope de
+    codigos: 3 por hora y 8 por dia por numero.
+
 ## 🟢 La campana pedia un PIN y unas fotos que ya estaban — 10-sep-2026
 
 Sergio: *"me esta pidiendo que coloque un PIN y que suba las fotos de la carta,
