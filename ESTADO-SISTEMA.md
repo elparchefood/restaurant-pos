@@ -18768,6 +18768,13 @@ letreros ni consultas, un `console.log`. El barrido llama a
 miró con TODAS sus áreas apagadas (`_autoOff[orderId]`), lo automático no lo
 vuelve a tocar en 10 min. Lo pedido a mano (`force`) sale siempre.
 
+**Y con el automático ENCENDIDO tampoco hay letreros** (Sergio, mismo día:
+«lo importante es que imprima, no necesito ver esos letreros»). `_diagToast`
+ahora solo escribe en la consola del navegador (`[impresion] …`); en
+pantalla queda `_diagError` para 4 errores de verdad (impresora sin config,
+pedido sin ítems, fallo al imprimir) y el aviso «Sin impresora configurada»
+(`_noprinterToast`). Núcleo v1801200000.
+
 ## 2026-09-02 · La landing: la portada y el simulador de la tablet
 
 ### La portada mantiene el color
