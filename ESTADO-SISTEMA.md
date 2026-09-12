@@ -18695,6 +18695,23 @@ haría que se notara enseguida.
 
 ---
 
+## 2026-09-11 · Cocina: la pantalla se iba sola hacia «Ya salieron»
+
+Sergio, en turno: *«a veces cuando llega un pedido nuevo la vista se baja a los
+listos y confunde a la persona en cocina; nunca jamás debe bajarse a menos
+que la persona baje manualmente»*.
+
+**Causa:** `pintarCursor()` corre después de CADA redibujado (`pintar()`) y
+hacía `scrollIntoView` sobre la comanda que tiene el cursor del control. Si el
+cursor había quedado en una comanda ya marcada lista —que vive abajo, en el
+bloque «Ya salieron»— cada pedido nuevo o cambio de estado arrastraba la
+columna hacia abajo sin que nadie tocara nada.
+
+**Arreglo (`cocina.js` v1801230000):** `pintarCursor(llevarALaVista)` solo hace
+scroll cuando se le pide, y solo `irA()` —a donde llegan las flechas y el
+control— lo pide. Redibujar no mueve la vista. Regla: **la pantalla de cocina
+nunca se desplaza sola.**
+
 ## 2026-09-11 · «Redimir puntos» en la pantalla de pago
 
 Sergio: *«un pequeño botón en la pantalla de pago que diga Redimir puntos; al
