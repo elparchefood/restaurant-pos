@@ -1493,6 +1493,12 @@ function pintar() {
     const hechos = lista.filter(o => estadoDe(o) === 'listo');
     $('n-' + z).textContent = pend.length;
     const cont = $('z-' + z);
+    /*  DONDE ESTABA LA COLUMNA SE QUEDA (11-sep-2026). `innerHTML = ...`
+        vacia la columna un instante y el navegador devuelve el scroll a 0;
+        antes lo disimulaba el cursor (que volvia a bajar solo), y al quitar
+        eso Sergio vio lo de siempre al reves: bajaba a mano y la columna
+        volvia a subir con cada redibujado. Se guarda y se devuelve.       */
+    const scrollAntes = cont.scrollTop;
     if (!lista.length) {
       cont.innerHTML = '<div class="zona-vacia">Sin comandas</div>';
       return;
@@ -1506,6 +1512,7 @@ function pintar() {
             + '<div class="zl-bloque zl-hechos">' + hechos.map(o => tarjeta(o)).join('') + '</div>'
           : '');
     armarZona(cont);
+    if (scrollAntes > 0) cont.scrollTop = scrollAntes;
   });
 
   $('cuenta').textContent = aLaVista;
