@@ -199,7 +199,20 @@ function elementoDe(nombre) {
 
 /* Pinta el cursor. Se llama despues de CADA redibujado: como el cursor es un
    nombre y no un elemento, sobrevive a que la tarjeta se vuelva a crear. */
-function pintarCursor() {
+/*  ══ LA PANTALLA NUNCA SE DESPLAZA SOLA (Sergio, 11-sep-2026) ══════════════
+    «A veces cuando llega un pedido nuevo la vista se baja a los que estan
+    abajo (los listos) y confunde a la persona en cocina. Nunca jamas debe
+    bajarse a menos que la persona baje manualmente.»
+
+    Pasaba por esto: despues de CADA redibujado se volvia a pintar el cursor
+    y se le hacia scrollIntoView. Si el cursor habia quedado en una comanda
+    que ya salio —que vive abajo, en «Ya salieron»— la columna se iba para
+    abajo con cada pedido nuevo o cambio de estado, sin que nadie tocara nada.
+
+    Ahora el scroll SOLO ocurre cuando la persona mueve el cursor a mano
+    (`irA`, que es a donde llegan las flechas y el control). Redibujar no
+    mueve la vista.                                                        */
+function pintarCursor(llevarALaVista) {
   document.querySelectorAll('.cur').forEach(x => x.classList.remove('cur'));
   if (!S.cursor) return;
   let el = elementoDe(S.cursor);
@@ -212,8 +225,9 @@ function pintarCursor() {
     if (!el) return;
   }
   el.classList.add('cur');
-  /* Que se vea aunque este mas abajo de lo que cabe en la columna. */
-  if (typeof el.scrollIntoView === 'function') {
+  /* Que se vea aunque este mas abajo de lo que cabe en la columna — pero
+     SOLO cuando la persona lo movio (ver arriba). */
+  if (llevarALaVista === true && typeof el.scrollIntoView === 'function') {
     try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {}
   }
 }
@@ -221,7 +235,7 @@ function pintarCursor() {
 function irA(nombre) {
   if (!nombre) return;
   S.cursor = nombre;
-  pintarCursor();
+  pintarCursor(true);
 }
 
 const ZONAS = ['salon', 'rapido', 'domicilio'];
