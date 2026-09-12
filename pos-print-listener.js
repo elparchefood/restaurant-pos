@@ -131,6 +131,9 @@
       if (_sweeping) return;
       _sweeping = true;
       try {
+        //  Automatico apagado del todo (11-sep): el barrido no tiene nada que
+        //  hacer. Sin esto relanzaba el proceso —y sus letreros— cada 45 s.
+        if (window.posAutoprintTodoApagado && await window.posAutoprintTodoApagado()) { _sweeping = false; return; }
         /* SOLO los de esta sucursal. El aislamiento por restaurante no basta
            aqui: dos sucursales del MISMO dueño comparten tenant, asi que sin
            esto la impresora de una sucursal imprimiria los pedidos de la otra.

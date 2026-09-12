@@ -5179,6 +5179,45 @@ console.log('[POS Events] Sistema de eventos listo');
     } catch (e) { return true; }
   }
 
+  /*  ══ CON EL AUTOMATICO APAGADO, SILENCIO (11-sep-2026) ══════════════════
+
+      Sergio apago la impresion automatica para trabajar solo con la pantalla
+      de cocina y, con cada pedido, la caja se llenaba de letreros en bucle:
+      «Verificando impresora… / Impresora OK — buscando pedido… / evitando
+      duplicado…» y otra vez, sin parar.
+
+      Por que: el interruptor se miraba al FINAL, area por area, despues de
+      verificar la impresora y buscar el pedido (con sus letreros). Y como con
+      el automatico apagado nada se imprime, `printed_at` nunca se marca; el
+      barrido de seguridad (cada 45 s, ultimos 4 min) volvia a encontrar el
+      pedido «sin imprimir» y relanzaba todo el proceso. Cuatro minutos de
+      letreros por cada pedido.
+
+      Ahora se mira PRIMERO: si el general esta apagado y ninguna area lo
+      enciende, lo automatico no hace nada —ni letreros ni consultas— y el
+      barrido ni siquiera pregunta a la base. Lo pedido A MANO (`force`)
+      sigue saliendo siempre. La respuesta se recuerda 20 s para que el
+      barrido no pregunte a cada rato.                                      */
+  var _autoCfgCache = { at: 0, todoApagado: false };
+  async function _autoprintTodoApagado() {
+    try {
+      if (Date.now() - _autoCfgCache.at < 20000) return _autoCfgCache.todoApagado;
+      var sb = _sbRef(); var branchId = _branchRef();
+      if (!sb || !branchId) return false;
+      var r = await sb.from('pos_print_config').select('auto_print, auto_print_areas').eq('branch_id', branchId).maybeSingle();
+      var d = (r && r.data) || {};
+      var porArea = d.auto_print_areas || {};
+      var algunaEncendida = Object.keys(porArea).some(function (k) { return !!porArea[k]; });
+      var todo = d.auto_print === false && !algunaEncendida;
+      _autoCfgCache = { at: Date.now(), todoApagado: todo };
+      return todo;
+    } catch (e) { return false; }
+  }
+  window.posAutoprintTodoApagado = _autoprintTodoApagado;
+  //  Pedidos que ya se miraron con todas sus areas apagadas: no se vuelven a
+  //  tocar por lo automatico durante 10 minutos (el barrido los reencuentra).
+  var _autoOff = {};
+
   async function _fetchOrder(orderId) {
     try {
       var sb = window._pos && window._pos.sb;
@@ -5273,6 +5312,12 @@ console.log('[POS Events] Sistema de eventos listo');
     // para el mismo pedido en este equipo. Antes bloqueaba "para siempre", lo
     // que impedía imprimir los ítems NUEVOS al agregar a una mesa ocupada.
     if (_printing[orderId]) return;
+    //  Apagado del todo, o este pedido ya se miro y todas sus areas estaban
+    //  apagadas: lo automatico se queda quieto y callado (ver arriba).
+    if (!force) {
+      if (_autoOff[orderId] && (Date.now() - _autoOff[orderId]) < 600000) return;
+      if (await _autoprintTodoApagado()) { console.log('[autoprint] apagado en Impresoras: no se imprime ' + orderId); return; }
+    }
     _printing[orderId] = true;
     try {
       _diagToast('🖨 Verificando impresora…', '#1d4ed8');
@@ -5431,11 +5476,13 @@ console.log('[POS Events] Sistema de eventos listo');
 
       var printed = false;
       var impresos = [];      // los items que de verdad salieron
+      var apagadas = 0;       // areas que se saltaron por tener el automatico apagado
       for (var gi = 0; gi < grupos.length; gi++) {
         var g = grupos[gi];
         //  Lo pedido a mano sale siempre; lo automatico pregunta, por area.
         if (!force && !(await _autoprintOn(g.area))) {
           _diagToast('Automático apagado en ' + (g.nombre || g.area), '#64748b');
+          apagadas++;
           continue;
         }
         var cab = { table: _tableDisplay(order), table_n: _tableCount(order), channel: order.channel, total: order.total || 0,
@@ -5459,6 +5506,8 @@ console.log('[POS Events] Sistema de eventos listo');
         }
       }
       if (!printed && !grupos.length) { _diagToast('Nada que imprimir', '#64748b'); }
+      //  Todas las areas apagadas: que el barrido no lo vuelva a relanzar.
+      if (!force && !printed && grupos.length && apagadas === grupos.length) _autoOff[orderId] = Date.now();
 
       if (printed) {
         try {
@@ -5749,6 +5798,9 @@ console.log('[POS Events] Sistema de eventos listo');
       if (_sweeping) return;
       _sweeping = true;
       try {
+        //  Automatico apagado del todo (11-sep): el barrido no tiene nada que
+        //  hacer. Sin esto relanzaba el proceso —y sus letreros— cada 45 s.
+        if (window.posAutoprintTodoApagado && await window.posAutoprintTodoApagado()) { _sweeping = false; return; }
         /* SOLO los de esta sucursal. El aislamiento por restaurante no basta
            aqui: dos sucursales del MISMO dueño comparten tenant, asi que sin
            esto la impresora de una sucursal imprimiria los pedidos de la otra.
