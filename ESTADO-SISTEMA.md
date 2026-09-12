@@ -18720,6 +18720,54 @@ De paso: el «[pedido en curso] encontrado por telefono» que salió en el
 registro era su pedido del 6-sep (status `open` pero `estado` entregado);
 no intervino en la respuesta.
 
+### La regla que salió de aquí (Sergio, 11-sep): EL BOTÓN VA PARA TODOS
+
+*«El mensaje con el botón de la carta le llega a absolutamente todos los
+clientes que nos escriban. Solo a quien literalmente diga su pedido, Paco se
+lo toma tal cual; a los demás —buenas noches, hay servicio, para un pedido,
+lo que sea— se les envía el botón.»*
+
+Hecho en delay-reply **v474**:
+- La puerta del saludo implícito (`saludoImplicito`) ya no exige «pedir» o
+  «domicilio» ni se cierra por preguntas: abre para **todo primer contacto de
+  la visita** (bot callado 30 min) que **no nombre un producto**. Se cierra
+  si pide una persona o se queja (se atendió arriba), si pregunta por un
+  pedido suyo (`mi_pedido`), si responde a un paso (confirma/corrige/pago/un
+  botón nuestro), si hay pedido a medio armar en el estado, o si es despedida.
+- Si además preguntó algo (`preguntaAlgo`: pregunta/horario/precio/
+  ubicación/domicilio/categoría) y NO trae «pedir», el turno no termina en el
+  botón: el flujo sigue y la pregunta se contesta con la rama de siempre.
+  Con «pedir» se retorna, porque la puerta de «para un pedido» (más abajo)
+  mandaría el botón otra vez.
+- La rama de la ubicación corre ANTES que esa puerta y retorna: al primer
+  contacto, tras el mapa también sale la presentación con el botón
+  (`botCalladoHaceRato`, ayudante a nivel de módulo).
+- ⚠️ La excepción «nombra un producto» sigue siendo por TEXTO
+  (`mencionaProductoCatalogo` + `agregados` del clasificador), porque el
+  lector del pedido corre 1.200 líneas después. Un producto mal escrito
+  («salchipapa mista») puede recibir el botón en vez de tomársele el pedido;
+  ya pasaba antes. Lo correcto es que decida el lector: pendiente.
+
+## 2026-09-11 · Impresión automática apagada = letreros en bucle
+
+Sergio apagó «Imprimir la comanda automáticamente» para trabajar solo con la
+pantalla de cocina y, con cada pedido, la caja mostraba sin parar «Verificando
+impresora… / Impresora OK — buscando pedido… / evitando duplicado…».
+
+**Causa:** `posAutoprint` miraba el interruptor al FINAL, área por área,
+después de verificar la impresora y buscar el pedido (con sus letreros). Como
+nada se imprime, `printed_at` nunca se marca, y el barrido de seguridad de
+`pos-print-listener.js` (cada 45 s, pedidos de los últimos 4 min sin
+`printed_at`) lo relanzaba todo: 4 minutos de letreros por pedido.
+
+**Arreglo (pos-print.js + pos-print-listener.js, núcleo v1801190000):**
+`_autoprintTodoApagado()` (general en `false` y ninguna área encendida; se
+recuerda 20 s) se mira PRIMERO en `posAutoprint` cuando no es `force`: sin
+letreros ni consultas, un `console.log`. El barrido llama a
+`window.posAutoprintTodoApagado()` y ni pregunta a la base. Y si un pedido se
+miró con TODAS sus áreas apagadas (`_autoOff[orderId]`), lo automático no lo
+vuelve a tocar en 10 min. Lo pedido a mano (`force`) sale siempre.
+
 ## 2026-09-02 · La landing: la portada y el simulador de la tablet
 
 ### La portada mantiene el color
