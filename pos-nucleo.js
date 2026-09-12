@@ -5068,7 +5068,7 @@ console.log('[POS Events] Sistema de eventos listo');
       }
       return true;
     }
-    catch (e) { _diagToast('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); return false; }
+    catch (e) { _diagError('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); return false; }
   };
 
   function _noprinterToast() {
@@ -5267,7 +5267,17 @@ console.log('[POS Events] Sistema de eventos listo');
     return (g && g.length) ? g.length : 1;
   }
 
-  function _diagToast(msg, color) {
+  /*  ══ LA IMPRESION TRABAJA EN SILENCIO (Sergio, 11-sep-2026) ═════════════
+      «Incluso con el automatico encendido no quiero ver ningun letrero; lo
+      importante es que imprima». Los avisos de progreso (verificando,
+      buscando pedido, enviando, comanda OK, duplicado, apagado...) se van a
+      la consola del navegador, que es donde sirven para depurar. En
+      pantalla solo queda `_diagError`: que la impresora no este configurada
+      o que la impresion FALLE, porque eso en pleno turno hay que saberlo. */
+  function _diagToast(msg) {
+    try { console.log('[impresion] ' + msg); } catch (e) {}
+  }
+  function _diagError(msg, color) {
     var el = document.createElement('div');
     el.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:' + (color||'#1d4ed8') + ';color:#fff;padding:9px 18px;border-radius:9px;font-size:13px;font-weight:700;z-index:99999;white-space:nowrap;pointer-events:none';
     el.textContent = msg;
@@ -5328,7 +5338,7 @@ console.log('[POS Events] Sistema de eventos listo');
         hasPrinter = await _hasPrinter();
         if (!hasPrinter && hp < 2) await _sleep(500);
       }
-      if (!hasPrinter) { _noprinterToast(); _diagToast('❌ Sin config de impresora en BD', '#dc2626'); return; }
+      if (!hasPrinter) { _noprinterToast(); _diagError('❌ Sin config de impresora en BD', '#dc2626'); return; }
       _diagToast('✓ Impresora OK — buscando pedido…', '#15803d');
 
       // 2) Pedido + ítems (reintento por lag escritura→lectura)
@@ -5338,7 +5348,7 @@ console.log('[POS Events] Sistema de eventos listo');
         if (order) { raw = order.pos_order_items || []; if (raw.length) break; }
         await _sleep(450);
       }
-      if (!order || !raw.length) { _diagToast('❌ Pedido sin ítems tras reintentos', '#dc2626'); return; }
+      if (!order || !raw.length) { _diagError('❌ Pedido sin ítems tras reintentos', '#dc2626'); return; }
 
       // 3) ¿QUÉ imprimir?
       //   · Reimpresión (force): TODO el pedido. (Reimprimir comanda)
@@ -5501,7 +5511,7 @@ console.log('[POS Events] Sistema de eventos listo');
             _diagToast('✓ Comanda impresa' + (g.nombre ? ' · ' + g.nombre : '') + ' OK', '#15803d');
           } catch (e) {
             if (pr < 1) { await _sleep(600); }
-            else { _diagToast('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); }
+            else { _diagError('❌ Error al imprimir: ' + (e && e.message || e), '#dc2626'); }
           }
         }
       }
