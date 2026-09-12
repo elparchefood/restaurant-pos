@@ -324,6 +324,13 @@
 }
 .ntf-btn-ok:hover { background: #4453d6; }
 .ntf-btn-ok:disabled { opacity: .6; cursor: default; }
+.ntf-btn-inv {
+  display: block; width: 100%; margin-top: 8px; padding: 10px 14px; border-radius: 11px; cursor: pointer;
+  border: 1px solid #FECACA; background: #FEF2F2; color: #B91C1C;
+  font: inherit; font-size: 12.5px; font-weight: 700;
+}
+.ntf-btn-inv:hover { background: #FEE2E2; }
+.ntf-btn-inv:disabled { opacity: .6; cursor: default; }
 .ntf-modal-nota { margin-top: 11px; font-size: 11.5px; color: #94A3B8; text-align: center; }
 
 /* ── LAS DOS COLUMNAS, A LA MISMA ALTURA ────────────────────────────────

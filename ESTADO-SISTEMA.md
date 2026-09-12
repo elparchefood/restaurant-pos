@@ -18721,6 +18721,13 @@ cada columna antes de redibujar y lo devuelve después (v1801240000). Las dos
 cosas juntas son la regla completa: la vista se queda exactamente donde la
 dejó la persona.
 
+**La única excepción (misma noche):** cuando LLEGA un pedido nuevo (`nuevos`
+en `pintar()`, es decir, el mismo instante en que suena el timbre), todas las
+columnas y la página suben a 0 aunque alguien las hubiera bajado a mano.
+Sergio: «igual si está bajada, llega un pedido nuevo y siempre debe pasarse
+arriba». Arriba está la cola de lo que falta. Al arrancar (`S.arrancando`)
+no cuenta como nuevo, así que abrir la pantalla no la mueve (v1801250000).
+
 ## 2026-09-11 · «Redimir puntos» en la pantalla de pago
 
 Sergio: *«un pequeño botón en la pantalla de pago que diga Redimir puntos; al
@@ -20235,3 +20242,99 @@ logo (`bre-b.png`, negro sobre transparente, se invierte en modo oscuro).
 `aviso_despacho` ya se envía (segundo mensaje tras pagar con billetera a
 domicilio). **`pedido_listo_recoger` sigue sin que nadie la lea** — la
 auditoría del 20-jul tiene la lista completa.
+
+# Direcciones de la app: Barrio o Conjunto, y la dirección inválida (11-sep-2026)
+
+## Lo que pasó
+
+Un cliente se registró en la app con **"Caballo de copas"** como dirección: un
+sitio en la calle, sin barrio ni conjunto. La campana del dueño la mostró como
+"barrio nuevo", pero solo dejaba ponerle precio o marcar "no es un barrio". No
+había manera de descartarla **y** decirle al cliente que la corrigiera. Y el
+registro pedía dirección y barrio sueltos y opcionales, así que eso se colaba.
+
+## Barrio o conjunto en la app (app-cliente.js, web-acceso)
+
+La dirección se pide de UNA de dos formas, con un selector Barrio | Conjunto
+(`camposDireccion(pref, vals)` / `armarCamposDireccion` / `leerDireccion` /
+`validarDireccion`), el mismo bloque en el registro, en "Agregar dirección" y
+en "Corregir":
+
+| Forma | Obligatorio | Opcional |
+|---|---|---|
+| Barrio | barrio, dirección (≥5) | — |
+| Conjunto | nombre del conjunto (≥2), casa o apartamento | barrio, dirección |
+
+**En el registro la dirección es obligatoria** (decisión mía, fácil de
+cambiar en `pantallaDatos`: quitar la comprobación de `validarDireccion`).
+El servidor la deja opcional (`trajoDireccion`) para no romper la app vieja
+cacheada en algún celular: sin `tipo`, se aplica la regla de antes (solo
+dirección ≥5).
+
+Forma guardada en `pos_clientes.direcciones[]`, la MISMA que ya usa el salón:
+`{id, tipo:'conjunto'|undefined, conjunto, unidad, barrio, dir, calle?,
+invalida?, invalida_motivo?, invalida_at?}`. **`dir` siempre lleva el texto
+entero de entrega** (en un conjunto: `"Los Pinos, Casa 27 · Calle 5..."`,
+armado por `textoDireccion`) porque Paco, la carta y la comanda leen `dir` y no
+saben de conjuntos. Campos planos: `direccion = dir`, `barrio = barrio ||
+conjunto` (así `precioDeBarrio` encuentra el conjunto en `zonas.conjuntos`).
+`conIds()` conserva la forma nueva y ya no bota las filas más viejas que eran
+texto pelado. En el pedido, un conjunto no vuelve a pedir barrio
+(`destinoActual` manda `barrio || conjunto`).
+
+## La dirección inválida: de la campana al celular
+
+- `pos_domi_aprendidos.cliente_id` (SQL `sql/2026-09-11-direccion-invalida.sql`):
+  `anotarBarrioNuevo` anota quién la escribió. Las filas viejas no lo tienen; la
+  campana entonces busca por `pos_clientes.direccion ilike` el texto.
+- **pos-notifs.js `modalBarrio`**: tercer botón rojo *"Dirección inválida ·
+  avisarle al cliente que la corrija"* → marca `descartado` la fila y llama
+  `avisar-cliente` con `{tipo:'direccion_invalida', cliente_id, direccion}`.
+  El toast dice si le llegó al celular o solo lo verá al abrir la app.
+- **avisar-cliente `direccion_invalida`**: marca `invalida:true` en el ítem
+  cuya `dir` coincide (si estaba solo en el campo plano, lo mete a la lista ya
+  marcado), y manda el push *"Revisa tu dirección 📍 · «X» no nos sirve para
+  llevarte domicilios en {negocio}. Entra a la app y corrígela."* con
+  `ir: /{slug}/?ir=perfil` (sw.js ya entendía `d.ir`; nadie lo mandaba).
+  `previsualizar:true` devuelve el texto sin mandar nada. Texto editable como
+  los demás (`textoDe('direccion_invalida')`).
+- **En la app**: banner rojo `avisoDireccionInvalida(c)` arriba del inicio,
+  del perfil y del bloque de domicilio del pedido, con "Corregir mi dirección"
+  → `pedirDireccionNueva(inv)` sale con sus datos puestos. En el perfil la
+  fila sale tachada con "· inválida" y "Corregir" en vez de "Quitar". En el
+  pedido no se puede escoger (`dirsValidas`). `?ir=perfil` en la URL abre esa
+  pestaña (solo al abrir la app desde cero: si ya estaba abierta, sw.js la
+  trae al frente sin navegar). **Al guardar otra dirección, la inválida
+  desaparece** (`direccion-agregar` filtra `invalida`): agregar es corregir.
+- Hoy el aviso al celular es solo push (gratis). SMS por Twilio se paga: no
+  se manda. Si Sergio lo quiere, es una línea en la rama `direccion_invalida`.
+
+## Probado (Restaurante de Prueba, `probar_direcciones.py`, todo limpio después)
+
+crear-cuenta conjunto sin unidad → `razon:'unidad'`; barrio sin barrio →
+`'barrio'`; conjunto completo → `dir "Los Pinos Prueba, Casa 27"`, plano
+`barrio = Los Pinos Prueba`, campana con `cliente_id`; direccion-agregar
+corta → `'corta'`; `direccion_invalida` marca la de Calle 5 y `sesion` la trae
+marcada; agregar otra la quita; app vieja (sin `tipo`) sigue valiendo.
+
+# Paco: barrios sin nomenclatura por lista (11-sep-2026, delay-reply v475)
+
+Leidy (San Bernardino) pidió desde la carta con dirección *"Llamar cuando
+llegue a tizón rojo para guiar"*. Paco: "¡ya tengo tu pedido!" y enseguida
+"¿y cuál es la dirección exacta? (calle o carrera y número)". San Bernardino
+**no tiene nomenclatura** (Sergio: "es el único barrio que no tiene").
+
+Había dos marcas: por cliente (`chat_conversations.sin_nomenclatura`, botón
+del chat) y por zona (`zonas[].sin_nomenclatura`, sin pantalla). Fallaban las
+dos: **las dos ramas de "Anotado el barrio 📍 ¿y la dirección exacta?"** (tras
+`clasificarDireccion`, cuando no hay vía ni número y el barrio tiene precio)
+no miraban ninguna, y la de zona solo buscaba el barrio dentro del texto de
+la dirección — en un pedido de la carta el barrio viene en su casilla.
+
+Ahora: `domicilios.barrios_sin_nomenclatura: string[]` (Configuración >
+Domicilios > **"Barrios sin nomenclatura"**, separados por coma; guardar la
+pantalla lo conserva), `checkBarrioSinNomenclatura` mira esa lista y las
+zonas, sin tildes, sobre `ubicacionPedido(state)` (barrio + dirección), el
+helper `barrioSinNomenclatura(state)` entra en los 6 `clasificarDireccion`,
+en "su barrio es su dirección" (5664) y en las dos ramas de calle/número.
+El Parche quedó con `["San Bernardino"]` por SQL.

@@ -73,6 +73,9 @@ const DE_FABRICA: Record<string, { titulo: string; cuerpo: string }> = {
      regalo sin motivo confunde; un "gracias por instalar" refuerza justo lo
      que se quiere que la gente haga. */
   bono_instalacion: { titulo: "¡Gracias por instalar nuestra app! 🎁", cuerpo: "Te regalamos {monto} de bienvenida. Ya tienes {saldo} en tu billetera de {negocio} para tu próximo pedido." },
+  /* DIRECCION INVALIDA (11-sep). El dueNo la marco desde la campana: no es un
+     barrio ni un conjunto que se pueda ubicar. Se le dice cual y que hacer. */
+  direccion_invalida: { titulo: "Revisa tu dirección 📍", cuerpo: "«{direccion}» no nos sirve para llevarte domicilios en {negocio}. Entra a la app y corrígela." },
 };
 
 function rellenar(txt: string, datos: Record<string, string>) {
@@ -123,7 +126,7 @@ function textoRecarga(monto: number, bono: number, saldo: number, propios: Recor
 
 /* Manda el aviso a TODOS los celulares de ese cliente. Devuelve cuantos
    salieron y cuantos se dieron de baja. */
-async function enviar(clienteId: string, titulo: string, cuerpo: string, etiqueta: string) {
+async function enviar(clienteId: string, titulo: string, cuerpo: string, etiqueta: string, ir = "") {
   const subs = await sbGet(
     `/pos_web_push?cliente_id=eq.${clienteId}&select=id,endpoint,p256dh,auth`
   ) as Array<Record<string, unknown>> | null;
@@ -133,7 +136,9 @@ async function enviar(clienteId: string, titulo: string, cuerpo: string, etiquet
   /* La ETIQUETA hace que un aviso nuevo REEMPLACE al anterior del mismo asunto.
      Sin esto, un pedido con tres cambios de estado deja tres avisos amontonados
      y el cliente no sabe cual vale. */
-  const payload = JSON.stringify({ titulo, cuerpo, tag: etiqueta });
+  /* `ir`: a donde abre el aviso al tocarlo (el ayudante sw.js ya lo entendia,
+     pero nadie lo mandaba). Sin el, abre la portada de la app.           */
+  const payload = JSON.stringify(ir ? { titulo, cuerpo, tag: etiqueta, ir } : { titulo, cuerpo, tag: etiqueta });
 
   let enviados = 0, muertos = 0;
   for (const s of subs) {
@@ -180,6 +185,47 @@ Deno.serve(async (req: Request) => {
        mandar nada. Sirve para revisar la redaccion sin tener que provocar una
        recarga o un cambio de estado de verdad. */
     const soloVer = b.previsualizar === true;
+
+    // ── DIRECCION INVALIDA (11-sep-2026) ────────────────────────────────
+    /* Desde la campana del dueNo: la direccion que un cliente guardo en la app
+       no es un barrio ni un conjunto (Sergio: "Caballo de copas", un sitio en
+       la calle). Se hacen DOS cosas: se marca esa direccion en su lista para
+       que la app se lo diga al abrirla, y se le manda el aviso al celular. */
+    if (tipo === "direccion_invalida") {
+      const clienteD = String(b.cliente_id || "");
+      if (!clienteD) return json({ error: "cliente_id requerido" }, 400);
+      const cD = (await sbGet(`/pos_clientes?id=eq.${clienteD}&select=id,tenant_id,direccion,barrio,direcciones&limit=1`) as Array<Record<string, unknown>> | null)?.[0];
+      if (!cD) return json({ ok: false, razon: "sin_cliente" });
+      const tenantD = String(cD.tenant_id || "");
+      const dirTxt = String(b.direccion || cD.direccion || "").trim().slice(0, 200);
+      const motivo = String(b.motivo || "No es un barrio ni un conjunto que podamos ubicar.").slice(0, 200);
+      const normD = (t: string) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+      const ahora = new Date().toISOString();
+      const lista = (Array.isArray(cD.direcciones) ? cD.direcciones : []) as unknown[];
+      let marcada = false;
+      const nueva = lista.map((d) => {
+        const o = (d && typeof d === "object") ? { ...(d as Record<string, unknown>) } : { dir: String(d || "") };
+        if (!marcada && dirTxt && normD(String(o.dir || "")) === normD(dirTxt)) {
+          o.invalida = true; o.invalida_motivo = motivo; o.invalida_at = ahora; marcada = true;
+        }
+        return o;
+      });
+      /* Estaba solo en el campo plano (registro viejo): se mete a la lista ya
+         marcada, para que la app tenga que enseNar.                      */
+      if (!marcada && dirTxt) nueva.push({ id: "d" + Date.now().toString(36), dir: dirTxt, barrio: String(cD.barrio || ""), invalida: true, invalida_motivo: motivo, invalida_at: ahora });
+      if (!soloVer) await sbPatch(`/pos_clientes?id=eq.${clienteD}`, { direcciones: nueva, updated_at: ahora });
+
+      const propiosD = tenantD ? await avisosDe(tenantD) : null;
+      const t = textoDe("direccion_invalida", propiosD, {
+        direccion: dirTxt, negocio: tenantD ? await nombreNegocio(tenantD) : "el restaurante",
+      })!;
+      if (soloVer) return json({ ok: true, previsualizacion: t });
+      /* El aviso abre el perfil, que es donde esta la direccion para corregir. */
+      let slug = "";
+      try { const tn = await sbGet(`/tenants?id=eq.${tenantD}&select=slug&limit=1`) as Array<Record<string, unknown>> | null; slug = String(tn?.[0]?.slug || ""); } catch (_e) { /* sin slug abre la portada */ }
+      const r = await enviar(clienteD, t.titulo, t.cuerpo, "direccion", slug ? "/" + slug + "/?ir=perfil" : "");
+      return json({ ok: true, marcada: true, ...r });
+    }
 
     // ── RECARGA ACREDITADA ──────────────────────────────────────────────
     if (tipo === "recarga") {

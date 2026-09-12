@@ -300,6 +300,89 @@
      impresion de que su cuenta se perdio. Ahora solo escribe su clave nueva y
      entra; si quiere corregir sus datos, hay un enlace que abre el formulario
      completo (ya prellenado). `abrirDatos` lo fuerza desde ese enlace. */
+  /* ══ BARRIO O CONJUNTO (Sergio, 11-sep-2026) ══════════════════════════
+     Un cliente se registro con "Caballo de copas" como direccion: un sitio en
+     la calle, sin barrio ni conjunto, a donde no se puede llevar nada. Los dos
+     campos sueltos y opcionales dejaban pasar eso. Ahora la direccion se pide
+     de UNA de dos formas, y cada una tiene sus obligatorios:
+       · Barrio:   barrio y direccion, los dos obligatorios;
+       · Conjunto: nombre del conjunto y casa/apartamento obligatorios;
+                   barrio y direccion opcionales.
+     El mismo bloque se usa al registrarse, al agregar una direccion desde el
+     perfil o el pedido, y al corregir una que el restaurante marco invalida. */
+  function camposDireccion(pref, vals) {
+    var v = vals || {};
+    var conj = (v.tipo === 'conjunto');
+    var opc = '<span style="opacity:.6"> · opcional</span>';
+    return '<div class="ep-dir-bloque" id="' + pref + '-wrap" data-tipo="' + (conj ? 'conjunto' : 'barrio') + '">' +
+      '<div class="ep-seg-full ep-seg-dir">' +
+        '<button type="button" data-dirtipo="barrio"' + (conj ? '' : ' class="on"') + '>Barrio</button>' +
+        '<button type="button" data-dirtipo="conjunto"' + (conj ? ' class="on"' : '') + '>Conjunto</button>' +
+      '</div>' +
+      (conj
+        ? '<label class="ep-campo"><span class="ep-lbl">Nombre del conjunto</span>' +
+            '<input class="ep-in" id="' + pref + '-conjunto" maxlength="80" value="' + esc(v.conjunto || '') + '" placeholder="Como se llama"></label>' +
+          '<label class="ep-campo"><span class="ep-lbl">Casa o apartamento</span>' +
+            '<input class="ep-in" id="' + pref + '-unidad" maxlength="40" value="' + esc(v.unidad || '') + '" placeholder="Casa 27 · Torre 3 apto 502"></label>' +
+          '<label class="ep-campo"><span class="ep-lbl">Barrio' + opc + '</span>' +
+            '<input class="ep-in" id="' + pref + '-barrio" maxlength="60" value="' + esc(v.barrio || '') + '" placeholder="Escríbelo como lo conoces"></label>' +
+          '<label class="ep-campo"><span class="ep-lbl">Dirección' + opc + '</span>' +
+            '<input class="ep-in" id="' + pref + '-dir" autocomplete="street-address" maxlength="160" value="' + esc(v.calle || '') + '" placeholder="Calle 5 # 10-20"></label>'
+        : '<label class="ep-campo"><span class="ep-lbl">Barrio</span>' +
+            '<input class="ep-in" id="' + pref + '-barrio" maxlength="60" value="' + esc(v.barrio || '') + '" placeholder="Escríbelo como lo conoces"></label>' +
+          '<label class="ep-campo"><span class="ep-lbl">Dirección</span>' +
+            '<input class="ep-in" id="' + pref + '-dir" autocomplete="street-address" maxlength="160" value="' + esc(v.dir || v.direccion || '') + '" placeholder="Calle 5 # 10-20, apto 301"></label>') +
+    '</div>';
+  }
+  /* Los botones Barrio/Conjunto: al cambiar se vuelve a pintar el bloque con
+     lo que ya habia escrito, para no hacerselo teclear otra vez. */
+  function armarCamposDireccion(pref) {
+    var wrap = $(pref + '-wrap');
+    if (!wrap) return;
+    wrap.querySelectorAll('[data-dirtipo]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var actual = leerDireccion(pref);
+        if (b.dataset.dirtipo === actual.tipo) return;
+        var vals = { tipo: b.dataset.dirtipo, barrio: actual.barrio, conjunto: actual.conjunto, unidad: actual.unidad };
+        if (b.dataset.dirtipo === 'conjunto') vals.calle = actual.direccion; else vals.dir = actual.direccion;
+        wrap.outerHTML = camposDireccion(pref, vals);
+        armarCamposDireccion(pref);
+        var primero = $(pref + (b.dataset.dirtipo === 'conjunto' ? '-conjunto' : '-barrio'));
+        if (primero) primero.focus();
+      });
+    });
+  }
+  function leerDireccion(pref) {
+    var wrap = $(pref + '-wrap');
+    var val = function (id) { var el = $(pref + '-' + id); return el ? String(el.value || '').trim() : ''; };
+    return {
+      tipo: (wrap && wrap.dataset.tipo) || 'barrio',
+      direccion: val('dir'), barrio: val('barrio'), conjunto: val('conjunto'), unidad: val('unidad'),
+    };
+  }
+  /* Devuelve el mensaje si falta algo (y marca el campo), o '' si esta bien. */
+  function validarDireccion(pref, d) {
+    var malo = function (id, texto) {
+      var el = $(pref + '-' + id);
+      if (el) { el.classList.add('malo'); el.focus(); }
+      return texto;
+    };
+    if (d.tipo === 'conjunto') {
+      if (d.conjunto.length < 2) return malo('conjunto', 'Escribe el nombre del conjunto.');
+      if (!d.unidad) return malo('unidad', 'Escribe el número de la casa o del apartamento.');
+      return '';
+    }
+    if (d.barrio.length < 2) return malo('barrio', 'Escribe el barrio.');
+    if (d.direccion.length < 5) return malo('dir', 'Escribe la dirección completa.');
+    return '';
+  }
+  /* Con que se registro, para volver a pintar el bloque si algo fallo. */
+  function direccionAValores(d) {
+    if (!d) return {};
+    if (d.tipo === 'conjunto') return { tipo: 'conjunto', conjunto: d.conjunto, unidad: d.unidad, barrio: d.barrio, calle: d.direccion || d.calle };
+    return { tipo: 'barrio', barrio: d.barrio, dir: d.direccion || d.dir };
+  }
+
   function pantallaDatos(cli, yaEra, teniaClave, aviso, malo, abrirDatos) {
     var c = cli || {};
     var soloClave = !!yaEra && !abrirDatos;
@@ -313,10 +396,10 @@
         '<label class="ep-campo"><span class="ep-lbl">Tu apellido</span>' +
           '<input class="ep-in" id="d-apellido" autocomplete="family-name" maxlength="60" value="' +
             esc(c.apellido || '') + '" placeholder="Tu apellido"></label>' +
-        '<label class="ep-campo"><span class="ep-lbl">Dirección <span style="opacity:.6">· para tus domicilios</span></span>' +
-          '<input class="ep-in" id="d-dir" autocomplete="street-address" maxlength="160" value="' + esc(c.direccion || '') + '" placeholder="Calle 5 # 10-20, apto 301"></label>' +
-        '<label class="ep-campo"><span class="ep-lbl">Barrio</span>' +
-          '<input class="ep-in" id="d-barrio" maxlength="60" value="' + esc(c.barrio || '') + '" placeholder="Escríbelo como lo conoces"></label>';
+        '<div class="ep-lbl" style="margin-top:4px">¿Dónde te llevamos los domicilios?</div>' +
+        /* Con lo que ya tenia (si es cliente viejo revisando sus datos) o con lo
+           que acababa de escribir cuando algo fallo. */
+        camposDireccion('d', c.dirForma ? direccionAValores(c.dirForma) : { tipo: 'barrio', barrio: c.barrio || '', dir: c.direccion || '' });
     var saludo = c.nombre ? ('¡Hola de nuevo, ' + esc(String(c.nombre).split(' ')[0]) + '! ') : '¡Ya te conocemos! ';
     pinta('<div class="ep-login">' + cabecera() +
       '<form class="ep-form" id="f-datos">' +
@@ -342,14 +425,21 @@
     if (soloClave) $('b-editar').addEventListener('click', function () {
       pantallaDatos(c, yaEra, teniaClave, '', false, true);
     });
+    if (!soloClave) armarCamposDireccion('d');
 
     $('f-datos').addEventListener('submit', async function (ev) {
       ev.preventDefault();
       /* Se comprueba ANTES de mandar nada, y sin borrar lo que ya escribió:
          se vuelve a pintar la pantalla con sus datos y el aviso. */
       var cl1 = $('d-clave').value || '', cl2 = $('d-clave2').value || '';
+      var dirF = soloClave ? null : leerDireccion('d');
       var escrito = soloClave ? c : { nombre: $('d-nombre').value, apellido: $('d-apellido').value,
-                                      direccion: $('d-dir').value, barrio: $('d-barrio').value };
+                                      direccion: dirF.direccion, barrio: dirF.barrio, dirForma: dirF };
+      /* La direccion se comprueba primero, con las reglas de barrio/conjunto. */
+      if (dirF) {
+        var faltaDir = validarDireccion('d', dirF);
+        if (faltaDir) return pantallaDatos(escrito, yaEra, teniaClave, faltaDir, true, abrirDatos);
+      }
       if (cl1.length < 6) {
         return pantallaDatos(escrito, yaEra, teniaClave, 'La contraseña debe tener al menos 6 caracteres.', true, abrirDatos);
       }
@@ -362,15 +452,16 @@
         accion: 'crear-cuenta', telefono: S.tel, pase: S.pase,
         nombre: soloClave ? soloNombre(c) : $('d-nombre').value,
         apellido: soloClave ? (c.apellido || '') : $('d-apellido').value,
-        direccion: soloClave ? (c.direccion || '') : $('d-dir').value,
-        barrio: soloClave ? (c.barrio || '') : $('d-barrio').value,
+        direccion: soloClave ? (c.direccion || '') : dirF.direccion,
+        barrio: soloClave ? (c.barrio || '') : dirF.barrio,
         clave: cl1, recordar: $('d-recordar').checked,
       };
+      if (dirF) { envio.tipo = dirF.tipo; envio.conjunto = dirF.conjunto; envio.unidad = dirF.unidad; }
       var d = await acceso(envio);
       /* Si algo falla se devuelve lo que ya habia escrito, para no hacerselo
          teclear otra vez. Va como lo escribio: nombre y apellido separados. */
       if (!d.ok) return pantallaDatos({ nombre: envio.nombre, apellido: envio.apellido,
-                                        direccion: envio.direccion, barrio: envio.barrio },
+                                        direccion: envio.direccion, barrio: envio.barrio, dirForma: dirF },
                                       yaEra, teniaClave, d.mensaje || 'No se pudo.', true, abrirDatos);
       guardarToken(d.token); S.cliente = d.cliente; pantallaDentro();
     });
@@ -804,7 +895,13 @@
 
     // Perfil: agregar / quitar direcciones.
     var addDir = document.querySelector('[data-diragregar]');
-    if (addDir) addDir.addEventListener('click', pedirDireccionNueva);
+    if (addDir) addDir.addEventListener('click', function () { pedirDireccionNueva(); });
+    document.querySelectorAll('[data-dircorregir]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var d = dirsDe(S.cliente).filter(function (x) { return x.id === b.dataset.dircorregir; })[0];
+        pedirDireccionNueva(d || dirInvalida(S.cliente));
+      });
+    });
     document.querySelectorAll('[data-editar]').forEach(function (b) {
       b.addEventListener('click', function () {
         if (b.dataset.editar === 'nombre') cambiarNombre(); else cambiarClave();
@@ -1056,7 +1153,8 @@
 
        El "Hola," va en su propio span y el nombre se escribe UNA sola vez: dos
        versiones del mismo texto se desincronizan el dia que alguien cambie una. */
-    return '<div class="ep-saludo">' + logoArriba() +
+    return avisoDireccionInvalida(c) +
+      '<div class="ep-saludo">' + logoArriba() +
         '<div class="ep-saludo-tx"><div class="ep-saludo-t">' + saludo + '</div>' +
         '<div class="ep-saludo-n"><span class="ep-hola">Hola, </span>' +
           esc((c.nombre || '').split(' ')[0] || 'Hola') + '</div></div>' +
@@ -2845,6 +2943,8 @@
             /* `tipo` para poder pedir una contrasena sin que se lea por encima
                del hombro. `autocomplete` le dice al celular que no la guarde
                como si fuera un nombre. */
+            /* Un campo 'direccion' es el bloque entero de Barrio/Conjunto. */
+            if (c.tipo === 'direccion') return camposDireccion('pg' + i, c.valor || {});
             var tipo = c.tipo === 'password' ? 'password' : 'text';
             return '<label class="ep-campo"><span class="ep-lbl">' + esc(c.label || '') + '</span>' +
               '<input class="ep-in" id="pg-c' + i + '" type="' + tipo + '" ' +
@@ -2864,6 +2964,7 @@
       cap.querySelector('.ep-preg-tit').textContent = String(o.titulo || '');
       if (o.texto) cap.querySelector('.ep-preg-sub').textContent = String(o.texto);
       document.body.appendChild(cap);
+      campos.forEach(function (c, i) { if (c.tipo === 'direccion') armarCamposDireccion('pg' + i); });
 
       function cerrar(valor) {
         cap.remove();
@@ -2874,6 +2975,17 @@
         if (!campos.length) return cerrar(true);
         var out = {};
         for (var i = 0; i < campos.length; i++) {
+          if (campos[i].tipo === 'direccion') {
+            var dv = leerDireccion('pg' + i);
+            var falta = validarDireccion('pg' + i, dv);
+            if (falta) {
+              var sub = cap.querySelector('.ep-preg-sub');
+              if (sub) { sub.textContent = falta; sub.classList.add('mal'); }
+              return;
+            }
+            out[campos[i].clave || ('c' + i)] = dv;
+            continue;
+          }
           var v = String((cap.querySelector('#pg-c' + i) || {}).value || '').trim();
           if (campos[i].minimo && v.length < campos[i].minimo) {
             var inp = cap.querySelector('#pg-c' + i);
@@ -3021,8 +3133,10 @@
   function normDirJS(s) {
     return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
   }
-  async function guardarDireccion(dir, barrio) {
-    var d = await acceso({ accion: 'direccion-agregar', token: leerToken(), direccion: dir, barrio: barrio });
+  async function guardarDireccion(f) {
+    var d = await acceso({ accion: 'direccion-agregar', token: leerToken(), tipo: f.tipo,
+      direccion: f.direccion, barrio: f.barrio, conjunto: f.conjunto, unidad: f.unidad });
+    var barrio = f.barrio || f.conjunto || '';
     if (!d.ok) { aviso(d.mensaje || 'No pudimos guardar la dirección.', 'mal'); return false; }
     S.cliente = d.cliente;
     S.cuenta = null;                 // cambió la dirección: la cuenta se rehace
@@ -3055,21 +3169,45 @@
            lista[0] || { id: '', dir: '', barrio: '' };
   }
 
-  async function pedirDireccionNueva() {
-    // Los dos datos en UNA sola hoja: dirección y barrio se piensan juntos.
+  /* `corrigiendo`: la direccion que el restaurante marco invalida. La hoja
+     sale con sus datos ya puestos y el titulo dice que es para corregirla; al
+     guardar, el servidor quita la invalida y deja la nueva. */
+  async function pedirDireccionNueva(corrigiendo) {
+    var inv = (corrigiendo && corrigiendo.invalida) ? corrigiendo : null;
     var r = await preguntar({
-      titulo: 'Agregar dirección',
-      texto: 'Para que no tengas que escribirla en cada pedido.',
+      titulo: inv ? 'Corrige tu dirección' : 'Agregar dirección',
+      texto: inv
+        ? ('«' + inv.dir + '» no nos sirve para llevarte domicilios. Escríbela con el barrio, o con el conjunto y la casa.')
+        : 'Para que no tengas que escribirla en cada pedido.',
       ok: 'Guardar',
       campos: [
-        { clave: 'dir', label: 'Dirección', placeholder: 'Calle 5 # 10-20, apto 301', minimo: 5, max: 160 },
-        { clave: 'barrio', label: 'Barrio', placeholder: 'Escríbelo como lo conoces', max: 60 },
+        { clave: 'dir', tipo: 'direccion', valor: inv ? { tipo: inv.tipo === 'conjunto' ? 'conjunto' : 'barrio', barrio: inv.barrio, conjunto: inv.conjunto, unidad: inv.unidad, dir: inv.dir, calle: inv.calle } : {} },
       ],
     });
     if (!r) return false;
-    var ok = await guardarDireccion(r.dir, r.barrio);
+    var ok = await guardarDireccion(r.dir);
     if (ok) pantallaDentro();
     return ok;
+  }
+  /* Solo las que sirven para pedir: la invalida se ve en el perfil (para
+     corregirla) pero no se puede escoger en el pedido. */
+  function dirsValidas(c) {
+    return dirsDe(c).filter(function (d) { return d.invalida !== true; });
+  }
+  function dirInvalida(c) {
+    return dirsDe(c).filter(function (d) { return d.invalida === true; })[0] || null;
+  }
+  /* El aviso dentro de la app (Sergio, 11-sep): al abrirla, en el inicio y en
+     el perfil, hasta que la corrija. */
+  function avisoDireccionInvalida(c) {
+    var d = dirInvalida(c);
+    if (!d) return '';
+    return '<div class="ep-aviso ep-aviso--inv">' +
+      '<div class="ep-aviso-inv-t">Revisa tu dirección</div>' +
+      '<div>«' + esc(d.dir) + '» no nos sirve para llevarte domicilios' +
+        (d.invalida_motivo ? ': ' + esc(d.invalida_motivo) : '.') + ' Escríbela con el barrio, o con el conjunto y la casa.</div>' +
+      '<button class="ep-btn ep-btn--main ep-aviso-inv-b" type="button" data-dircorregir="' + esc(d.id) + '">Corregir mi dirección</button>' +
+    '</div>';
   }
 
   /* EL NIVEL, CONTADO PARA QUE SE ENTIENDA Y MOTIVE (20-ago, Sergio).
@@ -3126,7 +3264,7 @@
     var c = S.cliente || {};
     var n = c.nivel || null;
     var tel = String(c.telefono || '');
-    return encabezado('Perfil', 'Tu cuenta') +
+    return encabezado('Perfil', 'Tu cuenta') + avisoDireccionInvalida(c) +
       '<div class="ep-perfil-hd">' +
         /* LA CAMARITA SE FUE, Y AHORA HAY UN BOTON (23-ago-2026, Sergio:
            "no se entiende qué botón hay que tocar para cambiar la foto").
@@ -3172,11 +3310,14 @@
         '<div class="ep-tile-lbl" style="margin-bottom:8px">Tus direcciones</div>' +
         (dirsDe(c).length
           ? dirsDe(c).map(function (d) {
-              var usando = normDirJS(d.dir) === normDirJS(c.direccion);
-              return '<div class="ep-dato ep-dir-fila">' +
-                '<span>' + esc(d.dir) + (d.barrio ? ' <span style="opacity:.6">· ' + esc(d.barrio) + '</span>' : '') +
-                  (usando ? ' <b style="color:var(--accent)">·  en uso</b>' : '') + '</span>' +
-                '<button class="ep-link ep-dir-x" data-dirquitar="' + esc(d.id) + '" title="Quitar">Quitar</button>' +
+              var usando = !d.invalida && normDirJS(d.dir) === normDirJS(c.direccion);
+              return '<div class="ep-dato ep-dir-fila' + (d.invalida ? ' ep-dir-inv' : '') + '">' +
+                '<span>' + esc(d.dir) + (d.barrio && d.tipo !== 'conjunto' ? ' <span style="opacity:.6">· ' + esc(d.barrio) + '</span>' : '') +
+                  (usando ? ' <b style="color:var(--accent)">·  en uso</b>' : '') +
+                  (d.invalida ? ' <b class="ep-dir-inv-tag">· inválida</b>' : '') + '</span>' +
+                (d.invalida
+                  ? '<button class="ep-link ep-dir-x" data-dircorregir="' + esc(d.id) + '" title="Corregir">Corregir</button>'
+                  : '<button class="ep-link ep-dir-x" data-dirquitar="' + esc(d.id) + '" title="Quitar">Quitar</button>') +
               '</div>';
             }).join('')
           : '<div class="ep-dato"><span style="opacity:.7">Todavía no has guardado ninguna</span><span></span></div>') +
@@ -4231,10 +4372,12 @@
   function destinoActual() {
     if (entrega !== 'domicilio') return { dir: '', barrio: '' };
     var c = S.cliente || {};
-    var el = dirElegida(dirsDe(c), c);
+    var el = dirElegida(dirsValidas(c), c);
     return {
-      dir: el.dir || c.direccion || '',
-      barrio: el.barrio || barrioTecleado || c.barrio || '',
+      dir: el.dir || '',
+      /* En un conjunto el precio del domicilio se busca por el NOMBRE del
+         conjunto (zonas.conjuntos): va en `barrio` si no escribio barrio. */
+      barrio: el.barrio || el.conjunto || barrioTecleado || '',
     };
   }
 
@@ -4383,9 +4526,10 @@
          volver a teclear nada — o agrega una nueva sin salirse del pedido. */
       (entrega === 'domicilio'
         ? (function () {
-            var lista = dirsDe(c);
+            var lista = dirsValidas(c);
             var elegida = dirElegida(lista, c);
-            return '<label class="ep-campo" style="margin-bottom:10px"><span class="ep-lbl">Dónde te lo dejamos</span>' +
+            return avisoDireccionInvalida(c) +
+              '<label class="ep-campo" style="margin-bottom:10px"><span class="ep-lbl">Dónde te lo dejamos</span>' +
                 '<select class="ep-in" id="pd-dirsel">' +
                   lista.map(function (d) {
                     return '<option value="' + esc(d.id) + '"' + (d.id === elegida.id ? ' selected' : '') + '>' +
@@ -4393,14 +4537,15 @@
                   }).join('') +
                   '<option value="__nueva">+ Agregar otra dirección…</option>' +
                 '</select></label>' +
-              (elegida.barrio ? '' :
+              ((elegida.barrio || elegida.tipo === 'conjunto') ? '' :
                 /* Sin barrio no se puede cobrar el domicilio: se pide, y solo
-                   entonces. Antes se pedía siempre, aunque ya se supiera. */
+                   entonces. Antes se pedía siempre, aunque ya se supiera.
+                   En un conjunto no hace falta: el precio va por el conjunto. */
                 '<label class="ep-campo" style="margin-bottom:10px"><span class="ep-lbl">Barrio</span>' +
                   '<input class="ep-in" id="pd-barrio" value="' + esc(barrioTecleado) +
                     '" placeholder="Tu barrio"></label>') +
               '<input type="hidden" id="pd-dir" value="' + esc(elegida.dir || '') + '">' +
-              (elegida.barrio ? '<input type="hidden" id="pd-barrio" value="' + esc(elegida.barrio) + '">' : '');
+              ((elegida.barrio || elegida.conjunto) ? '<input type="hidden" id="pd-barrio" value="' + esc(elegida.barrio || elegida.conjunto) + '">' : '');
           })()
         : '') +
       '<label class="ep-campo"><span class="ep-lbl">Nota para la cocina</span>' +
@@ -4662,6 +4807,16 @@
     S.pago = neg.pago || null;   // los datos para transferir, de la recarga
     document.title = neg.nombre;
 
+    /* `?ir=perfil`: el aviso del celular ("revisa tu direccion") abre la app
+       directo en la pestaña que toca. Se limpia de la direccion enseguida. */
+    try {
+      var _ir = new URLSearchParams(location.search).get('ir');
+      if (_ir && TABS.some(function (t) { return t.k === _ir; })) {
+        vista = _ir;
+        history.replaceState(null, '', location.pathname + (location.hash || ''));
+      }
+    } catch (x) {}
+
     /*  ══ LA TARJETA, ANTES QUE NADA ══════════════════════════
         Quien llega con una tarjeta viene de acercarla al celular. Se
         comprueba con el servidor y se decide: el video al que no tiene la
@@ -4755,4 +4910,10 @@
       setTimeout(function () { if (tocaOfrecer()) pantallaInstalar(false); }, 1200);
     }
   })();
+  /* Solo en el computador de desarrollo, para mirar las pantallas sin
+     registrar a nadie. En la app publicada no existe. */
+  if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+    window.__ep = { pantallaDatos: pantallaDatos, pedirDireccionNueva: pedirDireccionNueva, pantallaDentro: pantallaDentro, S: S,
+                    setVista: function (k) { vista = k; } };
+  }
 })();

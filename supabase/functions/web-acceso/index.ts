@@ -121,13 +121,81 @@ function mismaPuerta(a: _Puerta, b: _Puerta): boolean {
 /* Las direcciones guardadas antes de esto no tienen `id` (se guardaban como
    {dir, barrio}). Se les pone uno estable derivado de su contenido, y así el
    resto del sistema puede tratarlas a todas igual sin migrar la tabla. */
-function conIds(lista: unknown): Array<{ id: string; dir: string; barrio: string }> {
+/*  ══ BARRIO O CONJUNTO (Sergio, 11-sep-2026) ══════════════════════════════
+    Una direccion es de dos formas, y cada una tiene sus campos obligatorios:
+      · barrio:   barrio + direccion, los dos obligatorios;
+      · conjunto: nombre del conjunto + casa/apartamento obligatorios;
+                  barrio y direccion opcionales.
+    Nacio de un cliente que se registro con "Caballo de copas" como direccion:
+    un sitio en la calle, sin barrio ni conjunto, a donde no se puede llevar
+    nada. Con los campos sueltos y opcionales eso se colaba.
+
+    La forma guardada en `direcciones` es la MISMA que ya usa el salon
+    (`{id, tipo:'conjunto'|'casa', conjunto, unidad, barrio, dir}`), mas
+    `calle` (la direccion opcional de un conjunto) e `invalida` (el dueNo la
+    marco como invalida desde la campana). `dir` SIEMPRE lleva el texto entero
+    de entrega —en un conjunto, "Los Pinos, casa 27 · Calle 5..."— porque es
+    lo que leen Paco, la carta y la comanda; ellos no saben de conjuntos.  */
+type Direccion = {
+  id: string; dir: string; barrio: string;
+  tipo?: string; conjunto?: string; unidad?: string; calle?: string;
+  invalida?: boolean; invalida_motivo?: string;
+};
+function textoDireccion(d: Direccion): string {
+  if (d.tipo === "conjunto" || d.conjunto) {
+    const base = [d.conjunto, d.unidad].filter(Boolean).join(", ");
+    return base + (d.calle ? " · " + d.calle : "");
+  }
+  return d.dir || "";
+}
+function conIds(lista: unknown): Direccion[] {
   return (Array.isArray(lista) ? lista : [])
-    .map((d: Record<string, unknown>, i: number) => ({
-      id: String(d?.id || ("d" + i + "_" + normDir(String(d?.dir || "")).slice(0, 12))),
-      dir: String(d?.dir || ""), barrio: String(d?.barrio || ""),
-    }))
+    .map((d: unknown, i: number) => {
+      /* Las filas mas viejas de todas eran TEXTO pelado (crear-pedido-chat
+         antiguo); antes se perdian al leer. */
+      const raw = (d && typeof d === "object") ? d as Record<string, unknown> : { dir: String(d || "") };
+      const item: Direccion = {
+        id: String(raw.id || ("d" + i + "_" + normDir(String(raw.dir || raw.conjunto || "")).slice(0, 12))),
+        dir: String(raw.dir || ""), barrio: String(raw.barrio || ""),
+      };
+      if (raw.tipo === "conjunto" || raw.conjunto) {
+        item.tipo = "conjunto";
+        item.conjunto = String(raw.conjunto || "");
+        item.unidad = String(raw.unidad || "");
+        if (raw.calle) item.calle = String(raw.calle);
+        if (!item.dir) item.dir = textoDireccion(item);
+      }
+      if (raw.invalida === true) {
+        item.invalida = true;
+        if (raw.invalida_motivo) item.invalida_motivo = String(raw.invalida_motivo);
+      }
+      return item;
+    })
     .filter((d) => d.dir);
+}
+
+/* Lo que manda la app, comprobado con las reglas de arriba. Sin `tipo` (la
+   app vieja, todavia en algun celular) se sigue aceptando como antes: solo la
+   direccion, de 5 letras o mas.                                            */
+function armarDireccion(b: Record<string, unknown>):
+  { ok: true; item: Direccion; barrioBusca: string } | { ok: false; razon: string; mensaje: string } {
+  const tipo   = String(b.tipo || "").toLowerCase();
+  const dir    = String(b.direccion || "").trim().slice(0, 160);
+  const barrio = String(b.barrio || "").trim().slice(0, 60);
+  const id     = "d" + Date.now().toString(36);
+  if (tipo === "conjunto") {
+    const conjunto = String(b.conjunto || "").trim().slice(0, 80);
+    const unidad   = String(b.unidad || "").trim().slice(0, 40);
+    if (conjunto.length < 2) return { ok: false, razon: "conjunto", mensaje: "Escribe el nombre del conjunto." };
+    if (!unidad) return { ok: false, razon: "unidad", mensaje: "Escribe el número de la casa o del apartamento." };
+    const item: Direccion = { id, dir: "", barrio, tipo: "conjunto", conjunto, unidad };
+    if (dir) item.calle = dir;
+    item.dir = textoDireccion(item);
+    return { ok: true, item, barrioBusca: barrio || conjunto };
+  }
+  if (dir.length < 5) return { ok: false, razon: "corta", mensaje: "Escribe la dirección completa." };
+  if (tipo === "barrio" && barrio.length < 2) return { ok: false, razon: "barrio", mensaje: "Escribe el barrio." };
+  return { ok: true, item: { id, dir, barrio }, barrioBusca: barrio };
 }
 
 function aleatorio(bytes: number) {
@@ -686,25 +754,29 @@ function zonaDeTexto(domicilios: Record<string, unknown> | null, texto: string) 
    sistema no conocia y que ya tiene su pantalla de aprobacion en
    Configuracion -> Domicilios. Se cuenta cuantas veces aparece: un barrio que
    piden cinco personas importa mas que uno que pidio una. */
-async function anotarBarrioNuevo(tenantId: string, branchId: string, barrio: string, direccion: string) {
+async function anotarBarrioNuevo(tenantId: string, branchId: string, barrio: string, direccion: string, clienteId = "") {
   try {
     const b = String(barrio || "").trim();
     if (!b || b.length < 3 || b.length > 60) return;
     const prev = await sbGet(
-      `/pos_domi_aprendidos?branch_id=eq.${branchId}&barrio=ilike.${encodeURIComponent(b)}&select=id,veces,descartado&limit=1`
+      `/pos_domi_aprendidos?branch_id=eq.${branchId}&barrio=ilike.${encodeURIComponent(b)}&select=id,veces,descartado,cliente_id&limit=1`
     ) as Array<Record<string, unknown>> | null;
     const fila = prev?.[0];
     /* Lo que el dueño marco como "no es un barrio" no vuelve a la lista. */
     if (fila && fila.descartado === true) return;
     if (fila?.id) {
-      await sbPatch(`/pos_domi_aprendidos?id=eq.${fila.id}`, {
+      const cambios: Record<string, unknown> = {
         veces: (Number(fila.veces) || 1) + 1, updated_at: new Date().toISOString(),
-      });
+      };
+      /* QUIEN la escribio (11-sep): para poder avisarle si es invalida. */
+      if (clienteId && !fila.cliente_id) cambios.cliente_id = clienteId;
+      await sbPatch(`/pos_domi_aprendidos?id=eq.${fila.id}`, cambios);
     } else {
       await sbPost(`/pos_domi_aprendidos`, {
         tenant_id: tenantId, branch_id: branchId,
         barrio: b, precio: 0, tipo: "nuevo", precio_tabla: null,
         direccion: String(direccion || "").slice(0, 200),
+        cliente_id: clienteId || null,
         /* DE DONDE SALIO. Este es el unico que le suena la campana al dueño:
            un cliente guardando SU direccion en la pagina, esperando a que le
            pongan precio. Lo que aprende el asistente atendiendo pedidos entra
@@ -716,7 +788,7 @@ async function anotarBarrioNuevo(tenantId: string, branchId: string, barrio: str
 }
 
 /* Lo que la pagina necesita saber de una direccion recien guardada. */
-async function precioDeBarrio(tenantId: string, barrio: string, direccion: string) {
+async function precioDeBarrio(tenantId: string, barrio: string, direccion: string, clienteId = "") {
   const brs = await sbGet(`/branches?tenant_id=eq.${tenantId}&select=id&order=created_at&limit=1`) as Array<Record<string, unknown>> | null;
   const branchId = brs?.[0]?.id ? String(brs[0].id) : "";
   if (!branchId) return { conocido: false, precio: 0 };
@@ -726,7 +798,7 @@ async function precioDeBarrio(tenantId: string, barrio: string, direccion: strin
      barrio dentro de la direccion y deja el campo del barrio vacio. */
   const hallado = zonaDeTexto(dom, barrio) || zonaDeTexto(dom, direccion);
   if (hallado) return { conocido: true, precio: hallado.precio, zona: hallado.barrio };
-  await anotarBarrioNuevo(tenantId, branchId, barrio || direccion, direccion);
+  await anotarBarrioNuevo(tenantId, branchId, barrio || direccion, direccion, clienteId);
   return { conocido: false, precio: 0 };
 }
 
@@ -892,28 +964,31 @@ Deno.serve(async (req) => {
       const conId = conIds(fila.direcciones);
 
       if (accion === "direccion-agregar") {
-        const dir    = String(b.direccion || "").trim().slice(0, 160);
-        const barrio = String(b.barrio || "").trim().slice(0, 60);
-        if (dir.length < 5) return json({ ok: false, razon: "corta", mensaje: "Escribe la dirección completa." });
-        if (conId.length >= 10) return json({ ok: false, razon: "muchas", mensaje: "Ya tienes 10 direcciones guardadas. Borra alguna para agregar otra." });
+        const arm = armarDireccion(b);
+        if (!arm.ok) return json({ ok: false, razon: arm.razon, mensaje: arm.mensaje });
+        const nueva = arm.item;
+        /* Una direccion marcada INVALIDA por el dueNo se va cuando el cliente
+           agrega otra: agregar es su forma de corregirla.                 */
+        const lista = conId.filter((d) => d.invalida !== true);
+        if (lista.length >= 10) return json({ ok: false, razon: "muchas", mensaje: "Ya tienes 10 direcciones guardadas. Borra alguna para agregar otra." });
         // La misma dirección no se guarda dos veces aunque la escriba distinto.
-        const yaEsta = conId.find((d) => normDir(d.dir) === normDir(dir));
-        let dirEnUso = dir, barrioEnUso = barrio;
+        const yaEsta = lista.find((d) => normDir(d.dir) === normDir(nueva.dir));
+        let dirEnUso = nueva.dir, barrioEnUso = nueva.barrio || nueva.conjunto || "";
         if (yaEsta) {
-          if (barrio && !yaEsta.barrio) yaEsta.barrio = barrio;    // se completa el barrio que faltaba
+          if (nueva.barrio && !yaEsta.barrio) yaEsta.barrio = nueva.barrio;    // se completa el barrio que faltaba
           /* Ya la tenía guardada: manda la forma en que está guardada, no la
              que acaba de teclear. Si no, escribir "calle 5 # 10 - 20" dejaba
              esa version descuidada como su direccion, y es la que veria el
              domiciliario. */
           dirEnUso = yaEsta.dir;
-          barrioEnUso = barrio || yaEsta.barrio;
+          barrioEnUso = nueva.barrio || yaEsta.barrio || yaEsta.conjunto || "";
         } else {
-          conId.push({ id: "d" + Date.now().toString(36), dir, barrio });
+          lista.push(nueva);
         }
         /* La última que agrega pasa a ser la de siempre: es la que acaba de
            escribir, y es la que va a querer usar en su próximo pedido. */
         await sbPatch(`/pos_clientes?id=eq.${s.cliente_id}`, {
-          direcciones: conId, direccion: dirEnUso, barrio: barrioEnUso || fila.barrio || null,
+          direcciones: lista, direccion: dirEnUso, barrio: barrioEnUso || fila.barrio || null,
           updated_at: new Date().toISOString(),
         });
 
@@ -921,7 +996,7 @@ Deno.serve(async (req) => {
            cliente acaba de decir donde vive y tiene derecho a saber cuanto le
            cuesta llegarle ANTES de armar nada. Si el barrio no se reconoce,
            queda anotado para que el dueNo le ponga precio. */
-        const domi = await precioDeBarrio(String(s.tenant_id), barrioEnUso || "", dirEnUso);
+        const domi = await precioDeBarrio(String(s.tenant_id), arm.barrioBusca || barrioEnUso || "", dirEnUso, String(s.cliente_id));
         return json({
           ok: true, domicilio: domi,
           cliente: await fichaCliente(String(s.tenant_id), String(s.cliente_id)),
@@ -1400,8 +1475,19 @@ Deno.serve(async (req) => {
       const nombre   = nombreCompleto(String(b.nombre || ""), apellido);
       if (clave.length < 6) return json({ ok: false, razon: "clave_corta", mensaje: "La contraseña debe tener al menos 6 caracteres." });
 
-      const direccion = String(b.direccion || "").trim().slice(0, 160);
-      const barrio    = String(b.barrio || "").trim().slice(0, 60);
+      /* La direccion es OPCIONAL al registrarse (quien recoge no la necesita),
+         pero si escribe una, tiene que estar completa segun sea barrio o
+         conjunto (Sergio, 11-sep).                                         */
+      const trajoDireccion = !!(String(b.direccion || "").trim() || String(b.conjunto || "").trim()
+        || String(b.unidad || "").trim() || (String(b.tipo || "") === "barrio" && String(b.barrio || "").trim()));
+      let dirItem: Direccion | null = null, barrioBusca = "";
+      if (trajoDireccion) {
+        const arm = armarDireccion(b);
+        if (!arm.ok) return json({ ok: false, razon: arm.razon, mensaje: arm.mensaje });
+        dirItem = arm.item; barrioBusca = arm.barrioBusca;
+      }
+      const direccion = dirItem ? dirItem.dir : "";
+      const barrio    = dirItem ? (dirItem.barrio || dirItem.conjunto || "") : "";
 
       /* ENLAZAR O CREAR — la misma operación. La base tiene índice único por
          (restaurante, últimos 10 dígitos), así que aquí no se pueden duplicar
@@ -1424,6 +1510,12 @@ Deno.serve(async (req) => {
         if (apellido) upd.apellido = apellido;
         if (direccion) upd.direccion = direccion;
         if (barrio) upd.barrio = barrio;
+        /* Y a su lista, si no la tenia (antes solo se tocaba el campo plano). */
+        if (dirItem) {
+          const lista = conIds(yaEs?.direcciones).filter((d) => d.invalida !== true);
+          if (!lista.find((d) => normDir(d.dir) === normDir(dirItem!.dir))) lista.push(dirItem);
+          upd.direcciones = lista;
+        }
         /* De paso se normaliza el telefono a 10 digitos: si esta fila venia con
            indicativo, era justo lo que impedia reconocerlo. */
         if (tel10(yaEs?.telefono) === tel && String(yaEs?.telefono || "") !== tel) upd.telefono = tel;
@@ -1432,7 +1524,7 @@ Deno.serve(async (req) => {
         const nuevo = await sbPost(`/pos_clientes`, {
           tenant_id: tenantId, nombre, apellido: apellido || null, telefono: tel,
           direccion: direccion || null, barrio: barrio || null,
-          direcciones: direccion ? [{ dir: direccion, barrio }] : [],
+          direcciones: dirItem ? [dirItem] : [],
           updated_at: new Date().toISOString(),
         }, true) as Array<Record<string, unknown>> | null;
         clienteId = nuevo?.[0]?.id ? String(nuevo[0].id) : "";
@@ -1448,7 +1540,7 @@ Deno.serve(async (req) => {
          desde el primer minuto. Si su barrio no esta en la tabla, queda
          anotado para que el dueNo le ponga precio antes de que pida. */
       if (direccion) {
-        try { await precioDeBarrio(tenantId, barrio, direccion); }
+        try { await precioDeBarrio(tenantId, barrioBusca || barrio, direccion, clienteId); }
         catch (e) { console.error("[acceso] domi al crear:", String(e).slice(0, 150)); }
       }
 

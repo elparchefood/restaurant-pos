@@ -1310,6 +1310,26 @@ html.tema-claro .ep-wcard{
 .ep-preg-sub { font-size: 13.5px; color: var(--sub); margin-bottom: 14px; }
 .ep-preg .ep-campo { margin-bottom: 12px; }
 .ep-preg .ep-in.malo { border-color: #EF4444; }
+.ep-preg-sub.mal { color: #EF4444; }
+
+/* ── BARRIO O CONJUNTO (11-sep-2026) ──────────────────────────────────────
+   El bloque de direccion: el selector arriba y los campos de esa forma. En el
+   registro y en la hoja de agregar/corregir. */
+.ep-dir-bloque { display: flex; flex-direction: column; gap: 12px; }
+.ep-dir-bloque .ep-campo { margin: 0; }
+.ep-seg-full.ep-seg-dir { margin: 2px 0 0; }
+.ep-seg-full.ep-seg-dir button { padding: 9px; font-size: 13px; }
+.ep-in.malo { border-color: #EF4444; }
+
+/* La direccion INVALIDA: el aviso arriba del inicio y del perfil, y la fila
+   marcada en la lista, hasta que la corrija. */
+.ep-aviso--inv { border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.08); color: var(--ink); }
+.ep-aviso-inv-t { font-weight: 700; color: #EF4444; margin-bottom: 4px; font-size: 14px; }
+html.tema-claro .ep-aviso-inv-t { color: #B91C1C; }
+.ep-aviso-inv-b { margin-top: 12px; width: 100%; }
+.ep-dir-inv span:first-child { color: var(--dim); text-decoration: line-through; text-decoration-color: rgba(239,68,68,.6); }
+.ep-dir-inv-tag { color: #EF4444; text-decoration: none; display: inline-block; }
+html.tema-claro .ep-dir-inv-tag { color: #B91C1C; }
 .ep-preg-btns { display: flex; gap: 10px; margin-top: 4px; }
 .ep-preg-btns .ep-btn { flex: 1; margin: 0; }
 

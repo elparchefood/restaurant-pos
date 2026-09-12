@@ -117,7 +117,7 @@
     if (!s || !st().tenantId) return items;
     try {
       var r = await s.from('pos_domi_aprendidos')
-        .select('id, barrio, veces, direccion, updated_at, created_at, tipo')
+        .select('id, barrio, veces, direccion, updated_at, created_at, tipo, cliente_id')
         .eq('tenant_id', st().tenantId)
         .eq('tipo', 'nuevo')
         .eq('descartado', false)
@@ -312,6 +312,11 @@
           '<button class="ntf-btn-no" type="button" data-no>No es un barrio</button>' +
           '<button class="ntf-btn-ok" type="button" data-ok>Guardar</button>' +
         '</div>' +
+        /*  DIRECCION INVALIDA (Sergio, 11-sep-2026): «Caballo de copas» es un
+            sitio en la calle, sin barrio ni conjunto; no se puede llevar nada
+            ahi. Se descarta Y se le avisa al cliente para que la corrija:
+            un aviso al celular y otro dentro de la app.                   */
+        '<button class="ntf-btn-inv" type="button" data-inv>Dirección inválida · avisarle al cliente que la corrija</button>' +
         '<div class="ntf-modal-nota">Queda guardado en tu tabla de zonas: lo van a usar la página y el asistente.</div>' +
       '</div>';
     document.body.appendChild(cap);
@@ -358,6 +363,39 @@
       var s = sb(); if (!s) return;
       await s.from('pos_domi_aprendidos').update({ descartado: true }).eq('id', f.id);
       fuera(); cargar();
+    };
+
+    cap.querySelector('[data-inv]').onclick = async function () {
+      var s = sb(); if (!s) return;
+      var btn = this; btn.disabled = true; btn.textContent = 'Avisando al cliente\u2026';
+      /* QUIEN la escribio: las filas nuevas lo traen; las viejas se buscan
+         por el texto de la direccion. */
+      var clienteId = f.cliente_id || null;
+      if (!clienteId && f.direccion) {
+        try {
+          var rc = await s.from('pos_clientes').select('id').eq('tenant_id', st().tenantId)
+            .ilike('direccion', String(f.direccion).trim()).limit(1).maybeSingle();
+          clienteId = (rc.data && rc.data.id) || null;
+        } catch (e) { clienteId = null; }
+      }
+      var res = null;
+      if (clienteId) {
+        try {
+          var base = w.SUPABASE_URL || (s.supabaseUrl) || 'https://tblujfduscslxjmrjbdr.supabase.co';
+          var rr = await fetch(base + '/functions/v1/avisar-cliente', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tipo: 'direccion_invalida', cliente_id: clienteId, direccion: f.direccion || f.barrio || '' }),
+          });
+          res = await rr.json().catch(function () { return null; });
+        } catch (e) { res = null; }
+      }
+      await s.from('pos_domi_aprendidos').update({ descartado: true }).eq('id', f.id);
+      fuera(); cargar();
+      var txt = !clienteId ? 'Marcada como inv\u00e1lida. No encontramos al cliente para avisarle.'
+        : (res && res.ok)
+          ? ('Marcada como inv\u00e1lida. El cliente ver\u00e1 el aviso al abrir la app' + (Number(res.enviados) > 0 ? ' y ya le lleg\u00f3 al celular.' : ' (no tiene los avisos del celular activados).'))
+          : 'Marcada como inv\u00e1lida, pero no se pudo avisar al cliente.';
+      try { if (w.showToast) w.showToast(txt); else alert(txt); } catch (e) {}
     };
 
     cap.querySelector('[data-ok]').onclick = async function () {
