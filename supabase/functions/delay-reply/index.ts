@@ -2998,6 +2998,21 @@ INTENCION, no las palabras exactas.` },
         }
         await sbPost(`/rest/v1/chat_messages`, filaUbi);
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: "📍 Ubicación", last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+        /*  PRIMER CONTACTO DE LA VISITA: despues del mapa va la presentacion
+            con el boton (regla de Sergio, 11-sep: el boton para todos). Esta
+            rama corre antes que la puerta del saludo y retorna, asi que sin
+            esto "hola, ¿donde quedan?" se quedaba sin boton.               */
+        try {
+          if (intenciones.pedir !== true
+              && !(Array.isArray(intenciones.agregados) && (intenciones.agregados as unknown[]).length > 0)
+              && await botCalladoHaceRato(convId, batchStart, 30)) {
+            const cwU = (cfg.carta_web as Record<string, unknown>) || {};
+            await sleep(600);
+            await mandarCartaBoton(convId, tenantId, cfg, fromPhone, phoneId, accessToken,
+              String(cwU.texto_saludo || "").trim() || undefined,
+              String(cwU.boton_saludo || "").trim() || undefined);
+          }
+        } catch (e) { console.error("[ubicacion] no salio la presentacion:", String(e).slice(0, 120)); }
         extraRespondido = true;
       }
     }
@@ -4131,13 +4146,36 @@ INTENCION, no las palabras exactas.` },
     const tsAhora = Number.isFinite(Date.parse(batchStart)) ? Date.parse(batchStart) : Date.now();
     botYaHablo = tsOut > 0 && (tsAhora - tsOut) < 30 * 60000;
   } catch (e) { console.error("[saludo] no se pudo mirar cuando hablo el bot:", String(e).slice(0, 120)); }
-  const saludoImplicito = !botYaHablo && clasifico
-    && (intenciones.pedir === true || intenciones.domicilio === true
-        || intenciones.entrega === "domicilio")
-    && intenciones.pregunta !== true && intenciones.carta !== true
-    && intenciones.precio !== true && intenciones.horario !== true
-    && intenciones.ubicacion !== true
-    && !mencionaProductoCatalogo(clienteTexto);
+  /*  ══ EL BOTON VA PARA TODOS (regla de Sergio, 11-sep-2026) ══════════════
+      "El mensaje con el boton de la carta le llega a absolutamente todos los
+      clientes que nos escriban. Solo a quien literalmente diga su pedido,
+      Paco se lo toma tal cual; a los demas —buenas noches, hay servicio,
+      para un pedido, lo que sea— se les envia el boton."
+
+      Antes esta puerta solo abria con "pedir" o "domicilio" y se cerraba si
+      el lote preguntaba algo (horario, precio, ubicacion...): "¿hay
+      servicio?" se quedaba sin boton. Ahora abre para todo primer contacto
+      de la visita que NO nombre un producto. Se cierra si el cliente pide
+      una persona o se queja (eso ya se atendio arriba), si pregunta por un
+      pedido suyo, si esta respondiendo a un paso del pedido (confirma,
+      corrige, pago, un boton nuestro) o si hay un pedido a medio armar: en
+      esos casos presentarse y borrar el estado seria perder el pedido. Si
+      ademas preguntaron algo, el turno NO termina en el boton: sigue y se
+      contesta (ver mas abajo, `preguntaAlgo`).                             */
+  const nombraProducto = mencionaProductoCatalogo(clienteTexto)
+    || (Array.isArray(intenciones.agregados) && (intenciones.agregados as unknown[]).length > 0);
+  const pedidoAMedias = !!state.producto || (Array.isArray(state.items) && state.items.length > 0);
+  const contestaUnPaso = intenciones.confirma === true || intenciones.corrige === true
+    || intenciones.rechaza_mas === true || !!intenciones.pago || !!intenciones.mi_pedido
+    || batchMsgs.some((m) => !!String((m.payload as Record<string, unknown> | null)?.accion || ""));
+  const preguntaAlgo = intenciones.pregunta === true || intenciones.horario === true
+    || intenciones.precio === true || intenciones.ubicacion === true || intenciones.domicilio === true
+    || (typeof intenciones.categoria === "string" && !!intenciones.categoria);
+  const saludoImplicito = !botYaHablo && clasifico && !vinoDeLaCarta
+    && !nombraProducto && !pedidoAMedias && !contestaUnPaso
+    && intenciones.quiere_humano !== true && intenciones.queja !== true
+    && intenciones.despedida !== true;
+  if (saludoImplicito) console.log(`[saludo] primer contacto sin producto: va la presentacion con el boton${preguntaAlgo ? " y despues la respuesta" : ""}`);
 
   if ((esGaludo || saludoImplicito) && sesionExpirada) {
     const prevDir = (!state.resumen_enviado && state.direccion) ? state.direccion : null;
@@ -4225,12 +4263,21 @@ INTENCION, no las palabras exactas.` },
       const cwSal = (cfg.carta_web as Record<string, unknown>) || {};
       const txtSaludo = String(cwSal.texto_saludo || "").trim() || bienvenida;
       const btnSaludo = String(cwSal.boton_saludo || "").trim() || undefined;
-      if (await mandarCartaBoton(convId, tenantId, cfg, fromPhone, phoneId, accessToken,
-                                 txtSaludo, btnSaludo)) return;
-
-      await sendWaAndSave(convId, tenantId, bienvenida, fromPhone, phoneId, accessToken);
-      await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: bienvenida, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
-      return;
+      const presentacionSalio = await mandarCartaBoton(convId, tenantId, cfg, fromPhone, phoneId, accessToken,
+                                                       txtSaludo, btnSaludo);
+      if (!presentacionSalio) {
+        await sendWaAndSave(convId, tenantId, bienvenida, fromPhone, phoneId, accessToken);
+        await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { last_message: bienvenida, last_message_at: new Date().toISOString(), last_sender: "agent", last_read: false, ai_typing: false });
+      }
+      /*  Pregunto algo ademas de llegar ("hola, ¿hasta que hora?"): el boton
+          ya salio y la pregunta se contesta con el flujo de siempre. Con
+          "pedir" en el lote no se sigue: la puerta de "para un pedido" de
+          abajo mandaria el boton por segunda vez.                        */
+      if (saludoImplicito && preguntaAlgo && intenciones.pedir !== true) {
+        console.log("[saludo] el lote tambien pregunta: el flujo sigue para contestar");
+      } else {
+        return;
+      }
     }
 
     // FUERA DE SERVICIO: el saludo aclara el estado DESDE EL PRINCIPIO (determinístico,
@@ -13783,6 +13830,19 @@ async function sendWaResumen(
     Devuelve `true` si la carta ya salio por boton. Si devuelve `false`, quien
     llama manda las imagenes: quedarse sin carta seria peor que mandarla como
     antes.                                                                  */
+/*  ¿El bot lleva callado mas de `minutos` en esta conversacion? Es lo que
+    define "primer contacto de la visita" (11-sep-2026). Si la consulta falla
+    se contesta false: mejor quedarse sin presentacion que presentarse a
+    mitad de un pedido.                                                     */
+async function botCalladoHaceRato(convId: string, batchStart: string, minutos: number): Promise<boolean> {
+  try {
+    const ultOut = await sbGet(`/rest/v1/chat_messages?conversation_id=eq.${convId}&direction=eq.out&sent_at=lt.${encodeURIComponent(batchStart)}&order=sent_at.desc&limit=1&select=sent_at`);
+    const tsOut = ultOut?.[0]?.sent_at ? Date.parse(String(ultOut[0].sent_at)) : 0;
+    const tsAhora = Number.isFinite(Date.parse(batchStart)) ? Date.parse(batchStart) : Date.now();
+    return !(tsOut > 0 && (tsAhora - tsOut) < minutos * 60000);
+  } catch { return false; }
+}
+
 async function mandarCartaBoton(
   convId: string, tenantId: string, cfg: Record<string, unknown>,
   fromPhone: string, phoneId: string, accessToken: string,
