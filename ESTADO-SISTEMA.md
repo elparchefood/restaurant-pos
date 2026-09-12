@@ -18695,6 +18695,69 @@ haría que se notara enseguida.
 
 ---
 
+## 2026-09-11 · «Redimir puntos» en la pantalla de pago
+
+Sergio: *«un pequeño botón en la pantalla de pago que diga Redimir puntos; al
+tocarlo un modal calcula los puntos del cliente, le dice para qué le alcanza, y
+desde ahí se puede añadir algo extra al pedido con los puntos»*.
+
+Es DISTINTO del método de pago «Puntos» (que paga con puntos productos que YA
+están en el pedido, `ptAplicarPuntos` → `posPuntos.modalCanje`): aquí el premio
+se AGREGA. Todo en `pagos.html/.css/.js` (v1801210000):
+
+- **Botón** `#btn-redimir` (`.pg-redimir`, bajo el chip del cliente; `ptRedimirBoton()`):
+  se esconde si no hay premios en `pos_puntos_catalogo`; con cliente dice
+  «Redimir puntos · N pts». Sin cliente identificado abre el selector de
+  clientes (`posClientePicker`) y sigue solo.
+- **Modal** `#redimir-modal` (`.pg-modal-overlay`, mismo sistema que los demás):
+  saldo fresco (`posPuntos.disponibles`), «ya apartados» si hay canje en el
+  pedido, y tres listas: *Le alcanza para* (con botón Agregar), *Todavía no le
+  alcanza* (gris, «le faltan N pts») y *Hoy no hay* (`available=false` o
+  `agotado`). Si nada alcanza, dice cuál es el premio más cercano. Los grupos
+  de variante que el catálogo no fija a una opción se eligen con chips antes
+  de poder agregar: nunca se adivina el tipo de un plato.
+- **Agregar** (`ptRedimirAgregar`): inserta una línea NORMAL en `pos_order_items`
+  (precio real, `quantity 1`, `selections.pres/vars` como la caja; los combos
+  con `combo_id/combo_items` como `pos-combos.camposDB`) con la marca
+  **`selections.premio = {puntos, dinero, detalle}`**, la mete en `SP.items` y
+  la suma al canje (`ptCanjeSumar`, con `agregados[]`). La cocina la ve y el
+  inventario la descuenta; `calc()` le saca el precio del total (lo canjeado
+  no es venta) y el «dinero» de un premio mixto sí se cobra. Los puntos se
+  descuentan al Finalizar, como siempre (`fn_puntos_consumir`).
+- **Quitar** (`ptQuitarCanje`): los `agregados` se BORRAN del pedido (no eran
+  parte de él); lo canjeado desde el método de pago se queda a precio lleno.
+- **Sobrevive al recargar**: `loadOrder` rearma `SP.canje` desde los ítems con
+  `selections.premio`. Sin esto el premio se cobraría a precio lleno al volver.
+- El empaque de `rapido/domicilio` ya no cuenta los premios (misma regla que
+  Paco). El ticket marca «con puntos» (`.pg-tline-premio`).
+- `ptAplicarPuntos` ya no rechaza «un segundo canje»: ofrece lo que no está
+  canjeado y SUMA.
+
+Probado en el Restaurante de Prueba (`scratchpad/probar-redimir.mjs` y
+`probar-redimir-fin.mjs`, con catálogo y pedido de mentira que se borran al
+final): botón, modal, agregar, etiqueta, quitar (borra la línea), premio mixto
+(150 pts + $5.000 → total 10.000 + 5.000 + propina), recargar, y Finalizar:
+`paid`, `puntos_redimidos 150`, `puntos_valor 13000`, saldo 222→72, movimiento
+`canje -150`.
+
+⚠️ Visto de paso, NO arreglado: en `pagos.html` el empaque de un pedido
+`rapido` sin `packaging_fee` sale distinto según si la configuración de
+Operación ya llegó de la base al calcularlo (una corrida dio $1.000, otra $0
+con el mismo pedido). Es de `computeEmpaquePagos` + la sincronización de
+`pos.config.operacion.v1`, no del canje.
+
+## 2026-09-11 · Interruptor: «Pasar a comiendo si nadie responde»
+
+Sergio: con pantallas en cocina, que la mesa pase sola de *esperando* a
+*comiendo* cuando el mesero ignora la pregunta «¿Ya entregaste?» confunde.
+Nuevo campo `mesaAutoComiendo` (default `true` = como siempre) en
+`OP_DEFAULTS` de `configuracion.js`, con su switch `#op-sw-auto-comiendo` en
+Operación → «Cuándo pasa a comiendo» (la fila de T3 se atenúa al apagarlo y el
+resumen dice «sin cambio automático»). En `modules/ventas-salon.js`,
+`_showMesaNotif` no arma el temporizador T3 cuando está apagado: la pregunta
+se queda hasta que el mesero conteste (T1/T2 siguen igual). Viaja a los demás
+equipos con el resto de la configuración (`branches.operacion_config`).
+
 ## 2026-09-11 · Paco no se presentó (ni mandó el botón) a una clienta que volvía
 
 Verónica (ya había pedido el 6-sep) escribió «Hola / Buenas / Para un domicilio

@@ -2516,6 +2516,10 @@ var OP_DEFAULTS = {
   mesaT1: 10,  // min → primera notificación
   mesaT2: 5,   // min → re-notificación tras "No"
   mesaT3: 3,   // min → auto-avance si se ignora
+  /* Si nadie responde la pregunta, ¿la mesa pasa sola a comiendo? Sergio,
+     11-sep-2026: con pantallas en cocina el cambio solo confunde. Apagado, la
+     pregunta se queda esperando al mesero y nada cambia por su cuenta.   */
+  mesaAutoComiendo: true,
   // C10 — Tiempos de automatización Comiendo → Libre
   liberarT1: 45, // min → primera notificación "¿ya se fueron?"
   liberarT2: 15, // min → re-notificación tras "Siguen comiendo"
@@ -2710,7 +2714,8 @@ function opPintarResumenes() {
 
   var filas = {
     tiempos:  [min(d.entregaMin) + ' \u00b7 ' + min(d.cocinaMax), null],
-    comiendo: [[d.mesaT1, d.mesaT2, d.mesaT3].map(Number).join(' \u00b7 ') + ' min', null],
+    comiendo: [[d.mesaT1, d.mesaT2, d.mesaT3].map(Number).join(' \u00b7 ') + ' min'
+               + (d.mesaAutoComiendo === false ? ' \u00b7 sin cambio autom\u00e1tico' : ''), null],
     liberar:  [[d.liberarT1, d.liberarT2, d.liberarT3].map(Number).join(' \u00b7 ') + ' min', null],
     avisos:   ['', null],
     meta:     [money(d.metaDiaria), null],
@@ -2835,6 +2840,8 @@ function opRender() {
   var t1El = $('op-mesaT1'); if (t1El) t1El.textContent = d.mesaT1 || 10;
   var t2El = $('op-mesaT2'); if (t2El) t2El.textContent = d.mesaT2 || 5;
   var t3El = $('op-mesaT3'); if (t3El) t3El.textContent = d.mesaT3 || 3;
+  opSetToggle('op-sw-auto-comiendo', d.mesaAutoComiendo !== false);
+  var t3Row = $('op-row-mesaT3'); if (t3Row) t3Row.style.opacity = (d.mesaAutoComiendo === false) ? '.45' : '';
 
   // C10 — liberarT1/T2/T3
   var lt1El = $('op-liberarT1'); if (lt1El) lt1El.textContent = d.liberarT1 || 45;
@@ -3542,6 +3549,13 @@ function opBindEvents() {
     // Cambiar la propina obligatoria requiere permiso config.propina; sin él, PIN.
     if (window.posGuard) window.posGuard('config.propina', aplicar, 'Cambiar la propina obligatoria requiere permiso de administrador.');
     else aplicar();
+  });
+
+  // Toggle: la mesa pasa sola a comiendo si nadie responde
+  var swAutoCom = $('op-sw-auto-comiendo');
+  if (swAutoCom) swAutoCom.addEventListener('click', function() {
+    _opDraft.mesaAutoComiendo = (_opDraft.mesaAutoComiendo === false);
+    opRender();
   });
 
   // Toggle cobro adelantado

@@ -1002,6 +1002,44 @@ svg { display: block; }
 .pg-puntos-pre b{font-weight:800}
 
 
+/* ── REDIMIR PUNTOS (11-sep-2026) ─────────────────────────────────────
+   El boton bajo el cliente y el modal que dice para que le alcanza. Mismo
+   violeta de las etiquetas «pts» y de la fila del canje.               */
+.pg-redimir{ display:inline-flex; align-items:center; gap:6px; margin:8px 16px 0; align-self:flex-start;
+  padding:6px 11px; border-radius:99px; border:1px solid #DDD6FE; background:#F5F3FF; color:#5B21B6;
+  font-family:inherit; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;
+  transition:background .15s, border-color .15s; }
+.pg-redimir:hover{ background:#EDE9FE; border-color:#C4B5FD; }
+.pg-redimir[hidden]{ display:none; }
+.pg-redimir-star{ color:#7C3AED; font-size:13px; line-height:1; }
+.pg-rd-card{ width:460px; }
+.pg-rd-icon{ background:#F5F3FF; color:#7C3AED; }
+.pg-rd-body{ margin-top:14px; max-height:52vh; overflow-y:auto; }
+.pg-rd-tit{ font-size:10.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+  margin:12px 0 6px; }
+.pg-rd-tit:first-child{ margin-top:0; }
+.pg-rd-row{ display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--border-soft, #F1F5F9); }
+.pg-rd-row.is-off{ opacity:.55; }
+.pg-rd-info{ flex:1; min-width:0; }
+.pg-rd-name{ font-size:13px; font-weight:700; color:var(--ink); }
+.pg-rd-meta{ font-size:11.5px; color:var(--muted); margin-top:1px; }
+.pg-rd-falta{ color:#B45309; font-weight:600; }
+.pg-rd-pts{ font-size:12px; font-weight:800; color:#7C3AED; background:#F5F3FF; border:1px solid #DDD6FE;
+  padding:3px 8px; border-radius:7px; white-space:nowrap; flex-shrink:0; }
+.pg-rd-add{ flex-shrink:0; padding:7px 12px; border-radius:9px; border:0; background:var(--brand); color:#fff;
+  font-family:inherit; font-size:12px; font-weight:800; cursor:pointer; }
+.pg-rd-add:hover:not(:disabled){ background:var(--brand-press); }
+.pg-rd-add:disabled{ opacity:.45; cursor:default; }
+.pg-rd-chips{ display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+.pg-rd-chip{ padding:4px 9px; border-radius:99px; border:1px solid var(--border); background:#fff; color:var(--ink-3);
+  font-family:inherit; font-size:11.5px; font-weight:600; cursor:pointer; }
+.pg-rd-chip.is-on{ border-color:#7C3AED; background:#F5F3FF; color:#5B21B6; }
+.pg-rd-vacio{ padding:16px 4px; font-size:12.5px; color:var(--muted); line-height:1.5; }
+.pg-rd-aviso{ margin-top:10px; padding:10px 12px; border-radius:9px; background:#FFFBEB; border:1px solid #FDE68A;
+  font-size:12px; color:#92400E; line-height:1.5; }
+.pg-tline-premio{ display:inline-block; margin-left:6px; padding:1px 6px; border-radius:5px; background:#F5F3FF;
+  color:#7C3AED; font-size:10px; font-weight:800; vertical-align:middle; }
+
 /* Fila del canje en el ticket: se ve que salio de la venta, no que se cobro */
 .pg-canje-row{ align-items:flex-start; background:#F5F3FF; border:1px solid #DDD6FE;
   border-radius:9px; padding:8px 11px; margin-top:8px; }

@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos-core.css?v=1789840000">
-<link rel="stylesheet" href="pagos.css?v=1799925000">
+<link rel="stylesheet" href="pagos.css?v=1801210000">
 </head>
 <body class="pg-abriendo">
 <!-- ⚠️ EL VELO. Pedido de Sergio, 24-ago-2026: "cuando abro la pantalla de pago
@@ -142,6 +142,12 @@ setTimeout(function () {
           <span class="pg-cliente-name" id="cliente-name">Consumidor final</span>
           <span class="pg-cliente-clear" id="cliente-clear" data-action="cliente-quitar" role="button" tabindex="0" title="Quitar el cliente" aria-label="Quitar el cliente" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <!-- Redimir puntos: agrega un premio del catalogo al pedido, pagado con
+             puntos. Se esconde si el restaurante no tiene premios configurados.
+             Lo pinta ptRedimirBoton(). -->
+        <button class="pg-redimir" id="btn-redimir" data-action="redimir" type="button" hidden>
+          <span class="pg-redimir-star">&#9733;</span><span id="btn-redimir-txt">Redimir puntos</span>
         </button>
         <div class="pg-ticket-scroll" id="ticket-scroll">
           <div class="pg-ticket-listhead">
@@ -352,9 +358,27 @@ setTimeout(function () {
 <script src="pos-cliente-picker.js?v=1788280000"></script>
 <script src="pos-puntos.js?v=1798895000"></script>
 <script src="pos-nfc.js?v=1799990000"></script>
-<script src="pagos.js?v=1801020000"></script>
+<script src="pagos.js?v=1801210000"></script>
 
   <!-- ════ MODAL: DESCUENTO ════ -->
+  <!-- ══ REDIMIR PUNTOS ══ Lo llena ptRedimirPintar() -->
+  <div class="pg-modal-overlay" id="redimir-modal" hidden>
+    <div class="pg-modal-card pg-rd-card">
+      <div class="pg-modal-head">
+        <div class="pg-modal-icon pg-rd-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.3 6.6.8-4.9 4.5 1.3 6.4L12 16.8 6.1 20l1.3-6.4L2.5 9.1l6.6-.8z"/></svg></div>
+        <div class="pg-modal-title-wrap">
+          <div class="pg-modal-title">Redimir puntos</div>
+          <div class="pg-modal-sub" id="redimir-sub">Calculando…</div>
+        </div>
+        <button class="pg-modal-close" data-action="redimir-cerrar" aria-label="Cerrar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="pg-rd-body" id="redimir-body"></div>
+      <div class="pg-modal-actions">
+        <button class="lm-btn-ghost" data-action="redimir-cerrar" type="button">Listo</button>
+      </div>
+    </div>
+  </div>
+
   <div class="pg-overlay" id="discount-modal" hidden>
     <div class="pg-modal-card">
       <div class="pg-modal-head">

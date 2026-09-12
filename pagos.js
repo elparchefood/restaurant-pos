@@ -161,6 +161,7 @@ async function loadPaymentMethods(){
   /* El saldo llega un instante despues que el nombre, asi que el nombre se
      repinta cuando ya se sabe cuanto tiene. */
   try { pgPintarCliente(); } catch (e) {}
+  try { ptRedimirBoton(); } catch (e) {}
 }
 function _renderMethodButtons(){
   var row = document.querySelector('.pg-method-row');
@@ -348,13 +349,14 @@ function renderItems() {
     return;
   }
 
+  const _canjeIds = (SP.canje && SP.canje.itemIds) || [];
   SP.items.forEach(it => {
     const line = document.createElement('div');
     line.className = 'pg-tline';
     line.innerHTML = `
       <span class="pg-tline-qty">${it.qty}</span>
       <div class="pg-tline-body">
-        <div class="pg-tline-name">${it.name}</div>
+        <div class="pg-tline-name">${it.name}${_canjeIds.indexOf(it.id) >= 0 ? '<span class="pg-tline-premio">con puntos</span>' : ''}</div>
         <div class="pg-tline-meta"><span class="dot" style="background:${it.catColor}"></span><span class="txt">${it.catName ? it.catName + ' · ' : ''}${fmt(it.basePrice)}</span></div>
         ${(it.adiciones || []).map(a => `
         <div class="pg-tline-adi"><span>+ ${a.name}</span><span>${fmt(a.price)}</span></div>`).join('')}
@@ -1204,6 +1206,7 @@ document.addEventListener('click', e => {
   if (e.target.id === 'pin-modal')        { closePinModal();       return; }
   if (e.target.id === 'discount-modal') { closeDiscountModal(); return; }
   if (e.target.id === 'split-modal')    { closeSplitModal();    return; }
+  if (e.target.id === 'redimir-modal')  { ptRedimirCerrar();    return; }
 
   if (!el) return;
 
@@ -1312,6 +1315,10 @@ document.addEventListener('click', e => {
     case 'apply':
       applyPayment();
       break;
+    case 'redimir':        ptRedimirAbrir(); break;
+    case 'redimir-cerrar': ptRedimirCerrar(); break;
+    case 'redimir-add':    ptRedimirAgregar(Number(el.dataset.i)); break;
+    case 'redimir-var':    ptRedimirElegirVar(Number(el.dataset.i), el.dataset.g, el.dataset.o); break;
     case 'remove-payment':
       removePayment(el.dataset.id);
       break;
@@ -1547,13 +1554,25 @@ async function loadOrder() {
     };
   });
 
+  /*  Los premios que se AGREGARON desde «Redimir puntos» llevan su marca en
+      `selections.premio`. Si el cajero sale y vuelve, el canje se rearma
+      desde ahi: sin esto el premio se cobraria a precio lleno.           */
+  SP.canje = null;
+  SP.items.forEach(function (it) {
+    var pr = it.selections && it.selections.premio;
+    if (pr && Number(pr.puntos) > 0) ptCanjeSumar(Number(pr.puntos) || 0, Number(pr.dinero) || 0, pr.detalle || ('1x ' + it.name), it.id, true);
+  });
+
   // ── Empaque y domicilio ──────────────────────────────────────────────
   // Empaque: usar el que quedó guardado en la orden; si no hay (p. ej. pedidos
   // creados por el bot, que no leen la config local), calcularlo desde Operación.
   let emp = Number(order.packaging_fee) || 0;
   if (emp <= 0 && (SP.channel === 'domicilio' || SP.channel === 'rapido')) {
-    const prodTotal = SP.items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
-    const units     = SP.items.reduce((s, i) => s + i.qty, 0);
+    /*  Los premios agregados con puntos no cuentan para el empaque: no son
+        venta (misma regla que Paco, que tampoco les cobra empaque).      */
+    const _sinPremio = SP.items.filter(i => !(i.selections && i.selections.premio));
+    const prodTotal = _sinPremio.reduce((s, i) => s + i.qty * i.unitPrice, 0);
+    const units     = _sinPremio.reduce((s, i) => s + i.qty, 0);
     emp = computeEmpaquePagos(prodTotal, units, SP.channel === 'domicilio');
   }
   SP.empaque = emp;
@@ -2448,6 +2467,7 @@ async function pgPintarCliente() {
     row.classList.remove('has-client');
     lbl.textContent = 'Consumidor final';
     if (xq) xq.hidden = true;
+    try { ptRedimirBoton(); } catch (e) {}
     return;
   }
   row.classList.add('has-client');
@@ -2466,6 +2486,7 @@ async function pgPintarCliente() {
      domicilio del chat no lo puso el cajero y no se quita desde aqui. */
   var x = document.getElementById('cliente-clear');
   if (x) x.hidden = !SP.clienteId;
+  try { ptRedimirBoton(); } catch (e) {}
 }
 
 
@@ -2594,18 +2615,19 @@ function ptAplicarPuntos() {
     alert('Primero identifica al cliente: toca "Consumidor final" arriba del ticket.');
     return;
   }
-  // Un pedido no se canjea dos veces.
-  if (SP.canje && SP.canje.puntos > 0) {
-    alert('Este pedido ya tiene un canje con puntos. Quítalo si quieres cambiarlo.');
-    return;
-  }
-  posPuntos.modalCanje(SP.items, Number(SP.puntosSaldo) || 0, function (sel) {
+  /*  Lo que ya esta canjeado (o agregado con «Redimir puntos») no se ofrece
+      otra vez; el resto si, y lo elegido se SUMA al canje que haya.      */
+  var _yaIds = (SP.canje && SP.canje.itemIds) || [];
+  var _libres = SP.items.filter(function (i) { return _yaIds.indexOf(i.id) < 0; });
+  var _saldoLibre = Math.max(0, (Number(SP.puntosSaldo) || 0) - ((SP.canje && SP.canje.puntos) || 0));
+  posPuntos.modalCanje(_libres, _saldoLibre, function (sel) {
     if (!sel || sel.puntos <= 0) return;
     /* El canje NO es un pago: es una salida de la venta. Se guarda aparte y
        calc() resta esos productos del total a cobrar. Así la caja solo cuenta
        el dinero que de verdad entró. */
-    SP.canje = { puntos: sel.puntos, itemIds: sel.itemIds || [],
-                 dinero: Number(sel.dinero) || 0, detalle: sel.detalle };
+    (sel.itemIds || []).forEach(function (id, k) {
+      ptCanjeSumar(k === 0 ? sel.puntos : 0, k === 0 ? (Number(sel.dinero) || 0) : 0, k === 0 ? sel.detalle : '', id, false);
+    });
     SP.entry = 0;
     // Si el método sigue en Puntos no se puede seguir cobrando: se vuelve al primero.
     if (_ptEsPuntos()) {
@@ -2618,9 +2640,285 @@ function ptAplicarPuntos() {
 }
 
 // Quitar el canje (el cliente cambió de opinión).
-function ptQuitarCanje() {
+async function ptQuitarCanje() {
+  /*  Lo que se AGREGO desde «Redimir puntos» no era parte del pedido: se
+      borra del pedido, no solo del canje. Lo que ya estaba (canjeado desde el
+      metodo de pago) se queda, ahora a precio lleno.                     */
+  var agregados = (SP.canje && SP.canje.agregados) || [];
+  if (agregados.length) {
+    try { await sb.from('pos_order_items').delete().in('id', agregados); }
+    catch (e) { console.error('[redimir] no se pudo quitar el premio:', e); }
+    SP.items = SP.items.filter(function (i) { return agregados.indexOf(i.id) < 0; });
+  }
   SP.canje = null;
+  renderItems();
   renderAll();
+}
+
+/*  Un canje mas, sumado al que haya. `agregado` = el item lo puso «Redimir
+    puntos» (y por eso se borra si el canje se quita).                     */
+function ptCanjeSumar(puntos, dinero, detalle, itemId, agregado) {
+  var c = SP.canje || { puntos: 0, itemIds: [], dinero: 0, detalle: '', agregados: [] };
+  c.puntos = (Number(c.puntos) || 0) + (Number(puntos) || 0);
+  c.dinero = (Number(c.dinero) || 0) + (Number(dinero) || 0);
+  if (itemId && c.itemIds.indexOf(itemId) < 0) c.itemIds.push(itemId);
+  if (agregado && itemId) { c.agregados = c.agregados || []; if (c.agregados.indexOf(itemId) < 0) c.agregados.push(itemId); }
+  if (detalle) c.detalle = c.detalle ? c.detalle + ', ' + detalle : detalle;
+  SP.canje = c;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   REDIMIR PUNTOS: AGREGAR UN PREMIO AL PEDIDO (Sergio, 11-sep-2026)
+
+   «Un boton en la pantalla de pago que diga Redimir puntos. Al tocarlo se
+   abre un modal que calcula los puntos del cliente, le dice para que le
+   alcanza, y desde ahi se puede aNadir algo extra al pedido con los puntos».
+
+   Es distinto del metodo de pago «Puntos» (que paga con puntos productos que
+   YA estan en el pedido): aqui el premio se AGREGA. El premio entra como una
+   linea normal del pedido —la cocina lo ve y el inventario lo descuenta— con
+   la marca `selections.premio`, y el canje (SP.canje) le saca el precio del
+   total: la regla de siempre, lo canjeado no es venta. Los puntos se
+   descuentan al Finalizar, como en el otro camino.
+   ══════════════════════════════════════════════════════════════════ */
+var _rd = { filas: [], sel: {}, saldo: 0, abierto: false };
+
+async function ptRedimirBoton() {
+  var b = document.getElementById('btn-redimir'), t = document.getElementById('btn-redimir-txt');
+  if (!b || !window.posPuntos) return;
+  try {
+    var _st = (window._pos && window._pos.state) || {};
+    posPuntos.setCtx(_st.tenantId || SP.tenantId, SP.branchId);
+    await posPuntos.cargar();
+  } catch (e) { /* sin red se queda como estaba */ }
+  /* Sin premios configurados no hay nada que redimir: el boton no sale. */
+  b.hidden = !posPuntos.hayCatalogo();
+  if (b.hidden) return;
+  var pts = Number(SP.puntosSaldo) || 0;
+  if (t) t.textContent = SP.clienteTel ? ('Redimir puntos \u00b7 ' + pts.toLocaleString('es-CO') + ' pts') : 'Redimir puntos';
+}
+
+/* Los premios del catalogo con lo que hace falta para mostrarlos y agregarlos:
+   nombre, precio real, presentacion, variantes y si esta agotado. */
+async function ptRedimirCatalogo() {
+  var cat = posPuntos.catalogo();
+  var pids = [], cids = [];
+  cat.forEach(function (f) {
+    if (f.product_id && pids.indexOf(f.product_id) < 0) pids.push(f.product_id);
+    if (f.combo_id && cids.indexOf(String(f.combo_id)) < 0) cids.push(String(f.combo_id));
+  });
+  var prods = {}, combos = {};
+  if (pids.length) {
+    var rp = await sb.from('pos_products').select('id,name,price,presentations,variables,available,agotado,pos_categories(id,name,color)').in('id', pids);
+    (rp.data || []).forEach(function (x) { prods[x.id] = x; });
+  }
+  if (cids.length) {
+    var rc = await sb.from('pos_combos').select('id,name,price,items,active').in('id', cids);
+    (rc.data || []).forEach(function (x) { combos[String(x.id)] = x; });
+  }
+  var filas = [];
+  cat.forEach(function (f) {
+    if (f.combo_id) {
+      var c = combos[String(f.combo_id)];
+      if (!c) return;
+      filas.push({ fila: f, tipo: 'combo', combo: c, nombre: String(c.name || 'Combo').trim(),
+        precio: Number(c.price) || 0, puntos: Number(f.puntos) || 0, dinero: Number(f.dinero) || 0,
+        agotado: c.active === false, grupos: [] });
+      return;
+    }
+    var pr = prods[f.product_id];
+    if (!pr) return;
+    var press = pr.presentations || [];
+    var pres = null, pi = -1;
+    for (var i = 0; i < press.length; i++) if (String(press[i].id || '') === String(f.pres_id || '')) { pres = press[i]; pi = i; break; }
+    if (!pres && press.length === 1) { pres = press[0]; pi = 0; }
+    /* Los grupos de variante que hay que resolver antes de agregar: los que
+       el catalogo restringe a UNA opcion se resuelven solos; los demas, con
+       chips. Nunca se adivina el tipo de un plato.                       */
+    var grupos = [];
+    (pr.variables || []).forEach(function (g) {
+      var ops = g.options || [];
+      if (!ops.length) return;
+      var permitidas = (f.variantes && f.variantes[g.id]) || null;
+      var validas = permitidas ? ops.filter(function (o) { return permitidas.indexOf(o.id) >= 0; }) : ops;
+      if (!validas.length) return;
+      grupos.push({ id: g.id, nombre: g.name || '', isPricing: !!g.isPricing, opciones: validas, fija: validas.length === 1 ? validas[0].id : null });
+    });
+    var nombre = [pres && pres.name, String(pr.name || '').trim()].filter(Boolean).join(' \u00b7 ');
+    filas.push({ fila: f, tipo: 'producto', prod: pr, pres: pres, presIdx: pi, nombre: nombre,
+      precio: Number(pres && pres.price) || Number(pr.price) || 0, puntos: Number(f.puntos) || 0, dinero: Number(f.dinero) || 0,
+      agotado: pr.available === false || pr.agotado === true, grupos: grupos,
+      cat: pr.pos_categories || null });
+  });
+  filas.sort(function (a, b) { return a.puntos - b.puntos || a.nombre.localeCompare(b.nombre); });
+  return filas;
+}
+
+/* La variante elegida de cada grupo (fija o por chip) y el precio que resulta. */
+function ptRedimirResolver(i) {
+  var r = _rd.filas[i]; if (!r) return null;
+  var sel = _rd.sel[i] || {};
+  var vars = {}, nombres = [], precio = r.precio, completo = true;
+  (r.grupos || []).forEach(function (g) {
+    var oid = g.fija || sel[g.id];
+    if (!oid) { completo = false; return; }
+    var o = g.opciones.filter(function (x) { return x.id === oid; })[0];
+    if (!o) { completo = false; return; }
+    var pv = (g.isPricing && o.prices && r.presIdx >= 0 && o.prices[r.presIdx] != null) ? Number(o.prices[r.presIdx])
+           : (g.isPricing ? Number(o.price) : NaN);
+    if (g.isPricing && isFinite(pv) && pv > 0) precio = pv;
+    vars[g.id] = { id: o.id, name: o.name, group: g.nombre, price: isFinite(pv) ? pv : (Number(o.price) || 0) };
+    nombres.push(o.name);
+  });
+  return { vars: vars, nombres: nombres, precio: precio, completo: completo };
+}
+
+function ptRedimirAbrir() {
+  if (!window.posPuntos || !posPuntos.hayCatalogo()) { pgAviso('No hay premios configurados. Se configuran en Configuraci\u00f3n \u2192 Puntos.', 'mal'); return; }
+  /* Sin cliente no hay puntos que mirar: primero se identifica y se sigue. */
+  if (!SP.clienteTel) {
+    if (!window.posClientePicker) { pgAviso('Primero identifica al cliente: toca \u00abConsumidor final\u00bb.', 'mal'); return; }
+    posClientePicker.abrir({ tenantId: SP.tenantId, branchId: SP.branchId, onPick: async function (c) {
+      if (!c) return;
+      await pgGuardarCliente(c.id || null, c.nombre || '', c.tel || '');
+      if (SP.clienteTel) ptRedimirAbrir();
+      else pgAviso('Ese cliente no tiene tel\u00e9fono: sin tel\u00e9fono no hay puntos.', 'mal');
+    } });
+    return;
+  }
+  var m = document.getElementById('redimir-modal'); if (!m) return;
+  _rd.abierto = true; _rd.sel = {};
+  m.hidden = false;
+  document.getElementById('redimir-sub').textContent = 'Calculando\u2026';
+  document.getElementById('redimir-body').innerHTML = '';
+  ptRedimirPintar();
+}
+function ptRedimirCerrar() {
+  var m = document.getElementById('redimir-modal'); if (m) m.hidden = true;
+  _rd.abierto = false;
+}
+
+async function ptRedimirPintar() {
+  var sub = document.getElementById('redimir-sub'), body = document.getElementById('redimir-body');
+  if (!sub || !body) return;
+  try {
+    _rd.saldo = await posPuntos.disponibles(SP.clienteTel);
+    SP.puntosSaldo = _rd.saldo;
+    _rd.filas = await ptRedimirCatalogo();
+  } catch (e) { sub.textContent = 'No se pudieron leer los puntos.'; body.innerHTML = '<div class="pg-rd-vacio">' + _payEsc(String(e && e.message || e)) + '</div>'; return; }
+  if (!_rd.abierto) return;
+  var apartados = (SP.canje && Number(SP.canje.puntos)) || 0;
+  var libres = Math.max(0, _rd.saldo - apartados);
+  var quien = SP.cliente || SP.clienteTel;
+  sub.innerHTML = _payEsc(quien) + ' tiene <b style="color:#7C3AED">' + _rd.saldo.toLocaleString('es-CO') + ' puntos</b>'
+    + (apartados > 0 ? ' \u00b7 ' + apartados.toLocaleString('es-CO') + ' ya apartados en este pedido \u00b7 le quedan <b>' + libres.toLocaleString('es-CO') + '</b>' : '');
+  try { ptRedimirBoton(); } catch (e) {}
+
+  var alcanza = _rd.filas.filter(function (r) { return !r.agotado && r.puntos <= libres; });
+  var noAlcanza = _rd.filas.filter(function (r) { return !r.agotado && r.puntos > libres; });
+  var agotados = _rd.filas.filter(function (r) { return r.agotado; });
+  function fila(r, i, puede) {
+    var res = ptRedimirResolver(i);
+    var chips = '';
+    (r.grupos || []).forEach(function (g) {
+      if (g.fija) return;
+      chips += '<div class="pg-rd-chips">' + g.opciones.map(function (o) {
+        var on = ((_rd.sel[i] || {})[g.id] === o.id);
+        return '<button type="button" class="pg-rd-chip' + (on ? ' is-on' : '') + '" data-action="redimir-var" data-i="' + i + '" data-g="' + _payEsc(g.id) + '" data-o="' + _payEsc(o.id) + '">' + _payEsc(o.name) + '</button>';
+      }).join('') + '</div>';
+    });
+    var precio = res ? res.precio : r.precio;
+    var meta = fmt(precio) + (r.dinero > 0 ? ' \u00b7 el cliente pone ' + fmt(r.dinero) : '');
+    if (r.agotado) meta += ' \u00b7 <span class="pg-rd-falta">agotado hoy</span>';
+    else if (!puede) meta += ' \u00b7 <span class="pg-rd-falta">le faltan ' + (r.puntos - libres).toLocaleString('es-CO') + ' pts</span>';
+    return '<div class="pg-rd-row' + (puede ? '' : ' is-off') + '">'
+      + '<div class="pg-rd-info"><div class="pg-rd-name">' + _payEsc(r.nombre) + '</div>'
+      + '<div class="pg-rd-meta">' + meta + '</div>' + (puede ? chips : '') + '</div>'
+      + '<span class="pg-rd-pts">' + r.puntos.toLocaleString('es-CO') + ' pts' + (r.dinero > 0 ? ' + ' + fmt(r.dinero) : '') + '</span>'
+      + (puede ? '<button type="button" class="pg-rd-add" data-action="redimir-add" data-i="' + i + '"' + (res && res.completo ? '' : ' disabled title="Elige la variante"') + '>Agregar</button>' : '')
+      + '</div>';
+  }
+  var html = '';
+  if (!_rd.filas.length) {
+    html = '<div class="pg-rd-vacio">No hay premios configurados. Se configuran en <b>Configuraci\u00f3n \u2192 Puntos</b>.</div>';
+  } else {
+    if (alcanza.length) html += '<div class="pg-rd-tit">Le alcanza para</div>' + alcanza.map(function (r) { return fila(r, _rd.filas.indexOf(r), true); }).join('');
+    else {
+      var prox = noAlcanza[0];
+      html += '<div class="pg-rd-aviso">Con ' + libres.toLocaleString('es-CO') + ' puntos todav\u00eda no alcanza para ning\u00fan premio'
+        + (prox ? '. El m\u00e1s cercano es <b>' + _payEsc(prox.nombre) + '</b> (' + prox.puntos.toLocaleString('es-CO') + ' pts): le faltan ' + (prox.puntos - libres).toLocaleString('es-CO') + '.' : '.') + '</div>';
+    }
+    if (noAlcanza.length && alcanza.length) html += '<div class="pg-rd-tit">Todav\u00eda no le alcanza</div>' + noAlcanza.map(function (r) { return fila(r, _rd.filas.indexOf(r), false); }).join('');
+    if (agotados.length) html += '<div class="pg-rd-tit">Hoy no hay</div>' + agotados.map(function (r) { return fila(r, _rd.filas.indexOf(r), false); }).join('');
+  }
+  body.innerHTML = html;
+}
+
+function ptRedimirElegirVar(i, gid, oid) {
+  _rd.sel[i] = _rd.sel[i] || {};
+  _rd.sel[i][gid] = oid;
+  ptRedimirPintar();
+}
+
+/* Agregar el premio al pedido: una linea normal (la cocina lo ve, el
+   inventario lo descuenta) con su marca de premio, y el canje que le saca
+   el precio del total.                                                   */
+async function ptRedimirAgregar(i) {
+  var r = _rd.filas[i]; if (!r) return;
+  var res = ptRedimirResolver(i);
+  if (!res || !res.completo) { pgAviso('Elige la variante del premio.', 'mal'); return; }
+  var apartados = (SP.canje && Number(SP.canje.puntos)) || 0;
+  if (r.puntos > Math.max(0, _rd.saldo - apartados)) { pgAviso('Ya no le alcanzan los puntos para ese premio.', 'mal'); return; }
+  var btns = document.querySelectorAll('#redimir-modal .pg-rd-add');
+  btns.forEach(function (b) { b.disabled = true; });
+
+  var nombre = [r.nombre].concat(res.nombres).join(' \u00b7 ');
+  var detalle = '1x ' + nombre;
+  var selections = { mods: {}, pres: (r.pres && r.pres.name) || '', vars: res.vars,
+    premio: { puntos: r.puntos, dinero: r.dinero, detalle: detalle } };
+  var productId = r.tipo === 'producto' ? r.prod.id : null;
+  if (r.tipo === 'combo') {
+    /* Lo mismo que guarda pos-combos.camposDB: el contenido viaja dentro de
+       selections para que la comanda y el inventario lo lean.          */
+    selections.combo_id = String(r.combo.id);
+    selections.combo_nombre = r.combo.name;
+    selections.combo_items = (r.combo.items || []).map(function (it) {
+      return { product_id: it.product_id, pres_id: it.pres_id || null, variantes: it.variantes || {}, cantidad: it.cantidad || 1, nombre: it.nombre || '' };
+    });
+  }
+  var _st = (window._pos && window._pos.state) || {};
+  var fila = {
+    tenant_id: _st.tenantId || SP.tenantId, branch_id: SP.branchId, order_id: SP.orderId,
+    product_id: productId, name: nombre, product_name: nombre,
+    unit_price: res.precio, product_price: res.precio, quantity: 1, total: res.precio,
+    notes: null, status: 'pending', selections: selections,
+  };
+  var ins;
+  try {
+    ins = await sb.from('pos_order_items').insert(fila).select('id').single();
+    if (ins.error) throw ins.error;
+  } catch (e) {
+    btns.forEach(function (b) { b.disabled = false; });
+    pgAviso('No se pudo agregar el premio: ' + (e && e.message || e), 'mal');
+    return;
+  }
+  var cat = r.cat || {};
+  SP.items.push({
+    id: ins.data.id, productId: productId, catId: cat.id || null, name: nombre, qty: 1,
+    unitPrice: res.precio, basePrice: res.precio, adiciones: [], selections: selections,
+    catName: r.tipo === 'combo' ? 'Combo' : (cat.name || ''), catColor: r.tipo === 'combo' ? '#7C3AED' : (cat.color || catColorFor(productId)),
+  });
+  ptCanjeSumar(r.puntos, r.dinero, detalle, ins.data.id, true);
+  /* Si el metodo activo era Puntos ya no se puede seguir cobrando con el. */
+  if (_ptEsPuntos()) {
+    var otro = (SP.methodDefs || []).filter(function (m) { return m.tipo !== 'puntos'; })[0];
+    if (otro) SP.method = otro.key;
+    _renderMethodButtons();
+  }
+  renderItems();
+  renderAll();
+  pgAviso('Agregado con puntos: ' + nombre, 'bien');
+  ptRedimirPintar();
 }
 
 

@@ -5269,7 +5269,10 @@
     });
 
     // Start T3 auto-change timer (fires only if notification is IGNORED, not answered)
-    const t3Id = setTimeout(async function() {
+    /*  Con el interruptor apagado (Configuracion -> Operacion -> Cuando pasa a
+        comiendo) NO hay T3: la pregunta se queda hasta que el mesero conteste.
+        Sergio, 11-sep-2026: con pantallas en cocina el cambio solo confunde. */
+    const t3Id = (cfg.mesaAutoComiendo === false) ? null : setTimeout(async function() {
       if (_mesaTimers[tableId] && _mesaTimers[tableId].notifEl === notif) {
         _dismissMesaNotif(tableId);
         await _advanceMesaToComiendo(tableId, 'auto_ignorado');
