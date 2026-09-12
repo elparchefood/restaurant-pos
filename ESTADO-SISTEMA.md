@@ -18712,6 +18712,15 @@ scroll cuando se le pide, y solo `irA()` —a donde llegan las flechas y el
 control— lo pide. Redibujar no mueve la vista. Regla: **la pantalla de cocina
 nunca se desplaza sola.**
 
+**Segunda vuelta, minutos después:** al quitar ese scroll apareció lo
+contrario: Sergio bajaba a mano y la columna volvía a subir. `pintar()` corre
+**cada segundo** (los relojes de las comandas) y hace `cont.innerHTML = …`;
+al vaciar la columna un instante el navegador devuelve el scroll a 0, y antes
+lo disimulaba el cursor bajando solo. Ahora `pintar()` guarda `scrollTop` de
+cada columna antes de redibujar y lo devuelve después (v1801240000). Las dos
+cosas juntas son la regla completa: la vista se queda exactamente donde la
+dejó la persona.
+
 ## 2026-09-11 · «Redimir puntos» en la pantalla de pago
 
 Sergio: *«un pequeño botón en la pantalla de pago que diga Redimir puntos; al
