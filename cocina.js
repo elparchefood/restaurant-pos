@@ -1516,6 +1516,17 @@ function pintar() {
   });
 
   $('cuenta').textContent = aLaVista;
+  /*  ══ PEDIDO NUEVO: LA PANTALLA SUBE (Sergio, 11-sep-2026) ══════════════
+      La UNICA excepcion a "la pantalla nunca se mueve sola": «igual si esta
+      bajada a mano, cuando llega un pedido nuevo siempre debe pasarse
+      arriba, siempre debe enfocar arriba». Arriba esta la cola de lo que
+      falta, que es lo que hay que mirar cuando suena el timbre. Se suben
+      todas las columnas y la pagina; redibujar sin pedido nuevo sigue
+      dejando la vista donde la dejo la persona.                          */
+  if (nuevos.length) {
+    ZONAS.forEach(z => { const c = $('z-' + z); if (c) c.scrollTop = 0; });
+    try { window.scrollTo(0, 0); } catch (e) {}
+  }
   if (sonar) sonarUnaVez();
   if (nuevos.length) anunciar(nuevos);
   pintarCursor();
