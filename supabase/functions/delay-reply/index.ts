@@ -11810,11 +11810,18 @@ async function createWhatsappOrder(
       presIdMod ? String(presIdMod.id || "") : null, gruposPedido);
     const modsMap: Record<string, unknown> = {};
     let adiPrecio = 0;
+    /*  UNA ADICION QUE NO SE PUDO COBRAR NO DESAPARECE (12-sep-2026, regla de
+        Sergio: "las adiciones y las notas siempre deben salir"). Antes se
+        saltaba con un aviso en el registro que nadie lee, y la comanda salia
+        sin ella. Ahora va escrita en la nota del plato: en cocina la ven, y
+        en la caja se nota que falta cobrarla.                           */
+    const adiSinPrecio: string[] = [];
     for (const a of adiItem) {
-      if (a.sinPrecio) { console.warn(`adición sin precio al crear el pedido: "${a.nombre}"`); continue; }
+      if (a.sinPrecio) { console.warn(`adición sin precio al crear el pedido: "${a.nombre}"`); adiSinPrecio.push(a.nombre); continue; }
       modsMap[a.op] = { id: a.op, name: a.nombre, price: a.precio, group: a.grupo };
       adiPrecio += a.precio;
     }
+    const notaItemFinal = [notaItem || "", adiSinPrecio.length ? "Adición: " + adiSinPrecio.join(", ") : ""].filter(Boolean).join(" · ") || null;
 
     /*  ══ LO RECLAMADO CON PUNTOS NO ES UNA VENTA EN EFECTIVO ══════════════
         Entra en $0 y no suma al total. Y se dice en el nombre, para que en
@@ -11827,7 +11834,7 @@ async function createWhatsappOrder(
       String(matched.name), presName, tipoGPT,
       matched.category_id as Record<string, unknown> | null)
       + (esPremioItem ? " (con puntos)" : "");
-    items.push({ product_id: String(matched.id), name: displayName, product_name: displayName, product_price: precioItem, unit_price: precioItem, total: itemTotal, quantity: cantidad, selections: { mods: modsMap, pres: presName, vars: varsMap }, branch_id: branchId, tenant_id: tenantId || null, notes: notaItem });
+    items.push({ product_id: String(matched.id), name: displayName, product_name: displayName, product_price: precioItem, unit_price: precioItem, total: itemTotal, quantity: cantidad, selections: { mods: modsMap, pres: presName, vars: varsMap }, branch_id: branchId, tenant_id: tenantId || null, notes: notaItemFinal });
     orderTotal += itemTotal;
     /* El empaque puede depender del producto, de su presentacion o de la
        categoria, asi que se guarda con que se cobro cada linea. */

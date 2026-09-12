@@ -654,6 +654,8 @@ function extractEmailBody(msgData: Record<string, unknown>): string {
 // Estado actual: { producto, tamano, tipo, cantidad, items:[{producto,...}], nombre, direccion, pago }
 // Estado legacy: { productos:[{nombre,...}], cliente, total }
 interface ItemNorm { producto: string; tamano: string; tipo: string; cantidad: number; categoria?: string | null;
+  /* Lo que el cliente pidio de mas y como lo quiere (12-sep-2026). */
+  adiciones?: string | null; notas?: string | null;
 }
 interface PedidoResuelto {
   /* Lo que el cliente paga en total: comida + empaque + domicilio. */
@@ -668,17 +670,26 @@ interface PedidoResuelto {
 
 function normalizarItemsPedido(pendingData: Record<string, unknown>): ItemNorm[] {
   const out: ItemNorm[] = [];
-  const push = (p: unknown, tam: unknown, tip: unknown, cant: unknown, cat?: unknown) => {
+  /*  ══ LAS ADICIONES Y LAS NOTAS VIAJAN CON SU PLATO (12-sep-2026) ═════════
+      Pedido real de Majo: "Perro Pollo + Piña Calada, que la piña venga
+      aparte". Paco lo confirmo asi, cobro los $7.000 en el total, y este
+      camino —el que crea el pedido al verificar la transferencia— lo dejaba
+      TODO por fuera: `mods: {}` y `notes: null` fijos. La comanda salio
+      "Perro · POLLO" a secas, no le pusieron la piña y hubo que devolver
+      plata. El dato estaba en el estado; aqui nadie lo pasaba (el mismo
+      agujero que delay-reply ya habia cerrado el 20 y el 21-ago).       */
+  const push = (p: unknown, tam: unknown, tip: unknown, cant: unknown, cat?: unknown, adi?: unknown, nota?: unknown) => {
     const nombre = String(p || "").trim();
-    if (nombre) out.push({ producto: nombre, tamano: String(tam || "").trim(), tipo: String(tip || "").trim(), cantidad: Math.max(1, Number(cant) || 1), categoria: String(cat || "").trim() || null });
+    if (nombre) out.push({ producto: nombre, tamano: String(tam || "").trim(), tipo: String(tip || "").trim(), cantidad: Math.max(1, Number(cant) || 1), categoria: String(cat || "").trim() || null,
+      adiciones: String(adi || "").trim() || null, notas: String(nota || "").trim() || null });
   };
   for (const it of ((pendingData.items as Array<Record<string, unknown>>) || [])) {
-    if (it) push(it.producto, it.tamano, it.tipo, it.cantidad, it.categoria);
+    if (it) push(it.producto, it.tamano, it.tipo, it.cantidad, it.categoria, it.adiciones, it.preferencias ?? it.notas);
   }
-  if (pendingData.producto) push(pendingData.producto, pendingData.tamano, pendingData.tipo, pendingData.cantidad, pendingData.producto_categoria);
+  if (pendingData.producto) push(pendingData.producto, pendingData.tamano, pendingData.tipo, pendingData.cantidad, pendingData.producto_categoria, pendingData.adiciones, pendingData.preferencias);
   if (!out.length) {
     for (const it of ((pendingData.productos as Array<Record<string, unknown>>) || [])) {
-      if (it) push(it.nombre || it.producto, it.tamano, it.tipo, it.cantidad);
+      if (it) push(it.nombre || it.producto, it.tamano, it.tipo, it.cantidad, it.categoria, it.adiciones_txt ?? it.adiciones, it.notas);
     }
   }
   return out;
@@ -699,6 +710,54 @@ function normalizarItemsPedido(pendingData: Record<string, unknown>): ItemNorm[]
    pero la COMANDA podia salir con el nombre y el precio de la categoria
    equivocada, y eso es lo que se cocina.
    Un camino hermano con la mitad de la regla es como se cuela todo. */
+/*  Los grupos de modificadores de la sede y la resolucion de "Tocineta,
+    Piña Calada" contra los grupos que le aplican a ESE plato en ESA
+    presentacion. Es una copia de cargarModificadores / gruposDelProducto /
+    resolverAdiciones de delay-reply: este camino crea sus propios items y
+    tiene que resolverlas igual.                                          */
+type GrupoModVT = { id: string; name: string; options: Array<{ id: string; name: string; price: number }> };
+function vtNormTexto(s: string): string {
+  return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+async function vtCargarModificadores(branchId: string): Promise<GrupoModVT[]> {
+  const rows = await sbGet(`/rest/v1/pos_modifier_groups?branch_id=eq.${branchId}&select=id,name,options`) as Array<Record<string, unknown>> | null;
+  return (rows || []).map(r => ({
+    id: String(r.id || ""), name: String(r.name || ""),
+    options: ((r.options as Array<Record<string, unknown>>) || []).map(o => ({ id: String(o.id || ""), name: String(o.name || ""), price: Number(o.price) || 0 })),
+  }));
+}
+function vtGruposDelProducto(prod: Record<string, unknown>, presId: string | null, grupos: GrupoModVT[]): GrupoModVT[] {
+  const ids = (prod.mod_group_ids as string[]) || [];
+  if (!ids.length) return [];
+  const porPres = (prod.mod_group_pres as Record<string, string[]>) || {};
+  return grupos.filter(g => {
+    if (!ids.includes(g.id)) return false;
+    const lista = porPres[g.id];
+    if (!Array.isArray(lista) || lista.length === 0) return true;
+    return !presId || lista.includes(presId);
+  });
+}
+function vtResolverAdiciones(texto: string | null | undefined, prod: Record<string, unknown>, presId: string | null, grupos: GrupoModVT[]):
+  Array<{ nombre: string; precio: number; grupo: string; op: string; sinPrecio: boolean }> {
+  if (!texto || !texto.trim()) return [];
+  const aplican = vtGruposDelProducto(prod, presId, grupos);
+  const out: Array<{ nombre: string; precio: number; grupo: string; op: string; sinPrecio: boolean }> = [];
+  for (const trozo of texto.split(",").map(x => x.trim()).filter(Boolean)) {
+    const n = vtNormTexto(trozo);
+    let hallado: { g: GrupoModVT; o: { id: string; name: string; price: number } } | null = null;
+    for (const g of aplican) {
+      const o = g.options.find(x => vtNormTexto(x.name) === n);
+      if (o) { hallado = { g, o }; break; }
+    }
+    if (hallado) out.push({ nombre: hallado.o.name, precio: hallado.o.price, grupo: hallado.g.id, op: hallado.o.id, sinPrecio: false });
+    else {
+      console.warn(`[verify-transfer/adiciones] "${trozo}" no coincide con ninguna opcion. Habia: ` + aplican.map(g => g.options.map(o => o.name).join(",")).join(" | "));
+      out.push({ nombre: trozo, precio: 0, grupo: "", op: "", sinPrecio: true });
+    }
+  }
+  return out;
+}
 function vtNorm(s: string): string {
   return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 }
@@ -735,12 +794,14 @@ async function resolverPedido(
     if (!itemsNorm.length) return { ...vacio, nombreCliente };
 
     const allProducts = await sbGet(
-      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables,category_id(name,comanda_alias)`
+      `/rest/v1/pos_products?branch_id=eq.${branchId}&available=eq.true&select=id,name,price,price_mode,presentations,variables,mod_group_ids,mod_group_pres,category_id(name,comanda_alias)`
     ) as Array<Record<string, unknown>> | null;
     if (!allProducts) return { ...vacio, nombreCliente };
 
     let total = 0;
     const itemsRows: Array<Record<string, unknown>> = [];
+    let gruposVT: GrupoModVT[] = [];
+    try { gruposVT = await vtCargarModificadores(branchId); } catch (e) { console.error("[verify-transfer] modificadores:", e); }
 
     for (const item of itemsNorm) {
       const nombreLow = item.producto.toLowerCase();
@@ -772,7 +833,8 @@ async function resolverPedido(
       const exacta = candidatas.find(p => String(p.name || "").toLowerCase() === nombreLow);
       const matched = exacta || candidatas[0];
       if (!matched) {
-        itemsRows.push({ product_id: null, name: [item.producto, item.tamano, item.tipo].filter(Boolean).join(" · ") || "Producto WhatsApp", product_name: [item.producto, item.tamano, item.tipo].filter(Boolean).join(" · ") || "Producto WhatsApp", product_price: 0, unit_price: 0, total: 0, quantity: item.cantidad, selections: { mods: {}, pres: item.tamano, vars: {} }, branch_id: branchId, tenant_id: tenantId || null, notes: null });
+        const notaSuelta = [item.notas || "", item.adiciones ? "Adición: " + item.adiciones : ""].filter(Boolean).join(" · ") || null;
+        itemsRows.push({ product_id: null, name: [item.producto, item.tamano, item.tipo].filter(Boolean).join(" · ") || "Producto WhatsApp", product_name: [item.producto, item.tamano, item.tipo].filter(Boolean).join(" · ") || "Producto WhatsApp", product_price: 0, unit_price: 0, total: 0, quantity: item.cantidad, selections: { mods: {}, pres: item.tamano, vars: {} }, branch_id: branchId, tenant_id: tenantId || null, notes: notaSuelta });
         continue;
       }
       const presentations = (matched.presentations as Array<{id:string;name:string;price:number}>) || [];
@@ -794,7 +856,20 @@ async function resolverPedido(
         }
       }
 
-      const itemTotal = price * item.cantidad;
+      /*  LAS ADICIONES, con su precio real, en `selections.mods` (donde las
+          leen la caja, la comanda y el tiquete). Lo que no se pudo resolver
+          NO desaparece: va escrito en la nota del plato, para que en cocina
+          lo vean aunque no se haya podido cobrar.                        */
+      const modsMap: Record<string, unknown> = {};
+      let adiPrecio = 0;
+      const adiSinPrecio: string[] = [];
+      for (const a of vtResolverAdiciones(item.adiciones, matched, presMatch ? String(presMatch.id || "") : null, gruposVT)) {
+        if (a.sinPrecio) { adiSinPrecio.push(a.nombre); continue; }
+        modsMap[a.op] = { id: a.op, name: a.nombre, price: a.precio, group: a.grupo };
+        adiPrecio += a.precio;
+      }
+      const notaItem = [item.notas || "", adiSinPrecio.length ? "Adición: " + adiSinPrecio.join(", ") : ""].filter(Boolean).join(" · ") || null;
+      const itemTotal = (price + adiPrecio) * item.cantidad;
       /* MISMO NOMBRE QUE IMPRIME LA CAJA (16-ago). Ver la explicacion completa
          en `nombreComanda` de delay-reply: presentacion primero, y el tipo de
          comida NO va — eso es para el mensaje del cliente, no para la cocina.
@@ -810,8 +885,8 @@ async function resolverPedido(
         name: nombreItem,           // la UI de ventas/domicilios pinta ESTE campo
         product_name: nombreItem,
         product_price: price, unit_price: price, total: itemTotal, quantity: item.cantidad,
-        selections: { mods: {}, pres: presMatch?.name || item.tamano, vars: varsMap },
-        branch_id: branchId, tenant_id: tenantId || null, notes: null,
+        selections: { mods: modsMap, pres: presMatch?.name || item.tamano, vars: varsMap },
+        branch_id: branchId, tenant_id: tenantId || null, notes: notaItem,
       });
       total += itemTotal;
     }

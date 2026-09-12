@@ -20369,3 +20369,50 @@ Probado (`probar-cliente-notas.mjs`, Restaurante de Prueba): pedido con
 `[tel:]` y sin ficha → fila «Juan Q · 222 pts», botón «Redimir puntos · 222
 pts», `cliente_id` anotado, el modal abre con «Juan Q tiene 222 puntos» sin
 pasar por el selector. Todo borrado después.
+
+# Las adiciones y las notas SIEMPRE salen (12-sep-2026, pedido de Majo)
+
+**Lo que pasó.** Majo (Villa del viento) pidió desde la carta "Perro Pollo +
+Piña Calada" con la nota "que la piña venga aparte". Paco lo confirmó así y
+cobró los $7.000 en el total ($58.000). Pagó por transferencia. La comanda
+salió "Perro · POLLO" a secas: sin adición y sin nota. No le pusieron la piña
+y hubo que devolver plata. Sergio: *"las adiciones y las notas que colocan
+siempre deben salir, siempre"*.
+
+**La causa.** Hay CUATRO caminos que crean un pedido de Paco en `pos_orders`,
+y cada uno arma sus items por su cuenta:
+
+| Camino | Cuándo | Adiciones/notas |
+|---|---|---|
+| `delay-reply` (`createWhatsappOrder`) | confirma y paga en efectivo / billetera | ✅ desde el 20/21-ago |
+| `verify-transfer` (`resolverPedido` → `crearPedido`) | paga por transferencia (comprobante o "Confirmar pago") | ❌ `mods:{}` y `notes:null` FIJOS → **arreglado hoy (v64)** |
+| `crear-pedido-chat` | "Enviar a cocina" desde la tarjeta del chat | ✅ (adiciones como lista, notas) |
+| `confirm-payment` | legado, sin quien lo llame | ❌ copia los items crudos; no se toca |
+
+`confirm-domi` NO crea el pedido (tiene una copia muerta de
+`createWhatsappOrder`): re-encola a delay-reply. Un pedido pagado por
+transferencia siempre nace en `verify-transfer`, y ese camino nunca recibió
+el arreglo del 20-ago. Sharol (11-sep, "me regalas salsa de ajo") perdió la
+nota por lo mismo.
+
+**El arreglo.** `verify-transfer` v64: `normalizarItemsPedido` carga
+`adiciones` y `notas` (de `items[].adiciones/preferencias`, del producto
+actual y de `productos[]`), el select de productos trae `mod_group_ids` y
+`mod_group_pres`, y `resolverPedido` resuelve las adiciones contra los grupos
+del plato (`vtCargarModificadores`/`vtGruposDelProducto`/`vtResolverAdiciones`,
+copia de delay-reply): `selections.mods` con id, nombre, grupo y precio;
+`total = (precio + adiciones) × cantidad`; `notes` con la nota del plato. Una
+adición que NO se pudo resolver no desaparece: va en la nota como
+"Adición: X" (también en delay-reply v477, que antes la saltaba con un
+`console.warn` que nadie lee). El total del pedido sigue siendo
+`total_mostrado` (lo que el cliente vio).
+
+**Probado** (`probar_verify_adiciones.py`, Restaurante de Prueba, camino
+`manual:true`): POLLO + "Tocineta" → mods `{op_kqnk3p: Tocineta $10.000}`,
+total 28.000, nota "Que la tocineta venga aparte"; SENCILLO nota "Sin
+cebolla". Todo borrado después.
+
+**Regla para el futuro:** cualquier cambio en cómo se arma un item de Paco se
+hace en los TRES caminos vivos (delay-reply, verify-transfer,
+crear-pedido-chat). Es la tercera vez que un "camino hermano" se queda sin
+un arreglo (categoría en la comanda 18-ago, nombre de comanda 16-ago, y esto).
