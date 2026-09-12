@@ -5525,6 +5525,12 @@ var _storedZonas = [];
         para_llevar:      $('domiParaLlevar')? $('domiParaLlevar').checked: true,
         llevar_prepago:   $('domiLlevarPrepago') ? $('domiLlevarPrepago').checked : true,
         tiempo_estimado:  $('domiTiempo')   ? $('domiTiempo').value.trim(): '',
+        /* Barrios sin calle ni numero (11-sep-2026): el asistente no les pide
+           la direccion exacta. Va aqui, en el mismo blob, para que guardar la
+           pantalla no lo borre. */
+        barrios_sin_nomenclatura: $('domiSinNomenclatura')
+          ? $('domiSinNomenclatura').value.split(',').map(function (b) { return b.trim(); }).filter(Boolean)
+          : [],
         copias_recibo:    (function(){
           // El selector vive en la pantalla de Domicilios, pero la IMPRESIÓN lee
           // el blob de Operación (branches.operacion_config, cacheado en
@@ -5719,6 +5725,7 @@ var _storedZonas = [];
     if ($('domiParaLlevar'))$('domiParaLlevar').checked= d.para_llevar  !== false;
     if ($('domiLlevarPrepago')) $('domiLlevarPrepago').checked = d.llevar_prepago !== false;
     if ($('domiTiempo'))    $('domiTiempo').value      = d.tiempo_estimado || '';
+    if ($('domiSinNomenclatura')) $('domiSinNomenclatura').value = (Array.isArray(d.barrios_sin_nomenclatura) ? d.barrios_sin_nomenclatura : []).join(', ');
     if ($('domiCopias'))    $('domiCopias').value      = String(d.copias_recibo || 1);
     _storedZonas = d.zonas || [];
     renderZones(d.zonas || []);
@@ -6017,6 +6024,7 @@ var _storedZonas = [];
   if ($('domiParaLlevar')) $('domiParaLlevar').addEventListener('change', markDirty);
   if ($('domiLlevarPrepago')) $('domiLlevarPrepago').addEventListener('change', markDirty);
   if ($('domiTiempo')) $('domiTiempo').addEventListener('input', markDirty);
+  if ($('domiSinNomenclatura')) $('domiSinNomenclatura').addEventListener('input', markDirty);
 
   // Las zonas se guardan AGRUPADAS POR PRECIO: {precio, barrios:[...]}. Una zona
   // de $5.000 puede tener 61 barrios. Antes la pantalla esperaba una fila por

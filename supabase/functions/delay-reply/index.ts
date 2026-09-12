@@ -3110,6 +3110,24 @@ INTENCION, no las palabras exactas.` },
   const nombreConfirmar = nombreKnown || nombreWa;     // DB verificado > WhatsApp > null
   const nombreParaBot   = nombreConfirmar || "";        // solo decirle a GPT si hay nombre válido
   const sinNomenclaturaCliente2 = !!(convRow?.sin_nomenclatura);
+  /*  ══ SIN NOMENCLATURA POR BARRIO (11-sep-2026, Leidy de San Bernardino) ══
+      Hizo su pedido desde la carta, con barrio "San Bernardino" y como
+      direccion "Llamar cuando llegue a tizon rojo para guiar". Paco dijo
+      "ya tengo tu pedido" y acto seguido "¿y cual es la direccion exacta?
+      (calle o carrera y numero)". San Bernardino NO tiene nomenclatura: las
+      casas no tienen calle ni numero, y esa era la direccion completa.
+
+      Habia una marca por CLIENTE (el boton "sin nomenclatura" del chat) y
+      una por zona en la configuracion, pero (a) las dos ramas que piden
+      "calle o carrera y numero" no miraban ninguna de las dos, y (b) la de
+      zona solo buscaba el barrio dentro del texto de la direccion, y en un
+      pedido de la carta el barrio viene en SU casilla.
+
+      Ahora hay una lista de barrios en Configuracion > Domicilios ("Barrios
+      sin nomenclatura"), se mira barrio + direccion juntos, y las dos ramas
+      la respetan. Sergio: "es el unico barrio que no tiene nomenclatura". */
+  const barrioSinNomenclatura = (st: PacoState): boolean =>
+    checkBarrioSinNomenclatura(ubicacionPedido(st), domiciliosCfg);
 
   /*  ══ LO QUE MARCO SERGIO EN EL BANNER MANDA SOBRE TODO ═══════════════
 
@@ -4772,7 +4790,7 @@ INTENCION, no las palabras exactas.` },
            restaurantes que ya conocen a sus clientes y no quieren hacerlos
            esperar. Antes esto no se podia cambiar desde ninguna pantalla. */
         if (!cPago.pago_previo) {
-          const clasifPP = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2, { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria });
+          const clasifPP = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2 || barrioSinNomenclatura(state), { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria });
           const domiPP = clasifPP.tipo === "para_llevar" ? 0 : lookupDomiPrice(ubicacionPedido(state), domiciliosCfg);
           try {
           await createWhatsappOrder(buildOrderArgs(state, domiPP ?? 0), branchId, tenantId, fromPhone, cfg._operacion as Record<string, unknown> | null, convId);
@@ -4822,7 +4840,7 @@ INTENCION, no las palabras exactas.` },
         // PARA LLEVAR + pago no digital: el pedido NO se prepara hasta recibir el pago.
         // (Regla configurable: domicilios.llevar_prepago, default activada. La frase es
         // frases.llevar_efectivo — personalizable por restaurante en Mensajes.)
-        const esLlevarConf = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) || clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2, { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria }).tipo === "para_llevar" : false;
+        const esLlevarConf = state.direccion ? LLEVAR_REGEX.test(state.direccion.toLowerCase()) || clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2 || barrioSinNomenclatura(state), { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria }).tipo === "para_llevar" : false;
         const exigePrepago = domiciliosCfg?.llevar_prepago !== false;
         if (esLlevarConf && exigePrepago) {
           if (await frenarBucle(convId, "llevar_efectivo")) return;
@@ -4837,7 +4855,7 @@ INTENCION, no las palabras exactas.` },
           return;
         }
 
-        const clasif = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2, { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria });
+        const clasif = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2 || barrioSinNomenclatura(state), { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria });
         if (clasif.tipo === "rechazado") {
           const msg = getFraseTexto(frasesCfg.lugar_rechazado) || "Lo sentimos, no podemos hacer domicilios a ese lugar 😊 Si querés podés pasar a recoger (para llevar).";
           state.direccion = null; state.resumen_enviado = false;
@@ -5638,7 +5656,7 @@ INTENCION, no las palabras exactas.` },
   const dijoRecogerIntencion = intenciones.entrega === "recoger" && !CALLE_REGEX.test(clienteTexto);
   if (dijoRecogerLista || dijoRecogerIntencion) {
     const clasifYa = state.direccion
-      ? clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2, { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria })
+      ? clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2 || barrioSinNomenclatura(state), { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria })
       : null;
     if (!clasifYa || clasifYa.tipo !== "para_llevar") {
       /* Si vino por la lista se guarda el texto del cliente (siempre fue asi y
@@ -5661,7 +5679,7 @@ INTENCION, no las palabras exactas.` },
      guardar el estado y ANTES de contestar. Paco enmudecia sin dejar rastro.
      Corre en cada mensaje y es idempotente: en cuanto hay barrio, es la
      direccion de este cliente. */
-  if (sinNomenclaturaCliente2 && !state.direccion && state.barrio) {
+  if ((sinNomenclaturaCliente2 || barrioSinNomenclatura(state)) && !state.direccion && state.barrio) {
     state.direccion = state.barrio;
     state.direccion_heredada = false;
   }
@@ -5724,7 +5742,7 @@ INTENCION, no las palabras exactas.` },
        direccion aun nula esto era toLowerCase(null): el crash silencioso de
        Sandra. Con "" clasifica residencial y el flujo sigue normal — el paso
        de la direccion la pide despues, como siempre. */
-    const clasifBis = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2, { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria });
+    const clasifBis = clasificarDireccion(state.direccion || "", domiciliosCfg, sinNomenclaturaCliente2 || barrioSinNomenclatura(state), { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria });
     if (clasifBis.tipo === "rechazado") {
       state.direccion = null;
       await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -5799,7 +5817,9 @@ INTENCION, no las palabras exactas.` },
       if (!tieneCalle && !tieneNumeroBis && domiPrecioBis !== null
           && !esConjunto(ubicacionPedido(state), domiciliosCfg)
           && !viveEnConjunto(state)
-          && !sueneAConjunto(ubicacionPedido(state))) {
+          && !sueneAConjunto(ubicacionPedido(state))
+          /* Sin nomenclatura (cliente o barrio): con el barrio basta. */
+          && !sinNomenclaturaCliente2 && !barrioSinNomenclatura(state)) {
         // Solo dio el barrio sin calle ni número — pedir la dirección completa
         const pregCalle = getFraseTexto(frasesCfg.preguntar_calle_numero)
           || "Anotado el barrio 📍 ¿Y cuál es la dirección exacta? (calle o carrera y número)";
@@ -6301,7 +6321,7 @@ INTENCION, no las palabras exactas.` },
   // 14h. Todos los slots completos → validar y mostrar resumen
   if (!nextStep) {
     if (state.direccion) {
-      const clasifDir = clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2, { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria });
+      const clasifDir = clasificarDireccion(state.direccion, domiciliosCfg, sinNomenclaturaCliente2 || barrioSinNomenclatura(state), { conjunto: state.lugar_conjunto || null, esConjunto: !!state.es_conjunto, porteria: !!state.entrega_porteria });
       if (clasifDir.tipo === "rechazado") {
         state.direccion = null;
         await sbPatch(`/rest/v1/chat_conversations?id=eq.${convId}`, { pending_order_data: state });
@@ -6354,7 +6374,9 @@ INTENCION, no las palabras exactas.` },
         if (!tieneCalleH && !tieneNumH && domiPrecioH !== null
             && !esConjunto(ubicacionPedido(state), domiciliosCfg)
             && !viveEnConjunto(state)
-            && !sueneAConjunto(ubicacionPedido(state))) {
+            && !sueneAConjunto(ubicacionPedido(state))
+            /* Sin nomenclatura (cliente o barrio): con el barrio basta. */
+            && !sinNomenclaturaCliente2 && !barrioSinNomenclatura(state)) {
           const pregCalle = getFraseTexto(frasesCfg.preguntar_calle_numero)
             || "Anotado el barrio 📍 ¿Y cuál es la dirección exacta? (calle o carrera y número)";
           state.complemento_dir_pendiente = pregCalle;
@@ -12466,12 +12488,21 @@ function checkBarrioSinNomenclatura(
   domicilios: Record<string, unknown> | null | undefined,
 ): boolean {
   if (!domicilios) return false;
+  /* Sin tildes ni mayusculas: "San Bernardino" tiene que verse dentro de
+     "san bernardino, llamar cuando llegue". */
+  const norm = (t: unknown) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  const dir = norm(direccion);
+  if (!dir) return false;
+  /* LA LISTA POR BARRIO (11-sep-2026): Configuracion > Domicilios > "Barrios
+     sin nomenclatura". Antes solo existia la marca por zona entera, que no
+     tenia pantalla y metia a todos los barrios de esa zona. */
+  const sueltos = Array.isArray(domicilios.barrios_sin_nomenclatura) ? domicilios.barrios_sin_nomenclatura as unknown[] : [];
+  for (const b of sueltos) { const n = norm(b); if (n.length >= 3 && dir.includes(n)) return true; }
   const zonas = (domicilios.zonas as Array<{ barrios?: string[]; nombre?: string; sin_nomenclatura?: boolean }>) || [];
-  const dir = direccion.toLowerCase();
   for (const z of zonas) {
     if (!z.sin_nomenclatura) continue;
     const barrios = z.barrios ?? (z.nombre ? z.nombre.split(",").map((b: string) => b.trim()) : []);
-    for (const b of barrios) { if (dir.includes(b.toLowerCase())) return true; }
+    for (const b of barrios) { const n = norm(b); if (n.length >= 3 && dir.includes(n)) return true; }
   }
   return false;
 }
