@@ -88,7 +88,29 @@ Deno.serve(async (req) => {
     const b = await req.json();
     const conversation_id = b.conversation_id as string | undefined;
     const branchId = String(b.branch_id || "");
-    const tenantId = String(b.tenant_id || "");
+    let tenantId = String(b.tenant_id || "");
+    /*  ══ SIN RESTAURANTE NO HAY PEDIDO (11-sep-2026, pedido de Leidy) ═══════
+        El borrador que arma la pagina de la carta no traia `tenant_id`, y la
+        tarjeta del chat manda el del borrador tal cual. El pedido se creo con
+        tenant_id NULO: existia, pero como TODAS las pantallas filtran por
+        restaurante, no salia en Ventas ni en Cocina ni en ningun lado. Sergio
+        lo vio "enviado" y desaparecido.
+
+        Ahora, si no viene, se saca de la conversacion o de la sede; y si aun
+        asi no hay, se rechaza en vez de crear un pedido fantasma.          */
+    if (!tenantId && conversation_id) {
+      const cvT = await sbGet(`/rest/v1/chat_conversations?id=eq.${conversation_id}&select=tenant_id&limit=1`) as Array<Record<string, unknown>> | null;
+      tenantId = String(cvT?.[0]?.tenant_id || "");
+    }
+    if (!tenantId && branchId) {
+      const brT = await sbGet(`/rest/v1/branches?id=eq.${branchId}&select=tenant_id&limit=1`) as Array<Record<string, unknown>> | null;
+      tenantId = String(brT?.[0]?.tenant_id || "");
+    }
+    if (!tenantId) {
+      console.error("[crear-pedido-chat] sin tenant_id: conv", conversation_id, "sede", branchId);
+      return new Response(JSON.stringify({ error: "No se pudo saber de qué restaurante es el pedido. Recarga la página e inténtalo otra vez." }),
+        { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
+    }
     const cliente  = String(b.cliente || "Cliente WhatsApp");
     let telefono = String(b.telefono || "").replace(/\D/g, "");
     if (telefono.length === 12 && telefono.startsWith("57")) telefono = telefono.slice(2); // sin indicativo

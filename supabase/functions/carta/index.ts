@@ -1416,6 +1416,10 @@ Deno.serve(async (req) => {
 
       const borrador = {
         productos, subtotal, empaque, total,
+        /*  El restaurante va en el borrador (11-sep-2026): la tarjeta del chat
+            lo manda tal cual a crear-pedido-chat, y sin el, el pedido nacia
+            sin tenant_id y no salia en ninguna pantalla.                  */
+        tenant_id: tenant,
         telefono: String(link.telefono || "").replace(/\D/g, "").slice(-10),
         pago: m.nombre, pago_id: m.id,
         branch_id: sede.id || link.branch_id || null,
