@@ -20338,3 +20338,34 @@ zonas, sin tildes, sobre `ubicacionPedido(state)` (barrio + dirección), el
 helper `barrioSinNomenclatura(state)` entra en los 6 `clasificarDireccion`,
 en "su barrio es su dirección" (5664) y en las dos ramas de calle/número.
 El Parche quedó con `["San Bernardino"]` por SQL.
+
+# Caja: el pedido de Paco trae el nombre pero no la ficha (12-sep-2026)
+
+Sergio, con «Redimir puntos» recién publicado: *"ya dice Juan Ortiz pero sin
+puntos, y al tocar Redimir me obliga a escoger el cliente; se supone que ya
+está seleccionado"*. No se reproducía en el Restaurante de Prueba (pedido con
+`cliente_id` → ficha → teléfono → puntos, y el selector también). La causa
+estaba en los pedidos que arma **Paco**: llegan con `customer_name` y sin
+`cliente_id` (Jenifer, Katherin, Emily esa noche, las tres CON ficha). Su
+búsqueda de la ficha exigía teléfono + nombre + dirección exactos; al no
+cuadrar intentaba crear otra ficha, la base la rechaza (índice único por
+teléfono) y el pedido quedaba sin ficha. En la caja, sin ficha no había
+teléfono, y los puntos van por teléfono.
+
+Arreglo en dos capas (pagos.js v1801260000, delay-reply v476):
+
+- **Caja:** si el pedido no trae ficha, el teléfono se lee de las notas
+  (`[tel:…]`, `pgTelDeNotas`), se busca la ficha por teléfono, se anota
+  `cliente_id` en el pedido (para Domicilios y el historial) y se pintan los
+  puntos. Sin ficha, igual quedan los puntos por teléfono. `ptRedimirAbrir`
+  es `async`: con ficha sin teléfono en memoria lo busca antes de mandar al
+  selector. Si una ficha no aparece queda rastro en `pos_diag`
+  (`donde = 'pagos/cliente'`), para no volver a adivinar.
+- **Paco:** si no cuadra con nombre + dirección, busca la ficha SOLO por
+  teléfono antes de intentar crear otra (misma regla de crear-pedido-chat:
+  mismo teléfono = misma persona).
+
+Probado (`probar-cliente-notas.mjs`, Restaurante de Prueba): pedido con
+`[tel:]` y sin ficha → fila «Juan Q · 222 pts», botón «Redimir puntos · 222
+pts», `cliente_id` anotado, el modal abre con «Juan Q tiene 222 puntos» sin
+pasar por el selector. Todo borrado después.

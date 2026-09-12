@@ -1596,7 +1596,43 @@ async function loadOrder() {
     try {
       const rc = await sb.from('pos_clientes').select('telefono,nombre').eq('id', SP.clienteId).maybeSingle();
       if (rc.data) { SP.clienteTel = rc.data.telefono || ''; SP.cliente = SP.cliente || rc.data.nombre || ''; }
-    } catch (e) { /* sin telefono solo se pierde el contador, no el cliente */ }
+      else pgRastroCliente('ficha no encontrada', { cliente_id: SP.clienteId, error: rc.error && rc.error.message });
+    } catch (e) { pgRastroCliente('ficha: excepcion', { cliente_id: SP.clienteId, error: e && e.message }); }
+  }
+  /*  ══ EL PEDIDO DE PACO TRAE EL NOMBRE PERO NO LA FICHA (Sergio, 12-sep-2026)
+      «Ya dice Juan Ortiz pero sin puntos, y al tocar Redimir me obliga a
+      escoger el cliente; se supone que ya esta seleccionado.»
+
+      Los pedidos que arma Paco llegan con `customer_name` y, muchas veces,
+      SIN `cliente_id`: su busqueda de la ficha exigia telefono + nombre +
+      direccion exactos, y al no cuadrar intentaba crear otra ficha que la
+      base rechaza (mismo telefono). El pedido quedaba con nombre y sin
+      ficha; aqui sin ficha no habia telefono, y sin telefono no hay puntos.
+
+      El telefono SI viene en el pedido: en las notas, como [tel:...] (lo
+      ponen Paco, Domicilios y el salon). Se lee de ahi, se busca la ficha
+      por telefono —que es la identidad de los puntos y la billetera— y se
+      deja anotada en el pedido para que Domicilios y el historial tambien
+      la vean. Si no hay ficha, igual quedan los puntos por telefono.     */
+  if (!SP.clienteTel) {
+    var telNotas = pgTelDeNotas(order.notes);
+    if (telNotas) {
+      SP.clienteTel = telNotas;
+      if (!SP.clienteId) {
+        try {
+          const rf = await sb.from('pos_clientes').select('id,nombre,telefono')
+            .eq('tenant_id', SP.tenantId).ilike('telefono', '%' + pgTel10(telNotas)).limit(1).maybeSingle();
+          if (rf.data && rf.data.id) {
+            SP.clienteId = rf.data.id;
+            SP.cliente = SP.cliente || rf.data.nombre || '';
+            SP.clienteTel = rf.data.telefono || telNotas;
+            SP.nombreDeFuera = '';
+            sb.from('pos_orders').update({ cliente_id: SP.clienteId }).eq('id', SP.orderId)
+              .then(function (r) { if (r && r.error) console.warn('[pagos] cliente_id no se pudo anotar:', r.error.message); });
+          }
+        } catch (e) { pgRastroCliente('ficha por telefono: excepcion', { tel: telNotas, error: e && e.message }); }
+      }
+    }
   }
   pgPintarCliente();
   /* La verificación de transferencia lee el COMPROBANTE que el cliente mandó
@@ -2183,6 +2219,21 @@ function pinDigit(d) {
    ══════════════════════════════════════════════════════════════════ */
 function pgSoloDigitos(s) { return String(s == null ? '' : s).replace(/[^0-9]/g, ''); }
 function pgTel10(s) { var d = pgSoloDigitos(s); return d.length > 10 ? d.slice(-10) : d; }
+/* El telefono que Paco, Domicilios y el salon dejan en las notas: [tel:3001234567]. */
+function pgTelDeNotas(notas) {
+  var m = String(notas || '').match(/\[tel:([^\]]*)\]/i);
+  var t = m ? pgSoloDigitos(m[1]) : '';
+  return t.length >= 7 ? t : '';
+}
+/* Rastro en pos_diag cuando la ficha del cliente no aparece: para no volver a
+   adivinar si un dia el nombre sale sin puntos. */
+function pgRastroCliente(mensaje, extra) {
+  try {
+    console.warn('[pagos] cliente:', mensaje, extra || '');
+    sb.from('pos_diag').insert({ donde: 'pagos/cliente', mensaje: String(mensaje), extra: Object.assign({ order: SP.orderId }, extra || {}) })
+      .then(function () {});
+  } catch (e) {}
+}
 
 async function pgBuscarCliente(tel) {
   var t10 = pgTel10(tel);
@@ -2773,8 +2824,21 @@ function ptRedimirResolver(i) {
   return { vars: vars, nombres: nombres, precio: precio, completo: completo };
 }
 
-function ptRedimirAbrir() {
+async function ptRedimirAbrir() {
   if (!window.posPuntos || !posPuntos.hayCatalogo()) { pgAviso('No hay premios configurados. Se configuran en Configuraci\u00f3n \u2192 Puntos.', 'mal'); return; }
+  /*  Con ficha pero sin telefono en memoria (12-sep): se busca el telefono en
+      vez de mandar al cajero a escoger a alguien que ya esta escogido.    */
+  if (!SP.clienteTel && SP.clienteId) {
+    try {
+      const rc = await sb.from('pos_clientes').select('telefono').eq('id', SP.clienteId).maybeSingle();
+      if (rc.data && rc.data.telefono) { SP.clienteTel = rc.data.telefono; pgPintarCliente(); }
+      else pgRastroCliente('redimir: ficha sin telefono', { cliente_id: SP.clienteId, error: rc.error && rc.error.message });
+    } catch (e) { pgRastroCliente('redimir: excepcion', { cliente_id: SP.clienteId, error: e && e.message }); }
+  }
+  if (!SP.clienteTel && SP.order) {
+    var tN = pgTelDeNotas(SP.order.notes);
+    if (tN) { SP.clienteTel = tN; pgPintarCliente(); }
+  }
   /* Sin cliente no hay puntos que mirar: primero se identifica y se sigue. */
   if (!SP.clienteTel) {
     if (!window.posClientePicker) { pgAviso('Primero identifica al cliente: toca \u00abConsumidor final\u00bb.', 'mal'); return; }

@@ -11867,9 +11867,25 @@ async function createWhatsappOrder(
       ? ""
       : (direccion ? `&direccion=eq.${encodeURIComponent(direccion)}` : `&direccion=is.null`);
     const nomQuery = paraLlevarFicha ? "" : `&nombre=eq.${encodeURIComponent(cliente)}`;
-    const existing = await sbGet(
+    let existing = await sbGet(
       `/rest/v1/pos_clientes?telefono=in.(${encodeURIComponent(telLocal(telefonoClean))},${encodeURIComponent(telefonoClean)})${nomQuery}&tenant_id=eq.${tenantId}${dirQuery}&order=created_at.asc&limit=1`
     ) as Array<Record<string, unknown>> | null;
+    /*  ══ MISMO TELEFONO = MISMA PERSONA (12-sep-2026) ═══════════════════
+        Si no cuadro con nombre + direccion exactos, la ficha se busca SOLO
+        por telefono antes de intentar crear otra. La base rechaza dos fichas
+        con el mismo telefono, asi que el intento de crear fallaba y el
+        pedido quedaba con nombre pero sin `cliente_id`: en la caja salia
+        sin puntos y "Redimir puntos" obligaba a escoger al cliente (caso de
+        Sergio: Jenifer, Katherin, Emily, todas con ficha). Es la misma regla
+        que ya usa crear-pedido-chat.                                     */
+    if (!existing || !existing.length) {
+      const t10 = telLocal(telefonoClean).replace(/\D/g, "").slice(-10);
+      if (t10.length >= 7) {
+        existing = await sbGet(
+          `/rest/v1/pos_clientes?tenant_id=eq.${tenantId}&telefono=like.*${encodeURIComponent(t10)}&select=id&order=created_at.asc&limit=1`
+        ) as Array<Record<string, unknown>> | null;
+      }
+    }
     if (existing && existing.length > 0) {
       clienteId = String(existing[0].id);
     } else {
